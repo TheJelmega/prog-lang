@@ -7,20 +7,22 @@ This file contains both the notation which is used to define the langauge gramar
 The notation is a custom notation defined below.
 The notation is based on the base BNF (Backus-Naur Form).
 
-Notation           | Meaning               | Example
--------------------|-----------------------|---------
-`'...'` or `"..."` | Literal or keyword    | `"foo"`
-`<...>`            | Symbol                | `<symbol-name>`
-`... := ...`       | Assignment            | `<symbol> := "val"`
-`... ...`          | Concatination         | `"foo" "bar"`
-`... \| ...`       | Alternation           | `"foo" \| "bar"`
-`(...)`            | Grouping              | `("foo")`
-`[...]`            | Optional              | `["foo"]`
-`{...}*`           | 0 or more repetitions | `{"foo"}*`
-`{...}+`           | 1 or more repetitions | `{"foo"}+`
-`{...}[N,M]`       | N to M repetitions    | `{"foo"}[1,6]`
-`... - ...`        | Range (inclusive)     | `'a'-'z'`
-`? ... ?`          | Custom definition     | `? any unicode codepoint ?`
+Notation           | Meaning                | Example
+-------------------|------------------------|---------
+`'...'` or `"..."` | Literal or keyword     | `"foo"`
+`<...>`            | Symbol                 | `<symbol-name>`
+`... := ...`       | Assignment             | `<symbol> := "val"`
+`... ...`          | Concatination          | `"foo" "bar"`
+`... \| ...`       | Alternation            | `"foo" \| "bar"`
+`(...)`            | Grouping               | `("foo")`
+`[...]`            | Optional               | `["foo"]`
+`{...}*`           | 0 or more repetitions  | `{"foo"}*`
+`{...}+`           | 1 or more repetitions  | `{"foo"}+`
+`{...}[N,M]`       | N to M repetitions     | `{"foo"}[1,6]`
+`{...}[,M]`        | at most M repetitions  | `{"foo"}[,6]`
+`{...}[N,] `       | at least N repetitions | `{"foo"}[1,]`
+`... - ...`        | Range (inclusive)      | `'a'-'z'`
+`? ... ?`          | Custom definition      | `? any unicode codepoint ?`
 
 Whenever a sequence can be both captured by the current of next element within the notation, it is assumed the next element will take up consume the sequence.
 Meaning that the sequence `{ 'a' | 'b' }* 'a'` and `{ 'b' }* 'a'` represent the same sequence, this is done to prevent abiguity during parsing.
