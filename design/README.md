@@ -1,5 +1,7 @@
 # Xenon language design
 
+Version: 0.0
+
 ## Tables of contents
 
 1. [Introduction](#1-introduction)
@@ -207,8 +209,10 @@ const
 cstr
 dyn
 enum
+f16
 f32
 f64
+f128
 false
 fn
 i8
@@ -221,6 +225,7 @@ isize
 mut
 str
 str7
+str8
 str16
 str32
 true
@@ -449,7 +454,7 @@ The exponent is limited to the range -308 to 308.
 
 ```
 <bin-digit> := '0' | '1'
-<bin-literal> := "0o" <bin-digit> [ { <bin-digit> | <digit-sep> }[,126] <bin-digit> ]
+<bin-literal> := "0x" <bin-digit> [ { <bin-digit> | <digit-sep> }[,126] <bin-digit> ]
 ```
 
 A binary literal represents an integer value written as sequence of 0s or 1s, directly representing each bit in the resulting value.
@@ -636,6 +641,8 @@ usize            | Number       | usize          | machine-sized unsigned intege
 b                | Character    | u8             | Byte character literal
 b                | String       | &[u8]          | Byte string literal, requires all codepoint to be <= 0x7F
 c                | String       | cstr           | C-string literal (null-terminated), requires all codepoint to be <= 0x7F
+ansi             | String       | str8           | ANSI string literal
+utf7             | String       | str16          | UTF-7 string literal, requires all codepoint to be <= 0x7F
 utf16            | String       | str16          | UTF-16 string literal
 utf32            | String       | str32          | UTF-32 string literal
 
@@ -775,19 +782,23 @@ In addition to the above types, there is also another signed type: `isize`.
 #### Floating-point types
 
 ```
-<signed-type> := 'f32' | 'f64'
+<signed-type> := 'f16' | 'f32' | 'f64' | 'f128'
 ```
 
 A floating point type represent the same sized type as defined in the IEEE-754-2008 specification.
 
 Below is a table of supported floating-point types:
 
-Type  | Bit width | Mantissa bits    | Exponent bits | Min value | Max value  | Smallest value | Significant decimal digits
-------|-----------|------------------|---------------|-----------|------------|----------------|----------------------------
-`f32` | 32-bits   | 23 (24 implicit) | 8             | 3.40e+38  | -3.40e+38  | 1.17e-38       | 6
-`f64` | 64-bits   | 52 (53 implicit) | 11            | 1.80e+308 | -1.80e+308 | 2.23e-308      | 15
+Type   | Bit width | Mantissa bits      | Exponent bits | Min value  | Max value   | Smallest value | Significant decimal digits
+-------|-----------|--------------------|---------------|------------|-------------|----------------|----------------------------
+`f16`  | 16-bits   | 10 (11 implicit)   | 5             | 6.55e+5    | -6.55e+5    | 6.10e-5        | 3
+`f32`  | 32-bits   | 23 (24 implicit)   | 8             | 3.40e+38   | -3.40e+38   | 1.17e-38       | 6
+`f64`  | 64-bits   | 52 (53 implicit)   | 11            | 1.80e+308  | -1.80e+308  | 2.23e-308      | 15
+`f128` | 128-bits  | 112 (113 implicit) | 15            | 1.19e+4932 | -1.19e+4932 | 3.36e-4932     | 34
 
 Both the size and alignment of the floating points are defined by their bit-width.
+
+_TODO: could include other floating-point types if wanted_
 
 #### Boolean types
 
@@ -884,18 +895,30 @@ Tuples are required to have at least 2 types, otherwhise they will be resolved t
 ### 10.1.8. Array types
 
 ```
-<array-type> := '[' <type> ';' <expr> ']'
+<array-type> := '[' <type> ';' <expr> [ ';' <expr> ] ']'
+<array-type> := '[' <expr> [ ';' <expr> ] ']' <type>
 ```
 
-An array type (`[T;N]`) is a fixed-size sequence of `N` elements of type `T`
+An array type (`[N]T`) is a fixed-size sequence of `N` elements of type `T`
 Array types are laid out as a contiguous chunk of memory.
 
 An array's size expression, which occurs after the `;`, needs to be a value that can be evaluated at compile time.
 
+#### Sentinel-terminated arrays
+
+An array can also have a sentinel value, which is declared after the size.
+So an array `[N;M]T` has `N` elements of type `T`, with a sentinel value of `M`.
+Like the size, the sentinel value needs to be evaluated at compile time.
+
+When a sentinel value is defined, the array will contain 1 additional element past its lenght, this is the sentinel value.
+
+Sentinel value mainly exist for interoperability with C and OS libraries that commonly expect a range of values ending in a sentinal value,
+but these are not that useful when writing Xenon code itself
+
 ### 10.1.9. Slice types
 
 ```
-<slice-type> := '[' <type> ']'
+<slice-type> := `[` ';' <expr> `]` <type>
 ```
 
 A slice type (`[T]`) is a dynamically sized type that represents a 'view' within a sequence of elements of type `T`.
@@ -904,10 +927,23 @@ Slices are generally used through reference or pointer-like types:
 - `&[T]`: a shared slice, often just called a slice. It borrows the data it point to.
 - `&mut [T]`: a mutable slice. It mutably borrows the data it point to.
 
+#### Sentinel-terminated slices
+
+Like an array, a slice may also include sentinels, the slice will then contain 1 additional elements past its dynamically stored length, this is the sentinel value.
+This value is meant to prevent accidental out of bounds writes.
+
+A sentinel value can also be defined as an array of values of type `T`, if this is done, the array will contain multi-element sentinel.
+The multi sentinels' size is dependent on the number of values in that array, so the resulting array will be as many elements larger.
+
+Sentinel value mainly exist for interoperability with C and OS libraries that commonly expect a range of values ending in a sentinal value,
+but these are not that useful when writing Xenon code itself
+
+See the [index expression] for more info about how to create a sentinal terminated array.
+
 ### 10.1.10. String slice types
 
 ```
-<string-slice-type> := 'str' | 'str7' | 'str16' | 'str32' | 'cstr'
+<string-slice-type> := 'str' | 'str7' | 'str8' | 'str16' | 'str32' | 'cstr'
 ```
 
 A string slice typre repesents a special slice, encoding a string.
@@ -915,36 +951,61 @@ This is a separate type, which allows string specific functionality.
 
 Below is a table of all string slice types
 
-Type    | character type | Meaning
---------|----------------|---------
-`str`   | `char`         | utf-8 string
-`str7`  | `char7`        | utf-7 string
-`str16` | `char16`       | utf-16 string
-`str32` | `char32`       | utf-32 string
-`cstr`  | `char8`        | C-style string
+Type    | character type | internal representation | Meaning
+--------|----------------|-------------------------|---------
+`str`   | `char`         | `[]u8`                  | utf-8 string
+`str7`  | `char7`        | `[]char7`               | utf-7 string
+`str8`  | `char8`        | `[]char8`               | ANSI string
+`str16` | `char16`       | `[]char16`              | utf-16 string
+`str32` | `char32`       | `[]char32`              | utf-32 string
+`cstr`  | `char8`        | `[*;0]char8`            | C-style string
 
 ### 10.1.11. Pointer types
 
 ```
-<pointer-type> := '*' ( 'const' | 'mut ) <type>
+<pointer-type> := ( '*' | '[' '*' [ ';' <expr> ] ']' ) ( 'const' | 'mut ) <type>
 ```
 
 A pointer type represents an address in memory containing hte underlying type.
 Pointer do not have any safety guarantees.
 Copying or dropping pointer has no effect on the lifecycle of any value.
 Derefencing a pointer is an `unsafe` operation.
- 
+
 Raw pointer are generally discourages, and are mainly there to allow for interopterability and perfomance-critical and low-level functionality.
 It is preferable to use smart pointer wrapping the inner value.
-
-Pointer can be converted to a reference by re-borrowing it using `&*` or `&mut *`.
 
 When comparing pointers, they are compared by their address, rather than what they point to.
 When comparing pointers to dynamically sized types, they also have their additional metadata compared.
 
 A pointer cannot contain a 'null' value when not in an optional type.
 
-They are written as either `*const T` or `*mut T`, so the pointer `*const i32` would represent a pointer to an immutable `i32` value.
+Xenon has 3 kinds of pointers:
+ 
+#### Single element pointers
+
+A single element pointer `*const T` or `*mut T`, refers to exactly 1 element in the memory pointed to.
+
+This pointer can be converted to a reference by re-borrowing it using `&*` or `&mut *`.
+
+Single element pointer do not support any pointer arithmetic.
+
+As an example, the pointer `*const i32` would represent a pointer to a single immutable `i32` value.
+
+#### Multi element pointers
+
+A multi-element pointer `[*]const T` or `[*]mut T`, pointing to an unknown number of elements.
+
+Multi-element pointers allow, in addition to standard pointer functionality, also to be index and have pointer arithmetic to be performed on them.
+When a pointer contains dynamically sized types, it will consist out of an array of fat pointers.
+
+As an example, the pointer `[*]const i32` would represent a pointer to an unknwon number of immutable `i32` values.
+
+#### Sentinel terminated pointer
+
+A sentinel terminated pointer `[*;N]const T` or `[*;N]mut T` is very similar to a multi-element pointer.
+The main difference lies in the fact that a sentinel terminated pointer will only contain the number of elements until the first occurance of the sentinel value.
+
+The main purpose of this type is to prevent buffer overflows when interacting with C-style and OS code.
 
 ### 10.1.12. Reference types
 
@@ -1176,7 +1237,7 @@ TODO
 
 ## 10.2. Dynamically sized types
 
-## 10.3. Nominal vs structured types
+## 10.3. Nominal vs structural types
 
 ## 10.4. Type layout
 
