@@ -35,10 +35,12 @@ Version: 0.0
     4. [String literals](#54-string-literals)
         - [String coninuation sequence](#string-continuation-sequence)
     5. [Literal operators](#55-literal-operators)
-
-
+6. [Items](#6-items)
+7. [Statements](#7-statements)
+8. [Expressions](#8-expressions)
+9. [Patterns](#9-patterns)
 10. [Types System](#10-type-system)
-    1. [Types](#6101-types)
+    1. [Types](#101-types)
         1. [Recursive types](#1011-rescursive-types)
         2. [Parenthesized types](#1012-parenthesized-types)
         3. [Primitive types](#1013-primitive-types)
@@ -71,6 +73,56 @@ Version: 0.0
         19. [Record types](#10119-record-types)
         20. [Enum record types](#10120-enum-record-types)
         21. [Inferred types](#10121-inferred-types)
+    2. [Dynamically sized types](#102-dynamically-sized-types)
+    3. [Nominal vs stuctural types](#103-nominal-vs-structural-types)
+    4. [Type layout](#104-type-layout)
+        1. [Size and alignment](#1041-size-and-alignment)
+        2. [Primitive layout](#1042-primitive-layout)
+        3. [Unit and never type layout](#1043-unit-and-never-type-layout)
+        4. [Pointer and reference layout](#1044-pointer-and-reference-layout)
+        5. [Array layout](#1045-array-layout)
+        6. [Slice layout](#1046-slice-layout)
+        7. [String slice layout](#1047-string-slice-layout)
+        8. [Tuple layout](#1048-tuple-layout)
+        9. [Interface object layout](#1049-interface-object-layout)
+        10. [Closure layout](#10410-closure-layout)
+        11. [Bitfield layout](#10411-bitfield-layout)
+        12. [Layout representation](#10412-layout-representation)
+            - [Xenon representation](#xenon-representation)
+                - [Field priority](#field-priority)
+            - [C representation](#c-representation)
+                - [`repr(C)` structs and records](#reprc-structs-and-records)
+                - [`repr(C)` unions](#reprc-unions)
+                - [`repr(C)` field-less enums and enum records, and flags enums](#reprc-field-less-enums-and-enum-records-and-flags-enums)
+                - [`repr(C)` enums and enum records with fields](#reprc-enums-and-enum-records-with-fields)
+            - [Primitive representation](#primitive-representation)
+            - [Transparent representation](#transparent-representation)
+            - [SOA (structure of array) representation](#sao-structure-of-array-representation)
+            - [Additional layout modifiers](#additional-layout-modifiers)
+    5. [Interior mutability](#105-interior-mutability)
+    6. [Type coercions](#106-type-coercions)
+        1. [Coercion sites](#1061-coercion-sites)
+        2. [Coercion types](#1062-coecion-types)
+        3. [Unsized coercions](#1063-unsized-coercions)
+        4. [Least upper bound coercions](#1064-least-upper-bound-coercions)
+    7. [Destructors](#107-destructors)
+        1. [Drop scopes](#1071-drop-scopes)
+        2. [Scopes of function paramters](#1072--scopes-of-function-parameters)
+        3. [Scopes of local variables](#1073-scopes-of-local-variables)
+        4. [Temporary scopes](#1074-temporary-scopes)
+        5. [Operands](#1075-operands)
+        6. [Constant promotion](#1076-constant-promotion)
+        7. [Temporary lifetime extension](#1077-temporary-lifetime-extension)
+        8. [Extending based on patterns](#1078-extending-based-on-patterns)
+        9. [Extending based on expressions](#1079-extending-based-on-expressions)
+        10. [Not running destructors](#10710-not-running-destructors)
+11. [Generics](#11-generics)
+12. [Macros](#12-macros)
+13. [Operators and Precedence](#13-operators-and-precedence)
+14. [Attributes](#14-attributes)
+15. [Implicit context](#15-implicit-context)
+16. [Effect system](#16-effect-system)
+17. [Constracts](#17-contracts)
 
 # 1. Introduction
 
@@ -207,6 +259,7 @@ char16
 char32
 const
 cstr
+defer
 dyn
 enum
 f16
@@ -223,17 +276,20 @@ i128
 impl
 isize
 mut
+static
 str
 str7
 str8
 str16
 str32
 true
+ref
 u8
 u16
 u32
 u64
 u128
+union
 usize
 ```
 
@@ -650,20 +706,25 @@ For more info, see the [Operator](#12-operators--precedence) section.
 
 
 # 6. Items
+_TODO_
 
 ## 6.N. Interfaces
+_TODO_
 
 _TODO: would 'trait' be a better name, as it could be better terminology?_
 
 # 7. Statements
+_TODO_
 
 # 8. Expressions
+_TODO_
 
 # 9. Patterns
+_TODO_
 
 # 10. Type System
 
-## 10. Types
+## 10.1. Types
 
 ```
 <type> := <type-no-bound>
@@ -1230,27 +1291,572 @@ Access to enum members work essentially identical than those of an enum.
 An inferred type tell the compiler to infer the type (if possible) based on the surrounding information available.
 Inferred types cannot be used in generic arguments.
 
-Inferred types are often used to let the compiler infer the type of generic paramters:
+Inferred types are often used to let the compiler infer the type of generic parameters:
 ```
 TODO
 ```
 
 ## 10.2. Dynamically sized types
 
+Most types have a fixed size that is known at compile time and implements the `Sized` interface.
+A type wit ha size tha is only known at compile-time is called a dynamically sized type (DST), or informally, unsized types.
+Slices and interface objects are two such examples.
+
+DSTs can only be used in certain cases:
+- Pointers and references to DSTs are sized, but have twice the size of a pointer of a sized type.
+    - Pointers to slices store the number of elements in the slice.
+    - Pointers to interface objects store a pointer to their vtable.
+- DSTs can be provided as type arguments to generic type parameters that have a special `?Sized` bound.
+  They can also be used for associated type definitions when the corresponding associated type is declared using the `?Sized` bound.
+  By default, any type parameter has a `Sized` bound, unless explicitly relaxed using `?Sized`
+- Interface may be implemented for DSTs.
+  Unlike with generic type paramters, `Self is ?Sized` is the default in interface definitions.
+- Struct may contains a DST as the last field, this makes the struct itself a DST.
+
 ## 10.3. Nominal vs structural types
+
+Xenon has types that can either be nominal or structural, between these 2 kinds of types.
+
+Both have the same type layout and mutability rules, but there are some important differences:
+
+Nominal types:
+- Nominal types do **not** implicitly implement any interfaces.
+- Nominal types can have additional functionality and interfaces implemented.
+- All field have configurable visibility.
+- The types can be accessed directly from other scopes when 'imported'.
+
+Structural types:
+- Structural types implicitly implement a set of interfaces, depending on the values of the members, these are:
+    - `Clone`
+    - `Copy`
+    - `PartialEq`
+    - `Eq`
+    - `Hash`
+    - `Debug` _TODO: this will likely the be the trait, but depends on the standard format implementation._
+- Structural types do not allow any additional functionality to be implemented, as they are strictly plain data types.
+- Fields cannot have explicit visibility.
+- The types only exist within the scope they are defined, unless publically aliased.
+
 
 ## 10.4. Type layout
 
+The layout of a type defines its size, alignment, and its internal representation of data/fields.
+For enums, how their distriminant is laid out is also part of the layout.
+
+Type layouts can change inbetween compilations.
+
+### 10.4.1. Size and Alignment
+
+All values have a size and alignment.
+
+The alignment of a value specifies at what boundaries in memory the value can be stored.
+A type with alignment `N` must be stored at an address that is a multiple of `N`.
+Alignment is measured in bytes, is at least 1, and is a power of 2.
+
+The size of a value specifies the offset that is needed to be able to place the next value, e.g. the offset of the subsequent element in an array.
+The size will always be a multiple of its alignment, guruaranteeing that any subsequent value of this type will be correctly aligned by default.
+
+Is it possible for a given type to be a zero-sized type, as a size of 0 is a valid multiple of its alignment.
+On some platforms, a zero-sized types might still be required to follow a specific alignment, e.g. in the case of `[0]i32`, the value needs to be aligned to `4`.
+
+the majority of types will know their size and alignment at compile time, these are called 'sized types'.
+Sized types can have their size and alignment checked at compile time.
+Meanwhile types that are not known at compile time, as known as [dynamically sized types](#102-dynamically-sized-types).
+
+Since all values of a sized types share their size and alignment, we say that they have the type's size and alignment.
+
+### 10.4.2. Primitive layout
+
+The size of most primitive types can be found in the table below:
+
+Types                                                | Size/Alignment (bytes) | Size in bitfield (bits) | Alignment in bitfield (bits)
+-----------------------------------------------------|------------------------|-------------------------|------------------------------
+`i8`   / `u8`            / `b8`  / `char8`           | 1                      | 8                       | 8
+`i16`  / `u16`  / `f16`  / `b16` / `char16`          | 2                      | 16                      | 16
+`i32`  / `i32`  / `f32`  / `b32` / `char32` / `char` | 4                      | 32                      | 32
+`i64`  / `i64`  / `f64`  / `b64`                     | 8                      | 64                      | 64
+`i128` / `u128` / `f128`                             | 16                     | 128                     | 128
+`usize` / `isize`                                    | see below              | see below               | see below
+`bool`                                               | 8                      | 1                       | 1
+`char7`                                              | 1                      | 7                       | 1
+
+`usize` and `isize` are different to other types, as they contain types that fit the entire memory address space of the target platform.
+For example, on a 32-bit system, this is 4, and on an 64-bit system, this is 8.
+These sized also often match up with that of the target register size, but this cannot be guaranteed.
+
+The alignment of types is generally platform-specific, but to keep this consistent across architectures, Xenon has diced to make these the same as their size.
+
+When used in a bitfield, some primitive types may have different sizes and alignment to fit more tightly into memory.
+
+### 10.4.3. Unit and never type layout
+
+Unit and never types are both 0-sized types with an alignment of 1.
+
+### 10.4.4. Pointer and reference layout
+
+Pointers and references have the same layout.
+The mutabilty of a pointer or reference has not impact on the layout.
+
+Pointers and references to sized tyes are the same as those of a `usize`.
+
+Pointers and references to usized types are typed. Their size and alignement is guaranteed to be at least eqal to the size of a `usize` and have the same alignment.
+
+> Note: Currently all pointers and references to DST are twice the size of a `usize` and have the same alignment.
+>       Although this should not be relied on.
+
+### 10.4.5. Array layout
+
+An array of the form `[N]T` has a size that is `N` times that of the size of type `T` and has the same alignment as type `T`.
+Arrays are laid out so that the zero-based `n`th element of the array is offset from the start of the array by `n` times the size of type `T`.
+
+When an array is sentinal terminated, the array contains an additional element of type `T` at the end, so the size of the array will be `N + 1` times the size of type `T`.
+
+### 10.4.6. Slice layout
+
+Slices have the same alyout as a section of an array
+
+> Note: This is about the ray `[]T` type, not pointers to arrays to slices, e.g. (`&[N]T`)
+
+### 10.4.7. String slice layout
+
+A string slice's layout depends on the type of string slice, but they have the same representation as their internal slice layout.
+
+Below is a table of string slices that have a corresponding type layout to the following slice types
+
+String slice | Slice
+-------------|-------
+`str`        | [u8]
+`str7`       | [char7]
+`str8`       | [char8]
+`str16`      | [char16]
+`str32`      | [char32]
+`cstr`       | [char8]
+
+### 10.4.8. Tuple layout
+
+Tuples are laid out as defined in the [Xenon representation]().
+
+### 10.4.9. Interface object layout
+
+Interface objects have the same layout as the value the interface that implements it.
+
+> Note: THis is for the interface object itself, not a type containing the object, such as a reference.
+
+### 10.4.10. Closure layout
+
+A closure has no layout guarantees.
+
+### 10.4.11. Bitfield layout
+
+A bitfield will have the size and alignment of the smallest primitive types that fits the contents of the bitfield.
+
+### 10.4.12. Layout representation
+
+All user-defined composite types have a representation that specifies how the type is laid out.
+The possible representations for these are:
+- `xenon`
+- `C`
+- `soa`
+- primitive type
+- `transparent`
+
+While the representation of a type can affect the padding between fields, it does not change the layout of the fields themselves.
+If a composite type contains a field that had another layout already defined, that field will still use its own layout representation, and will not use the layout representation of the type containing it.
+
+#### Xenon representation
+
+The `xenon` represention is the default representation for nominal types without a `repr` attribute.
+If this representation is explicitly specified by using the `repr` attribute, it will result in the same layout as if it was not explicitly defined.
+
+This represetnation makes a mininal amount of guarantees about the layout of fields, but does guarantee the following:
+- Each field is properly aligned
+- Fields do not overlap
+- The alignment of the type is at least that of teh field with the highest alignment.
+
+The first guarante means that the offset of a field will always be a multiple of its alignment.
+The second guarantee means that the fields can be ordered such that the offset plus the size of any field is less than or equal to the offset of the next field in the type.
+This does not mean that zero-sized fields will have a unique offset and multiple zero-sized fields may be located at the same address.
+The third guarantee ensures alignment of the all fields can always be guaranteed.
+
+There is no guarantee that the ordering is the same as the one defined within code.
+
+##### Field priority
+
+Since by default there is no guarantee on the ordering of fields, the type may lay out fields in such a way that they may not be optimally laid out for some usecases.
+To ensure the programmer can provide additional hints to the compiler which fields should be prioritized during layout to ensure better caching of the type,
+a field priority propery may be defined per field.
+
+The priority takes on a value in the range of 0..=15, with 0 being the default for all fields.
+Fields with a higher priority will be prefered to be laid out first in the type.
+
+```
+struct Foo {
+    big: [256]u8,
+    // Ensure the compiler lays out the fields in such a way that important will be most likely to be on a cache line
+    #[field_priority(15)]
+    important: u32,
+}
+```
+
+#### C representation
+
+The C representation has 2 purposes:
+- creating types that are interoperable with C libraries/code.
+- allow types to be laid out in such a way that the layout of the type can be relied on.
+
+This representation can be applied to `struct`s, `enum`s, and `union`s, with the exception of zero-varient enums.
+
+The C representation also affects the alignment of primitive types for the current target architecture.
+
+##### `repr(C)` structs and records
+
+The alignment of a struct will be that of the most-aligned field.
+
+The size of the type, and the size and offset of the fields will be determined uisng the method described below.
+
+The current offset start at 0, then for each field within a type:
+1. determine the size and alignment of the field
+2. if the current offset is not a multiple of the field's alignment, set the current offset to the next multiple of the field's alignment. This space is padding.
+3. the current offset will now become the offset for the field
+4. increment the current offset by the size of the field.
+
+> Note: This algorithm can produce zero-sized structs.
+>       While this is generally considered to be illegal in C, some compiler support option to enable zero-sized structs.
+>       Meanwhile C++ gives empty structures a size of 1, unless the are inherited or have fields using the `[[no_unique_address]]` attribute,
+>       in which case they do not contribute to the size of the overall struct.
+
+##### `repr(C)` unions
+
+A union with a C representaton has the same layout as the union would have if it were defined in C for the target platform.
+
+The union will have the size of the largest fields in the union, and the alignment of the most-aligned field in the union.
+These values may be taken from different fields.
+
+##### `repr(C)` field-less enums and enum records, and flags enums
+
+When an enum is field-less, the C representation has the size and alignment of the default `enum` size for the target platform's C ABI.
+
+> Note: The enum representation in C is implementation defined, so this is really a "best guess".
+>       In particular, this may be incorrect when the C code of interst is compile with certain flags
+>       If a known enum size is required, use a primitive represention.
+
+##### `repr(C)` enums and enum records with fields
+
+The representation of an enum with fields is defined a `repr(C)` structure with 2 fields, these being:
+- a `repr(C)` version of the enum with all field removed, i.e. the "tag"
+- a `repr(C)` union of `repr(C)` records for the field of each variant that had them, i.e. the `payload`
+
+#### Primitive representation
+
+A primtiive representation is only allowed for `enum` values that have at least 1 variant, and on bitfields.
+
+The allowed primitive types are `u8`, `u16`, `u32`, `u64`, `u128`, `usize`, `ui`, `i16`, `i32`, `i64`, `i128`, and `isize`.
+When defining an enum with a primitive representation, an enum will use this type as its descriminant.
+
+If an enum has no fields, the resulting enum will have the same size and aligment as the primitive type it is represented by.
+
+When an enum has fields, it will be represented as a `repr(C)` enum, with its payload using the `repr(C)` representation.
+In addition to the primitive representation, a second (non-primitive) representation may be provided, affecting the layout of the payload of the enum.
+
+#### Transparent representation
+
+The transparent representation is only supported for structures and enum with only 1 variant, which have the following:
+- a single field with a non-zero size
+- any number of field with a 0-sized type and alignment 1
+
+Type using this representation have the same lyout and ABI as the single non-zero field.
+
+Unlike other representations, a type with this represetnation takes on that of the underlying non-zero sized type.
+
+#### SAO (structure of array) representation
+_TODO_
+
+#### Additional layout modifiers
+
+The `repr` attribute may also optionally contain an `align` or `packed` value, these can be used to raise or lower the alignment respectively.
+On their own, neither provide guarantees about the ordering of any fields in the layout of the type, although they may be combined with representations such as 'C', which do provide such guarantees.
+
+Either modifier may be applied to structs, unions, and records.
+In addtion, `align` may also be applied to enums and enum records.
+
+The alignment specified by either the `align` of `packed` attributes must be a power of 2 from 1 up to 2^32.
+For `packed`, if no explicit alignment is given, this will default to 1.
+
+The `align` modifier changes the minimum alignment for the type, if the value given is lower than the actual alignment of the type, the alignemnt is unaffected, otherwise, it will increase the alignment to the given value.
+
+The `packed` modifies affect the alignment of each fields within the type, but does not chang the alignment of the layout of the fields themselves.
+If this alignment is larger than the alignment of the type, the offset of fields are unaffected.
+Otherwise the offset of fields is affect, as this modifier affects the minimal required alignment of fields that is decided by the current representation, i.e. fields will be aligned to the alignment provided to the attribute.
+
+Only one of the `align` or `packed` modifiers can be applied to a type at any type, and it may only be applied to types with either a `xenon` or `C` representation.
+
 ## 10.5. Interior mutability
+
+Sometimes a type needs to be mutated while having multiple aliases.
+This can be achieved using a concept called _interior mutability_.
+A type has interior mutability if its internal state can be modified from a shared reference to it.
+This goes against the usual requirement that the value pointed to by a shared reference is not mutated.
+
+`UnsafeCell<T>` is the only way of disabling this requirement.
+When `UnsafeCell<T>` is immutably aliased, it is still safe to mutate or obtain a mutable reference to the `T` it contains.
+As with all other types, it is undefined behavior to have multiple `&mut UnsafeCell<T>` aliases.
+
+Other types with interior mutabiliity can be created using `UnsafeCell<T>` as a field.
+
+> **Warning**: The programmer must ensure that this does not cause any unininted consequences or may cause other undefined behavior.
 
 ## 10.6. Type coercions
 
+Type coercions are implicit operations that change the type of a value.
+They happen automatically at specific locations and are highly restricted in what types are allowed to coerce.
+
+Any conversions allowed by coercion can als obe explicitly performed using the type cast operator `as`.
+
+> _Note_: This description is informal and not yet fully defined, and should be more specific
+
+### 10.6.1. Coercion sites
+
+A coersion can only occur at certain sites in a program; these are typically places weherere the desired type is explicit or can be derived from explicit types (without type interference).
+Possible coercion sites are:
+- variable declarations where an explicit type is given.
+- `static` and `const` item declarations (similar to variable declarations)
+- Arguments to function calls
+- Default paramter values for functions
+- Instantiations of struct, unions, records, and enum and enum record variants fields
+- Default field values
+- Function results - either the final line of a block if it is not semi-color-terminated, or any expression in a `return` statement
+
+If the expressions in one of these coercion sites is a ceorcion-propagating expression, then the relevant sub-expressions in that expression are also coercion sites.
+Propagation recurses from these new coercion sites.
+Propagating epxresson and their relevant sub-expressions are the following:
+- Array literals, where the array has type `[n]T`.
+  Each sub-expression in the array literal corecion sites for coercion to type `T`.
+- Array literals with a repeating syntax, where the array has type `[n]T`.
+  The repeating sub-expression is a coercion site for a coercion to type `T`.
+- Tuples, where a tuple is a coercion site of type `(T0, T1, ..., Tn)`.
+  Each sub-exprssion is a coercion site to the respective type, e.g. the 0th sub-expression is a coercion site to type `T0`.
+- Parenthesized sub-expressions ( `(e)` ): if the sub-expression has type `T`, then the sub-expression is a coercion site to `T`.
+- Blocks: if a block has type `T`, the the last expression (if it is not semicolon terminated) is a coercion site to `T`.
+  This includes blocks which are part of control flow statements, such as `if`/`else`, if the block has a known type.
+
+
+### 10.6.2. Coecion types
+
+Coercions are allowed betweeen the following types:
+- `T1` to `T3`, if `T1` coerces to `T2` and `T2` coerces to `T3`
+- `&mut T` to `&T`
+- `*mut T` to `*T`
+- `[*]mut T` to `[*]T`
+- `[*;x]mut T` to `[*;x]T`
+- `&T` to `*const T`
+- `&mut T` to `*mut T`
+- `&T` or `&mut T` to `&U`, if `T` implements `Deref<Target = U>`
+- `^mut T` to `&mut U`, if `T` implements `DerefMut<Target = U>`
+- Function item types to `fn` pointers
+- Non capturing closures to `fn` pointers
+- `!` to any `T`
+
+> _NOTE_: Since coercion are not anywhere close to being finalized, this list is incomplete
+
+### 10.6.3. Unsized coercions 
+
+The following coercions arr called `unsized coercions`, since they relate to conversting sized types, and are permitted in a few cases where other coercions are not, as described above.
+They can still happen anywhere a coercion can be done.
+
+Two interfaces `Unsize` and `CoerceUnsized`, are used to assigst in this process and expose it for library use.
+The following coercions are built-in and if `T` can coerce to `U` with one of them, than an implementation for `Unsize<U>` will be provide:
+- `[n]T` to `[]T`
+- `T` to `dyn U`, when T implements `U +Sized` and `U` is object safe.
+- `Foo<..., T, ...>` to `Foo<..., U, ...>` when:
+    - `Foo` is a struct
+    - `T` implements `Unsize<U>`
+    - The last field of `Foo` has a type involving `T`
+    - If that field has type `Bar<..., T, ...>`, then `Bar<..., U, ...>` implements `Unsize<Bar<..., U, ...>>`
+    - `T` is not part of hte type of any other fields
+
+Additionally, a type `Foo<T>` can implement `CoerceUnsized<Foo<U>>` when `T` implements `Unsize<U>` or `CoerceUnsized<U>`.
+This allows it to provide an unsized coercion to `Foo<T>`
+
+> _NOTE_: Since coercion are not anywhere close to being finalized, this is incomplete
+
+### 10.6.4. Least upper bound coercions
+
+In some contexts, the compiler must coerce together multiple types to try and find the most general type.
+This is called a "Least Upper Bound" coercion, or LUB coercions in short.
+A LUB coercion is used and only used in the following situations:
+- To find the common type for a series of `if` branches
+- To find the common type for a series of `match` arms
+- To find the common type between array elements
+- To find the type for the return type of a closure with multiple return statements
+- To check the type for the return tpe of a function with multiple return statements.
+
+In each such case, there are a set of types `T0..Tn` to be mutually coerced to target type `Tt`, which is unknonw at the start.
+Computing the LUB coercion is done iteratively.
+The target type `Tt` begins as `T0`.
+For each new type `Ti`, we cosider:
+- If `Ti` can be coerced to the current target type `Tt`, then no change is made.
+- Otherwise, check whether `Tt` can be coerced to `Ti`; if so, then `Tt` is changed to `Ti`.
+  (this check is also conditional on whether all of the source expressions cosidered ths far have implicit coercions).
+- If not, try to compute a mutual supertype of `Tt` and `Ti`, which will become the new target type.
+
+If this fails, it will result in a compiler error.
+
+
 ## 10.7. Destructors
 
+When an initialized variable or temporary goes out of scope, its destructor is run, or it is _dropped_ (this terminology is taken from rust).
+Assignment also runs the destructor of its left-hand operatnd, if it's initialized.
+If a variable has been partially initialized, only its initialized fields are dropped.
+
+The destructor of a type `T` consists out of:
+1. If `T is Drop`, calling `<T as Drop>::drop`, or
+2. Recursively running the destructor of all its fields
+    - The fields of a struct or record are dropped in declaration order
+    - The fields of the active enum or enum record variant are dropped in declaration order
+    - The fields of a tuple are dropped in order
+    - The elements of an array or owned slice are dropped from the first element to the last.
+    - The variables that a closure captures by move are dropped in an unspecified order
+    - Interface objects run the destructor of the underlying type
+    - Other types don't result in any further drops
+
+If a destructor must be run manually, such as when implementing a smart pointer, `drop_in_place` can be used.
+
+### 10.7.1. Drop scopes
+
+Each variable or temporary is associated with a drop scope.
+When control flow leaves a drop scope, all variables associated to that scope are dropped in reverse order of declaration (for varialbes) or creation (for temporaries).
+Values are only dropped after running all `defer` statements within the same scope.
+
+Drop scopes are determined after replacing `for`, `if` and `while` expressions (with let bindings) with the equivalent using `match`.
+Overloaded or user-defined operators are not distinguished from built-in operators and binding modes are not considered.
+
+Given a function, or closure, there aer drop scopes for:
+- The entire function
+- Each statement
+- Each expression
+- Each block, including the function body
+    - In the case of block expressions, the scope for the block and the expressions are the same scope.
+- Each arm of the `match` expression
+
+Drop scopes are nested within each other as follows.
+When multiple scopes are left at once, such as when returning from a function, variables are dropped from the inside outwards.
+- The entire function scope is the outer scope
+- The functon body block is contained within the scope of the entire function.
+- The parent of the expression is an expression statement is the scope of the statement.
+- The parent of the expression of a variable declaration is the declaration's scope.
+- The parent of the statement is the scope of the block that contains the statement.
+- The parent of the expression for a `match` guard is the scope of the arm that the guard is for.
+- The parent of the experssion after the `=>` in a `match` is the scope of the arm it's in.
+- The parent of the arm scope is the scope of the `match` expression that it belongs to.
+- The parent of all other scopes is the cope of hte immediately enclosing expression.
+
+### 10.7.2.  Scopes of function parameters
+
+All function paramters are in the scope of the entire function, so are dropped last when evaluating the function.
+Each actual function parameter is dropped after any bindings introduced in that parameter's pattern.
+
+_TODO: Example_
+
+### 10.7.3. Scopes of local variables
+
+Local variables declared in a variable declaration are associated to the scope that contains the declaration.
+Local variables declared in a `match` expression are associated to the arm scope of the `match` that they are declared in.
+
+_TODO: Example_
+
+If multiple patterns are used in the same arm of a `match` expressions, then an unspecified pattern will be used to determin the drop order.
+
+### 10.7.4. Temporary scopes
+
+The temporary scope of an expressions is the scope that is used for the temporary variable that holds the result of he exprssion when used in a place context, unless it is promoted.
+
+Apart from lifetime extensions, the temprory scope of an expression is the smallest scoped that contins the expression and is one of the following:
+- The entire function.
+- A statement.
+- The body of an `if`, `while` or `loop` expression.
+- The `else` block.
+- The condition expressions of an `if` or `while` expression, or a `match` guard.
+- The body expression for a `match` arm.
+- The second operand of a lazy boolean operator.
+
+> _Note_: Temporaries that are created in the final exprssion of a function body are dropped after any named variables bound in the function body.
+>         Their drop scope is the entire function, as tehre is no smaller enclosing temporary scope.
+>
+>         The scrutinee of a `match` expression is not a temporary scope, so temporaries in the scrutinee can be dropped after the `match` expression.
+>         For example, the temporary for `1` in `match 1 { ref mut z => z };` lives until the end of the statement.
+
+_TODO: Example_
+
+
+### 10.7.5. Operands
+
+Temporaries are also created to hold the result of operands to an expressions while the other operands are evaluated.
+The temporaries are associated to the scope of the expressions with that operand.
+Since the temporaries are moved from once the expreesssion is evaluated, dropping them has no effect unless one of the operands to an expression break out of he expression, returns, or panics.
+
+_TODO: Example_
+
+### 10.7.6. Constant promotion
+
+Promotion of a value expression to a `static` slot occurs when the expression could be written in a constant and borowed, and that borrow could be dereferenced where the exprssion was originally written, without changing the runtime behavior.
+That is, the promoted expression can be evaluated at compile-time and the resulting value does not contain [interior mutability](#105-interior-mutability) or [destructors](#107-destructors) (these properties are determined based on the value when possible).
+
+### 10.7.7. Temporary lifetime extension
+
+> _Note_: This is subject to change
+
+The temporary scopes for expressions in variable declarations are sometimes extended to the scope of the block containing the declaration.
+This is done wherer the usual temporary scope would be too small, based on syntactic rules.
+
+If a borrow, dereference, field, or tuple expression has an extended temporary scope, the nteh indexed experssions also has an extended scope.
+
+### 10.7.8. Extending based on patterns
+
+An extending pattern is either:
+- An identifier pattern that binds by refernce or mutable reference.
+- A struct, tuple, tuple struct, or slice pattern where at least one of the direct subpatterns in an extending pattern.
+
+So `ref x`, `V(ref x)` and `[ref x, y]` are all extending patterns, but `x`, `&x` and `&(ref x, _)` are not.
+
+If the pattern in a variable declaration is an extending pattern, then the temporary scope of the initializer expression is extended.
+
+### 10.7.9. Extending based on expressions
+
+For a variable declaration with an initializer, an extending expression is an experssion whici is one of the following:
+- The initializer expression.
+- The operand of an extending borrow experssion.
+- The operand of an extending array, cast, braced struct, or tuple expression.
+- The final expression of any extending block expression.
+
+So the borrow expression is `&mut 0`, `(&1, &mut 2)`, and `Some{ 0: &mut 3 }` are all extending expressions.
+The borrows in `&0 + &1` and `Some(&mut 0)` are not: the latter is syntactically a function call expression.
+
+The operand of any extending expression has its temporary scope extended.
+
+### 10.7.10. Not running destructors
+
+`forget` can be used to prevent the destructor of a variable from being run, `ManuallyDrop` provides a wrapper to prevent a variable or field from being dropped automatically.
+
+> _Note_: Preventing a destructor from being run via `forget` or other means is safe even if the type isn't static.
+>         Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
+
 # 11. Generics
+_TODO_
 
 # 12. Macros
+_TODO_
 
-# 13. Operators & Precedence
+# 13. Operators and Precedence
+_TODO_
 
-# 14. Effect system
+# 14. Attributes
+_TODO_
+
+# 15. Implicit context
+_TODO_
+
+# 16. Effect system
+_TODO_
+
+# 17. Contracts
+_TODO_
