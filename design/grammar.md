@@ -50,21 +50,113 @@ A set of concatinated tokens can imply the presence of a whitespace in between t
 <hex-digit> := <dec-digit> | 'a'-'z' | 'A'-'Z'
 <digit-sep> := "_" | "'"
 
-<bin-literal> := "0b" <bin-digit> [ { <bin-digit> | <digit-sep> }* <bin-digit> ]
-<oct-literal> := "0o" <oct-digit> [ { <oct-digit> | <digit-sep> }* <oct-digit> ]
-<hex-literal> := "0x" <oct-digit> [ { <oct-digit> | <digit-sep> }* <oct-digit> ]
-<int-dec-literal> :=  <dec-digit> [ { <dec-digit> | <digit-sep> }* <dec-digit> ]
-<fp-dec-literal> := <int-dec-literal> '.' <int-dec-literal> [ 'e' [ '-' ] <int-dec-literal> ]
-
 <name> := <name-char> { <letter> | <number> | '_' }*
 <ext-name> := ( <name-char> | <number> ) { <letter> | <number> | '_' }*
-
 
 <escape-code> := '\0'
                | '\t'
                | '\n'
                | '\r'
                | '\"'
-               | '\''
+               | "\'"
                | '\\'
+               | '\x' <hex-digit> <hex-digit>
+               | '\u{' { <hex-digit> }[1,6] '}'
+               
+<literal> := <numeric-literals>
+           | <boolean-literals>
+           | <character-literal>
+           | <string-literals>
+
+<digit_sep> := "_"
+<numeric-literals> := <int-decimal-literal>
+                    | <float-decimal-literal>
+                    | <binary-literal>
+                    | <octal-literal>
+                    | <int-hexadecimal-literal>
+                    | <float-hexadecimal-literal>
+
+<int-dec-literal> := [ '-' ] { <dec-digit> }+
+<float-dec-literal> := [ '-' ] { <dec-digit> }+ [ '.' { <dec-digit> }+ ] [ ( 'e' | 'E' ) [ '-' ] { dec-digit }+ ]
+<bin-literal> := "0x" <bin-digit> [ { <bin-digit> | <digit-sep> }[,126] <bin-digit> ]
+<oct-literal> := "0o" <oct-digit> [ { <oct-digit> | <digit-sep> }[,41] <oct-digit> ]
+<int-hex-literal> := "0o" <hex-digit> [ { <hex-digit> | <digit-sep> }[,30] <hex-digit> ]
+<float-hex-literal> := [ '-' | '+' ] "0x" ( "1." | "0." ) <hex-digit> { <hex-digit> | <digit-sep> } 'p' [ '-' | '+' ] { <dec-digit> }[,4]
+
+<bool-literal> := 'true' | 'false'
+
+<character-literal> := "'" ( ? any unicode codepoint, except for \ and ' ? | <escape-code> ) "'"
+
+<string-literal> := <regular-string-literal> | <raw-string-literal>
+<regular-string-literal> := '"' { ? any valid unicode codepoint, except for \ and '"' ? | ? string continuation sequence ? | <escape-code> }* '"'
+<raw-string-literal> := 'r' { '#' }[N] { ? any valid unicode codepoint ? }* '"' { '#' }[N]
+
+
+
+
+
+
+
+
+
+<type> := <type-no-bound>
+        | <interface-object-type>
+        | <impl-interface-type>
+
+<type-no-bound> := <parenthesized-type>
+                 | <primitive-type>
+                 | <unit-type>
+                 | <never-type>
+                 | <path-type>
+                 | <tuple-type>
+                 | <array-type>
+                 | <slice-type>
+                 | <string-slice-type>
+                 | <pointer-type>
+                 | <reference-type>
+                 | <optional-type>
+                 | <function-type>
+                 | <function-pointer-type>
+                 | <closure-type>
+                 | <record-type>
+                 | <enum-record-type>
+                 | <inferred-type>
+
+<parenthesized-type> := '(' <type> ')'
+<primitive-type> := <unsigned-type>
+                  | <signed-type>
+                  | <floating-point-type>
+                  | <boolean-type>
+                  | <character-type>
+                  
+<unsigned-type> := 'u8' | 'u16' | 'u32' | 'u64' | 'u128'
+<signed-type> := 'i8' | 'i16' | 'i32' | 'i64' | 'i128'
+<floating-point-type> := 'f16' | 'f32' | 'f64' | 'f128'
+<boolean-type> := 'bool' | 'b8' | 'b16' | `b32' | 'b64'
+<character-type> := 'char' | 'char7' | 'char8' | 'char16' | 'char32'
+
+<unit-type> := '(' ')'
+<never-type> := '!'
+<path-type> := <type-path>
+<tuple-type> := '(' <type> { ',' <type> }+ [ ',' ] ')'
+<array-type> := '[' <expr> [ ';' <expr> ] ']' <type>
+<slice-type> := `[` ';' <expr> `]` <type>
+<string-slice-type> := 'str' | 'str7' | 'str8' | 'str16' | 'str32' | 'cstr'
+<pointer-type> := ( '*' | '[' '*' [ ';' <expr> ] ']' ) ( 'const' | 'mut ) <type>
+<reference-type> := `&` [ 'mut' ] <type>
+<optional-type> := '?' <type>
+
+<fn-type> := [ 'unsafe' [ 'extern' <abi> ] ] 'fn' '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
+<fn-type-params> := <fn-type-param> { ',' <fn-type-param> }* [ ',' ]
+<fn-type-param> := { <attribute> }* [ ( <ext-name> | '_' ) { ',' ( <ext-name> | '_' ) }* ':' ] <type>
+
+<interface-object-type> := 'dyn' <interface-bound> { '+' <interface-bound> }*
+<impl-interface-type> := 'impl' <interface-bound> { '+' <interface-bound> }
+
+<record-type> := '{' <record-members> '}'
+<record-members> := <record-member> { ',' <record-member> }* [ ',' ]
+<record-member> := { <attribute> }* <ext-name> { ',' <ext-name> }* ':' <type>
+<enum-record> := 'enum' '{' <enum-fields> '}'
+
+<inferred-type> := '_'
 ```

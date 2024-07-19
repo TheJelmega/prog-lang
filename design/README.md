@@ -843,7 +843,7 @@ In addition to the above types, there is also another signed type: `isize`.
 #### Floating-point types
 
 ```
-<signed-type> := 'f16' | 'f32' | 'f64' | 'f128'
+<floating-point-type> := 'f16' | 'f32' | 'f64' | 'f128'
 ```
 
 A floating point type represent the same sized type as defined in the IEEE-754-2008 specification.
@@ -956,7 +956,6 @@ Tuples are required to have at least 2 types, otherwhise they will be resolved t
 ### 10.1.8. Array types
 
 ```
-<array-type> := '[' <type> ';' <expr> [ ';' <expr> ] ']'
 <array-type> := '[' <expr> [ ';' <expr> ] ']' <type>
 ```
 
