@@ -1401,8 +1401,8 @@ Pointers and references to sized tyes are the same as those of a `usize`.
 
 Pointers and references to usized types are typed. Their size and alignement is guaranteed to be at least eqal to the size of a `usize` and have the same alignment.
 
-> Note: Currently all pointers and references to DST are twice the size of a `usize` and have the same alignment.
->       Although this should not be relied on.
+> _Note_: Currently all pointers and references to DST are twice the size of a `usize` and have the same alignment.
+> Although this should not be relied on.
 
 ### 10.4.5. Array layout
 
@@ -1415,7 +1415,7 @@ When an array is sentinal terminated, the array contains an additional element o
 
 Slices have the same alyout as a section of an array
 
-> Note: This is about the ray `[]T` type, not pointers to arrays to slices, e.g. (`&[N]T`)
+> _Note_: This is about the ray `[]T` type, not pointers to arrays to slices, e.g. (`&[N]T`)
 
 ### 10.4.7. String slice layout
 
@@ -1425,12 +1425,12 @@ Below is a table of string slices that have a corresponding type layout to the f
 
 String slice | Slice
 -------------|-------
-`str`        | [u8]
-`str7`       | [char7]
-`str8`       | [char8]
-`str16`      | [char16]
-`str32`      | [char32]
-`cstr`       | [char8]
+`str`        | `[u8]`
+`str7`       | `[char7]`
+`str8`       | `[char8]`
+`str16`      | `[char16]`
+`str32`      | `[char32]`
+`cstr`       | `[char8]`
 
 ### 10.4.8. Tuple layout
 
@@ -1440,7 +1440,7 @@ Tuples are laid out as defined in the [Xenon representation]().
 
 Interface objects have the same layout as the value the interface that implements it.
 
-> Note: THis is for the interface object itself, not a type containing the object, such as a reference.
+> _Note_: THis is for the interface object itself, not a type containing the object, such as a reference.
 
 ### 10.4.10. Closure layout
 
@@ -1520,10 +1520,10 @@ The current offset start at 0, then for each field within a type:
 3. the current offset will now become the offset for the field
 4. increment the current offset by the size of the field.
 
-> Note: This algorithm can produce zero-sized structs.
->       While this is generally considered to be illegal in C, some compiler support option to enable zero-sized structs.
->       Meanwhile C++ gives empty structures a size of 1, unless the are inherited or have fields using the `[[no_unique_address]]` attribute,
->       in which case they do not contribute to the size of the overall struct.
+> _Note_: This algorithm can produce zero-sized structs.
+> While this is generally considered to be illegal in C, some compiler support option to enable zero-sized structs.
+> Meanwhile C++ gives empty structures a size of 1, unless the are inherited or have fields using the `[[no_unique_address]]` attribute,
+> in which case they do not contribute to the size of the overall struct.
 
 ##### `repr(C)` unions
 
@@ -1536,9 +1536,9 @@ These values may be taken from different fields.
 
 When an enum is field-less, the C representation has the size and alignment of the default `enum` size for the target platform's C ABI.
 
-> Note: The enum representation in C is implementation defined, so this is really a "best guess".
->       In particular, this may be incorrect when the C code of interst is compile with certain flags
->       If a known enum size is required, use a primitive represention.
+> _Note_: The enum representation in C is implementation defined, so this is really a "best guess".
+> In particular, this may be incorrect when the C code of interst is compile with certain flags
+> If a known enum size is required, use a primitive represention.
 
 ##### `repr(C)` enums and enum records with fields
 
@@ -1780,10 +1780,10 @@ Apart from lifetime extensions, the temprory scope of an expression is the small
 - The second operand of a lazy boolean operator.
 
 > _Note_: Temporaries that are created in the final exprssion of a function body are dropped after any named variables bound in the function body.
->         Their drop scope is the entire function, as tehre is no smaller enclosing temporary scope.
+> Their drop scope is the entire function, as tehre is no smaller enclosing temporary scope.
 >
->         The scrutinee of a `match` expression is not a temporary scope, so temporaries in the scrutinee can be dropped after the `match` expression.
->         For example, the temporary for `1` in `match 1 { ref mut z => z };` lives until the end of the statement.
+> The scrutinee of a `match` expression is not a temporary scope, so temporaries in the scrutinee can be dropped after the `match` expression.
+> For example, the temporary for `1` in `match 1 { ref mut z => z };` lives until the end of the statement.
 
 _TODO: Example_
 
@@ -1838,7 +1838,7 @@ The operand of any extending expression has its temporary scope extended.
 `forget` can be used to prevent the destructor of a variable from being run, `ManuallyDrop` provides a wrapper to prevent a variable or field from being dropped automatically.
 
 > _Note_: Preventing a destructor from being run via `forget` or other means is safe even if the type isn't static.
->         Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
+> Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
 
 # 11. Generics
 _TODO_
