@@ -22,72 +22,127 @@ Version: 0.0
     1. [Packages](#41-packages)
     2. [Artifacts](#42-artifacts)
     3. [Modules](#43-modules)
-5. [Literals](#5-literals)
-    1. [Numeric literals](#51-numeric-literals)
+5. [Names and path](#5-names-and-paths)
+6. [Literals](#6-literals)
+    1. [Numeric literals](#61-numeric-literals)
         - [Decimal literals](#decimal-literal)
         - [Binary literals](#binary-literals)
         - [Octal literals](#octal-literals)
         - [Hexadecimal integer literals](#hexadecimal-integer-literals)
         - [Hexadecimal floating-point literals](#hexadecimal-floating-point-literals)
-    2. [Boolean literals](#52-boolean-literals)
-    3. [Character literals](#53-character-literals)
+    2. [Boolean literals](#62-boolean-literals)
+    3. [Character literals](#63-character-literals)
         - [Escape codes](#escape-codes)
-    4. [String literals](#54-string-literals)
+    4. [String literals](#64-string-literals)
         - [String coninuation sequence](#string-continuation-sequence)
-    5. [Literal operators](#55-literal-operators)
-6. [Items](#6-items)
-7. [Statements](#7-statements)
-8. [Expressions](#8-expressions)
-9. [Patterns](#9-patterns)
-10. [Types System](#10-type-system)
-    1. [Types](#101-types)
-        1. [Recursive types](#1011-rescursive-types)
-        2. [Parenthesized types](#1012-parenthesized-types)
-        3. [Primitive types](#1013-primitive-types)
+    5. [Literal operators](#65-literal-operators)
+7. [Items](#7-items)
+    1. [Module item](#71-module-item)
+        1. [Inline modules](#711-inline-modules)
+        2. [File modules](#712-file-modules)
+        3. [Path attibute](#713-path-attribute)
+    2. [Use declaration](#72-use-declarations)
+        1. [Use visibility](#721-use-visibility)
+        2. [Underscore imports](#722-underscore-imports)
+    3. [Functions](#73-functions)
+    4. [Type aliases](#74-type-aliases)
+        1. [Distinct types](#741-distinct-types)
+        3. [Opaque types](#742-opaque-types)
+    5. [Structs](#75-structs)
+        1. [Regular structs](#751-regular-structure)
+            - [Use fields](#use-fields)
+            - [Record struct](#record-struct)
+        2. [Tuple structs](#752-tuple-structure)
+            - [Record tuple struct](#record-tuple-struct)
+        3. [Unit structs](#753-unit-structure)
+    6. [Union](#76-union)
+        1. [Union field offsets](#761-union-field-offsets)
+        2. [Pattern matching on unions](#762-pattern-matching-on-unions)
+        3. [References to union fields](#763-references-to-union-fields)
+    7. [Enum](#77-enum)
+        1. [ADT enum](#771-adt-enum)
+            - [Discriminant](#discriminant)
+            - [Field-less enum](#field-less-enum)
+        2. [Record enum](#772-record-enums)
+        3. [Flag enum](#773-flag-enum)
+    8. [Bitfield](#78-bitfield)
+    9. [Const item](#79-const-item)
+        1. [Associated trait constant](#791-associated-trait-constant)
+    10. [Static item](#710-static-item)
+        1. [Thread local storage](#7101-thread-local-storage)
+        2. [Statics and generics](#7102-statics-and-generics)
+        3. [External statics](#7103-external-statics)
+    11. [Properties](#711-properties)
+        1. [Getters & setter](#7111-getters--setters)
+        2. [Internal representation](#7121-object-safety)
+    12. [Traits](#712-trait)
+        1. [Object safety](#7121-object-safety)
+        2. [Supertraits](#7122-supertraits)
+        3. [Usafe traits](#7123-unsafe-traits)
+        4. [Visibility](#7124-visibility)
+    13. [Implementation](#713-implementation)
+        1. [Inherent implementation](#7131-inherent-implementations)
+        2. [Trait implementation](#7132-trait-implementation)
+            - [Coherence](#coherence)
+    14. [Associated items](#714-associated-items)
+        1. [Associated types](#7141-associated-types)
+            - [Associated trait type](#associated-trait-type)
+        2. [Associated constants](#7142-associated-constants)
+        3. [Associated properties](#7143-associated-properties)
+        4. [Associated functions](#7144-associated-functions)
+    15. [External block](#715-external-block)
+8. [Statements](#8-statements)
+9. [Expressions](#9-expressions)
+10. [Patterns](#10-patterns)
+11. [Types System](#11-type-system)
+    1. [Types](#111-types)
+        1. [Recursive types](#1111-rescursive-types)
+        2. [Parenthesized types](#1112-parenthesized-types)
+        3. [Primitive types](#1113-primitive-types)
             - [Unsinged types](#unsigned-types)
             - [Signed types](#signed-types)
             - [Floating-point types](#floating-point-types)
             - [Boolean types](#boolean-types)
             - [Character types](#character-types)
-        4. [Unit type](#1014-unit-type)
-        5. [Never type](#1015-never-type)
-        6. [Path types](#1016-path-types)
-        7. [Tuple types](#1017-tuple-types)
-        8. [Array types](#1018-array-types)
-        9. [Slice types](#1019-slice-types)
-        10. [String slice types](#10110-string-slice-types)
-        11. [Pointer types](#10111-pointer-types)
-        12. [Reference types](#10112-reference-types)
+        4. [Unit type](#1114-unit-type)
+        5. [Never type](#1115-never-type)
+        6. [Path types](#1116-path-types)
+        7. [Tuple types](#1117-tuple-types)
+        8. [Array types](#1118-array-types)
+        9. [Slice types](#1119-slice-types)
+        10. [String slice types](#11110-string-slice-types)
+        11. [Pointer types](#11111-pointer-types)
+        12. [Reference types](#11112-reference-types)
             - [Shared reference](#shared-reference)
             - [Mutable reference](#mutable-reference)
-        13. [Optional types](#10113-optional-types)
-        14. [Function types](#10114-function-types)
-        15. [Function poiner types](#10115-function-pointer-type)
-        16. [Closure types](#10116-closure-types)
-        17. [Interface Object types](#10117-intereface-object-types)
-        18. [Impl interface types](#10118-impl-interface-types)
+        13. [Optional types](#11113-optional-types)
+        14. [Function types](#11114-function-types)
+        15. [Function poiner types](#11115-function-pointer-type)
+        16. [Closure types](#11116-closure-types)
+        17. [Trait Object types](#11117-intereface-object-types)
+        18. [Impl trait types](#11118-impl-trait-types)
             - [Anonymous type parameter](#anonymous-type-parameter)
             - [Abstract return types](#abstract-return-types)
-            - [Abstract return types in interface declarations](#abstract-return-types-in-interface-declarations)
-            - [Limitations](#impl-interface-limitations)
-        19. [Record types](#10119-record-types)
-        20. [Enum record types](#10120-enum-record-types)
-        21. [Inferred types](#10121-inferred-types)
-    2. [Dynamically sized types](#102-dynamically-sized-types)
-    3. [Nominal vs stuctural types](#103-nominal-vs-structural-types)
-    4. [Type layout](#104-type-layout)
-        1. [Size and alignment](#1041-size-and-alignment)
-        2. [Primitive layout](#1042-primitive-layout)
-        3. [Unit and never type layout](#1043-unit-and-never-type-layout)
-        4. [Pointer and reference layout](#1044-pointer-and-reference-layout)
-        5. [Array layout](#1045-array-layout)
-        6. [Slice layout](#1046-slice-layout)
-        7. [String slice layout](#1047-string-slice-layout)
-        8. [Tuple layout](#1048-tuple-layout)
-        9. [Interface object layout](#1049-interface-object-layout)
-        10. [Closure layout](#10410-closure-layout)
-        11. [Bitfield layout](#10411-bitfield-layout)
-        12. [Layout representation](#10412-layout-representation)
+            - [Abstract return types in trait declarations](#abstract-return-types-in-trait-declarations)
+            - [Limitations](#impl-trait-limitations)
+        19. [Record types](#11119-record-types)
+        20. [Enum record types](#11120-enum-record-types)
+        21. [Inferred types](#11121-inferred-types)
+    2. [Dynamically sized types](#112-dynamically-sized-types)
+    3. [Nominal vs stuctural types](#113-nominal-vs-structural-types)
+    4. [Type layout](#114-type-layout)
+        1. [Size and alignment](#1141-size-and-alignment)
+        2. [Primitive layout](#1142-primitive-layout)
+        3. [Unit and never type layout](#1143-unit-and-never-type-layout)
+        4. [Pointer and reference layout](#1144-pointer-and-reference-layout)
+        5. [Array layout](#1145-array-layout)
+        6. [Slice layout](#1146-slice-layout)
+        7. [String slice layout](#1147-string-slice-layout)
+        8. [Tuple layout](#1148-tuple-layout)
+        9. [Trait object layout](#1149-trait-object-layout)
+        10. [Closure layout](#11410-closure-layout)
+        11. [Bitfield layout](#11411-bitfield-layout)
+        12. [Layout representation](#11412-layout-representation)
             - [Xenon representation](#xenon-representation)
                 - [Field priority](#field-priority)
             - [C representation](#c-representation)
@@ -99,30 +154,30 @@ Version: 0.0
             - [Transparent representation](#transparent-representation)
             - [SOA (structure of array) representation](#sao-structure-of-array-representation)
             - [Additional layout modifiers](#additional-layout-modifiers)
-    5. [Interior mutability](#105-interior-mutability)
-    6. [Type coercions](#106-type-coercions)
-        1. [Coercion sites](#1061-coercion-sites)
-        2. [Coercion types](#1062-coecion-types)
-        3. [Unsized coercions](#1063-unsized-coercions)
-        4. [Least upper bound coercions](#1064-least-upper-bound-coercions)
-    7. [Destructors](#107-destructors)
-        1. [Drop scopes](#1071-drop-scopes)
-        2. [Scopes of function paramters](#1072--scopes-of-function-parameters)
-        3. [Scopes of local variables](#1073-scopes-of-local-variables)
-        4. [Temporary scopes](#1074-temporary-scopes)
-        5. [Operands](#1075-operands)
-        6. [Constant promotion](#1076-constant-promotion)
-        7. [Temporary lifetime extension](#1077-temporary-lifetime-extension)
-        8. [Extending based on patterns](#1078-extending-based-on-patterns)
-        9. [Extending based on expressions](#1079-extending-based-on-expressions)
-        10. [Not running destructors](#10710-not-running-destructors)
-11. [Generics](#11-generics)
-12. [Macros](#12-macros)
-13. [Operators and Precedence](#13-operators-and-precedence)
-14. [Attributes](#14-attributes)
-15. [Implicit context](#15-implicit-context)
-16. [Effect system](#16-effect-system)
-17. [Constracts](#17-contracts)
+    5. [Interior mutability](#115-interior-mutability)
+    6. [Type coercions](#116-type-coercions)
+        1. [Coercion sites](#1161-coercion-sites)
+        2. [Coercion types](#1162-coecion-types)
+        3. [Unsized coercions](#1163-unsized-coercions)
+        4. [Least upper bound coercions](#1164-least-upper-bound-coercions)
+    7. [Destructors](#117-destructors)
+        1. [Drop scopes](#1171-drop-scopes)
+        2. [Scopes of function paramters](#1172--scopes-of-function-parameters)
+        3. [Scopes of local variables](#1173-scopes-of-local-variables)
+        4. [Temporary scopes](#1174-temporary-scopes)
+        5. [Operands](#1175-operands)
+        6. [Constant promotion](#1176-constant-promotion)
+        7. [Temporary lifetime extension](#1177-temporary-lifetime-extension)
+        8. [Extending based on patterns](#1178-extending-based-on-patterns)
+        9. [Extending based on expressions](#1179-extending-based-on-expressions)
+        10. [Not running destructors](#11710-not-running-destructors)
+12. [Generics](#12-generics)
+13. [Macros](#13-macros)
+14. [Operators and Precedence](#14-operators-and-precedence)
+15. [Attributes](#15-attributes)
+16. [Implicit context](#16-implicit-context)
+17. [Effect system](#17-effect-system)
+18. [Contracts](#18-contracts)
 
 # 1. Introduction
 
@@ -251,6 +306,7 @@ b8
 b16
 b32
 b64
+bitfield
 bool
 char
 char7
@@ -282,6 +338,7 @@ str7
 str8
 str16
 str32
+struct
 true
 ref
 u8
@@ -290,6 +347,8 @@ u32
 u64
 u128
 union
+unsafe
+use
 usize
 ```
 
@@ -306,8 +365,17 @@ yield
 ### Weak keywords
 
 A weak keyword is a keyword that is dependent on the surrounding context and can be used anywhere outside
-A list of strong keywords can be found below (in a close to alphabetic order):
+A list of weak keywords can be found below (in a close to alphabetic order):
 ```
+distinct
+flag
+opaque
+override
+property
+record
+sealed
+super
+tls
 ```
 
 ## 3.3. Comments
@@ -368,29 +436,6 @@ Top level doc(umentation) comments are similar to normal documentation comment, 
 ### Examples
 _TODO_
 
-# 3.4 Names
-
-```
-<letter> := ? any unicode letter ?
-<ext-letter> := ? any <letter> except 'e' ?
-<number> := ? any unicode number ?
-<non-dec-number> := ? any <number> except <dec-digit> ?
-
-<alphanum> := <number> | <letter>
-
-<name> := ( <letter> | <non-dec-number> | '_' ) { <alphanum> |  }*
-<ext-name> := { <alphanum> | '_' }* ( <ext-letter> | <non-dec-number> )  { <alphanum> | '_' }*
-```
-
-A name is part of an identifier and 
-
-There are 2 types of names:
-- Normal names that cannot start with a decimal digit
-- Extended names that can start with a decimal digit, but must contain at least 1 non-decimal digit or letter (excluding 'e')
-
-Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
-Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
-
 # 4. Package structure
 
 Additional info can be found in [the package design](packages.md).
@@ -438,10 +483,38 @@ A module generally represents a single file or inlined module definition (if a f
 Each module is allowed to have multiple sub-modules.
 
 Each artifact has it's own main module, which by default uses the following files:
-- binaries: main.xn
-- static and dynamic libraries: lib.xn
+- binaries: `main.xn`
+- static and dynamic libraries: `lib.xn`
 
-# 5. Literals
+# 5. Names and paths
+
+_TODO_
+
+# 5.1 Names
+
+```
+<letter> := ? any unicode letter ?
+<ext-letter> := ? any <letter> except 'e' ?
+<number> := ? any unicode number ?
+<non-dec-number> := ? any <number> except <dec-digit> ?
+
+<alphanum> := <number> | <letter>
+
+<name> := ( <letter> | <non-dec-number> | '_' ) { <alphanum> |  }*
+<ext-name> := { <alphanum> | '_' }* ( <ext-letter> | <non-dec-number> )  { <alphanum> | '_' }*
+```
+
+A name is part of an identifier and 
+
+There are 2 types of names:
+- Normal names that cannot start with a decimal digit
+- Extended names that can start with a decimal digit, but must contain at least 1 non-decimal digit or letter (excluding 'e')
+
+Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
+Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
+
+
+# 6. Literals
 
 ```
 <literal> := <numeric-literals>
@@ -454,7 +527,7 @@ A literal is a compile time constant representing a given value as either an int
 
 > _Note_: Literals are tokens and not symbols, and will therefore be processed in the lexer stage_
 
-## 5.1. Numeric literals
+## 6.1. Numeric literals
 
 ```
 <digit_sep> := "_"
@@ -588,14 +661,14 @@ The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encod
 0x1.5555555555555p-2 // value of 1/3
 ```
 
-## 5.2. Boolean literals
+## 6.2. Boolean literals
 ```
 <bool-literal> := 'true' | 'false'
 ```
 
 A boolean literal represents either a `true` of a `false` value
 
-## 5.3. Character literals
+## 6.3. Character literals
 
 A character literal defines a character, represented by it's unicode codepoints.
 
@@ -643,7 +716,7 @@ It is written as a `\x`, followed by 2 hex digits.
 Unicode codepoints represent any valid unicode codepoint, including surrogate pairs, this means all characters in the range 0x000000-0x10FFFF.
 A unicode escape code is written as `\u{`, followed by between 1 and 6 hex digits, and closed of with a `}`.
 
-## 5.4. String literals
+## 6.4. String literals
 
 ```
 <string-literal> := <regular-string-literal> | <raw-string-literal>
@@ -673,7 +746,7 @@ A string continuation sequence allows a regular line to be split up between line
 Whenever a `\` is encoutered, directly followed by a new line sequence, the string will pause parsing any character until it finds the next non-whitespace character,
 it will then continue to parse the string.
 
-## 5.5. Literal operators
+## 6.5. Literal operators
 
 While literals can coerce into a certain set of types, sometimes it can be useful to define a custom literal operator.
 A literal operator can apply compile time checks on the value in the operator + changes the type generated by the literal
@@ -705,31 +778,976 @@ utf32            | String       | str32          | UTF-32 string literal
 For more info, see the [Operator](#12-operators--precedence) section.
 
 
-# 6. Items
+# 7. Items
+
+```
+<item> := <module-item>
+        | <use-item>
+        | <fn-item>
+        | <type-alias-item>
+        | <struct-item>
+        | <union-item>
+        | <enum-item>
+        | <bitfield-item>
+        | <const-item>
+        | <static-item>
+        | <property-item>
+        | <trait-item>
+        | <impl-item>
+        | <external-block>
+```
+
+An item is a component of a package.
+Items are organized within a package, inside of modules.
+Every artifact within the package has a single "outermost" anonymous module; all further items within the package have paths within the package hierarchy.
+
+Items are entirely determined at compile time, generally remain fixed during execution, and may reside in read-only memory.
+
+Some items form an implicit scope for the declarations of sub-items.
+In other words, within a function of module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar comonents that otherwhise compose the item body.
+If the item was declared outside of the outer scope - i still a static item - except that the item's path name within the module namespace is qualified by the name of the enclosing item, or is private to the enclosing item (in the case of functions).
+
+## 7.1. Module item
+
+```
+<module-item> := { <attrib>* } [<vis>] "mod" <ext-name> ';'
+               | { <attrib>* } [<vis>] "mod" <ext-name> '{' { <module-attribute> }* { <item> }* '}'
+```
+
+A module is a container of zero or more items.
+
+A module item introduses a a new named module into the tree of modules making up the current artifact.
+Modules can be nested arbitrarily.
+
+_TODO: exmaple_
+
+Modules adn types share the same namespace.
+Declaring a named type with the same name as a module in a scope is forbidden; that is, any item cannot shadow the name of a module in the scope and vice versa.
+Items brought into scope with a `use` also have this restriction.
+
+Modules are generally split up in 2 kinds.
+
+### 7.1.1. Inline modules
+
+Inline modules are declared directly within another module and allows manual nesting within the file.
+
+Inline modules are allowed to declare any file modules within them, but the path is interpreted differently, see below for more info.
+An inline module can also have a single segment path defined to name the sub-folder they would map to if they would have been file modules.
+
+When using a nested module in a file:
+```
+mod bar {
+    mod baz;
+}
+```
+The following set of nested modules will be produces and there  corresponding filesystem structure when using the default module structure:
+
+Module path     | Filesystem path          | File content
+----------------|--------------------------|----------------
+`:`             | `lib.xn` or `main.xn`    | `mod foo;`
+`:.foo`         | `foo/mod.xn` or `foo.xn` | see code above
+`:.foo.bar`     | `foo/mod.xn` or `foo.xn` | see code above
+`:.foo.bar.baz` | `foo/bar/baz.xn`         | `
+
+### 7.1.2. File modules
+
+A file modulre refers to code located within an extrenal file.
+If no explicit path is defined for the module, the path to the file will mirror the logical module path.
+All ancestor module path elements are represented by a path of nested directories within the artifact's source module.
+
+The default naming of sub-modules is done in 2 ways:
+- As a file located in the same directory as this folder, with the name of the module (only applicable for declarations in root-files).
+- As a `mod.xn` file within a sub-directory with the name of the module.
+
+The following is an example of a set of nested modules and there corresponding filesystem structure when using the default module structure:
+
+Module path | Filesystem path                  | File content
+------------|----------------------------------|--------------
+`:`         | `lib.xn` or `main.xn`            | `mod foo;`
+`:.foo`     | `foo/mod.xn` or `foo.xn`         | `mod bar;`
+`:.foo.bar` | `foo/bar/mod.xn` or `boo/bar.xn` |
+
+### 7.1.3. Path attribute
+
+The directory and files used for loading a file module can be influenced using the `path` attribute.
+
+If a `path` attribute is applied on a module that is not inside an inline module, the path is relative to the directory the source file is located in.
+
+For example, with the following code in a file:
+_TODO: Is this attribute notation correct?_
+```
+#[path = "foo.xn"]
+mod c;
+```
+will produce the following paths:
+
+Module path    | `c`'s file location | `c`'s module path
+---------------|---------------------|-------------------
+`src/a/b.xn`   | `src/a/b/foo.xn`    | `:.a.b.c`
+`src/a/mod.xn` | `src/a/foo.xn`      | `:.a.c`
+
+For a `path` attribute inside an inline module, the relative location of the file path depends on the kind of source file the `path` attributre is located in.
+If in a root module (such as `main.xn` or `lib.xn`) or in a `mod.xn` file,  the path is relative to the directory it would have been in, if it was only using file modules, meaning that it will interpret all inline module modules as a directories.
+Otherwise, it is almost the same, with the exception that the path starts with the name of the current module.
+
+For example, for the following code:
+_TODO: Is this attribute notation correct?_
+```
+mod inline {
+    #[path = "other.xn"]
+    mod inner;
+}
+```
+The path will be the following depending what file it is in:
+
+Module path    | `inner`'s file location   | `inner`'s module path
+---------------|---------------------------|-------------------
+`src/a/b.xn`   | `src/a/b/inline/other.xn` | `:.a.b.inline.inner`
+`src/a/mod.xn` | `src/a/inline/other.xn`   | `:.a.inline.inner`
+
+## 7.2. Use declarations
+
+```
+<use-item> := `use` <use-root> [ '.' <use-tree> ] ';'
+            | `use` <use-tree> ';'
+<use-root> := [ <name> ] ':' [ <name> ]
+<use-tree> := <simple-path> '.' '*'
+            | <simple-path> '.` '{' <use-tree> { ',' <use-tree> }* [ ',' ] '}'
+            | <simple-path> [ "as" ( <ext-name> ) ]
+```
+
+A `use` declaration creates a local binding associated to a module path.
+These are used for 2 reasons:
+- Introduce a libary's root module into the scope
+- Shorten the path required to refer to a module.
+
+These declations may appear in modules and blocks.
+
+To access any path from outside the current scope, each `use` declaration must start by indicating the package and library modules come from.
+This is called the root name as is shown as `package:library`, these do not explicitly be written down in the following usecases:
+- the package can be left out if the path refers to the current package
+- the library can be left out in 2 cases:
+    - If there is no explicit package (i.e. the current package), it will refer to the current package
+    - If tehre is an explicit package, it will refer to the library within that package with the same name
+
+An example of this can be seen in the below table for the following project structure
+
+For example, with the package and library structure:
+```
+A (package)
+- Cur (lib)
+- A (lib)
+- C (lib)
+B (package)
+- B (lib)
+- D (lib)
+```
+
+And with the current library being `Cur`, the path will point to the following packages and libraries
+
+Use root | Package | Library
+---------|---------|---------
+`:`      | `A`     | `Cur`
+`:C`     | `A`     | `C`
+`A:`     | `A`     | `A`
+`B:`     | `B`     | `B`
+`B:D`    | `B`     | `D`
+
+The `use` root can be omitted for any value relative to the current module, including at most 1 level up using the `super` keyword.
+
+Use declarations support a number of convenient shortcuts:
+- Simultaneously bind a list of paths with a common prefix, using a braced represetnation, i.e. `:.a.b.{c, d.e, f.g.h}`
+- Simultaneously bind a list of paths with a common prefix, and their parent module, e.g. `:.a.b.{self, c, d.e}`
+- Rebind a module or item to a local name, e.g. `:.a.b.c as d`
+- Bind all paths with a common prefix, e.g. `:.a.b.*`
+
+### 7.2.1. Use visibility
+
+Like other items, `use` declarations are private to the containing module by default.
+But it can also have its visibility declared, while for most items, this is explained in the [attribute]() section, visibility attributes work slightly differently on `use` declarations.
+`use` declaration can be used to re-export symbols to a different target definition with a diffferent visibility and/or name.
+For example, a symbol with a more restricted visibility like 'private' in one module to a `pub` symbol in another module.
+If the resulting sequence of re-exports form a cycle or cannot be resolved, this will be a compile error.
+
+An example of redirection:
+```
+mod quux {
+    use :.foo.{bar, baz};
+    pub mod foo {
+        pub fn bar() {}
+        pub fn baz() {}
+    }
+}
+
+fn main {
+    quux.bar();
+    quux.baz();
+}
+```
+### 7.2.2. Underscore imports
+
+Items can be imported without binding to a name by using an underscore with the form `use path as _`.
+This is particularly useful to import an trait so that its methods may be used without impoiting the trait symbol, for example if the trait's symbol may conflict with another symbol.
+
+## 7.3 Function
+
+### 7.3.1. Trait function
+
+```
+<assoc-func> := ... ['override'] ...
+```
+
+An associated function is allowed to leave out a body, if this is done, the function must be implemented (either down the trait bounded by the current trait), or by the type that implements the trait.
+If an associated function has it's body defined, this definition will act as the default definition of the function.
+
+Any function that in the base interface may have its default implementation overwritten by the current interface, for this the weak keyword `override` can be used.
+As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#7122-function-override-resolution).
+
+
+> _Note_: Overridden functions do not define a function with the same name for the current trait, but instead exclusively overwrites a default implementation.
+
+
+## 7.4 Type aliases
+
+```
+<type-alias-item> := { <attribute*> } [ <vis> ] ( <alias-type> | <new-type> | <opaque-type> )
+<alias-type> := 'type' <name> [ <generic-params> ] '=' <type> ';'
+<new-type> := 'distinct' 'type' <name> [ <generic-params> ] '=' <type> ';'
+<opaque-type> := 'type' <name> '=' 'opaque' [ '[' <expr> ']' ]
+```
+
+A type alias defines a new name for an existing type, an allows for partial specialization of the generic parameters.
+The 'alias type' is the new type being created, the 'aliasee' is the type that is being aliased, i.e. `type alias_type = aliasee;`.
+
+If a generic type is passed to the aliasee, the generic in the alias type itself will gain the same bounds as those for the aliasee.
+
+Type aliases are declared using the `type` keyword.
+
+There are also 2 'variants' of the type alias.
+
+### 7.4.1. Distinct types
+
+A distinct type is a special type alias, that does not only gives a different name, etc to a type, but splits it of into a separate type, these are also known as 'newtypes.'
+
+Distinct types take over all fields and functionality of the aliasee, but can also implement additional functionality independently of the type.
+
+> _Note_: a limitation of this is that a disctinct type cannot acces fields that are private to the aliasee.
+
+### 7.4.2. Opaque types
+
+An opaque type represents a type with an unknown layout, which can either be a DST, or it can have a given size.
+If a size is set, the size expression must be able to be evaluated at compile time.
+
+Internally, an opaque type is represented as:
+- When sized, it is represented by `[N]T`, where `N` is the size of the opaque type
+- When unsized, it is represented by `dyn ?Sized`.
+
+## 7.5. Structs
+
+```
+<struct-item> := { <attribute> }* [ <vis> ] ( <struct-stuct> | <tuple-struct> )
+```
+
+A struct is a composite type that consists out of a number of types, called 'fields'.
+
+Fields within a structure can be defined as either being mutable, or not (which is the default).
+Non-mutable field can only be set when the struct is fully assigned, i.e. the individual field cannot be modified.
+If the entire struct is marked as mutable, all fields within it will be mutable, no matter if they are individual declared as.
+
+Fields can also be assigned default value, which need to be able to be evaluated at compile time, but allow them to be left out when constructing a value of this type.
+
+> _Note_: Default values for fields should not be confused with the value of fields if the `Default` trait is implemented.
+> Field default values are used to allow omitted when constructing a new struct, not to retrieve a default value for the entire struct,
+> this means that `Default::default()` may return a different value that a field's individual default value, as it is allowed to decide these values at runtime.
+
+There are 3 kinds of structs:
+
+### 7.5.1. Regular structure
+
+```
+<nominal-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '{' [ <struct-fields> ] '}'
+<struct-fields> := <struct-field> { ',' <struct-field> } ','
+<struct-field> := <struct-member> | <struct-use>
+<struct-member> := [ <vis> ] [ 'mut' ] <name> { ',' <name> }* ':' <type>
+                 | [ <vis> ] [ 'mut' ] <name> ':' <type> [ '=' <expr> ]
+<struct-usze> := [ <vis> ] 'use' <type>
+```
+
+A regular structure exists out of a collection of named fields.
+A field can be left out, but have its space reserved for future use, by giving it the name of `_` which will the field for all other purposes.
+
+Each field defintion may contain multiple names, this will result in a field to be created for each, with the type defined before each field.
+If only a single name is defined, a field may also have a default value assigned to it (see note above).
+
+#### Use fields
+
+Sometimes it may be usefull to add the contents from another structure directly within the body of the current struct.
+This can be done using the special case of the `use` keywords, as inside of a structure, instead of importing another module, it means that the body of the strucuture after the will be placed within the current stuct.
+There are some limitiations when it comes caused by the visibility of fields, for a struct to be included within another struct:
+- if the `use` comes from another library, all it's member need to be public to include it within the body.
+- if the `use` comes from the same library, all fields need to be visible from the current namespace and and the visibility of the `use` may not be greater than that of any of those fields.
+
+These fields will then all also be given the visibility as define before the `use`.
+
+To take over mutable fields, the `use`, it needs to be explicitly marked as `mut`.
+Use will also take over default field values
+
+Below is an example of `use`:
+```
+// Library file
+
+struct Quux {
+    pub     qq: i32 = 1,
+    pub mut qr: f64,
+}
+
+// File: main.xn
+
+use :lib; // Include lib
+
+struct Foo {
+    pub(mod) a: i32,
+    pub mut  b: i32
+}
+
+struct Bar {
+    c: i32
+}
+
+struct Baz {
+    pub(mod) use Foo, //< 'b' will not not be `pub`, but `pub(mod)` instead
+    // use Bar,       //< uncommenting this like will result in a compile error, as 'c' is not visible from 'Baz'
+    mut use lib.Quux, //< Mutably include `lib.Quux`
+}
+
+// When compiler, Baz will result in
+struct ...Baz {
+    pub(mod) a:  i32,
+    pub(mod) b:  i32,
+             qq: i32 = 1,
+    mut      qr: f64,
+}
+```
+
+#### Record struct
+
+A variation of a struct is a record struct, unlike a normal struct, this is not a nominal type, but instead a structural type.
+The distinction can be made by the weak keyword `record` coming before the `struct` keyword.
+
+They are generally similar to inline records, but allow visibility and default value for fields to be specified.
+
+### 7.5.2. Tuple structure
+
+```
+<tuple-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '(' [ <tuple-struct-fields> ] [ <tuple-struct-tail-fields> ] [ ',' ] ')'
+<tuple-struct-fields> := [ <tuple-struct-field> { ',' <tuple-struct-field> }* ]  [ ',' ]
+
+<tuple-struct-tail-field> := [ <tuple-struct-tail-field> { ',' <tuple-struct-tail-field> }* ]
+
+<tuple-struct-field> := [ <vis> ] [ 'mut' ] <type>
+<tuple-struct-tail-field> := [ <vis> ] [ 'mut' ] <type> [ '=' <expr> ]
+```
+
+A tuple struct, also called a named tuple, represents a list of types that form their own nominal type.
+
+Tuple struct fields may contain default values, but these need to come at the end of the tuple.
+If a field without a default value follows one with a default value, it is a compile error
+
+#### Record tuple struct
+
+A variation of a tuple struct is a record tuple struct, unlike a tuple struct, this is not a nominal type, but instead a structural type.
+The distinction can be made by the weak keyword `record` coming before the `struct` keyword.
+
+### 7.5.3. Unit structure
+
+```
+<unit-struct> := { <attribute> }* [ <vis> ] 'struct' <name> ';'
+```
+
+A unit structure is a special structure containing no fields, and which can be be initialized by using the structure as the initialization expression.
+Unit stuctures can be seen as distinct type aliases of the unit type, but with the ergonomics of being an extual individual structure.
+
+## 7.6. Union
+
+```
+<union-item> := { <attribute> }* [ 'vis' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
+<union-fields> := <union-field> { ',' <union-field> }* [ ',' ]
+<union-field> := [ <vis> ] <name> ':' <type>
+```
+
+A union is a struct-like type, but instead of all fields being available at all times, a union's main characteristic is that all field share a common storage.
+As a result, a write to 1 field can overwrite other fields.
+
+Union fields are restricted to the following subset of types:
+- `Copy` types (including records)
+- References ( `&T` and `&mut T` for an arbitrary `T` )
+- `ManuallyDrop<T>` (for an arbitrary `T`)
+- Tuples and arrays containing values allowed by unions
+
+When initializing a union, only 1 field can be set, in this design document, this is known as the 'active field'.
+
+> _Note_: unions have no notion of an 'active field', i.e. it has no special meaning, but is only used to in the design document to indicate the currently assigned field
+
+Any member can be accessed at any time, it directly reads the underlying memory as the type of the field being accessed.
+Which means that any field which has an incompattible layout with the active field **may** therefore contain invalid data.
+The programmer should be certain that the field contains valid before using it, failing to do so in undefined behavior.
+
+Because of what's mentioned above, this means that all reads field in the union are `unsafe`.
+Unlike reads, writes are always safe, as the user is just overwriting arbitrary data, so cannot be undefined behavior.
+As union field will never be dropped.
+
+### 7.6.1. Union field offsets
+
+By default, all fields are guaranteed to be at an offset of `0`.
+Sometimes it might be useful to have certain fields overlap at a non-zero offset, this can be done using the `union_offset` attribute.
+
+The `union_offset` macro defines an offset in bytes, which will then be the resulting offset of the field.
+
+### 7.6.2. Pattern matching on unions
+
+Another way to access union fields is to use pattern matching.
+Pattern mathinc on union field uses the same syntax as those for structs, except that the pattern must specificy exactly 1 field.
+Since reading from a union is unsafe, the entire match expression must be in an unsafe block.
+
+### 7.6.3. References to union fields
+
+Since unions fields share a common storage, gaining writing access to one field of the union can give write access to all its remaining fields.
+For this reason, if any field is borrowed immutably, no other field can be borrowed mutably in the same lifetime.
+
+## 7.7. Enum
+
+```
+<enum-item> { <attribute> }* [ <vis> ] ( <adt-enum> | <flag-enum> )
+```
+
+An enum, or enumeration, is a type that can be used for one of the following use-cases:
+- A field-less enum used to correlate names to a given set of possible values (these are a variant of ADT enums)
+- An ADT (Algebreic Data Type) enum, allowing fields to be associated with a specific variant (also known as tagged unions)
+- A set of flags
+
+The visibility of the enum is shared by all variants and their fields
+
+### 7.7.1. ADT enum
+
+```
+<adt-enum> { <attribute> }* [ <vis> ] [ 'flag' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
+<enum-variants> := <enum-variant> { ',' <enum-variant> } [ ',' ]
+<enum-variant> := <name> [ <variant-body> ] [ '=' <expr> ]
+<variant-body> := <struct-variant-body> | <tuple-variant-body>
+<struct-variant-body> := '{' <struct-fields> '}'
+<tuple-variant-body> := '(' <type> { ',' <type> }* [ ',' ] ')'
+```
+
+Each ADT enum constists out of at minimum a discriminant, but may inn addition also contain a set of fields that are associated with each variant.
+
+Variants with fields can be presented as either a regular structure or a tuple structure, and is called the variant's 'payload'.
+This payload is effectively a struct or enum struct, where it's body is defined after the name of the variant.
+For more info about the payloads, see the [Struct item](#75-structs).
+
+> _Note_: field may not have their own visibility defined
+
+#### Discriminant
+
+Each enum variant is represented using its discriminant, this is an integer value that encodes the current variant that is stored inside of the enum.
+
+When using the default representation, while the discriminant will be interpreted as an `isize`, the compiler is allowed to change this to a smaller type that can still fit all discriminants.
+An explicit type can be chosen using a primitive representation.
+
+Discriminant values can be explicitly be set by following the variant with a `=` followed by an expression returning an integer.
+The discriminant needs to be a value that can be evaluated at compile time.
+The expression may also not reference any other varaint in the enum.
+
+When no explicit discriminant is given, this will automatically be set to one higher than the discriminant of the pervious variant.
+If the discriminant for the first value is not set, this will become 0, and if at any point, the discriminant would overflow, this will result in a compile error.
+
+No 2 variants may have the same descriminant, meaning that if an implicit discriminant value appears after the maximum value of the current descriminant type, that this will result in an error.
+
+The discriminant value of any enum can be extracted using `discriminant`
+_TODO: add full path to function_
+
+If an enum has a known discriminant type, it is allowed to cast a pointer to the enum to an pointer with the descrimant type.
+
+#### Field-less enum
+
+A field-less enum is a variant of an ADT enum that contains no payload and it therefore just its discriminant internally.
+This allows field-less enums to be cast to their underlying integer type.
+
+### 7.7.2. Record enums
+
+A record enum is a variant of a normal enum, but instead of each variant with fields holding a nominal type, each variants holds a structural type.
+
+### 7.7.3. Flag enum
+
+```
+<flag-enum> := 'flag' 'enum' <name> '{' [ <flag-enum-variants> ] '}'
+<flag-enum-variants> := <flag-enum-variant> { ',' <flag-enum-variant> } [ ',' ]
+<flag-enum-variant> := <name> [ '=' <expr> ]
+```
+
+A flag enum can be thought of as a special variant of a field-less enum, but instead of representing discrete fields, it represents a collection of bitflags.
+Each flag enum can contain as many unique flags are as allowed by the primitive type, by default this will be chosen based on the number of variants within the enum.
+
+When no explicit discriminant is given, this will automomatically be set as the next power of 2 that greater than the previous flags.
+If the discriminant for hte first value is not , this will become 1, and if at any point the next flag value would overflow, this will result in a compile error.
+
+If no explicit flag is provided with a value of 0, the enum will implicitly add a `.None` flag.
+
+When writing an expression for the enum value, the expression may directly mention another flag, unlike normal enums.
+
+By default, a flag enum will have a set of functions implicitly generated to allow the use of flags in code, these are:
+_TODO: list of functions_
+
+## 7.8. Bitfield
+
+```
+<bitfield-item> := { <attribute> }* [ <vis> ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
+<bitfield-fields> := <bitfield-field> { ',' <bitfield-field> }* [ ',' ]
+<bitfield-field> := <name> ':' <type> [ '|' <expr> ]
+```
+
+A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned type.
+
+A field in a bitfield may is defined as a signle named field would be in struct, and optionally followed by an additonal `|` and an expression giving the number of bits the value should take in.
+
+If the number of bits is given explicitly, the expressions must represent a value that can be evaluated at compile time.
+
+If no explicit number of bits have been given, the type will automatically take in only as many bits as required, this is done in the following ways:
+- If the type is a primitive type, it used the number of bits needed as defined in their layout.
+- If the type is a field-less enum or flags enum, it will only take in as many bits that are needed to be able to fit the full range of possible discriminants.
+- If the type has a bit-size defined using the `bit_size` attribute, it will take this value as the bit-size.
+
+The size of a bitfield may be explicitly defined in an expression after the bitfield's name.
+If no explicit size is defined, it will take in the minimum number of bits needed to store all field in the bitset.
+
+Access to bitfield elements are an example of propties being used.
+
+## 7.9. Const item
+
+```
+<const-item> := { <attribute> }* [ <vis> ] 'const' <name> [ ':' <type> ] '=' <expr> ';'
+```
+
+A constant item is a named constant value which is not associated with a specific memory location, i.e. the value is known at compile time.
+Contants are essentially inlined when they are used, meaning that they are copied directly into the relevant context when used.
+This includes constants from other libraries and non-`Copy` items.
+
+When a reference is taken to a constant value from different locations, they are not neccesarily guarenteed to point to the same memory location.
+
+Constants are generally explicitly types, unless a certain sub-set expressions are used, these are:
+- literal expression with a literal operator
+- _TODO: others_
+
+Constants live throught the entirety of the program and any reference to them is always valid.
+
+Constants may be of types that have a destructor, and will be dropped when the copy of the value that they are assigned too go out of scope.
+
+When defined inside of an implementation, the const item will be an associated with that type.
+
+### 7.9.1. Associated trait constant
+
+```
+<assoc-trait-const> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
+```
+
+An associated trait type declares a signature for an associated constant implementation.
+It declares both the name and the type the associated constant should have.
+
+## 7.10. Static item
+
+```
+<static-item> := { <attribute> }* [ <vis> ] [ [ 'mut' ] 'tls' ] 'static' <name> [ ':' <type> ] '=' <expr> ';'
+<extern-static-item> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'tls' ] 'static' <name> [ ':' <type> ] ';'
+```
+
+A static item is a named location within the programs static memory.
+All references to a static refer to the same memory location.
+Static item live for the entirety of the programs life and are never dropped at the end of the program.
+Therefore it is not allowed to assign a type which implements `Drop` as the type of a static.
+
+Static items must be initialized using a an expression that can be evaluated at compile time.
+
+Non-mutable static items do not support interior mutability and will be allocated in read-only static memory.
+
+All access to statics is safe, but there are a number of restrictions:
+- The type must have a `Sync` trait bound to allow thread-safe access.
+- Statics may not be refered to from a constant.
+
+### 7.10.1. Thread local storage
+
+Static values may also be allocated as thread local storage, using the weak `tls` keyword before the `static` keyword.
+Tls statics are unique to the thread they are running on and are not shared with other threads.
+
+Unlike static items, a thread local static can be mutable without requiring [interior mutability](#115-interior-mutability), as it can only be accessed from the current thread.
+
+### 7.10.2. Statics and generics
+
+When a static variable is declared within a generic scope, it will result in exactly 1 static item being defined, shared accross all monomorphization of that scope.
+
+### 7.10.3 External statics
+
+```
+<extern-static> := { <attribute> }* [ <vis> ] [ 'extern' <abi> ] ['mut']  <name> ':' <type> ';'
+```
+
+Statics can be defined external, or within an external block.
+These are declared without an initial value, as this will be retrieved from an external location.
+
+It is always `unsafe` to access an external static, whether or not it is mutable or not, as there is no guarantees that the bit pattern in static memory contains is valid for the type declared, since argitraty (e.g. C) code is in charge of initializing this value.
+
+Unlike normal statics, an external static is allowed to be declared mutable, without needing to rely on interior mutability.
+An immutable static must be initialized before any Xenon code is executed.
+
+When declaring a static within a external block, `extern` has to be left out.
+
+## 7.11. Properties
+
+```
+<prop-item> := { <attribute> }* [ <vis> ] 'property' <name> '{' { <prop-get-set> }[1,4] '}'
+<prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
+<prop-get> := 'get' <expr-no-block> ';'
+            | 'get' <expr-with-block>
+<prop-ref-get> := 'ref' 'get' <expr-no-block> ';'
+                | 'ref' 'get' <expr-with-block>
+<prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
+                | 'mut' 'get' <expr-with-block>
+<prop-get> := 'set' <expr-no-block> ';'
+            | 'set' <expr-with-block>
+```
+
+A property allows a field-like value to be associated with a set of expressions that handle the underlying value changes.
+
+Properties are implemented as having either a _getter_, a _setter_ or both.
+
+
+The program needs to be aware that using properties may result in slower code, depending on the underlying implementation
+
+Properties can only be declared as associated items.
+
+### 7.11.1. Getters & setters
+
+The value of a property can be access and/or modified in 4 ways:
+- A _value getter_, this return the value stored within the property.
+  This requires the property to have a type implementing `Copy`.
+  This gives access to `&self` within the expression.
+- A _reference getter_, this returns a reference to the value stored within the property.
+  This gives access to `&self` within the expression.
+- A _mutable getter_, this returns a mutable reference to the value stored within the property.
+  This gives access to `&mut self` within the expression.
+- A _setter_, this set the value inside of the 
+  This gives access to `&mut self` and the implicit argument `value` within the expression.
+
+A property needs to have at minimum one of them.
+
+#### Internal representation
+
+Internally, getters and setters get converted to internal function that get called when a property get's accesed.
+
+```
+property value : Type { get { ... } };
+// => 
+fn get_value(&self) -> Type { ... }
+
+property value : Type { ref get { ... } };
+// => 
+fn get_ref_value(&self) -> &Type { ... }
+
+property value : Type { mut get { ... } };
+// => 
+fn get_mut_value(&mut self) -> &mut Type { ... }
+
+property value : Type { set { ... } };
+// => 
+fn get_value(&self, value: Type) { ... }
+```
+
+### 7.11.3. Associated trait properties
+
+```
+<assoc-trait-property> := 'property' <name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
+<trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
+                      | 'set' ';'
+```
+
+An associated trait type declares a signature for an associated propery implementation.
+It declares the name, type and which getter/setter combo needs to exist of the property.
+
+Trait implementation cannot implement additional getters/setters.
+
+## 7.12. Trait
+
+```
+<trait-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] [ 'sealed' ] 'triat' <name> [ <generic-params> ] [ ':' <trait-bound> ] [ <where-clause> ] '{' { <trait-elem> }* '}'
+<trait-elem> := <assoc-func>
+              | <assoc-type>
+              | <assoc-const>
+              | <assoc-property>
+<assoc-const> := 'const' <name> ':' <type> ';'
+```
+
+A trait represents an abstract interface that type can implement.
+This consists out of a set of associated items, there are the following:
+- functions
+- types
+- constants
+- properties
+
+All traits define an implicit `Self` type, and refers to "the type that is implementing this trait".
+Any generic paramter applied to the trait, are also passed along to the `Self` type
+
+Traits can be implemented via individual implementations.
+
+A trait can be defined as sealed, this means that the trait can only be implemented from the current library and any implementation outside of the current library will result in a compile error.
+
+### 7.12.1. Object safety
+
+Object safety specifies a set of requireents that the interface needs to adhere to to be allowed to be used in places where an interface object type is allowed.
+These are:
+- All supertraits must be object safe.
+- The trait cannot be sized, i.e. it may not requires `Self is Sized`.
+- It must not have associated constants.
+- It murst not have associated types using generics.
+- All associated functions must either be dispatchable from a trait object or be explicilty non-dispatchable.
+    - Dispatchable functions must adhere to:
+        - Not have any generic parameters.
+        - Method is only allowed to use the `Self` within the receiver.
+        - The receiver needs to allow for dynamic disapatch, e.g. `&self` or `&mut Self`, and types implementing `DispatchFromDyn`.
+        - Parameters and return type must not be an inferable type, meaning they may not be an impl trait type.
+        - May not have a sized bound on the receiver (`Self is Sized` implies this).
+    - Explicit non-dispatchable functions require:
+        - Have a sized bound on the receiver (`Self is Sized` implies this).
+
+### 7.12.2. Supertraits
+
+A 'super trait' is a trait that is required to be implemented by a type to implement a specific trait.
+Aneywhere a generic or interface object is bounded by a trait, it is also bound by that trait's supertraits.
+
+Supertraits are declared as a trait bound on the `Self` type, and transitively the supertraits of traits declared in those trait bounds.
+The can either be defined as a bound directly on the trait, or to `Self` in a where clause.
+A trait cannot be its own supertrait, and they cannot form any cyclical supertrait dependence.
+
+### 7.12.3. Unsafe traits
+
+Traits can be declared as `unsafe`.
+Unsafe traits come with additional requirements that the programmer needs to guarantee to follow.
+
+### 7.12.4. Visibility
+
+Traits define their visiblity directly on the trait itself, and all items within the trait take on that visibility.
+Individual associated items cannot declare their own visibility.
+
+### 7.12.5. Function override resolution
+_TODO: could be moved to function declaration_
+
+As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrided to incur the so-called "diamond problem".
+Imagine a trait `A`, defining a function foo (with or without a default implementation).
+2 traits, `B` and `C` both have `A` as a supertrait and overide the default implementation.
+Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
+
+The trait hierachy is now:
+```
+ A
+/ \
+B C
+\ /
+ D
+```
+
+Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
+
+This example is illustrated in the following code:
+```
+trait A {
+    fn foo() -> i32;
+}
+
+trait B: A { 
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 1 }
+}
+
+trait C: A {
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 2 }
+}
+
+trait D: B, C {
+    // Override 'foo' to resolve the conflicting default implementations from B and C
+    // Removing this override will result in a compile error
+    override fn foo() -> i32 { C.foo() }
+}
+```
+
+This is somewhat similar to the resolution for conflicting generic specializations.
+
+## 7.13. Implementation
+
+```
+<impl-item> := <inherent-impl> | <trait-impl>
+```
+
+An implementation is an items that associates items with an implementing type.
+There are 2 types of implementations:
+
+### 7.13.1. Inherent implementation
+
+```
+<inherent-impl> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'impl' [ <generic-params> ] <type> [ <where-clause> ] '{' { <assoc-item> }* '}'
+```
+
+An inherent implementation is defined without specifying a trait to implements.
+The type implementing is called the _implementing type_ and the associated itms are the _associated items_ of the implementing type.
+
+Inherent implementations assoicated hte contained items ot the implementing type.
+Inherent implementaions can support associated functions (including methods), properties, and constants.
+
+The path to an assoicated item is the path to the implementing type, followed by the associated item's identifier as the final component of the path.
+
+A type can also have multiple inherent implementations.
+An implementation for a type must be defined in the same library as the original type definition.
+
+If a visibility attribute is defined for the block, all items with in the block will default to that visibility and may not be lowered.
+If `unsafe` is added to the block, then all functions within the block will be marked as unsafe.
+
+### 7.13.2. Trait implementation
+
+```
+<trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <assoc-item> }* '}'
+```
+
+A `trait` implementation is defined like an inherent implementation, but also include the interface to be implemented.
+
+The trait is known as the _implemented trait_, and the implementing type implements the trait.
+
+A trait implementation must define all non-default associated types declared by the implemented trait and it can redefine (i.e. override) an item that has a default implementation.
+It is not allowed to define any implementation that is not defined in the implemented trait.
+
+If an implemented trait contains an override for an associated function, but the implementing type has already implemented it by itself, the overriden default will be ignored.
+
+Unsafe traits require the `unsafe` keyword to be added to the implementation.
+`trait` implemetnations are not allowed to specify any visibility for items. 
+
+#### Coherence
+
+A trait implemention is coherent when it can be be defined within the current library.
+
+A trait implemention is considered coherent if either the below rules aren't followed, or there are overlapping implementations.
+
+Two trait implementations overlap when there is 2 implementations ca be instantiated for the same type.
+
+The coherence rules require that the implementation `impl<P0..=Pn> T0 as Trait<T1..=Tn>` to adhere to one of the following:
+- Trait is a local trait
+- At least one type `T0..=Tn` must be a local type
+
+> _Note_: Coherence rules might be changed in the future
+
+## 7.14. Associated items
+
+```
+<assoc-item> := <fn-item>
+              | <type-alias>
+              | <const-item>
+              | <property-tiem>
+```
+
+Associated items are items that can be defined in traits or implemetentations to be associated with the given trait or type.
+They are a subset of items that can be clared inside of a module.
+
+Associated items are useful when wanting to make items logically related to a given item.
+
+Every associated can come in 2 variations:
+- Ones that define an implementation
+- Ones that only define a signature (only allowed inside of traits)
+
+### 7.14.1. Associated types
+
+```
+<assoc-type> := <assoc-trait-type> | <assoc-impl-type>
+```
+
+An associated types are only allowed to be defined in trait implementations and in traits.
+
+Associated types can generally be split into 2 types:
+
+#### Associated trait type
+
+```
+<assoc-trait-type> := 'type' <name> [ <generic-params> ] [ ':' <trait-bounds> ] [ <where-clause> ] ';'
+```
+
+An associated trait type definition declared a signature for associated type implementation.
+They can include generic paramters, trait bounds and a where clause.
+When a trait bound is defined, it requires any type which can be used as the associated type to implement those traits
+An implicit `Sized` trait is also bound on associated types, but can be relaxed using the `?Sized` bound.
+
+#### Associated type implementation
+
+```
+<assoc-impl-type> := { <attribute> }* [ <vis> ] 'type' <name> '=' <type> ';'
+```
+
+An associated type definition has a very similar syntax than that of a type alias, except is cannot define any generic paramters.
+If a type `Item` has an associated type `Assoc` from a trait `Trait`, then `path_to_trait_assoc_type` is a type tht is an alias to the type specificed in the associated type definition.
+Otherwise a the type can be accessed as `Item::Assoc`, this can also be used if there in only 1 trait implementation with an associated type with a given name.
+
+### 7.14.2. Associated constants
+
+```
+<assoc-const> := <assoc-trait-const> | <assoc-impl-const>
+```
+
+Associated constants are constants associated with a type.
+
+For more info, see the section on [const items](#79-const-item)
+
+### 7.14.3. Associated properties
+
+```
+<assoc-property> := <assoc-trait-property> | <assoc-property-item>
+```
+
+Associated properties are properties associated with a type.
+
+For more info, see the section on [property items](#711-properties)
+
+### 7.14.4. Associated functions
+
+Associated functions are that are associated with a type.
+They come in 2 kinds:
+- Regular functions associated with a type
+- Methods taking in a the type as a receiver
+
+For more info, ee the section about function at [7.3. Function](#73-function)
+
+## 7.15. External block
+
+```
+<external-block> := 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
+```
+
+An external block provides declarations of items that are not defined in the current library and are used for the foreign function interface.
+
+There are 2 kind of items that are allowed within an external block: functions and static items.
+Calling functions or static items that are declared in external blocks are only allowed within an unsafe context.
+
+More info about [external functions]() and [statics]() can be found in their respecitive sections.
+
+# 8. Statements
 _TODO_
 
-## 6.N. Interfaces
+# 9. Expressions
 _TODO_
 
-_TODO: would 'trait' be a better name, as it could be better terminology?_
-
-# 7. Statements
+# 10. Patterns
 _TODO_
 
-# 8. Expressions
-_TODO_
+# 11. Type System
 
-# 9. Patterns
-_TODO_
-
-# 10. Type System
-
-## 10.1. Types
+## 11.1. Types
 
 ```
 <type> := <type-no-bound>
-        | <interface-object-type>
-        | <impl-interface-type>
+        | <trait-object-type>
+        | <impl-trait-type>
 
 <type-no-bound> := <parenthesized-type>
                  | <primitive-type>
@@ -756,7 +1774,7 @@ The type defines how a value is interpreted in memory and what operations can be
 
 Some types support unique functionality that cannot be replicated using user defined types.
 
-### 10.1.1. Rescursive types
+### 11.1.1. Rescursive types
 
 Nominal types may be recursive, meaning that a tpe may havae member that refers, directly or indirectly, to the current type.
 These are some limiations on how types can be nested:
@@ -764,16 +1782,16 @@ These are some limiations on how types can be nested:
   i.e. `type Foo = &[Foo]` is not allowed.
 - The size of a recursive type must be finite, meanign that the recursive field must be 'broken up' by a type like a pointer or reference type.
 
-### 10.1.2. Parenthesized types
+### 11.1.2. Parenthesized types
 
 ```
 <parenthesized-type> := '(' <type> ')'
 ```
 
 In some locations it may be possible that a type would be ambiguous, this can be solved using a parenthesized type.
-For example, a reference to an interface object type with multiple bounds can be unclear, as we cannot cleanly determine if the one of the bounds is a reference, or the whole set of bounds constitute a single type without requiring to rely heavily on context.
+For example, a reference to an trait object type with multiple bounds can be unclear, as we cannot cleanly determine if the one of the bounds is a reference, or the whole set of bounds constitute a single type without requiring to rely heavily on context.
 
-### 10.1.3. Primitive types
+### 11.1.3. Primitive types
 
 ```
 <primitive-type> := <unsigned-type>
@@ -908,7 +1926,7 @@ When used in a bitfield, specific bit-with mentioned above is used.
 
 If a character has a value outside of its valid range, it is undefined behavior.
 
-### 10.1.4. Unit type
+### 11.1.4. Unit type
 
 ```
 <unit-type> := '(' ')'
@@ -917,7 +1935,7 @@ If a character has a value outside of its valid range, it is undefined behavior.
 The unit type is a special type representing a zero-sided type.
 This is also known as `void` in some other languages.
 
-### 10.1.5. Never type
+### 11.1.5. Never type
 
 The never type is a special type that represents an operation that can never complete.
 This type can be implicitly coerced into any type.
@@ -927,7 +1945,7 @@ It can only ever appear as the return value of a function and can therefore not 
 <never-type> := '!'
 ```
 
-### 10.1.6. Path types
+### 11.1.6. Path types
 
 ```
 <path-type> := <type-path>
@@ -935,7 +1953,7 @@ It can only ever appear as the return value of a function and can therefore not 
 
 A path type refers to a user-defined path by its path, there are 3 types it can represent.
 
-### 10.1.7. Tuple types
+### 11.1.7. Tuple types
 
 ```
 <tuple-type> := '(' <type> { ',' <type> }+ [ ',' ] ')'
@@ -953,7 +1971,7 @@ Tuples are required to have at least 2 types, otherwhise they will be resolved t
 - 0 types will be interpreted as a unit type
 - 1 type will be interpreted as a parenthesized type
 
-### 10.1.8. Array types
+### 11.1.8. Array types
 
 ```
 <array-type> := '[' <expr> [ ';' <expr> ] ']' <type>
@@ -975,7 +1993,7 @@ When a sentinel value is defined, the array will contain 1 additional element pa
 Sentinel value mainly exist for interoperability with C and OS libraries that commonly expect a range of values ending in a sentinal value,
 but these are not that useful when writing Xenon code itself
 
-### 10.1.9. Slice types
+### 11.1.9. Slice types
 
 ```
 <slice-type> := `[` ';' <expr> `]` <type>
@@ -1000,7 +2018,7 @@ but these are not that useful when writing Xenon code itself
 
 See the [index expression] for more info about how to create a sentinal terminated array.
 
-### 10.1.10. String slice types
+### 11.1.10. String slice types
 
 ```
 <string-slice-type> := 'str' | 'str7' | 'str8' | 'str16' | 'str32' | 'cstr'
@@ -1020,7 +2038,7 @@ Type    | character type | internal representation | Meaning
 `str32` | `char32`       | `[]char32`              | utf-32 string
 `cstr`  | `char8`        | `[*;0]char8`            | C-style string
 
-### 10.1.11. Pointer types
+### 11.1.11. Pointer types
 
 ```
 <pointer-type> := ( '*' | '[' '*' [ ';' <expr> ] ']' ) ( 'const' | 'mut ) <type>
@@ -1067,7 +2085,7 @@ The main difference lies in the fact that a sentinel terminated pointer will onl
 
 The main purpose of this type is to prevent buffer overflows when interacting with C-style and OS code.
 
-### 10.1.12. Reference types
+### 11.1.12. Reference types
 
 ```
 <reference-type> := `&` [ 'mut' ] <type>
@@ -1092,7 +2110,7 @@ Mutable references (which haven't been borrowed) allow the underlying value to b
 
 A mutable reference is written as `&mut T`.
 
-#### 10.1.13. Optional types
+#### 11.1.13. Optional types
 
 ```
 <optional-type> := '?' <type>
@@ -1104,7 +2122,7 @@ An example is a nullable pointer, where the 'null' state is represented with an 
 
 This is synctactic suger of `Option<T>`.
 
-### 10.1.14 Function types
+### 11.1.14 Function types
 
 A function type is an anonymous compiler-generated type, which cannot be manually defined.
 The type references a specific function, including its name and its signature (including parameter labels).
@@ -1116,7 +2134,7 @@ Separating each function in its own type allows for additional optimization.
 
 When an error message is generated using this type, it will generally show up as something like `fn(_:i32) -> i32 { name }`
 
-### 10.1.15. Function pointer type
+### 11.1.15. Function pointer type
 
 ```
 <fn-type> := [ 'unsafe' [ 'extern' <abi> ] ] 'fn' '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
@@ -1136,76 +2154,76 @@ If multiple names are are given for a single parameter, these will be separate p
 
 _TODO: Variadic paramters, if possible_
 
-### 10.1.16. Closure types
+### 11.1.16. Closure types
 
 A closure type is a compiler generated type which cannot be declared manually, and refers to a closure using a unique anymous type.
 
 For more info about closure, see the [closure expression].
 
-### 10.1.17. Intereface Object types
+### 11.1.17. Intereface Object types
 
 ```
-<interface-object-type> := 'dyn' <interface-bound> { '+' <interface-bound> }*
+<trait-object-type> := 'dyn' <trait-bound> { '+' <trait-bound> }*
 ```
 
-An interface object type is an opaque type that implements a set of interfaces, any set of interfaces is allowed, except of an opt-in interface like `?Sized`.
-The objects are guaranteed to not only implement the given interfaces, but also their parent interfaces.
+An trait object type is an opaque type that implements a set of traits, any set of traits is allowed, except of an opt-in trait like `?Sized`.
+The objects are guaranteed to not only implement the given traits, but also their parent traits.
 
-Different interface objects may alias each other if the interfaces match, but are in different orders, meaning that `dyn A + B + C` is the same as `dyn A + B + C`
+Different trait objects may alias each other if the traits match, but are in different orders, meaning that `dyn A + B + C` is the same as `dyn A + B + C`
 
-An intereface can be assigned to a less specific interface objects, meaning that it can be assgined to a type that has less interface bounds.
+An intereface can be assigned to a less specific trait objects, meaning that it can be assgined to a type that has less trait bounds.
 This *may* incur some additional overhead, as a new vtable needs to be retrieved and assigned, if this cannot be determined at compile time.
 
-Due to the opaqueness of interface objects, this type is dynamically sized, meaning that it must be stored behind a reference, a pointer, or a type accepting DTSs.
+Due to the opaqueness of trait objects, this type is dynamically sized, meaning that it must be stored behind a reference, a pointer, or a type accepting DTSs.
 
-Interface objects are stored in so-called "fat pointers' which consists out of 2 components:
-- A pointer to the an object of a type `T` that implements the interface bounds
-- A virtual table, also known as a vtable, which contains both RTTI info and a list of function pointers to the methods of the interfaces and their parent types, of `T`'s implementation.
+Trait objects are stored in so-called "fat pointers' which consists out of 2 components:
+- A pointer to the an object of a type `T` that implements the trait bounds
+- A virtual table, also known as a vtable, which contains both RTTI info and a list of function pointers to the methods of the traits and their parent types, of `T`'s implementation.
 
-Interface object types allowe for "late binding" in cases where the types being used cannot be known at compile time, but the programmer knowns the functionality they posses.
+Trait object types allowe for "late binding" in cases where the types being used cannot be known at compile time, but the programmer knowns the functionality they posses.
 Calling a method will use a virtual dispatch of the method: that is, teh function pointer is loaded from the vtable, and is then invoked indirectly, incurring a pointer indirection.
 The actual implemention of each vtable may vary on an object-by-object basis.
 
-### 10.1.18. Impl interface types
+### 11.1.18. Impl trait types
 
 ```
-<impl-interface-type> := 'impl' <interface-bound> { '+' <interface-bound> }
+<impl-trait-type> := 'impl' <trait-bound> { '+' <trait-bound> }
 ```
 
-An impl interface type introduces an unnamed generic parameter that implements the given intrefaces to the item it is used in.
+An impl trait type introduces an unnamed generic parameter that implements the given intrefaces to the item it is used in.
 It can appear in only 2 locations: function paramters (where it acts as an anonymous type of the parameter to the function) and function return types (where it acts as an abstract return type).
 
 #### Anonymous type parameter
 
-A function can use an impl interface type as the type of its parameter, where it declares the parameter to be of an anonymous type.
-The caller must provide a type that statisfies the bounds declared in the anonymous type paramter, and the function can only use the functionality available through the interface bounds of the anonymous type paramter.
+A function can use an impl trait type as the type of its parameter, where it declares the parameter to be of an anonymous type.
+The caller must provide a type that statisfies the bounds declared in the anonymous type paramter, and the function can only use the functionality available through the trait bounds of the anonymous type paramter.
 
 An example of this would be:
 ```
-interface Interface {}
+trait Trait {}
 
 // Generic type parameter
-fn with_generic_type<T is Interface>(param: T) {}
+fn with_generic_type<T is Trait>(param: T) {}
 
-// impl interface typed paramter
-fn with_impl_type(param: impl Interface) {}
+// impl trait typed paramter
+fn with_impl_type(param: impl Trait) {}
 ```
 
-This can be seens as synctactic sugar for a generic type paramter like `<T is Interface>`, except that the type is anonymous and does not appear within the generic argument list.
+This can be seens as synctactic sugar for a generic type paramter like `<T is Trait>`, except that the type is anonymous and does not appear within the generic argument list.
 
-> _Note_: For function arguments, generic type parameters and `impl Interface` are not completely equivalent
-> With a generic type paramter `<T is Interface>`, the caller is able to explicitly specify the type of the generic type parameter `T` when calling the function.
-> If an `impl Interface` is used, the caller cannot ever specify the type of the parameter when calling the function.
+> _Note_: For function arguments, generic type parameters and `impl Trait` are not completely equivalent
+> With a generic type paramter `<T is Trait>`, the caller is able to explicitly specify the type of the generic type parameter `T` when calling the function.
+> If an `impl Trait` is used, the caller cannot ever specify the type of the parameter when calling the function.
 >
 > Therefore, changing between these types within a function signature should be considered a breaking change.
 
 #### Abstract return types
 
-A function can use an impl interface type as the type in its return type.
-These types stand in for another concrete type wher the caller may only used the functinality declared by the specified interfaces.
+A function can use an impl trait type as the type in its return type.
+These types stand in for another concrete type wher the caller may only used the functinality declared by the specified traits.
 Each possible return type of the function must resolve to the same concrete type.
 
-An `impl Interface` in the return allows to return a abstract type that does not have to be stored within dynamic memory.
+An `impl Trait` in the return allows to return a abstract type that does not have to be stored within dynamic memory.
 This can be particularly usefull when writing a function returning a closure or iterator, as for example, a closure has an un-writable type.
 
 Without this functionality, it would only be possible to return a 'boxed' type:
@@ -1228,37 +2246,37 @@ Which avoids the drawbacks of the 'boxed' type.
 
 _TODO: add note on (memory) effect implications_
 
-#### Abstract return types in interface declarations
+#### Abstract return types in trait declarations
 
-Functions in interfaces may also return an abstract return types, this will create an anonymous associated type within the interface.
+Functions in traits may also return an abstract return types, this will create an anonymous associated type within the trait.
 
-Evety `impl Interface` in the return type of an associated function in an interface is desugared to an anonymous associated type.
+Evety `impl Trait` in the return type of an associated function in an trait is desugared to an anonymous associated type.
 The return type that appears in teh implementation's funciton signature is used to determine the value of hte associated type.
 
-##### Differences between generics and `impl Interface` in a return
+##### Differences between generics and `impl Trait` in a return
 
-When used as a type argument, `impl Interfaces` work similar to the semantics of generic type parameters.
+When used as a type argument, `impl trait` work similar to the semantics of generic type parameters.
 But when used in the return, there are significant changes, as unlike with a generic parameter where the caller can choose the return type, the implementation chooses the function's return type.
 
 For example, the function
 ```
-fn foo<T is Interface>() -> T { ... }
+fn foo<T is Trait>() -> T { ... }
 ```
 Allows the caller to determine the return type.
 
 In contrast, the function
 ```
-fn foo() -> impl Interface { ... }
+fn foo() -> impl Trait { ... }
 ```
 doesn't allow the caller to explicitly determine the return type.
-Instead the function chooses the return type, with the only guarantee that it implements the required interfaces.
+Instead the function chooses the return type, with the only guarantee that it implements the required traits.
 
-#### Impl interface limitations
+#### Impl trait limitations
 
-An impl interface type may only occur for non-`extern` functions.
+An impl trait type may only occur for non-`extern` functions.
 It can also not be the type of a variable declaration, a field, or appear inside a type alias.
 
-### 10.1.19. Record types
+### 11.1.19. Record types
 
 ```
 <record-type> := '{' <record-members> '}'
@@ -1270,7 +2288,7 @@ A record is a _structural_ type is that, similarly to a tuple, consisting out of
 
 But unlike a tuple, fields can be given explicit names, which can then be used to index the fields of the record.
 
-### 10.1.20. Enum record types
+### 11.1.20. Enum record types
 
 ```
 <enum-record> := 'enum' '{' <enum-fields> '}'
@@ -1281,7 +2299,7 @@ An enum record is a _structural_ type and is a variant of a record.
 Unlike a record, it does not represent a collection of fields, but a type that is similar to that of an `enum`.
 Access to enum members work essentially identical than those of an enum.
 
-### 10.1.21. Inferred types
+### 11.1.21. Inferred types
 
 ```
 <inferred-type> := '_'
@@ -1295,37 +2313,37 @@ Inferred types are often used to let the compiler infer the type of generic para
 TODO
 ```
 
-## 10.2. Dynamically sized types
+## 11.2. Dynamically sized types
 
-Most types have a fixed size that is known at compile time and implements the `Sized` interface.
+Most types have a fixed size that is known at compile time and implements the `Sized` trait.
 A type wit ha size tha is only known at compile-time is called a dynamically sized type (DST), or informally, unsized types.
-Slices and interface objects are two such examples.
+Slices and trait objects are two such examples.
 
 DSTs can only be used in certain cases:
 - Pointers and references to DSTs are sized, but have twice the size of a pointer of a sized type.
     - Pointers to slices store the number of elements in the slice.
-    - Pointers to interface objects store a pointer to their vtable.
+    - Pointers to trait objects store a pointer to their vtable.
 - DSTs can be provided as type arguments to generic type parameters that have a special `?Sized` bound.
   They can also be used for associated type definitions when the corresponding associated type is declared using the `?Sized` bound.
   By default, any type parameter has a `Sized` bound, unless explicitly relaxed using `?Sized`
-- Interface may be implemented for DSTs.
-  Unlike with generic type paramters, `Self is ?Sized` is the default in interface definitions.
+- Trait may be implemented for DSTs.
+  Unlike with generic type paramters, `Self is ?Sized` is the default in trait definitions.
 - Struct may contains a DST as the last field, this makes the struct itself a DST.
 
-## 10.3. Nominal vs structural types
+## 11.3. Nominal vs structural types
 
 Xenon has types that can either be nominal or structural, between these 2 kinds of types.
 
 Both have the same type layout and mutability rules, but there are some important differences:
 
 Nominal types:
-- Nominal types do **not** implicitly implement any interfaces.
-- Nominal types can have additional functionality and interfaces implemented.
+- Nominal types do **not** implicitly implement any traits.
+- Nominal types can have additional functionality and traits implemented.
 - All field have configurable visibility.
 - The types can be accessed directly from other scopes when 'imported'.
 
 Structural types:
-- Structural types implicitly implement a set of interfaces, depending on the values of the members, these are:
+- Structural types implicitly implement a set of traits, depending on the values of the members, these are:
     - `Clone`
     - `Copy`
     - `PartialEq`
@@ -1337,14 +2355,14 @@ Structural types:
 - The types only exist within the scope they are defined, unless publically aliased.
 
 
-## 10.4. Type layout
+## 11.4. Type layout
 
 The layout of a type defines its size, alignment, and its internal representation of data/fields.
 For enums, how their distriminant is laid out is also part of the layout.
 
 Type layouts can change inbetween compilations.
 
-### 10.4.1. Size and Alignment
+### 11.4.1. Size and Alignment
 
 All values have a size and alignment.
 
@@ -1360,11 +2378,11 @@ On some platforms, a zero-sized types might still be required to follow a specif
 
 the majority of types will know their size and alignment at compile time, these are called 'sized types'.
 Sized types can have their size and alignment checked at compile time.
-Meanwhile types that are not known at compile time, as known as [dynamically sized types](#102-dynamically-sized-types).
+Meanwhile types that are not known at compile time, as known as [dynamically sized types](#112-dynamically-sized-types).
 
 Since all values of a sized types share their size and alignment, we say that they have the type's size and alignment.
 
-### 10.4.2. Primitive layout
+### 11.4.2. Primitive layout
 
 The size of most primitive types can be found in the table below:
 
@@ -1387,11 +2405,11 @@ The alignment of types is generally platform-specific, but to keep this consiste
 
 When used in a bitfield, some primitive types may have different sizes and alignment to fit more tightly into memory.
 
-### 10.4.3. Unit and never type layout
+### 11.4.3. Unit and never type layout
 
 Unit and never types are both 0-sized types with an alignment of 1.
 
-### 10.4.4. Pointer and reference layout
+### 11.4.4. Pointer and reference layout
 
 Pointers and references have the same layout.
 The mutabilty of a pointer or reference has not impact on the layout.
@@ -1403,20 +2421,20 @@ Pointers and references to usized types are typed. Their size and alignement is 
 > _Note_: Currently all pointers and references to DST are twice the size of a `usize` and have the same alignment.
 > Although this should not be relied on.
 
-### 10.4.5. Array layout
+### 11.4.5. Array layout
 
 An array of the form `[N]T` has a size that is `N` times that of the size of type `T` and has the same alignment as type `T`.
 Arrays are laid out so that the zero-based `n`th element of the array is offset from the start of the array by `n` times the size of type `T`.
 
 When an array is sentinal terminated, the array contains an additional element of type `T` at the end, so the size of the array will be `N + 1` times the size of type `T`.
 
-### 10.4.6. Slice layout
+### 11.4.6. Slice layout
 
 Slices have the same alyout as a section of an array
 
 > _Note_: This is about the ray `[]T` type, not pointers to arrays to slices, e.g. (`&[N]T`)
 
-### 10.4.7. String slice layout
+### 11.4.7. String slice layout
 
 A string slice's layout depends on the type of string slice, but they have the same representation as their internal slice layout.
 
@@ -1431,25 +2449,25 @@ String slice | Slice
 `str32`      | `[char32]`
 `cstr`       | `[char8]`
 
-### 10.4.8. Tuple layout
+### 11.4.8. Tuple layout
 
 Tuples are laid out as defined in the [Xenon representation]().
 
-### 10.4.9. Interface object layout
+### 11.4.9. Trait object layout
 
-Interface objects have the same layout as the value the interface that implements it.
+Trait objects have the same layout as the value the trait that implements it.
 
-> _Note_: THis is for the interface object itself, not a type containing the object, such as a reference.
+> _Note_: THis is for the trait object itself, not a type containing the object, such as a reference.
 
-### 10.4.10. Closure layout
+### 11.4.10. Closure layout
 
 A closure has no layout guarantees.
 
-### 10.4.11. Bitfield layout
+### 11.4.11. Bitfield layout
 
 A bitfield will have the size and alignment of the smallest primitive types that fits the contents of the bitfield.
 
-### 10.4.12. Layout representation
+### 11.4.12. Layout representation
 
 All user-defined composite types have a representation that specifies how the type is laid out.
 The possible representations for these are:
@@ -1503,7 +2521,7 @@ The C representation has 2 purposes:
 - creating types that are interoperable with C libraries/code.
 - allow types to be laid out in such a way that the layout of the type can be relied on.
 
-This representation can be applied to `struct`s, `enum`s, and `union`s, with the exception of zero-varient enums.
+This representation can be applied to `struct`s, `enum`s, and `union`s.
 
 The C representation also affects the alignment of primitive types for the current target architecture.
 
@@ -1589,7 +2607,7 @@ Otherwise the offset of fields is affect, as this modifier affects the minimal r
 
 Only one of the `align` or `packed` modifiers can be applied to a type at any type, and it may only be applied to types with either a `xenon` or `C` representation.
 
-## 10.5. Interior mutability
+## 11.5. Interior mutability
 
 Sometimes a type needs to be mutated while having multiple aliases.
 This can be achieved using a concept called _interior mutability_.
@@ -1604,7 +2622,7 @@ Other types with interior mutabiliity can be created using `UnsafeCell<T>` as a 
 
 > **Warning**: The programmer must ensure that this does not cause any unininted consequences or may cause other undefined behavior.
 
-## 10.6. Type coercions
+## 11.6. Type coercions
 
 Type coercions are implicit operations that change the type of a value.
 They happen automatically at specific locations and are highly restricted in what types are allowed to coerce.
@@ -1613,7 +2631,7 @@ Any conversions allowed by coercion can als obe explicitly performed using the t
 
 > _Note_: This description is informal and not yet fully defined, and should be more specific
 
-### 10.6.1. Coercion sites
+### 11.6.1. Coercion sites
 
 A coersion can only occur at certain sites in a program; these are typically places weherere the desired type is explicit or can be derived from explicit types (without type interference).
 Possible coercion sites are:
@@ -1639,7 +2657,7 @@ Propagating epxresson and their relevant sub-expressions are the following:
   This includes blocks which are part of control flow statements, such as `if`/`else`, if the block has a known type.
 
 
-### 10.6.2. Coecion types
+### 11.6.2. Coecion types
 
 Coercions are allowed betweeen the following types:
 - `T1` to `T3`, if `T1` coerces to `T2` and `T2` coerces to `T3`
@@ -1657,12 +2675,12 @@ Coercions are allowed betweeen the following types:
 
 > _NOTE_: Since coercion are not anywhere close to being finalized, this list is incomplete
 
-### 10.6.3. Unsized coercions 
+### 11.6.3. Unsized coercions 
 
 The following coercions arr called `unsized coercions`, since they relate to conversting sized types, and are permitted in a few cases where other coercions are not, as described above.
 They can still happen anywhere a coercion can be done.
 
-Two interfaces `Unsize` and `CoerceUnsized`, are used to assigst in this process and expose it for library use.
+Two traits `Unsize` and `CoerceUnsized`, are used to assigst in this process and expose it for library use.
 The following coercions are built-in and if `T` can coerce to `U` with one of them, than an implementation for `Unsize<U>` will be provide:
 - `[n]T` to `[]T`
 - `T` to `dyn U`, when T implements `U +Sized` and `U` is object safe.
@@ -1678,7 +2696,7 @@ This allows it to provide an unsized coercion to `Foo<T>`
 
 > _NOTE_: Since coercion are not anywhere close to being finalized, this is incomplete
 
-### 10.6.4. Least upper bound coercions
+### 11.6.4. Least upper bound coercions
 
 In some contexts, the compiler must coerce together multiple types to try and find the most general type.
 This is called a "Least Upper Bound" coercion, or LUB coercions in short.
@@ -1701,7 +2719,7 @@ For each new type `Ti`, we cosider:
 If this fails, it will result in a compiler error.
 
 
-## 10.7. Destructors
+## 11.7. Destructors
 
 When an initialized variable or temporary goes out of scope, its destructor is run, or it is _dropped_ (this terminology is taken from rust).
 Assignment also runs the destructor of its left-hand operatnd, if it's initialized.
@@ -1715,12 +2733,12 @@ The destructor of a type `T` consists out of:
     - The fields of a tuple are dropped in order
     - The elements of an array or owned slice are dropped from the first element to the last.
     - The variables that a closure captures by move are dropped in an unspecified order
-    - Interface objects run the destructor of the underlying type
+    - Trait objects run the destructor of the underlying type
     - Other types don't result in any further drops
 
 If a destructor must be run manually, such as when implementing a smart pointer, `drop_in_place` can be used.
 
-### 10.7.1. Drop scopes
+### 11.7.1. Drop scopes
 
 Each variable or temporary is associated with a drop scope.
 When control flow leaves a drop scope, all variables associated to that scope are dropped in reverse order of declaration (for varialbes) or creation (for temporaries).
@@ -1749,14 +2767,14 @@ When multiple scopes are left at once, such as when returning from a function, v
 - The parent of the arm scope is the scope of the `match` expression that it belongs to.
 - The parent of all other scopes is the cope of hte immediately enclosing expression.
 
-### 10.7.2.  Scopes of function parameters
+### 11.7.2.  Scopes of function parameters
 
 All function paramters are in the scope of the entire function, so are dropped last when evaluating the function.
 Each actual function parameter is dropped after any bindings introduced in that parameter's pattern.
 
 _TODO: Example_
 
-### 10.7.3. Scopes of local variables
+### 11.7.3. Scopes of local variables
 
 Local variables declared in a variable declaration are associated to the scope that contains the declaration.
 Local variables declared in a `match` expression are associated to the arm scope of the `match` that they are declared in.
@@ -1765,7 +2783,7 @@ _TODO: Example_
 
 If multiple patterns are used in the same arm of a `match` expressions, then an unspecified pattern will be used to determin the drop order.
 
-### 10.7.4. Temporary scopes
+### 11.7.4. Temporary scopes
 
 The temporary scope of an expressions is the scope that is used for the temporary variable that holds the result of he exprssion when used in a place context, unless it is promoted.
 
@@ -1787,7 +2805,7 @@ Apart from lifetime extensions, the temprory scope of an expression is the small
 _TODO: Example_
 
 
-### 10.7.5. Operands
+### 11.7.5. Operands
 
 Temporaries are also created to hold the result of operands to an expressions while the other operands are evaluated.
 The temporaries are associated to the scope of the expressions with that operand.
@@ -1795,12 +2813,12 @@ Since the temporaries are moved from once the expreesssion is evaluated, droppin
 
 _TODO: Example_
 
-### 10.7.6. Constant promotion
+### 11.7.6. Constant promotion
 
 Promotion of a value expression to a `static` slot occurs when the expression could be written in a constant and borowed, and that borrow could be dereferenced where the exprssion was originally written, without changing the runtime behavior.
-That is, the promoted expression can be evaluated at compile-time and the resulting value does not contain [interior mutability](#105-interior-mutability) or [destructors](#107-destructors) (these properties are determined based on the value when possible).
+That is, the promoted expression can be evaluated at compile-time and the resulting value does not contain [interior mutability](#115-interior-mutability) or [destructors](#117-destructors) (these properties are determined based on the value when possible).
 
-### 10.7.7. Temporary lifetime extension
+### 11.7.7. Temporary lifetime extension
 
 > _Note_: This is subject to change
 
@@ -1809,7 +2827,7 @@ This is done wherer the usual temporary scope would be too small, based on synta
 
 If a borrow, dereference, field, or tuple expression has an extended temporary scope, the nteh indexed experssions also has an extended scope.
 
-### 10.7.8. Extending based on patterns
+### 11.7.8. Extending based on patterns
 
 An extending pattern is either:
 - An identifier pattern that binds by refernce or mutable reference.
@@ -1819,7 +2837,7 @@ So `ref x`, `V(ref x)` and `[ref x, y]` are all extending patterns, but `x`, `&x
 
 If the pattern in a variable declaration is an extending pattern, then the temporary scope of the initializer expression is extended.
 
-### 10.7.9. Extending based on expressions
+### 11.7.9. Extending based on expressions
 
 For a variable declaration with an initializer, an extending expression is an experssion whici is one of the following:
 - The initializer expression.
@@ -1832,30 +2850,33 @@ The borrows in `&0 + &1` and `Some(&mut 0)` are not: the latter is syntactically
 
 The operand of any extending expression has its temporary scope extended.
 
-### 10.7.10. Not running destructors
+### 11.7.10. Not running destructors
 
 `forget` can be used to prevent the destructor of a variable from being run, `ManuallyDrop` provides a wrapper to prevent a variable or field from being dropped automatically.
 
 > _Note_: Preventing a destructor from being run via `forget` or other means is safe even if the type isn't static.
 > Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
 
-# 11. Generics
+# 12. Generics
 _TODO_
 
-# 12. Macros
+# 13. Macros
 _TODO_
 
-# 13. Operators and Precedence
+# 14. Operators and Precedence
 _TODO_
 
-# 14. Attributes
+# 15. Attributes
 _TODO_
 
-# 15. Implicit context
+# 16. Implicit context
 _TODO_
 
-# 16. Effect system
+# 17. Effect system
 _TODO_
 
-# 17. Contracts
+# 18. Contracts
+_TODO_
+
+# 19. ABI
 _TODO_
