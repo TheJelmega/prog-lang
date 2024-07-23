@@ -1033,7 +1033,11 @@ Function parameters consists out of an label, a pattern, and a type.
 A label can be optional if the pattern is an identifier pattern.
 
 The first parameter can be a special receiver parameter, which indicates that this function is a method, and can therefore only be declared within an implementation block.
-The receiver has an implicit '_' label,
+The receiver has an implicit '_' label, and can be any of the following types:
+- `Self`
+- `&Self`
+- `&mut Self`
+- any `T` that implements `Deref<Target = Self>`. _TODO: might need an additional `Dispatch` bound_
 
 Any other parameter is a normal parameters.
 If an explicit label is provided, it can be either
@@ -1047,7 +1051,6 @@ The default value needs to be an expression that can be evaluated at compile tim
 All default parameters are required to have a label, as these may appear in any order in a function call.
 
 If a function has no default parameters, or only has labeled default parameters, they may be followed by a variadic parameter.
-A function may also end in variadic paramters
 This is a special parameter that allows any number of element of that type to be provided.
 This will generate a generic paramter pack with a type constraint to the type given.
 
@@ -1080,7 +1083,7 @@ Function overlap gets checked for each set of functions in the following steps:
 4. If both functions have the same number of non-default paramters, proceed to the next step, otherwise take the `N` parameters that are left from the additional paramters one of the functions has, and for each paramters, do the following:
    1. Walk through the other functions default arguments
       - If a label matches that of the optional argument and we are at the last paramter of the function (i.e. no other params left), we got a collision
-      - If we only match the labels, use this as a new starting point in the default arguments for the next iteration of this loop, and go the next iteration.
+      - If we only match the labels, and go the next iteration.
       - Otherwise go to the next sub-step
    2. If we hit the end of the other functions optional parameters, we have no collision, otherwise break otherwise go to the next iteration
 5. Take the remaining default parameters that are left for each function, if there is a match for any label, there is a collision, otherwise go the the next step
@@ -1088,7 +1091,7 @@ Function overlap gets checked for each set of functions in the following steps:
 
 #### Resolve examples
 
-Below are example of where something can happen in a collisin check
+Below are example of where something can happen in a collision check.
 
 2. Different names: **_no collision_**
 ```
@@ -1903,7 +1906,61 @@ Calling functions or static items that are declared in external blocks are only 
 More info about [external functions]() and [statics]() can be found in their respecitive sections.
 
 # 8. Statements
-_TODO_
+
+```
+<stmt> := <var-decl>
+        | <expr-stmt>
+        | <defer-stmt>
+```
+
+A statement is a component of a block, which is in turn part of an outer expression or a functions.
+Statements differ from expressions, as they do not return a value and can only directly exist within a scope
+
+## 8.1. Item statement
+
+```
+<item-stmt> := <item>
+```
+
+An item statement is a itemswhich can be defined within a block.
+Declaring them at a location a statement can be defined limits their definition to the block they belong to.
+As such, they cannot be referenced outside of the specific scope they are declared in.
+
+They may implicitly capture generics from an outer scope, unless they are shadowed by the generic with the same name by the item.
+
+## 8.2. Variable declaration
+
+```
+<var-decl> := 'let' <pattern-top-no-alt> [ ':' <type> ] [ '=' <expr> [ 'else' <block-expr> ] ] ';'
+```
+
+A variable declartion introduces a new variable withing a scope.
+By default, variables are immuatable and need to explicitly be defined as `mut` to be able to be mutated.
+
+If no type is given, the compiler will infer the type from the surrounding context, or will return an error if insuffient information can be retreived from code.
+
+Any variable introduced will be visible until the end of the scope, unless they are shadowed by another declaration.
+
+A variable may also be declared as being unitialized, this requires:
+- An explicit type to be given
+- Only identifier or tuple patterns
+- The variable needs to be assigned a value in all possible paths that can reach the first use of that variable.
+
+A variable declaration may also contain an `else` block, allowing a refutable pattern.
+If this patten fails to match, the else block will get executed, this is generally used to either panic or return from the function.
+If an `else` block is not present, the pattern needs to be irrefutable.
+
+## 8.3. Expression statement 
+
+## 8.4. Defer statement
+
+```
+<defer-stmt> := 'defer' <expr-with-block>
+              | `defer` <expr-no-block> ';'
+```
+
+A defer expressions delays the execution of an expression until the end of the scope, but before any destructors are being run.
+Defers ere evaluated in the reverse order they are called, in a so-called LIFO (Last-In First-Out) order.
 
 # 9. Expressions
 _TODO_
