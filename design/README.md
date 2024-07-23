@@ -44,7 +44,7 @@ Version: 0.0
     2. [Use declaration](#72-use-declarations)
         1. [Use visibility](#721-use-visibility)
         2. [Underscore imports](#722-underscore-imports)
-    3. [Functions](#73-functions)
+    3. [Functions](#73-function)
         1. [Parameters](#731-parameters)
         2. [Returns](#732-returns)
         3. [Pseudo-function overloading](#733-pseudo-function-overloading)
