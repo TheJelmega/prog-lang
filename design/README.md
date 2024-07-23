@@ -45,6 +45,13 @@ Version: 0.0
         1. [Use visibility](#721-use-visibility)
         2. [Underscore imports](#722-underscore-imports)
     3. [Functions](#73-functions)
+        1. [Parameters](#731-parameters)
+        2. [Returns](#732-returns)
+        3. [Pseudo-function overloading](#733-pseudo-function-overloading)
+        4. [Const function](#734-const-function)
+        5. [Trait function](#735-trait-function)
+            - [Trait function override resolution](#trait-function-override-resolution)
+        6. [External function qualifier](#736-external-function-qualifier)
     4. [Type aliases](#74-type-aliases)
         1. [Distinct types](#741-distinct-types)
         3. [Opaque types](#742-opaque-types)
@@ -332,6 +339,7 @@ i128
 impl
 isize
 mut
+self
 static
 str
 str7
@@ -791,7 +799,6 @@ For more info, see the [Operator](#12-operators--precedence) section.
         | <bitfield-item>
         | <const-item>
         | <static-item>
-        | <property-item>
         | <trait-item>
         | <impl-item>
         | <external-block>
@@ -991,21 +998,229 @@ This is particularly useful to import an trait so that its methods may be used w
 
 ## 7.3 Function
 
-### 7.3.1. Trait function
+```
+<fn-item> := { <attribute> }* [ <vis> ] [ 'const ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <fn-body>
+<fn-body> := <block-with-return>
+           | <block-no-return>
+           | ';'
+```
+
+A function associates a block of code with a name with a set of generics, parameters, effects, a return type, only the name is required.
+
+When refered to, a function yields a first-class value of a the corresponding zero-sized [function item type](#11114-function-types), which when called evaluates to a drectir call to a function.
+
+A function can be declared `unsafe`, requiring it to be called from an unsafe context, but allowing any `unsafe` code to be called from within the function.
+
+### 7.3.1. Parameters
 
 ```
-<assoc-func> := ... ['override'] ...
+<fn-params> := [ <receiver-param> ] [  <fn-param> { ',' <opt-fn-param> }* ] [  <fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
+
+
+<receiver-param> := <simple-receiver> | <typed-receiver>
+<simple-receiver> := [ '&' [ 'mut' ] ] 'self'
+<typed-receiver> := 'self' ':' <type>
+
+<fn-param> := { <attribute> }* <fn-param-name> { ',' <fn-param-name> }* ':' <type>
+<opt-fn-param> := { <attribute> }* <name> <pattern-top-no-alt> ':' <type> '=' <expr>
+<fn-param-name> := [ <name> ] <name>
+                 | <name> <pattern-top-no-alt>
+
+<variadic-param> := <label> '...' ':' <type>
 ```
 
+Function parameters consists out of an label, a pattern, and a type.
+A label can be optional if the pattern is an identifier pattern.
+
+The first parameter can be a special receiver parameter, which indicates that this function is a method, and can therefore only be declared within an implementation block.
+The receiver has an implicit '_' label,
+
+Any other parameter is a normal parameters.
+If an explicit label is provided, it can be either
+- a name, this is the label any argument needs to be 'bound' to, and needs to be provided for this parameter when calling the function
+- an '_', this implies an unnamed parameter and has no label needs to be provided for this parameter when calling the function.
+
+If no explicit label is provided, this will default to a label with the same name as a paramters, so `foo: i32` will become `foo foo: i32`.
+
+Parameters can be provided default parameters after `=`, and are also known as default parameters.
+The default value needs to be an expression that can be evaluated at compile time.
+All default parameters are required to have a label, as these may appear in any order in a function call.
+
+If a function has no default parameters, or only has labeled default parameters, they may be followed by a variadic parameter.
+A function may also end in variadic paramters
+This is a special parameter that allows any number of element of that type to be provided.
+This will generate a generic paramter pack with a type constraint to the type given.
+
+Any 2 parameters may not have the same label.
+
+### 7.3.2. Returns
+
+```
+<fn-return> := <fn-return-single> | <fn-return-multi>
+<fn-return-single> := [ 'name' ':' ] <type>
+<fn-multi-return> := '(' fn-return-single { ',' <fn-return-single> }* ')'
+```
+
+Functions can return either a normal type, or a set of labeled returns.
+If no label is specified, the function is just returned with `return` statement, or with the result of the last expression (if it is not ended by a semicolon).
+
+When named returns are used, the function can only be returned using an empty `return` or an expression returning a unit type (if not ended by a semicolon).
+
+Named return are required to be assigned a value, using them inside of a function is the same as any other mutable variable.
+
+### 7.3.3. Pseudo-function overloading
+
+Xenon supports a way of overloading functions, but instead of it being based on any type, it is based on the labels of the receiver and non-default paramters.
+
+Function overlap gets checked for each set of functions in the following steps:
+1. Generate a label signature for each function, in the styled of `fn_name(arg0:_:arg1?def1?def2?...)`
+2. If the name of the function does not match that of the other function, we have no collision, otherwise proceed to the next step.
+3. Check the first set of matching required parameters, meaning if function `a` has `N` parameters, and `b` has `M` paramters, compare the first `min(N, M)` parameters:
+   If a pair of corresponding parameters do not match, we have no collisions, otherwise proceed to the next step.
+4. If both functions have the same number of non-default paramters, proceed to the next step, otherwise take the `N` parameters that are left from the additional paramters one of the functions has, and for each paramters, do the following:
+   1. Walk through the other functions default arguments
+      - If a label matches that of the optional argument and we are at the last paramter of the function (i.e. no other params left), we got a collision
+      - If we only match the labels, use this as a new starting point in the default arguments for the next iteration of this loop, and go the next iteration.
+      - Otherwise go to the next sub-step
+   2. If we hit the end of the other functions optional parameters, we have no collision, otherwise break otherwise go to the next iteration
+5. Take the remaining default parameters that are left for each function, if there is a match for any label, there is a collision, otherwise go the the next step
+6. If both functions have variadic arguments, we have a collision, otherwise we don't have one and the functions 
+
+#### Resolve examples
+
+Below are example of where something can happen in a collisin check
+
+2. Different names: **_no collision_**
+```
+fn foo() { ... }
+fn bar() { ... }
+```
+
+3. Same number of paramters with same labels: **_collision_**
+```
+fn foo() { ... }
+fn foo() { ... }
+```
+or
+```
+fn foo(a: i32) { ... }
+fn foo(a: f64) { ... }
+```
+
+4. Overlap between func with required and func with default values: **_collision_**
+```
+fn foo(a: i32, b: i32)
+fn foo(a: i32, b: i32 = 0)
+```
+or
+```
+fn foo(a: i32,             c: i32)
+fn foo(a: f64, b: i32 = 0, c: i32 = 1)
+```
+
+Overlap between func with required and func with default values, but with a non-default left over: **_no collision_**
+```
+fn foo(a: i32, b: i32, d: i32)
+fn foo(a: i32, b: i32 = 0)
+```
+or
+```
+fn foo(a: i32,             c: i32, d: i32)
+fn foo(a: f64, b: i32 = 0, c: i32 = 1)
+```
+
+5. Overlap between remaining optionals: **_collision_**
+```
+fn foo(a: i32,             c: i32 = 0)
+fn foo(a: i32, b: i32 = 0, c: i32 = 1)
+```
+or
+```
+```
+
+6. Both have variadics: **_collision_**
+```
+fn foo(a: i32, b: i32...)
+fn foo(a: i32, c: f64...)
+```
+or 
+```
+fn foo(a: i32,             c: i32...)
+fn foo(a: i32, b: i32 = 1, c: i32...)
+```
+
+#### Examples.
+
+### 7.3.4. Const function
+
+A const function allows the function to be called at compile-time.
+
+### 7.3.5. Trait function
+
+```
+<assoc-fn> := <fn-item> | <assoc-override-fn>
+<assoc-override-fn> := [ 'override' ] 'fn' <name> [ <generic-params> ] '(' <fn-params> ')' [ <effects> ] [ '->' <fn-return> ] <fn-body>
+<assoc-fn-body> := ';' | <fn-body>
+```
 An associated function is allowed to leave out a body, if this is done, the function must be implemented (either down the trait bounded by the current trait), or by the type that implements the trait.
 If an associated function has it's body defined, this definition will act as the default definition of the function.
 
 Any function that in the base interface may have its default implementation overwritten by the current interface, for this the weak keyword `override` can be used.
 As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#7122-function-override-resolution).
 
-
 > _Note_: Overridden functions do not define a function with the same name for the current trait, but instead exclusively overwrites a default implementation.
 
+
+#### Trait function override resolution
+
+As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrided to incur the so-called "diamond problem".
+Imagine a trait `A`, defining a function foo (with or without a default implementation).
+2 traits, `B` and `C` both have `A` as a supertrait and overide the default implementation.
+Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
+
+The trait hierachy is now:
+```
+ A
+/ \
+B C
+\ /
+ D
+```
+
+Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
+
+This example is illustrated in the following code:
+```
+trait A {
+    fn foo() -> i32;
+}
+
+trait B: A { 
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 1 }
+}
+
+trait C: A {
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 2 }
+}
+
+trait D: B, C {
+    // Override 'foo' to resolve the conflicting default implementations from B and C
+    // Removing this override will result in a compile error
+    override fn foo() -> i32 { C.foo() }
+}
+```
+
+This is somewhat similar to the resolution for conflicting generic specializations.
+
+
+### 7.3.6. External function qualifier
+
+The extern qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
+
+If an extern function does not define a body, then this is a binding to a function declared in an external library.
+If it has a body, then this is a function that gets exported so it can be used from external code.
 
 ## 7.4 Type aliases
 
@@ -1535,50 +1750,6 @@ Unsafe traits come with additional requirements that the programmer needs to gua
 Traits define their visiblity directly on the trait itself, and all items within the trait take on that visibility.
 Individual associated items cannot declare their own visibility.
 
-### 7.12.5. Function override resolution
-_TODO: could be moved to function declaration_
-
-As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrided to incur the so-called "diamond problem".
-Imagine a trait `A`, defining a function foo (with or without a default implementation).
-2 traits, `B` and `C` both have `A` as a supertrait and overide the default implementation.
-Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
-
-The trait hierachy is now:
-```
- A
-/ \
-B C
-\ /
- D
-```
-
-Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
-
-This example is illustrated in the following code:
-```
-trait A {
-    fn foo() -> i32;
-}
-
-trait B: A { 
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 1 }
-}
-
-trait C: A {
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 2 }
-}
-
-trait D: B, C {
-    // Override 'foo' to resolve the conflicting default implementations from B and C
-    // Removing this override will result in a compile error
-    override fn foo() -> i32 { C.foo() }
-}
-```
-
-This is somewhat similar to the resolution for conflicting generic specializations.
-
 ## 7.13. Implementation
 
 ```
@@ -1646,7 +1817,7 @@ The coherence rules require that the implementation `impl<P0..=Pn> T0 as Trait<T
 <assoc-item> := <fn-item>
               | <type-alias>
               | <const-item>
-              | <property-tiem>
+              | <property-item>
 ```
 
 Associated items are items that can be defined in traits or implemetentations to be associated with the given trait or type.
@@ -2859,6 +3030,14 @@ The operand of any extending expression has its temporary scope extended.
 
 # 12. Generics
 _TODO_
+
+## 12.1. Type generics
+
+## 12.2. Value generics
+
+## 12.3. Paramter packs
+
+## 12.4. Contraints
 
 # 13. Macros
 _TODO_
