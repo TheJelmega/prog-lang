@@ -1086,7 +1086,7 @@ Function overlap gets checked for each set of functions in the following steps:
       - If we only match the labels, and go the next iteration.
       - Otherwise go to the next sub-step
    2. If we hit the end of the other functions optional parameters, we have no collision, otherwise break otherwise go to the next iteration
-5. Take the remaining default parameters that are left for each function, if there is a match for any label, there is a collision, otherwise go the the next step
+5. If any default parameters are left over, there is a collision, otherwise go the the next step
 6. If both functions have variadic arguments, we have a collision, otherwise we don't have one and the functions 
 
 #### Resolve examples
@@ -1132,13 +1132,16 @@ fn foo(a: i32,             c: i32, d: i32)
 fn foo(a: f64, b: i32 = 0, c: i32 = 1)
 ```
 
-5. Overlap between remaining optionals: **_collision_**
+5. Any left over defaults: **_collision_**
+
 ```
-fn foo(a: i32,             c: i32 = 0)
-fn foo(a: i32, b: i32 = 0, c: i32 = 1)
+fn foo()
+fn foo(a: i32 = 0)
 ```
 or
 ```
+fn foo(a: i32, c: i32 = 0)
+fn foo(a: i32, c: i32 = 1)
 ```
 
 6. Both have variadics: **_collision_**
