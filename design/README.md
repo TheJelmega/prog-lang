@@ -4,47 +4,47 @@ Version: 0.0
 
 ## Tables of contents
 
-1. [Introduction](#1-introduction)
+1. [Introduction](#1-introduction-↵)
     - [This document is provisional](#this-document-is-provisional)
-2. [Lexical structure](#2-source-code-representation)
-    1. [Input format](#21-input-format)
-    2. [Byte order markers](#22-byte-order-markers)
-    3. [Newline sequences](#23-newline-sequences)
-    4. [Shebang](#24-shebang)
-3. [Lexical structure](#3-lexical-structure)
-    1. [Whitespace](#31-whitespace)
-    2. [Keywords](#32-keywords)
+2. [Lexical structure](#2-source-code-representation-↵)
+    1. [Input format](#21-input-format-↵)
+    2. [Byte order markers](#22-byte-order-markers-↵)
+    3. [Newline sequences](#23-newline-sequences-↵)
+    4. [Shebang](#24-shebang-↵)
+3. [Lexical structure](#3-lexical-structure-↵)
+    1. [Whitespace](#31-whitespace-↵)
+    2. [Keywords](#32-keywords-↵)
         - [Strong keywords](#strong-keywords)
         - [Reserved keywords](#reserved-keywords)
         - [Weak keywords](#weak-keywords)
-    3. [Comments](#33-comments)
-4. [Package Stucture](#4-package-structure)
-    1. [Packages](#41-packages)
-    2. [Artifacts](#42-artifacts)
-    3. [Modules](#43-modules)
-5. [Names and path](#5-names-and-paths)
-6. [Literals](#6-literals)
-    1. [Numeric literals](#61-numeric-literals)
+    3. [Comments](#33-comments-↵)
+4. [Package Stucture](#4-package-structure-↵)
+    1. [Packages](#41-packages-↵)
+    2. [Artifacts](#42-artifacts-↵)
+    3. [Modules](#43-modules-↵)
+5. [Names and path](#5-names-and-paths-↵)
+6. [Literals](#6-literals-↵)
+    1. [Numeric literals](#61-numeric-literals-↵)
         - [Decimal literals](#decimal-literal)
         - [Binary literals](#binary-literals)
         - [Octal literals](#octal-literals)
         - [Hexadecimal integer literals](#hexadecimal-integer-literals)
         - [Hexadecimal floating-point literals](#hexadecimal-floating-point-literals)
-    2. [Boolean literals](#62-boolean-literals)
-    3. [Character literals](#63-character-literals)
+    2. [Boolean literals](#62-boolean-literals-↵)
+    3. [Character literals](#63-character-literals-↵)
         - [Escape codes](#escape-codes)
-    4. [String literals](#64-string-literals)
+    4. [String literals](#64-string-literals-↵)
         - [String coninuation sequence](#string-continuation-sequence)
-    5. [Literal operators](#65-literal-operators)
-7. [Items](#7-items)
-    1. [Module item](#71-module-item)
+    5. [Literal operators](#65-literal-operators-↵)
+7. [Items](#7-items-↵)
+    1. [Module item](#71-module-item-↵)
         1. [Inline modules](#711-inline-modules)
         2. [File modules](#712-file-modules)
         3. [Path attibute](#713-path-attribute)
-    2. [Use declaration](#72-use-declarations)
+    2. [Use declaration](#72-use-declarations-↵))
         1. [Use visibility](#721-use-visibility)
         2. [Underscore imports](#722-underscore-imports)
-    3. [Functions](#73-function)
+    3. [Functions](#73-function-↵))
         1. [Parameters](#731-parameters)
         2. [Returns](#732-returns)
         3. [Pseudo-function overloading](#733-pseudo-function-overloading)
@@ -52,59 +52,59 @@ Version: 0.0
         5. [Trait function](#735-trait-function)
             - [Trait function override resolution](#trait-function-override-resolution)
         6. [External function qualifier](#736-external-function-qualifier)
-    4. [Type aliases](#74-type-aliases)
+    4. [Type aliases](#74-type-aliases-↵))
         1. [Distinct types](#741-distinct-types)
         3. [Opaque types](#742-opaque-types)
-    5. [Structs](#75-structs)
+    5. [Structs](#75-structs-↵))
         1. [Regular structs](#751-regular-structure)
             - [Use fields](#use-fields)
             - [Record struct](#record-struct)
         2. [Tuple structs](#752-tuple-structure)
             - [Record tuple struct](#record-tuple-struct)
         3. [Unit structs](#753-unit-structure)
-    6. [Union](#76-union)
+    6. [Union](#76-union-↵))
         1. [Union field offsets](#761-union-field-offsets)
         2. [Pattern matching on unions](#762-pattern-matching-on-unions)
         3. [References to union fields](#763-references-to-union-fields)
-    7. [Enum](#77-enum)
+    7. [Enum](#77-enum-↵))
         1. [ADT enum](#771-adt-enum)
             - [Discriminant](#discriminant)
             - [Field-less enum](#field-less-enum)
         2. [Record enum](#772-record-enums)
         3. [Flag enum](#773-flag-enum)
-    8. [Bitfield](#78-bitfield)
-    9. [Const item](#79-const-item)
+    8. [Bitfield](#78-bitfield-↵))
+    9. [Const item](#79-const-item-↵))
         1. [Associated trait constant](#791-associated-trait-constant)
-    10. [Static item](#710-static-item)
+    10. [Static item](#710-static-item-↵))
         1. [Thread local storage](#7101-thread-local-storage)
         2. [Statics and generics](#7102-statics-and-generics)
         3. [External statics](#7103-external-statics)
-    11. [Properties](#711-properties)
+    11. [Properties](#711-properties-↵))
         1. [Getters & setter](#7111-getters--setters)
         2. [Internal representation](#7121-object-safety)
-    12. [Traits](#712-trait)
+    12. [Traits](#712-trait-↵))
         1. [Object safety](#7121-object-safety)
         2. [Supertraits](#7122-supertraits)
         3. [Usafe traits](#7123-unsafe-traits)
         4. [Visibility](#7124-visibility)
-    13. [Implementation](#713-implementation)
+    13. [Implementation](#713-implementation-↵))
         1. [Inherent implementation](#7131-inherent-implementations)
         2. [Trait implementation](#7132-trait-implementation)
             - [Coherence](#coherence)
-    14. [Associated items](#714-associated-items)
+    14. [Associated items](#714-associated-items-↵))
         1. [Associated types](#7141-associated-types)
             - [Associated trait type](#associated-trait-type)
         2. [Associated constants](#7142-associated-constants)
         3. [Associated properties](#7143-associated-properties)
         4. [Associated functions](#7144-associated-functions)
-    15. [External block](#715-external-block)
-8. [Statements](#8-statements)
-    1. [Item statement](#81-item-statement)
-    2. [Variable declaration](#82-variable-declaration)
-    3. [Expression statement](#83-expression-statement)
-    4. [Defer statement](#84-defer-statement)
-9. [Expressions](#9-expressions)
-    1. [Expression details](#91-expression-details)
+    15. [External block](#715-external-block-↵))
+8. [Statements](#8-statements-↵))
+    1. [Item statement](#81-item-statement-↵))
+    2. [Variable declaration](#82-variable-declaration-↵))
+    3. [Expression statement](#83-expression-statement-↵))
+    4. [Defer statement](#84-defer-statement-↵))
+9. [Expressions](#9-expressions-↵))
+    1. [Expression details](#91-expression-details-↵))
         1. [Place, value & assign expressions](#911-place-value--assign-expressions)
             - [Place expressions](#place-expressions)
             - [Assign expressions](#assign-expressions)
@@ -113,16 +113,16 @@ Version: 0.0
         3. [Mutability](#913-mutability)
         4. [Temporaries](#914-temporaries)
         4. [Implicit borrows](#915-implicit-borrows)
-    2. [Literal expressin](#92-literal-expression)
-    3. [Path exprssion](#93-path-expression)
-    4. [Unit expression](#94-unit-expression)
-    5. [Block expression](#95-block-expression)
+    2. [Literal expressin](#92-literal-expression-↵))
+    3. [Path exprssion](#93-path-expression-↵))
+    4. [Unit expression](#94-unit-expression-↵))
+    5. [Block expression](#95-block-expression-↵))
         1. [Unsafe block](#951-unsafe-block)
         2. [Const block](#952-const-block)
-    6. [Operator expression](#96-operator-expression)
-    7. [Perenthesized expression](#97-parenthesized-expression)
-    8. [In-place expression](#98-in-place-expression)
-    9. [Type cast expression](#99-type-cast-expression)
+    6. [Operator expression](#96-operator-expression-↵))
+    7. [Perenthesized expression](#97-parenthesized-expression-↵))
+    8. [In-place expression](#98-in-place-expression-↵))
+    9. [Type cast expression](#99-type-cast-expression-↵))
         1. [Builtin casts](#991-builtin-casts)
             - [Numeric cast semantics](#numeric-cast-semantics)
             - [Enum cast semantics](#enum-cast-semantics)
@@ -131,8 +131,8 @@ Version: 0.0
             - [Pointer to address cast semantics](#pointer-to-address-casts-semantics)
             - [Pointer to pointer cast semantics](#pointer-to-pointer-semantics)
         2. [Type and unwrap casts](#99-2-try-and-unwrap-casts)
-    10. [Type check expression](#910-type-check-expression)
-    11. [Constructing expression](#911-constructing-expression)
+    10. [Type check expression](#910-type-check-expression-↵))
+    11. [Constructing expression](#911-constructing-expression-↵))
         1. [Tuple expression](#9111-tuple-expression)
         2. [Array expression](#9112-array-expression)
         3. [Struct expression](#9113-struct-expressions)
@@ -142,20 +142,20 @@ Version: 0.0
                 - [Default fields](#default-fields)
             - [Tuple struct expression](#tuple-struct-expression)
             - [Unit struct](#unit-struct)
-    12. [Intex expression](#912-index-expression)
-    13. [Tuple index expression](#913-tuple-index-expression)
-    14. [Call expression](#914-call-expression)
+    12. [Intex expression](#912-index-expression-↵))
+    13. [Tuple index expression](#913-tuple-index-expression-↵))
+    14. [Call expression](#914-call-expression-↵))
         1. [Universal function call syntax (UFCS) & disambiguation function calls](#0141-universal-function-call-syntax-ufcs--disambiguating-function-calls)
-    15. [Method call expression](#915-method-call-expression)
-    16. [Field access](#916-field-access)
+    15. [Method call expression](#915-method-call-expression-↵)
+    16. [Field access](#916-field-access-↵)
         1. [Automatic dereferncing](#9161-automatic-dereferencing)
         2. [Borrowing](#9162-borrowing)
-    17. [Closure experssion](#917-closure-expressions)
+    17. [Closure experssion](#917-closure-expressions-↵))
         1. [Closure trait implementations](#9171-closure-trait-implementations)
-    18. [Range expression](#918-range-expression)
-    19. [If expression](#919-if-expression)
+    18. [Range expression](#918-range-expression-↵))
+    19. [If expression](#919-if-expression-↵))
         1. [If let](#9191-if-let)
-    20. [Loops](#920-loops)
+    20. [Loops](#920-loops-↵))
         1. [Loop expression](#9201-loop-expression)
         2. [While expression](#9202-while-expression)
             - [While let](#while-let)
@@ -163,32 +163,32 @@ Version: 0.0
         4. [For expression](#9204-for-expression)
         5. [labelled block expression](#9205-labelled-block-expressions)
         6. [Loop labels](#9206-loop-labels)
-    21. [Match expression](#921-match-expression)
+    21. [Match expression](#921-match-expression-↵))
         1. [Match guards](#9211-match-guards)
         2. [Fallthrough labels](#9212-fallthrough-labels)
-    22. [Break expression](#922-break-expression)
-    23. [Continue expression](#923-continue-expression)
-    24. [Fallthrough expression](#924-fallthrough-expression)
-    25. [Return expression](#925-return-expression)
-    26. [Underscore expression](#926-underscore-expression)
-10. [Patterns](#10-patterns)
-    1. [Literal pattern](#101-literal-pattern)
-    2. [Identifier pattern](#102-identifier-pattern)
-    3. [Wildcard patter](#103-wildcard-pattern)
-    4. [Rest pattern](#104-rest-pattern)
-    5. [Range pattern](#105-range-pattern)
-    6. [Reference pattern](#106-reference-pattern)
-    7. [Struct pattern](#107-struct-pattern)
-    8. [Tuple struct pattern](#108-tuple-struct-pattern)
-    9. [Tuple pattern](#109-tuple-pattern)
-    10. [Grouped pattern](#1010-grouped-pattern)
-    11. [Slice pattern](#1011-slice-pattern)
-    12. [Path pattern](#1012-path-pattern)
-    13. [Enum member pattern](#1013-enum-member-pattern)
-    14. [Alternative pattern](#1014-alternative-pattern)
-    15. [Type check pattern](#1015-type-check-pattern)
-11. [Types System](#11-type-system)
-    1. [Types](#111-types)
+    22. [Break expression](#922-break-expression-↵))
+    23. [Continue expression](#923-continue-expression-↵))
+    24. [Fallthrough expression](#924-fallthrough-expression-↵))
+    25. [Return expression](#925-return-expression-↵))
+    26. [Underscore expression](#926-underscore-expression-↵))
+10. [Patterns](#10-patterns-↵))
+    1. [Literal pattern](#101-literal-pattern-↵))
+    2. [Identifier pattern](#102-identifier-pattern-↵))
+    3. [Wildcard patter](#103-wildcard-pattern-↵))
+    4. [Rest pattern](#104-rest-pattern-↵))
+    5. [Range pattern](#105-range-pattern-↵))
+    6. [Reference pattern](#106-reference-pattern-↵))
+    7. [Struct pattern](#107-struct-pattern-↵))
+    8. [Tuple struct pattern](#108-tuple-struct-pattern-↵))
+    9. [Tuple pattern](#109-tuple-pattern-↵))
+    10. [Grouped pattern](#1010-grouped-pattern-↵))
+    11. [Slice pattern](#1011-slice-pattern-↵))
+    12. [Path pattern](#1012-path-pattern-↵))
+    13. [Enum member pattern](#1013-enum-member-pattern-↵))
+    14. [Alternative pattern](#1014-alternative-pattern-↵))
+    15. [Type check pattern](#1015-type-check-pattern-↵))
+11. [Types System](#11-type-system-↵))
+    1. [Types](#111-types-↵))
         1. [Recursive types](#1111-rescursive-types)
         2. [Parenthesized types](#1112-parenthesized-types)
         3. [Primitive types](#1113-primitive-types)
@@ -221,9 +221,9 @@ Version: 0.0
         19. [Record types](#11119-record-types)
         20. [Enum record types](#11120-enum-record-types)
         21. [Inferred types](#11121-inferred-types)
-    2. [Dynamically sized types](#112-dynamically-sized-types)
-    3. [Nominal vs stuctural types](#113-nominal-vs-structural-types)
-    4. [Type layout](#114-type-layout)
+    2. [Dynamically sized types](#112-dynamically-sized-types-↵))
+    3. [Nominal vs stuctural types](#113-nominal-vs-structural-types-↵))
+    4. [Type layout](#114-type-layout-↵))
         1. [Size and alignment](#1141-size-and-alignment)
         2. [Primitive layout](#1142-primitive-layout)
         3. [Unit and never type layout](#1143-unit-and-never-type-layout)
@@ -247,13 +247,13 @@ Version: 0.0
             - [Transparent representation](#transparent-representation)
             - [SOA (structure of array) representation](#sao-structure-of-array-representation)
             - [Additional layout modifiers](#additional-layout-modifiers)
-    5. [Interior mutability](#115-interior-mutability)
-    6. [Type coercions](#116-type-coercions)
+    5. [Interior mutability](#115-interior-mutability-↵))
+    6. [Type coercions](#116-type-coercions-↵))
         1. [Coercion sites](#1161-coercion-sites)
         2. [Coercion types](#1162-coecion-types)
         3. [Unsized coercions](#1163-unsized-coercions)
         4. [Least upper bound coercions](#1164-least-upper-bound-coercions)
-    7. [Destructors](#117-destructors)
+    7. [Destructors](#117-destructors-↵))
         1. [Drop scopes](#1171-drop-scopes)
         2. [Scopes of function paramters](#1172--scopes-of-function-parameters)
         3. [Scopes of local variables](#1173-scopes-of-local-variables)
@@ -264,15 +264,17 @@ Version: 0.0
         8. [Extending based on patterns](#1178-extending-based-on-patterns)
         9. [Extending based on expressions](#1179-extending-based-on-expressions)
         10. [Not running destructors](#11710-not-running-destructors)
-12. [Generics](#12-generics)
-13. [Macros](#13-macros)
-14. [Operators and Precedence](#14-operators-and-precedence)
-15. [Attributes](#15-attributes)
-16. [Implicit context](#16-implicit-context)
-17. [Effect system](#17-effect-system)
-18. [Contracts](#18-contracts)
+12. [Generics](#12-generics-↵))
+13. [Macros](#13-macros-↵))
+14. [Operators](#14-operators-↵))
+15. [Precedence](#15-precedence-↵))
+16. [Attributes](#16-attributes-↵))
+17. [Implicit context](#17-implicit-context-↵))
+18. [Effect system](#18-effect-system-↵))
+19. [Contracts](#19-contracts-↵))
+20. [ABI](#20-abi-↵))
 
-# 1. Introduction
+# 1. Introduction [↵](#tables-of-contents)
 
 This file contains the current langauge design for the Xenon language, including rationals for design decisions.
 This is not a full specification, as the specification will be derived from this design once the langauge reaches v1.0 of the langague.
@@ -289,18 +291,18 @@ This therefore will contain gaps for parts that have not been decided on yet.
 
 The notation used in the design documents can be found within the [Notation section of the combined grammar](grammar.md#notation)
 
-# 2. Source code representation
+# 2. Source code representation [↵](#tables-of-contents)
 
 This section contains info about the source code representation in the file, and by extension on disk
 
-## 2.1. Input format
+## 2.1. Input format [↵](#tables-of-contents)
 
 Each source file is interpreted as a sequence of Unicode codepoints encoded within the utf-8 format.
 If a file does not contain a valid utf-8 sequence, this will result in an error.
 
 Xenon source files use the extension `.xn`
 
-## 2.2. Byte order markers
+## 2.2. Byte order markers [↵](#tables-of-contents)
 
 ```
 <byte-order-marker> := "\xEF\xBB\xBF"
@@ -330,7 +332,7 @@ scsu        | 0E FE FF
 bocu-1      | FB EE 28
 gb18030     | 84 31 95 33
 
-## 2.3. Newline sequences
+## 2.3. Newline sequences [↵](#tables-of-contents)
 
 ```
 <new-line> := [ "\r" ] "\n"
@@ -342,7 +344,7 @@ Any other occurance of a carriage returned in the file will be ignored.
 
 Carriage returns will be preserved in any reconstructed file.
 
-## 2.4. Shebang
+## 2.4. Shebang [↵](#tables-of-contents)
 
 ```
 <shebang> := '#!' ? any valid character ? <newline>
@@ -353,11 +355,11 @@ When a shebang is encountered on the first line, it will be skipped until the fi
 
 _todo: depending on the attribute syntax, we might have to change this definition slightly to include the used of `#!`_
 
-# 3. Lexical structure
+# 3. Lexical structure [↵](#tables-of-contents)
 
 This section contains info about the lexical struture of a code file, which will be interpreted as tokens.
 
-## 3.1. Whitespace
+## 3.1. Whitespace [↵](#tables-of-contents)
 
 Whitespace is used to separate lexical elements within a file, other than being used to separate elements, whitespace is essentially ignored.
 All whitespace is preserved in any reconstructed file.
@@ -381,7 +383,7 @@ Below are lists of both all unicode characters recognized as horizontal and vert
 
 > _Note_: While newline sequences count as whitespace, they are handled separately, see [Newline sequences](#23-newline-sequences).
 
-## 3.2. Keywords
+## 3.2. Keywords [↵](#tables-of-contents)
 
 Keywords represent names within the code that have a special meaning in the language, such as declaring a function.
 
@@ -474,7 +476,7 @@ super
 tls
 ```
 
-## 3.3. Comments
+## 3.3. Comments [↵](#tables-of-contents)
 
 Comments are used to add additional info to code.
 
@@ -532,11 +534,11 @@ Top level doc(umentation) comments are similar to normal documentation comment, 
 ### Examples
 _TODO_
 
-# 4. Package structure
+# 4. Package structure [↵](#tables-of-contents)
 
 Additional info can be found in [the package design](packages.md).
 
-## 4.1. Packages
+## 4.1. Packages [↵](#tables-of-contents)
 
 A package represents the upper level of the hierarchy of artifacts and the main unit of distribution.
 
@@ -544,7 +546,7 @@ Packages themselves are not the direct result of compilation, but play an integr
 A package can contain any number of artifacts, allowing allow related code to be shared as a single unit,
 meaning that if a project is split up in modularized components, they can still be easilty distributed, without having to result to sub-naming.
 
-## 4.2. Artifacts
+## 4.2. Artifacts [↵](#tables-of-contents)
 
 Artifacts, unlike packages, are the direct result of a compilation process or stage.
 
@@ -573,7 +575,7 @@ A dynamic library is a library that is meant to be referenced by code linking to
 Dynamic libraries actually generates 2 resulting file: a xenon library and a OS-specific dynamic library.
 The xenon library is similar to that produces for static libraries, but does not contain all data that the static library has, but only includes what is needed to successfully build and reference the dynamic library in code using it.
 
-## 4.3. Modules
+## 4.3. Modules [↵](#tables-of-contents)
 
 A module generally represents a single file or inlined module definition (if a file is not direclty included within another file).
 Each module is allowed to have multiple sub-modules.
@@ -582,7 +584,7 @@ Each artifact has it's own main module, which by default uses the following file
 - binaries: `main.xn`
 - static and dynamic libraries: `lib.xn`
 
-# 5. Names and paths
+# 5. Names and paths [↵](#tables-of-contents)
 
 Names, identifiers, and paths are used to refer to things like:
 - types
@@ -594,7 +596,7 @@ Names, identifiers, and paths are used to refer to things like:
 - attributes
 - etc.
 
-## 5.1 Names
+## 5.1 Names [↵](#tables-of-contents)
 
 ```
 <letter> := ? any unicode letter ?
@@ -618,7 +620,7 @@ _TODO: Need to look into this a bit more_
 Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
 Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
 
-## 5.2. Identifiers
+## 5.2. Identifiers [↵](#tables-of-contents)
 
 ```
 <identifier> := <name> [ <generic-args> ]
@@ -628,7 +630,7 @@ An identifier is a sub-segment of a path, which consists out of a name and optio
 
 Identifiers refer to a single element in a path which can be uniquely identified by it's name and generics.
 
-## 5.3. Paths
+## 5.3. Paths [↵](#tables-of-contents)
 
 A path is a sequence of one or more identifiers, logically separated by a `.`.
 If a path consists out of only one segment, refers to either an item or variable in the local scope.
@@ -642,7 +644,7 @@ x.y.z;
 
 There are multiple types of paths:
 
-### 5.3.1. Simple paths
+### 5.3.1. Simple paths [↵](#tables-of-contents)
 
 ```
 <simple-path> := [ '.' ] <simple-path-segment> { '.' <simple-path-segment> }*
@@ -651,7 +653,7 @@ There are multiple types of paths:
 
 Simple path are used for visitility, attributes, macros and use items.
 
-### 5.3.2. Paths in expression
+### 5.3.2. Paths in expression [↵](#tables-of-contents)
 
 ```
 <path-in-expr> := [ '.' ] <path-expr-segment> { '.' <path-expr-segment> }*
@@ -661,10 +663,10 @@ Simple path are used for visitility, attributes, macros and use items.
 Paths in experessions allow for paths with generic arguments specified.
 They are used in various places in expressions and patterns.
 
-### 5.3.3. Qualified paths
+### 5.3.3. Qualified paths [↵](#tables-of-contents)
 _TODO_
 
-# 6. Literals
+# 6. Literals [↵](#tables-of-contents)
 
 ```
 <literal> := <numeric-literals>
@@ -677,7 +679,7 @@ A literal is a compile time constant representing a given value as either an int
 
 > _Note_: Literals are tokens and not symbols, and will therefore be processed in the lexer stage_
 
-## 6.1. Numeric literals
+## 6.1. Numeric literals [↵](#tables-of-contents)
 
 ```
 <digit_sep> := "_"
@@ -811,14 +813,14 @@ The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encod
 0x1.5555555555555p-2 // value of 1/3
 ```
 
-## 6.2. Boolean literals
+## 6.2. Boolean literals [↵](#tables-of-contents)
 ```
 <bool-literal> := 'true' | 'false'
 ```
 
 A boolean literal represents either a `true` of a `false` value
 
-## 6.3. Character literals
+## 6.3. Character literals [↵](#tables-of-contents)
 
 A character literal defines a character, represented by it's unicode codepoints.
 
@@ -866,7 +868,7 @@ It is written as a `\x`, followed by 2 hex digits.
 Unicode codepoints represent any valid unicode codepoint, including surrogate pairs, this means all characters in the range 0x000000-0x10FFFF.
 A unicode escape code is written as `\u{`, followed by between 1 and 6 hex digits, and closed of with a `}`.
 
-## 6.4. String literals
+## 6.4. String literals [↵](#tables-of-contents)
 
 ```
 <string-literal> := <regular-string-literal> | <raw-string-literal>
@@ -896,7 +898,7 @@ A string continuation sequence allows a regular line to be split up between line
 Whenever a `\` is encoutered, directly followed by a new line sequence, the string will pause parsing any character until it finds the next non-whitespace character,
 it will then continue to parse the string.
 
-## 6.5. Literal operators
+## 6.5. Literal operators [↵](#tables-of-contents)
 
 While literals can coerce into a certain set of types, sometimes it can be useful to define a custom literal operator.
 A literal operator can apply compile time checks on the value in the operator + changes the type generated by the literal
@@ -928,7 +930,7 @@ utf32            | String       | str32          | UTF-32 string literal
 For more info, see the [Operator](#12-operators--precedence) section.
 
 
-# 7. Items
+# 7. Items [↵](#tables-of-contents)
 
 ```
 <item> := <module-item>
@@ -956,7 +958,7 @@ Some items form an implicit scope for the declarations of sub-items.
 In other words, within a function of module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar comonents that otherwhise compose the item body.
 If the item was declared outside of the outer scope - i still a static item - except that the item's path name within the module namespace is qualified by the name of the enclosing item, or is private to the enclosing item (in the case of functions).
 
-## 7.1. Module item
+## 7.1. Module item [↵](#tables-of-contents)
 
 ```
 <module-item> := { <attrib>* } [<vis>] "mod" <ext-name> ';'
@@ -976,7 +978,7 @@ Items brought into scope with a `use` also have this restriction.
 
 Modules are generally split up in 2 kinds.
 
-### 7.1.1. Inline modules
+### 7.1.1. Inline modules [↵](#tables-of-contents)
 
 Inline modules are declared directly within another module and allows manual nesting within the file.
 
@@ -998,7 +1000,7 @@ Module path     | Filesystem path          | File content
 `:.foo.bar`     | `foo/mod.xn` or `foo.xn` | see code above
 `:.foo.bar.baz` | `foo/bar/baz.xn`         | `
 
-### 7.1.2. File modules
+### 7.1.2. File modules [↵](#tables-of-contents)
 
 A file modulre refers to code located within an extrenal file.
 If no explicit path is defined for the module, the path to the file will mirror the logical module path.
@@ -1016,7 +1018,7 @@ Module path | Filesystem path                  | File content
 `:.foo`     | `foo/mod.xn` or `foo.xn`         | `mod bar;`
 `:.foo.bar` | `foo/bar/mod.xn` or `boo/bar.xn` |
 
-### 7.1.3. Path attribute
+### 7.1.3. Path attribute [↵](#tables-of-contents)
 
 The directory and files used for loading a file module can be influenced using the `path` attribute.
 
@@ -1054,7 +1056,7 @@ Module path    | `inner`'s file location   | `inner`'s module path
 `src/a/b.xn`   | `src/a/b/inline/other.xn` | `:.a.b.inline.inner`
 `src/a/mod.xn` | `src/a/inline/other.xn`   | `:.a.inline.inner`
 
-## 7.2. Use declarations
+## 7.2. Use declarations [↵](#tables-of-contents)
 
 ```
 <use-item> := `use` <use-root> [ '.' <use-tree> ] ';'
@@ -1138,7 +1140,7 @@ fn main {
 Items can be imported without binding to a name by using an underscore with the form `use path as _`.
 This is particularly useful to import an trait so that its methods may be used without impoiting the trait symbol, for example if the trait's symbol may conflict with another symbol.
 
-## 7.3 Function
+## 7.3 Function [↵](#tables-of-contents)
 
 ```
 <fn-item> := { <attribute> }* [ <vis> ] [ 'const ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
@@ -1370,7 +1372,7 @@ The extern qualifier on functions allows the programmer to specify the API witho
 If an extern function does not define a body, then this is a binding to a function declared in an external library.
 If it has a body, then this is a function that gets exported so it can be used from external code.
 
-## 7.4 Type aliases
+## 7.4 Type aliases [↵](#tables-of-contents)
 
 ```
 <type-alias-item> := { <attribute*> } [ <vis> ] ( <alias-type> | <new-type> | <opaque-type> )
@@ -1405,7 +1407,7 @@ Internally, an opaque type is represented as:
 - When sized, it is represented by `[N]T`, where `N` is the size of the opaque type
 - When unsized, it is represented by `dyn ?Sized`.
 
-## 7.5. Structs
+## 7.5. Structs [↵](#tables-of-contents)
 
 ```
 <struct-item> := { <attribute> }* [ <vis> ] ( <struct-stuct> | <tuple-struct> )
@@ -1530,7 +1532,7 @@ The distinction can be made by the weak keyword `record` coming before the `stru
 A unit structure is a special structure containing no fields, and which can be be initialized by using the structure as the initialization expression.
 Unit stuctures can be seen as distinct type aliases of the unit type, but with the ergonomics of being an extual individual structure.
 
-## 7.6. Union
+## 7.6. Union [↵](#tables-of-contents)
 
 ```
 <union-item> := { <attribute> }* [ 'vis' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
@@ -1577,7 +1579,7 @@ Since reading from a union is unsafe, the entire match expression must be in an 
 Since unions fields share a common storage, gaining writing access to one field of the union can give write access to all its remaining fields.
 For this reason, if any field is borrowed immutably, no other field can be borrowed mutably in the same lifetime.
 
-## 7.7. Enum
+## 7.7. Enum [↵](#tables-of-contents)
 
 ```
 <enum-item> { <attribute> }* [ <vis> ] ( <adt-enum> | <flag-enum> )
@@ -1660,7 +1662,7 @@ When writing an expression for the enum value, the expression may directly menti
 By default, a flag enum will have a set of functions implicitly generated to allow the use of flags in code, these are:
 _TODO: list of functions_
 
-## 7.8. Bitfield
+## 7.8. Bitfield [↵](#tables-of-contents)
 
 ```
 <bitfield-item> := { <attribute> }* [ <vis> ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
@@ -1684,7 +1686,7 @@ If no explicit size is defined, it will take in the minimum number of bits neede
 
 Access to bitfield elements are an example of propties being used.
 
-## 7.9. Const item
+## 7.9. Const item [↵](#tables-of-contents)
 
 ```
 <const-item> := { <attribute> }* [ <vis> ] 'const' <name> [ ':' <type> ] '=' <expr> ';'
@@ -1715,7 +1717,7 @@ When defined inside of an implementation, the const item will be an associated w
 An associated trait type declares a signature for an associated constant implementation.
 It declares both the name and the type the associated constant should have.
 
-## 7.10. Static item
+## 7.10. Static item [↵](#tables-of-contents)
 
 ```
 <static-item> := { <attribute> }* [ <vis> ] [ [ 'mut' ] 'tls' ] 'static' <name> [ ':' <type> ] '=' <expr> ';'
@@ -1762,7 +1764,7 @@ An immutable static must be initialized before any Xenon code is executed.
 
 When declaring a static within a external block, `extern` has to be left out.
 
-## 7.11. Properties
+## 7.11. Properties [↵](#tables-of-contents)
 
 ```
 <prop-item> := { <attribute> }* [ <vis> ] 'property' <name> '{' { <prop-get-set> }[1,4] '}'
@@ -1836,7 +1838,7 @@ It declares the name, type and which getter/setter combo needs to exist of the p
 
 Trait implementation cannot implement additional getters/setters.
 
-## 7.12. Trait
+## 7.12. Trait [↵](#tables-of-contents)
 
 ```
 <trait-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] [ 'sealed' ] 'triat' <name> [ <generic-params> ] [ ':' <trait-bound> ] [ <where-clause> ] '{' { <trait-elem> }* '}'
@@ -1898,7 +1900,7 @@ Unsafe traits come with additional requirements that the programmer needs to gua
 Traits define their visiblity directly on the trait itself, and all items within the trait take on that visibility.
 Individual associated items cannot declare their own visibility.
 
-## 7.13. Implementation
+## 7.13. Implementation [↵](#tables-of-contents)
 
 ```
 <impl-item> := <inherent-impl> | <trait-impl>
@@ -1959,7 +1961,7 @@ The coherence rules require that the implementation `impl<P0..=Pn> T0 as Trait<T
 
 > _Note_: Coherence rules might be changed in the future
 
-## 7.14. Associated items
+## 7.14. Associated items [↵](#tables-of-contents)
 
 ```
 <assoc-item> := <fn-item>
@@ -2037,7 +2039,7 @@ They come in 2 kinds:
 
 For more info, ee the section about function at [7.3. Function](#73-function)
 
-## 7.15. External block
+## 7.15. External block [↵](#tables-of-contents)
 
 ```
 <external-block> := 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
@@ -2050,7 +2052,7 @@ Calling functions or static items that are declared in external blocks are only 
 
 More info about [external functions]() and [statics]() can be found in their respecitive sections.
 
-# 8. Statements
+# 8. Statements [↵](#tables-of-contents)
 
 ```
 <stmt> := <var-decl>
@@ -2061,7 +2063,7 @@ More info about [external functions]() and [statics]() can be found in their res
 A statement is a component of a block, which is in turn part of an outer expression or a functions.
 Statements differ from expressions, as they do not return a value and can only directly exist within a scope
 
-## 8.1. Item statement
+## 8.1. Item statement [↵](#tables-of-contents)
 
 ```
 <item-stmt> := <item>
@@ -2073,7 +2075,7 @@ As such, they cannot be referenced outside of the specific scope they are declar
 
 They may implicitly capture generics from an outer scope, unless they are shadowed by the generic with the same name by the item.
 
-## 8.2. Variable declaration
+## 8.2. Variable declaration [↵](#tables-of-contents)
 
 ```
 <var-decl> := 'let' <pattern-top-no-alt> [ ':' <type> ] [ '=' <expr> [ 'else' <block-expr> ] ] ';'
@@ -2095,7 +2097,7 @@ A variable declaration may also contain an `else` block, allowing a refutable pa
 If this patten fails to match, the else block will get executed, this is generally used to either panic or return from the function.
 If an `else` block is not present, the pattern needs to be irrefutable.
 
-## 8.3. Expression statement
+## 8.3. Expression statement [↵](#tables-of-contents)
 
 ```
 <expr-stmt> := <expr-no-block> ';'
@@ -2110,7 +2112,7 @@ This could lead to ambiguity when this can be parsed as both part of a larger ex
 
 The return type of an exprssion used in a statement must be a unit type.
 
-## 8.4. Defer statement
+## 8.4. Defer statement [↵](#tables-of-contents)
 
 ```
 <defer-stmt> := 'defer' <expr-with-block>
@@ -2120,7 +2122,7 @@ The return type of an exprssion used in a statement must be a unit type.
 A defer expressions delays the execution of an expression until the end of the scope, but before any destructors are being run.
 Defers ere evaluated in the reverse order they are called, in a so-called LIFO (Last-In First-Out) order.
 
-# 9. Expressions
+# 9. Expressions [↵](#tables-of-contents)
 
 ```
 <expr> := <expr-with-block> | <expr-no-block>
@@ -2170,7 +2172,7 @@ For information about the precedence of expression, see the [precedence section]
 In general, the operands of an expression will be evaluated before any side-effects will be applied, and the operands are evaluated from left to right.
 Each expression will define if and in which order there expressions are evaluated, if they deviate from this order.
 
-## 9.1. Expression details
+## 9.1. Expression details [↵](#tables-of-contents)
 
 ### 9.1.1 Place, value & assign expressions
 
@@ -2259,7 +2261,7 @@ Implicit borrowing takes place in the following expressions:
 - Operands of a comparison
 - Left operand of a compound assignment
 
-## 9.2. Literal expression
+## 9.2. Literal expression [↵](#tables-of-contents)
 
 ```
 <lit-expr> := <literal> [ ':' <name> ]
@@ -2269,7 +2271,7 @@ A literal expression is used to get a value of a given literals, and is evaluate
 
 Literal expressions also allow a special literal operator to be applied to them, htis is a constant function that can a value from a literal.
 
-## 9.3. Path expression
+## 9.3. Path expression [↵](#tables-of-contents)
 
 ```
 <path-expr> := <path-in-expr>
@@ -2283,7 +2285,7 @@ A path may also refer to an inferred path, which is represented by a `.`, follow
 This is currently limited to plain enum members of enum types that can be inferred.
 
 
-## 9.4. Unit expression
+## 9.4. Unit expression [↵](#tables-of-contents)
 
 ```
 <unit-expr> := '(' ')'
@@ -2291,7 +2293,7 @@ This is currently limited to plain enum members of enum types that can be inferr
 
 A unit expressions is an empty expressions that does nothing and return a unit type.
 
-## 9.5. Block expression
+## 9.5. Block expression [↵](#tables-of-contents)
 
 ```
 <block-expr> := [ 'unsafe' | 'const' ] <block>
@@ -2319,7 +2321,7 @@ An unsafe block will run the entirety of its code within an unsafe constext, all
 
 A constant block will execute its code at compile time and will become an inline constant value after compilation.
 
-## 9.6. Operator expression
+## 9.6. Operator expression [↵](#tables-of-contents)
 
 ```
 <op-expr> := <prefix-op> <expr>
@@ -2333,7 +2335,7 @@ The resulting value of these expression will depend on the implementation of the
 
 For additional info on operators, check the [Operator section](#14-operators-and-precedence).
 
-## 9.7. Parenthesized expression
+## 9.7. Parenthesized expression [↵](#tables-of-contents)
 
 ```
 <paren-expr> := '(' <expr> ')'
@@ -2345,7 +2347,7 @@ Parenthesized expressions can be both place and value expressions, depending on 
 
 Parentheses explicitly increase the precedence of this expression above that of other expressions, allowing expressions that would have a lower precedence to be executed before outer expressions use this expression.
 
-## 9.8. In-place expression
+## 9.8. In-place expression [↵](#tables-of-contents)
 
 ```
 <in-place-expr> := <expr> '<-' <expr>
@@ -2358,7 +2360,7 @@ Currently the expressions allows to be used for in-place assignments are limited
 
 > _Note_: might need some syntax to pass arguments through to functions
 
-## 9.9. Type cast expression
+## 9.9. Type cast expression [↵](#tables-of-contents)
 
 ```
 <type-cast-expr> := <expr> <as-op> <type>
@@ -2475,7 +2477,7 @@ By default, it will panic when the cast is not available, but in certain configu
 
 Any cast that happens on a generic or impl interface object will be resolved at compile time.
 
-## 9.10. Type check expression
+## 9.10. Type check expression [↵](#tables-of-contents)
 
 ```
 <type-check-expr> := <expr> <is-op> <type>
@@ -2492,7 +2494,7 @@ When the positive version is used in the condition of a conditional expression, 
 
 Any cast that happens on a generic or impl interface object will be resolved at compile time.
 
-## 9.11. Constructing expression
+## 9.11. Constructing expression [↵](#tables-of-contents)
 
 ```
 <constructing-expressions> := <tuple-expr>
@@ -2592,7 +2594,7 @@ The unit struct value can also be constructed in 2 ways:
 - as a fieldless struct expression
 - as an implied fieldless struct expression
 
-## 9.12. Index expression
+## 9.12. Index expression [↵](#tables-of-contents)
 
 ```
 <index-expr> := <expr> '[' <expr> { ',' <expr> }* ']'
@@ -2623,7 +2625,7 @@ The interfaces associated with the index expressions are:
 - `Index`
 - `IndexMut`
 
-## 9.13. Tuple index expression
+## 9.13. Tuple index expression [↵](#tables-of-contents)
 
 ```
 <tuple-index-expr> := <expr> . <unsigned-decimal-literal>
@@ -2636,7 +2638,7 @@ A tuple is indexed using an unsigned decimal literal, wit h no leading zeros or 
 Evaluation of a tuple has no side-effects, other than the evaluation of the tuple operand.
 This expressions is a place expression, so it evaluateds to the location of tuple field with the same name as the tuple index.
 
-## 9.14. Call expression
+## 9.14. Call expression [↵](#tables-of-contents)
 
 ```
 <func-call> := <expr> '(' [ <function-args> ] ')'
@@ -2672,7 +2674,7 @@ This situation only will happen when the first argument is unlabeled, as a recei
 
 To resolve the ambiguity, the programmer may refer to their desired method or function using more specific paths, types, or interfaces.
 
-## 9.15. Method call expression
+## 9.15. Method call expression [↵](#tables-of-contents)
 
 ```
 <method-call-expr> := <expr> '.' <name> '(' ( <func-args> )? ')'
@@ -2709,7 +2711,7 @@ These cases requre a disambiguating function call syntax for metods and functon 
 An argument can have an additional function argument label in case the function requires one.
 Any default arguments do not need to be provided and will be evaluated after evaluating the supplied operands, in the order they were defined in the signature.
 
-## 9.16. Field access
+## 9.16. Field access [↵](#tables-of-contents)
 
 ```
 <field-access-expr> := <expr> ( '.' | '?.' ) <name>
@@ -2737,7 +2739,7 @@ The field of a struct or a reference to a struct are treated as separate entitie
 If the struct does not implement `Drop` and iis stored in a local variable, this also applies to moving out of each of its fields.
 This also does not apply if automatic dereferencing is done through user defined types that don't support this.
 
-## 9.17. Closure expressions
+## 9.17. Closure expressions [↵](#tables-of-contents)
 
 ```
 <closure-expr> := ( 'move' )? '|' ( <closure-parameters> ) '|' ( <expr> | ( '->' <func-ret> <block> ) )
@@ -2764,7 +2766,7 @@ This is often used to ensure that the closure's lifetime is static.
 Which trait a closure type implemetns depends on how variables are captured and the typesss of the captured expression.
 See the call trait section for how and when a closure implements the respective trait.
 
-## 9.18. Range expression
+## 9.18. Range expression [↵](#tables-of-contents)
 
 ```
 <range-expr> := <range-exclusive-expr>
@@ -2793,7 +2795,7 @@ Production                  | Syntax        | Type               | Range
 <`range-inclusive-expr`>    | `start..=end` | `RangeInclusive`   | start <= x <= end
 <`range-to-inclusive-expr`> | `..=end`      | `RangeToInclusive` | x <= end
 
-## 9.19. If expression
+## 9.19. If expression [↵](#tables-of-contents)
 
 ```
 <if-expr> := <label-decl> 'if' <branch-condition> <block> ( 'else' <block> )?
@@ -2824,7 +2826,7 @@ This is the same semantics as with `|` in `match` expressions.
 
 When a `let` binding is introduces, the use on the lazy OR boolean operator is not allowed when not in a parenthesized expression.
 
-## 9.20. Loops
+## 9.20. Loops [↵](#tables-of-contents)
 
 Xenon supports five loop expressions:
 - a `loop` expression denoting an infinite loop
@@ -2908,7 +2910,7 @@ If the label is present, the labeled `break` and `continue` expressions nested w
 
 Labels follow the hygeine and shadowing rules of local variables.
 
-## 9.21. Match expression
+## 9.21. Match expression [↵](#tables-of-contents)
 
 ```
 <match-expr> := ( <label-decl> )? 'match' <expr> '{' ( ( <match-case> )* <final-case> ) '}'
@@ -2965,7 +2967,7 @@ This will then proceed to evaluate another arm in the `match`.
 Labels are only allowed if the arm does not capture any bindings.
 
 
-## 9.22. Break expression
+## 9.22. Break expression [↵](#tables-of-contents)
 
 ```
 <break-expr> := 'break' ( <label> )? ( <expr> )?
@@ -3032,7 +3034,7 @@ The may only appear in the left-hand side of an assignment.
 > _Note_: that this is distinct from a wildcard pattern.
 
 
-# 10. Patterns
+# 10. Patterns [↵](#tables-of-contents)
 
 ```
 <pattern> := <pattern-no-top-alt> ( | <pattern-no-top-alt> )*
@@ -3055,7 +3057,7 @@ Destructuring breaks up a value in its constituent elements.
 
 Patterns can be said to be refutable if there is a possibility for it to not be matched, if they will always be matched, they are said to be irrifutable.
 
-## 10.1. Literal pattern
+## 10.1. Literal pattern [↵](#tables-of-contents)
 
 ```
 <lit-pattern> := <literal>
@@ -3063,7 +3065,7 @@ Patterns can be said to be refutable if there is a possibility for it to not be 
 
 Literal patterns match the exact value of the literal.
 
-## 10.2. Identifier pattern
+## 10.2. Identifier pattern [↵](#tables-of-contents)
 
 ```
 <identifier-pattern> := [ 'ref' ] [ 'mut' ] <name> [ '@' <pattern> ]
@@ -3082,7 +3084,7 @@ In addition, a binding may also have a restriction placed on it by appending a p
 
 By default, the binding mode of this is determined based on the variable being compared.
 
-## 10.3. Wildcard pattern
+## 10.3. Wildcard pattern [↵](#tables-of-contents)
 
 ```
 <wildcard-patter> := '_'
@@ -3090,7 +3092,7 @@ By default, the binding mode of this is determined based on the variable being c
 
 A wildcard pattern matches any single element in a pattern, and is used to ignore its value.
 
-## 10.4. Rest pattern
+## 10.4. Rest pattern [↵](#tables-of-contents)
 
 ```
 <rest-pattern> := '..'
@@ -3098,7 +3100,7 @@ A wildcard pattern matches any single element in a pattern, and is used to ignor
 
 A special case of the wildcard that matches 0 or more elements, and can be used to discard any remaining elements that are not cared about in the match.
 
-## 10.5. Range pattern
+## 10.5. Range pattern [↵](#tables-of-contents)
 
 ```
 <range-pattern> := <exclusive-range-pattern>
@@ -3121,7 +3123,7 @@ The start of the range needs to preceed the value of the end.
 
 When using path as a bound, it has to be able to be resolved at compile time.
 
-## 10.6. Reference pattern
+## 10.6. Reference pattern [↵](#tables-of-contents)
 
 ```
 <reference-pattern> := '&' [ 'mut' ] <pattern-no-range>
@@ -3131,7 +3133,7 @@ Reference patterns is used to derefence pointers and references.
 
 Similar to identifier patterns, 'mut' can be added to make the resulting variable mutable.
 
-## 10.7. Struct pattern
+## 10.7. Struct pattern [↵](#tables-of-contents)
 
 ```
 <struct-pattern> := <path> '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' ] ) | <rest-pattern> ] '}'
@@ -3149,7 +3151,7 @@ There are 3 ways of matching elements:
 - Using a values name, followed by a pattern
 - Using a value directly with a matching name (this requires a normal name and not an extended name).
 
-## 10.8. Tuple struct pattern
+## 10.8. Tuple struct pattern [↵](#tables-of-contents)
 
 ```
 <tuple-struct-pattern> := <path> '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-patter> ] ] ) ) | <rest-patter> ')'
@@ -3157,7 +3159,7 @@ There are 3 ways of matching elements:
 
 A tuple struct pattern can match tuple structs that match the defined criteria in the subpatterns.
 
-## 10.9. Tuple pattern
+## 10.9. Tuple pattern [↵](#tables-of-contents)
 
 ```
 <tuple-pattern> := '(' ( <pattern> ( ',' <patter> )* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ')'
@@ -3165,7 +3167,7 @@ A tuple struct pattern can match tuple structs that match the defined criteria i
 
 A tuple pattern can match a tuple values that match the defined criteria in the subpatterns.
 
-## 10.10. Grouped pattern
+## 10.10. Grouped pattern [↵](#tables-of-contents)
 
 ```
 <grouped-pattern> := '(' <pattern> ')'
@@ -3173,7 +3175,7 @@ A tuple pattern can match a tuple values that match the defined criteria in the 
 
 Grouped patterns are used to explicitly control the precedence of compound patterns.
 
-## 10.11. Slice pattern
+## 10.11. Slice pattern [↵](#tables-of-contents)
 
 ```
 <slice-patter> := '[' ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-pattern> ] ] ) | <rest-patter> ']'
@@ -3181,7 +3183,7 @@ Grouped patterns are used to explicitly control the precedence of compound patte
 
 A slice pattern can match array and slice values that match the defined criteria in the subpatterns.
 
-## 10.12. Path pattern
+## 10.12. Path pattern [↵](#tables-of-contents)
 
 ```
 <path-pattern> := <path>
@@ -3189,7 +3191,7 @@ A slice pattern can match array and slice values that match the defined criteria
 
 A path pattern can match any constant, or struct or enum member that have no fields.
 
-## 10.13. Enum member pattern
+## 10.13. Enum member pattern [↵](#tables-of-contents)
 
 ```
 <enum-member-pattern> := ':' <ext-name>
@@ -3197,7 +3199,7 @@ A path pattern can match any constant, or struct or enum member that have no fie
 
 A enum member pattern can match any enum member that has no field.
 
-## 10.14. Alternative pattern
+## 10.14. Alternative pattern [↵](#tables-of-contents)
 
 ```
 <alt-pattern> := <pattern-no-top-alt> { | <pattern-no-top-alt> }*
@@ -3206,7 +3208,7 @@ A enum member pattern can match any enum member that has no field.
 An alternative pattern is a set of subpattern where only a single one needs to match.
 Use of this pattern does disallow any identifier patterns, as they cannot be guaranteed to have a value, therefore if you need to capture, you should use individual matches.
 
-## 10.15. Type check pattern
+## 10.15. Type check pattern [↵](#tables-of-contents)
 
 ```
 <type-check-patter> := 'is' <type>
@@ -3215,9 +3217,9 @@ Use of this pattern does disallow any identifier patterns, as they cannot be gua
 A type check pattern can be used to explicitly check for a certain type, this includes builtin-types.
 Type check patterns can also be used to check if a DST is a given type.
 
-# 11. Type System
+# 11. Type System [↵](#tables-of-contents)
 
-## 11.1. Types
+## 11.1. Types [↵](#tables-of-contents)
 
 ```
 <type> := <type-no-bound>
@@ -3830,7 +3832,7 @@ Structural types:
 - The types only exist within the scope they are defined, unless publically aliased.
 
 
-## 11.4. Type layout
+## 11.4. Type layout [↵](#tables-of-contents)
 
 The layout of a type defines its size, alignment, and its internal representation of data/fields.
 For enums, how their distriminant is laid out is also part of the layout.
@@ -4082,7 +4084,7 @@ Otherwise the offset of fields is affect, as this modifier affects the minimal r
 
 Only one of the `align` or `packed` modifiers can be applied to a type at any type, and it may only be applied to types with either a `xenon` or `C` representation.
 
-## 11.5. Interior mutability
+## 11.5. Interior mutability [↵](#tables-of-contents)
 
 Sometimes a type needs to be mutated while having multiple aliases.
 This can be achieved using a concept called _interior mutability_.
@@ -4097,7 +4099,7 @@ Other types with interior mutabiliity can be created using `UnsafeCell<T>` as a 
 
 > **Warning**: The programmer must ensure that this does not cause any unininted consequences or may cause other undefined behavior.
 
-## 11.6. Type coercions
+## 11.6. Type coercions [↵](#tables-of-contents)
 
 Type coercions are implicit operations that change the type of a value.
 They happen automatically at specific locations and are highly restricted in what types are allowed to coerce.
@@ -4194,7 +4196,7 @@ For each new type `Ti`, we cosider:
 If this fails, it will result in a compiler error.
 
 
-## 11.7. Destructors
+## 11.7. Destructors [↵](#tables-of-contents)
 
 When an initialized variable or temporary goes out of scope, its destructor is run, or it is _dropped_ (this terminology is taken from rust).
 Assignment also runs the destructor of its left-hand operatnd, if it's initialized.
@@ -4332,34 +4334,37 @@ The operand of any extending expression has its temporary scope extended.
 > _Note_: Preventing a destructor from being run via `forget` or other means is safe even if the type isn't static.
 > Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
 
-# 12. Generics
+# 12. Generics [↵](#tables-of-contents)
 _TODO_
 
-## 12.1. Type generics
+## 12.1. Type generics [↵](#tables-of-contents)
 
-## 12.2. Value generics
+## 12.2. Value generics [↵](#tables-of-contents)
 
-## 12.3. Paramter packs
+## 12.3. Paramter packs [↵](#tables-of-contents)
 
-## 12.4. Contraints
+## 12.4. Contraints [↵](#tables-of-contents)
 
-# 13. Macros
+# 13. Macros [↵](#tables-of-contents)
 _TODO_
 
-# 14. Operators and Precedence
+# 14. Operators [↵](#tables-of-contents)
 _TODO_
 
-# 15. Attributes
+# 15. Precedence [↵](#tables-of-contents)
 _TODO_
 
-# 16. Implicit context
+# 16. Attributes [↵](#tables-of-contents)
 _TODO_
 
-# 17. Effect system
+# 17. Implicit context [↵](#tables-of-contents)
 _TODO_
 
-# 18. Contracts
+# 18. Effect system [↵](#tables-of-contents)
 _TODO_
 
-# 19. ABI
+# 19. Contracts [↵](#tables-of-contents)
+_TODO_
+
+# 20. ABI [↵](#tables-of-contents)
 _TODO_
