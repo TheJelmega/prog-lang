@@ -99,8 +99,94 @@ Version: 0.0
         4. [Associated functions](#7144-associated-functions)
     15. [External block](#715-external-block)
 8. [Statements](#8-statements)
+    1. [Item statement](#81-item-statement)
+    2. [Variable declaration](#82-variable-declaration)
+    3. [Expression statement](#83-expression-statement)
+    4. [Defer statement](#84-defer-statement)
 9. [Expressions](#9-expressions)
+    1. [Expression details](#91-expression-details)
+        1. [Place, value & assign expressions](#911-place-value--assign-expressions)
+            - [Place expressions](#place-expressions)
+            - [Assign expressions](#assign-expressions)
+            - [Value expressions]()
+        2. [Move & copy types](#912-moved--copied-types)
+        3. [Mutability](#913-mutability)
+        4. [Temporaries](#914-temporaries)
+        4. [Implicit borrows](#915-implicit-borrows)
+    2. [Literal expressin](#92-literal-expression)
+    3. [Path exprssion](#93-path-expression)
+    4. [Unit expression](#94-unit-expression)
+    5. [Block expression](#95-block-expression)
+        1. [Unsafe block](#951-unsafe-block)
+        2. [Const block](#952-const-block)
+    6. [Operator expression](#96-operator-expression)
+    7. [Perenthesized expression](#97-parenthesized-expression)
+    8. [In-place expression](#98-in-place-expression)
+    9. [Type cast expression](#99-type-cast-expression)
+        1. [Builtin casts](#991-builtin-casts)
+            - [Numeric cast semantics](#numeric-cast-semantics)
+            - [Enum cast semantics](#enum-cast-semantics)
+            - [Primitive to integer cast semantics](#primtive-to-integer-cast-semantics)
+            - [Integer to character cast semantics](#integer-to-character-cast-semantics)
+            - [Pointer to address cast semantics](#pointer-to-address-casts-semantics)
+            - [Pointer to pointer cast semantics](#pointer-to-pointer-semantics)
+        2. [Type and unwrap casts](#99-2-try-and-unwrap-casts)
+    10. [Type check expression](#910-type-check-expression)
+    11. [Constructing expression](#911-constructing-expression)
+        1. [Tuple expression](#9111-tuple-expression)
+        2. [Array expression](#9112-array-expression)
+        3. [Struct expression](#9113-struct-expressions)
+            - [Struct (& union) expression](#struct--union-expression)
+                - [Functional update syntax](#functional-update-syntax)
+                - [Struct field shorthand](#struct-field-shorhand)
+                - [Default fields](#default-fields)
+            - [Tuple struct expression](#tuple-struct-expression)
+            - [Unit struct](#unit-struct)
+    12. [Intex expression](#912-index-expression)
+    13. [Tuple index expression](#913-tuple-index-expression)
+    14. [Call expression](#914-call-expression)
+        1. [Universal function call syntax (UFCS) & disambiguation function calls](#0141-universal-function-call-syntax-ufcs--disambiguating-function-calls)
+    15. [Method call expression](#915-method-call-expression)
+    16. [Field access](#916-field-access)
+        1. [Automatic dereferncing](#9161-automatic-dereferencing)
+        2. [Borrowing](#9162-borrowing)
+    17. [Closure experssion](#917-closure-expressions)
+        1. [Closure trait implementations](#9171-closure-trait-implementations)
+    18. [Range expression](#918-range-expression)
+    19. [If expression](#919-if-expression)
+        1. [If let](#9191-if-let)
+    20. [Loops](#920-loops)
+        1. [Loop expression](#9201-loop-expression)
+        2. [While expression](#9202-while-expression)
+            - [While let](#while-let)
+        3. [Do-while expression](#9203-do-while-expression)
+        4. [For expression](#9204-for-expression)
+        5. [labelled block expression](#9205-labelled-block-expressions)
+        6. [Loop labels](#9206-loop-labels)
+    21. [Match expression](#921-match-expression)
+        1. [Match guards](#9211-match-guards)
+        2. [Fallthrough labels](#9212-fallthrough-labels)
+    22. [Break expression](#922-break-expression)
+    23. [Continue expression](#923-continue-expression)
+    24. [Fallthrough expression](#924-fallthrough-expression)
+    25. [Return expression](#925-return-expression)
+    26. [Underscore expression](#926-underscore-expression)
 10. [Patterns](#10-patterns)
+    1. [Literal pattern](#101-literal-pattern)
+    2. [Identifier pattern](#102-identifier-pattern)
+    3. [Wildcard patter](#103-wildcard-pattern)
+    4. [Rest pattern](#104-rest-pattern)
+    5. [Range pattern](#105-range-pattern)
+    6. [Reference pattern](#106-reference-pattern)
+    7. [Struct pattern](#107-struct-pattern)
+    8. [Tuple struct pattern](#108-tuple-struct-pattern)
+    9. [Tuple pattern](#109-tuple-pattern)
+    10. [Grouped pattern](#1010-grouped-pattern)
+    11. [Slice pattern](#1011-slice-pattern)
+    12. [Path pattern](#1012-path-pattern)
+    13. [Enum member pattern](#1013-enum-member-pattern)
+    14. [Alternative pattern](#1014-alternative-pattern)
+    15. [Type check pattern](#1015-type-check-pattern)
 11. [Types System](#11-type-system)
     1. [Types](#111-types)
         1. [Recursive types](#1111-rescursive-types)
@@ -309,6 +395,7 @@ There are 3 types of keywords:
 A strong keyword is a keyword that always has a meaning, regardless of where in the code it is located, and can therefore not be used for anything else
 A list of strong keywords can be found below (in a close to alphabetic order):
 ```
+as
 b8
 b16
 b32
@@ -337,6 +424,7 @@ i32
 i64
 i128
 impl
+is
 isize
 mut
 self
@@ -496,9 +584,17 @@ Each artifact has it's own main module, which by default uses the following file
 
 # 5. Names and paths
 
-_TODO_
+Names, identifiers, and paths are used to refer to things like:
+- types
+- items
+- generic paramters
+- variable bindings
+- loop labels
+- fields
+- attributes
+- etc.
 
-# 5.1 Names
+## 5.1 Names
 
 ```
 <letter> := ? any unicode letter ?
@@ -517,10 +613,56 @@ A name is part of an identifier and
 There are 2 types of names:
 - Normal names that cannot start with a decimal digit
 - Extended names that can start with a decimal digit, but must contain at least 1 non-decimal digit or letter (excluding 'e')
+_TODO: Need to look into this a bit more_
 
 Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
 Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
 
+## 5.2. Identifiers
+
+```
+<identifier> := <name> [ <generic-args> ]
+```
+
+An identifier is a sub-segment of a path, which consists out of a name and optional generic arguments.
+
+Identifiers refer to a single element in a path which can be uniquely identified by it's name and generics.
+
+## 5.3. Paths
+
+A path is a sequence of one or more identifiers, logically separated by a `.`.
+If a path consists out of only one segment, refers to either an item or variable in the local scope.
+If a path has multiple paramters, it refers to an item.
+
+Two examples are:
+```
+x;
+x.y.z;
+```
+
+There are multiple types of paths:
+
+### 5.3.1. Simple paths
+
+```
+<simple-path> := [ '.' ] <simple-path-segment> { '.' <simple-path-segment> }*
+<simple-path-segment> := <name> | 'super' | 'self'
+```
+
+Simple path are used for visitility, attributes, macros and use items.
+
+### 5.3.2. Paths in expression
+
+```
+<path-in-expr> := [ '.' ] <path-expr-segment> { '.' <path-expr-segment> }*
+<path-expr-segment> := <path-ident> [ <generic-path-args> ]
+```
+
+Paths in experessions allow for paths with generic arguments specified.
+They are used in various places in expressions and patterns.
+
+### 5.3.3. Qualified paths
+_TODO_
 
 # 6. Literals
 
@@ -999,7 +1141,7 @@ This is particularly useful to import an trait so that its methods may be used w
 ## 7.3 Function
 
 ```
-<fn-item> := { <attribute> }* [ <vis> ] [ 'const ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <fn-body>
+<fn-item> := { <attribute> }* [ <vis> ] [ 'const ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
 <fn-body> := <block-with-return>
            | <block-no-return>
            | ';'
@@ -1953,7 +2095,20 @@ A variable declaration may also contain an `else` block, allowing a refutable pa
 If this patten fails to match, the else block will get executed, this is generally used to either panic or return from the function.
 If an `else` block is not present, the pattern needs to be irrefutable.
 
-## 8.3. Expression statement 
+## 8.3. Expression statement
+
+```
+<expr-stmt> := <expr-no-block> ';'
+             | <expr-with-block>
+```
+
+An expressions statement evaluated a given expression and ignored the result.
+As a rule, an expression statement's purpose is to trigger the effects of evaluating its expression.
+
+If an expression ends with a block, if used in a context where a statement is permitted, the trailing semicolon can be omitted.
+This could lead to ambiguity when this can be parsed as both part of a larger expression or as a standalone expression, it will be parsed as a statement.
+
+The return type of an exprssion used in a statement must be a unit type.
 
 ## 8.4. Defer statement
 
@@ -1966,10 +2121,1099 @@ A defer expressions delays the execution of an expression until the end of the s
 Defers ere evaluated in the reverse order they are called, in a so-called LIFO (Last-In First-Out) order.
 
 # 9. Expressions
-_TODO_
+
+```
+<expr> := <expr-with-block> | <expr-no-block>
+<expr-with-block> := <block-expr>
+                   | <if-expr>
+                   | <loop-expr>
+                   | <match-expr>
+<expr-no-block> := <literal-expr>
+                 | <path-expr>
+                 | <unit-expr>
+                 | <operator-expr>
+                 | <in-place-expr>
+                 | <type-cast-expr>
+                 | <type-check-expr>
+                 | <parenthesized-expr>
+                 | <contructing-expr>
+                 | <index-expr>
+                 | <tuple-index-expr>
+                 | <call-expr>
+                 | <method-call-expr>
+                 | <field-access-expr>
+                 | <closure-expr>
+                 | <range-expr>
+                 | <break-expr>
+                 | <continue-expr>
+                 | <fallthrough-expr>
+                 | <return-expr>
+                 | <underscore-expr>
+```
+
+Expressions are to do 2 things:
+- create a value
+- produce a side-effect
+
+Each expression will return the value produced by it, while also applying any effect during evaluation.
+An expression ca contain multiple sub-expressions, which are called the operands of an expression.
+
+Each expression dictates the following:
+- Whether or not to evaluate teh operands when evaluating the expression.
+- The order in which to evaluate the operands
+- How to combine the operands' values to obtain the value of the expression
+
+In this way, the structure of the expression dictates the structure of execution.
+
+For information about the precedence of expression, see the [precedence section](#14-operators-and-precedence).
+
+In general, the operands of an expression will be evaluated before any side-effects will be applied, and the operands are evaluated from left to right.
+Each expression will define if and in which order there expressions are evaluated, if they deviate from this order.
+
+## 9.1. Expression details
+
+### 9.1.1 Place, value & assign expressions
+
+Expressions can be divided in 3 categories:
+- Place expressions.
+- value expressions.
+- Assign expressions.
+
+With each expression, operands may likewise occur in either place or value context.
+The evaluation of an expression depends both on its own category and the context it occurs in.
+
+#### Place expressions
+
+A place expressions represents an expression that point to a location in memory.
+
+They refer to the following expressions:
+- Local variable, like a path
+- Static variables, like a path
+- Dereferenced addresses or references
+- Indexing resulting in a place expression
+- Field references
+- Parenthesized place expressions
+- Any call (function and operator) that results in a place expression
+- Any propery resulting in a place expression
+
+#### Assign expressions
+
+An assign expression is any expression which can appear on the left hand size of an assignment operator.
+
+They refer to the following expressions:
+- Place expressions
+- Underscores
+- Tuples of assign expressions
+- slices of assign expressions
+- Tuple structs of assign expressions
+- Aggregate structs of assign expressions (with possible named fields).
+- Unit structs
+
+#### Value expressions
+
+A value expression is any other expressions.
+
+### 9.1.2. Moved & copied types
+
+When a place expression is evaluated in a value expression, or is bound to a value expression in a pattern, it denotes the value held in that memory location.
+If the type is copyable, then the value will be copied, otherwise if the value is sized, it is moved.
+Only the following place expressions can be moved out from:
+- variables that are not currently borrowed
+- temporary fields
+- fields of place expressions that can be moved out of, if the field is does not need to be dropped or used in a drop implementation, i.e. if the field can be partially moved
+- Result of a expressions that supports moving out of. _TODO: This needs a good API_
+
+After moving out of a place expression that evaluates a local expression, the location is deinitialized and cannot be read from again until it is reinitialized.
+
+In all other places, a place expression in a value expression will result in an error.
+
+### 9.1.3. Mutability
+
+For a place expression to be able to be assigned to, it needs to be mutable, either by being mutably referenced (either explicitly or implicitly), or must be explicitly refered to as mutable in a pattern.
+These are called _mutable place expression_, all other place expressions are _immutable place expressions_
+
+The following expressions can be used as mutable expressions:
+- Mutable variable that is currently not borrowed.
+- Temporary values
+- Fields
+- Dereferences of mutable pointers, i.e. `*mut T`
+- Dereferences of a variable or a field of one, with a type of `&mut T`
+- Dereferences of types supporting mutable dereferences, when the `DerefMut` trait is 
+- Any expressions that results in a place expression that is mutable
+
+### 9.1.4. Temporaries
+
+When using a value expression in a location a place expression is expected, a temporary unnamed memory location is created (usually on the stack) and is set to the value of the expression creating the temporary.
+The temporary value will then be used as the place expressions and will be dropped at the end of the expression's scope.
+
+### 9.1.5 Implicit borrows
+
+Certain expressions will treat an expression as a place expression by implicitly borrow it.
+
+Implicit borrowing takes place in the following expressions:
+- Left operand in a method call
+- Left operand in a field expression
+- Left operand in a call expression
+- Left operand in an index expression
+- Operand of a derefence operator
+- Operands of a comparison
+- Left operand of a compound assignment
+
+## 9.2. Literal expression
+
+```
+<lit-expr> := <literal> [ ':' <name> ]
+```
+
+A literal expression is used to get a value of a given literals, and is evaluated at compile time.
+
+Literal expressions also allow a special literal operator to be applied to them, htis is a constant function that can a value from a literal.
+
+## 9.3. Path expression
+
+```
+<path-expr> := <path-in-expr>
+             | '.' <name>
+```
+
+A path expression uses a path to refer to a local variable or item.
+Path expressions referencing local or static variables are place expression, all other path expressions are value expressons.
+
+A path may also refer to an inferred path, which is represented by a `.`, followed by a name.
+This is currently limited to plain enum members of enum types that can be inferred.
+
+
+## 9.4. Unit expression
+
+```
+<unit-expr> := '(' ')'
+```
+
+A unit expressions is an empty expressions that does nothing and return a unit type.
+
+## 9.5. Block expression
+
+```
+<block-expr> := [ 'unsafe' | 'const' ] <block>
+```
+
+A block expression creates a new anonymous scope witin an expression, allowing more than just expressions to be defined in a location normally only an expressions would be allowed.
+A block executes its non-item components and then its last optional expression.
+Any items or local variable in the scope only live for the lenght of the scope and are not accessible outside of the scope.
+
+The block can contain a final expression that is not ended by a semicolon, this will implicitly return its value from the block.
+
+There are 2 special types of block expressions:
+- `unsafe`: they allow expression that are normally only allowed in unsafe contexts
+- `const`: their contents is resolved at compile time.
+
+Blocks allow for the arbitrary nesting of code, meaning that it allows statements, expressions, and items.
+
+Blocks are always value expressions.
+
+### 9.5.1. Unsafe block
+
+An unsafe block will run the entirety of its code within an unsafe constext, allowing unsafe operation to be called within it.
+
+### 9.5.2. Const block
+
+A constant block will execute its code at compile time and will become an inline constant value after compilation.
+
+## 9.6. Operator expression
+
+```
+<op-expr> := <prefix-op> <expr>
+           | <expr> <postfix-op>
+           | <expr> <binary-op> <expr>
+```
+
+
+An operator expression applies operators on 1 or 2 sub-expressions.
+The resulting value of these expression will depend on the implementation of the operators.
+
+For additional info on operators, check the [Operator section](#14-operators-and-precedence).
+
+## 9.7. Parenthesized expression
+
+```
+<paren-expr> := '(' <expr> ')'
+```
+
+A parenthesized epxression wraps a single expression, allowing the expression to be evaluated before any other expressions that are outside of the parentheses will be executed.
+
+Parenthesized expressions can be both place and value expressions, depending on the expression within parentheses.
+
+Parentheses explicitly increase the precedence of this expression above that of other expressions, allowing expressions that would have a lower precedence to be executed before outer expressions use this expression.
+
+## 9.8. In-place expression
+
+```
+<in-place-expr> := <expr> '<-' <expr>
+```
+
+In some occasions, it might be preferable to directly write to the assignee, without creating an temporary value on the stack first, particularly for large types.
+An in-place assignment expession allows a value to be directly writtin inside of an assignee expressions.
+
+Currently the expressions allows to be used for in-place assignments are limited to so called 'constructing expressions`.
+
+> _Note_: might need some syntax to pass arguments through to functions
+
+## 9.9. Type cast expression
+
+```
+<type-cast-expr> := <expr> <as-op> <type>
+<as-op> := 'as' | 'as?' | 'as!'
+```
+
+A type cast expression is a special binary operator, which has a type on the right hand side.
+
+Executing the expression will cast the value on the left hand side to the type on the right hand side.
+
+
+### 9.9.1. Builtin casts
+
+The builtin cast `as` can be used to explicilty perform coercions, as well as the follwoing casts.
+Any cast that does not fis eitehr a coercion rule or an entry in the table is a compiler error.
+Here `*T` means either `*const T` or `*mut T`. `m_` stands for an optional `mut` in referecne types and `mut` or `const` in pointer types.
+
+Type of `e`               | `U`                                 | Cast performed by `e as U`
+--------------------------|-------------------------------------|----------------------------
+Integer or Float type     | Integer or float type               | Numeric cast
+Enumeration               | Integer type                        | Enum cast
+Boolean or character type | Integer type                        | Primitive to integer cast
+Integer type              | Character type                      | Integer to character cast
+`*T`                      | `*U` where `U` is sized *           | Pointer to pointer cast †
+`*T` where `T` is sized   | Integer type                        | Pointer to address cast †
+`&m1 T`                   | `*m2 T` **                          | Reference to pointer cast †
+`&m1 [T; N]`              | `*m2 T` **                          | Array to pointer cast †
+Function item             | Function pointer                    | Function item to function pointer cast †
+Function item             | `*U` where `U` is sized             | Function item to pointer cast †
+Function item             | Integer                             | Function item to address cast †
+Function pointer          | `*U` where `U` is sized             | Function pointer to address cast †
+Function pointer          | Integer                             | Function pointer to address cast †
+Closure ***               | Function pointer                    | Closure to function pointer cast †
+`T`                       | Opaque type                         | Type to opaque cast
+`*T`                      | `*U` where 'U' is an opaque type    | Type to opaque cast
+`&m1T`                    | `&m2 U` where 'U' is an opaque type | Type to opaque cast
+
+\* or `T` and `U` are compatible unsized types, e.g. both slices, both are the same interface 
+
+\** only when `m1` is `mut` or `m2` is `const`. Casting `mut` reference to `const` pointer is allowed.
+
+\*** only for closure that do not capture (close over) any local variables
+
+† Casts are unsafe
+
+_NOTE: casting an integer type to a pointer is only allowed via the appropriate library functions_
+
+#### Numeric cast semantics
+- Casting between two integer types of he same size (e.g. i32 -> u32) is a no-op (2's complement is used for negative numbers)
+- Casting from a larger integer to a smaller integer (e.g. u32 -> u8) will truncate
+- Casting from a smaller integer to a larger integer (e.g. u8 -> u32) will
+  - Zero extend when the source is unsigned
+  - Sign extend when the source is signed
+- Casting from a float to an integer will round the float towards zero
+  - `NaN` will return 0
+  - Values larger than the maximum value, including `INFINITY`, will saturate to the maximum value of the integer type
+  - Values samller than the minimum integer value, including `-INFINITY`, will saturate to the minimum value of the integer type
+- Casting from an integer to a floating point will produce the closest possible float *
+  - if necessary, rounding is accoring to `roundTiesToEven` mode ***
+  - on overflow, infinity (of the same sign as the input) is produces
+  - note: with teh current set of numeric types, overflow can only happen on `u128 as f32` for values greater or equal to `f32::MAX + 0.5`
+- Casting from an f32 to an f64 is perfect and lossless
+- Casting from an f64 to an f32 will produce the closest possible f32 value **
+  - if necessary, rounding according to `roundTiesToEven` mode ***
+  - on overflow, infinity (of the same sign as the input is produced)
+
+\* if integer-to-float casts with this rounding mode and overflow behavior are not supported natively by the hardware, these casts will likely be slower than expected.
+
+\** If f64-to-f32 casts with this rounding mode and overflow behavior are not supported natively by the hardware, these casts will likely be slower than expected.
+
+\*** as defined in IEEE-754-2008 §4.3.1: pick the nearest floating point number, preferring the one with an even least significant digit if exactly half way between two floating point numbers.
+
+#### Enum cast semantics
+
+Casts from an enum to its distriminant, then uses a numeric cast is needed. Casting is limited to the following kinds of enumerations:
+- Unit-only enums
+- Field-less enums without explicit discriminants, or werhe only unit variants have explicit discriminants
+- Flag enums
+
+#### Primtive to integer cast semantics
+
+- `false` casts to 0, `true` casts to 1.
+- character types cast to the value of the code point, then uses a numeric cast is needed.
+
+#### Integer to character cast semantics
+
+Casts an integer type corresponding to the size of the character type, then cast to a character type with the corresponding code point.
+
+#### Pointer to address casts semantics
+
+Casting from a raw pointer to an integer produces the machine address of the referenced memory.
+If the integer type is smaller than the pointer type, the address may be truncated; using `usize` avoids this.
+
+#### Pointer-to-pointer semantics
+
+`*const T`/`*mut T` can be cast to `*const U`/`*mut U` with the following behavior:
+- If `T` and `U` are both sized, the pointer returned is unchanged.
+- If `T` and `U` are both unsized, the pointer is also returned unchanged. In particular, the metadata is preserved exactly.
+  If `T` and `U` are objects, this does require that they are compatible types, e.g. same non-marker interfaces.
+
+  For instance, a cast from `*const [T]` to `*const [U]` preserves the number of elements.
+  Note that, as a consequence, such casts do not neccesarily preserve the size of the pointer's referent (e.g. casting `*const [u16]` to `*const [u8]`) will result in a raw pointer which refers to an object of half the size of the original).
+  The same holds for `str` and any compound type whose unsized tail is a slice type, such as `struct Foo(i32, [u8])` or `(u64, Foo)`
+- If `T` is unsized and `U` is sized, the cast discards all metadata that completes the wide pointe `T` and produces a thin ponter `U` consisting of hte data part of the unsized pointer.
+
+### 9.9. 2. Try and unwrap casts
+
+A try cast `as?` can be used to cast a type from an interface object, impl interface object, or a generic to a given type, returning an optional type with valid value when the cast is possible and a `None` when it's not.
+This can therefore be used to dynamically handle code based on a type when RTTI info is avaiable.
+
+An unwrap cast `as!` is similar to a try cast, but meant for in usecases the user is certain that the cast is possible, as it will unwrap the resulting nullable type.
+This could also be written as `(a as? T)!`.
+By default, it will panic when the cast is not available, but in certain configuration, this can be changed into a cast that always passes, so may return in UB if not used correctly.
+
+Any cast that happens on a generic or impl interface object will be resolved at compile time.
+
+## 9.10. Type check expression
+
+```
+<type-check-expr> := <expr> <is-op> <type>
+<is-op> := 'is' | '!is'
+```
+
+A type check expression is a special binary operator, which has a type on the right hand side.
+A type check expression can be used to check if an interface object, impl interface object, or a generic is of a given type.
+This check can only occur on place expressions.
+
+There is both a positive and negative version of this expression.
+
+When the positive version is used in the condition of a conditional expression, and it is the only type check experssion on this value, the value will be implicitly promoted within the block that gets executed when the condition is true.
+
+Any cast that happens on a generic or impl interface object will be resolved at compile time.
+
+## 9.11. Constructing expression
+
+```
+<constructing-expressions> := <tuple-expr>
+                            | <array-expr>
+                            | <aggregate-expr>
+```
+
+A constructing expression constructs a new instance of a type.
+This consists of a group of multiple expressions and can be used 
+
+### 9.11.1. Tuple expression
+
+```
+<tuple-expr> := '(' <expr> { ',' <expr> }+ ')'
+```
+
+A tuple expression constructs a tuple value.
+
+The construction exists out of a comma separated list of values that need to be placed within the tuple.
+Since 1-ary tuples are not supported, if the expression only contains 1 operand, it will be interpreted as a parenthesized expression.
+Similarly if the expressions contains 0 operands, a unit type will be created.
+
+The number of operands within the tuple initializer defines the arity of the tuple.
+When initializing a tuple, the operand will be evaluated in the order they are written, i.e. left-to-right.
+Each operand will be assigned to the field they represent within the expression, i.e. the first operand will be assigned to field '0', and so on.
+
+Tuple expressions are value expressions.
+
+### 9.11.2. Array expression
+
+```
+<array-expr> := <array-list-expr> | <array-count-expr>
+<array-list-expr> := '[' ( <expr> { ',' <expr> }* [ ',' ] ) ']'
+<array-count-expr> ;= '[' <expr> ';' <expr> ']'
+```
+
+An array expression constructs arrays, an come in 2 forms.
+
+The first form lists out all values in the array, this is represented as a comma separated list of expressions.
+Each expression is evaluated in the order that they are written, i.e. left-to-right.
+
+The second form consists out of 2 expression separated by a `;`.
+The expression on the left is called the 'repeat' operand, the expression on the right the 'count' operand.
+The count operand must be able to be evaluated at compile time and have a `usize` type.
+This form creates an array with a length of the value of the cound operand, with each value being a copy of the value evaluated from the repeat operand.
+This means that `[a;b]` create an array of `b` elements with the value `a`.
+If the value of the count operand is larger than 1, the repeat operand must be copyable or must point to a constant item.
+
+Creating a multi-dimensional array can be done by nesting array expressions within other array expression, i.e. `[[..], [..], [..]]` will result in a 2D array.
+
+### 9.11.3. Struct expressions
+
+```
+<struct-expr> := <struct-expr-path> '{' [ <struct-expr-member> { ',' <struct-expr-member> }* [ ',' [<struct-complete>] ] ] '}'
+<struct-expr-path> := <path> | '.'
+<struct-expr-member> := [ <ext-name> ':' ] <expr>
+<struct-complete> := '..' <expr>
+```
+
+A struct expression creates a structure, enum, or union value.
+There are 3 forms of this expression, corresponding in the 3 types it can create
+
+#### Struct (& union) expression
+
+A struct expressions with fields enclosed in curly braces allows the specifying of values for each individual field in the structure.
+
+A unions is created as a struct expression with only a single field.
+
+##### Functional update syntax
+
+An struct expression tha constructs a value of a struct type can terminate with a `..` followed by an expression.
+This entire expression uses the given values for fields that were specified and moved or copies the remaining fields from the base expression.
+As with all struct expressions, all of hte views of tghe struct must be visble, even those not explicitly named.
+
+Using this expression will also overwrite all default fields.
+
+##### Struct field shorhand
+
+When initializing an struct value with named fields, it is allowed to write `fieldname` instead of `fieldname: fieldname`.
+This allows for a more compact syntax with less duplication.
+
+##### Default fields
+
+When a struct has default field values, they are not required to assign a value to those fields.
+
+#### Tuple struct expression
+
+An struct expression with fields enclosed in parentheses constucts a tuple struct.
+Though listed here as specific experssion, this is equivalent to the a call expression to the tuple struct's pseudo-constructor.
+
+#### Unit struct
+
+A unit struct expression creates is either just a path or an implied path.
+This refers to the unit struct's implicit constant of it's value.
+The unit struct value can also be constructed in 2 ways:
+- as a path
+- as a fieldless struct expression
+- as an implied fieldless struct expression
+
+## 9.12. Index expression
+
+```
+<index-expr> := <expr> '[' <expr> { ',' <expr> }* ']'
+```
+
+An index expression can be used to get a value out of a type using a given index.
+
+When the expression being indexed is either an array or a slice, it will get the relevant element at a given index or a subslice at the given range.
+If the array of slice is mutable, the resulting value will be memory location that can be assigned to.
+
+When the array or slice being index is a multi-dimensional array, it can be indexed with a range of comma separated of indices.
+If a range shows up, the elements after it must only be boundless range exprsions, i.e. `..`, as we can't get a slice across multiple sub-dimensions.
+
+Indices are 0-based for arrays and slices.
+If array access is a constant expression, bounds can be checked at compile-time, otherwise the check will be performed at runtime and will panic when being indexed out of range
+
+For any other type, the resulting indexing will depend on whether the index implementation returns a reference or not.
+
+For all other types, the following operations will happen:
+- In an immutable place context, the resulting value will be `Index::index(&a, b)`.
+
+  If the index implementation were to return a refernce, it would be implicitly dereferenced.
+
+- In a mutable place context, the resulting value will be `*IndexMut::index_mut(&a, b)`.
+
+
+The interfaces associated with the index expressions are:
+- `Index`
+- `IndexMut`
+
+## 9.13. Tuple index expression
+
+```
+<tuple-index-expr> := <expr> . <unsigned-decimal-literal>
+```
+
+A tuple index expressions is used to access fields within a tuple type (a tuple or tuple structure).
+
+A tuple is indexed using an unsigned decimal literal, wit h no leading zeros or underscores.
+
+Evaluation of a tuple has no side-effects, other than the evaluation of the tuple operand.
+This expressions is a place expression, so it evaluateds to the location of tuple field with the same name as the tuple index.
+
+## 9.14. Call expression
+
+```
+<func-call> := <expr> '(' [ <function-args> ] ')'
+<func-args> := <func-arg> { ',' <func-arg> }* [ ',' ]
+<func-args> := [ <name> ':' ] <expr>
+```
+
+A call expessions call a function.
+
+The expression will complete when the function returns.
+If the function return a value, this value will be returned, this function is therefore a place or value expression, depending on the returned value.
+
+The function expression can be called if it follows either of the following cases
+- The expression is function or function pointer expr type.
+- The expression is of a value that implement one of the relavent function interfaces.
+
+If needed, an automatic borrow of the function expression is takes.
+
+An argument can have an additional function argument label in case the function requires one.
+Any default arguments do not need to be provided and will be evaluated after evaluating the supplied operands, in the order they were defined in the signature.
+
+Arguments are evaluated in the order they are written. i.e. left-to-right.
+
+### 0.14.1. Universal function call syntax (UFCS) & disambiguating function calls
+
+All function calls support UFCS, meaning that for method calls, if they are called as normal functions, the receiver is passed as the first argument to the function and has an optional 'self' label.
+
+Several situation can occur with result in ambiguities of which function is being called.
+This situation only will happen when the first argument is unlabeled, as a receiver is unlabeled, and may occur when:
+- Multiple in-scope interfaces define methods with the same name, and parameters for the same types.
+- Auto-`deref` is undesireable; for example, distinguishing between methods on a smart pointer itself and their pointer's referent,  
+- Methods which take no arguments and return properies of types.
+
+To resolve the ambiguity, the programmer may refer to their desired method or function using more specific paths, types, or interfaces.
+
+## 9.15. Method call expression
+
+```
+<method-call-expr> := <expr> '.' <name> '(' ( <func-args> )? ')'
+```
+
+A method call constists of an expression (the 'receiver') followed dot, and identifier, and a set of function arguments.
+Methods calls are resolved to associated methods on specific interfaces, either statically dispatching to a method if the exact self-type of the left hand-size is known,
+or dynamically dispatching if the left-hand-side expression is an indidirect interface object.
+
+When looking up a method call, the receiver may be automatically dereferenced or borrowed in order to call a method.
+This requires a more complex lookup process than for other functions, since there may be a number of possible methods to call. The following procedure is used:
+
+1. Build a list of candidate receiver types.
+   1. Obtained by repeatedly dereferencing the receiver's type, adding each type encountered to the list.
+   2. Finally attempt an unsized coercion at the end, and adding the result type to the candidate list if that is successful.
+   3. Then for each candidate `T`, add `&T` and `&mut T` to the list immediately after `T`.
+2. Then for each candidate type `T`, search for a visible method with a receiver of that type in the following places.
+   1. `T`'s inherent methods (methods implemented directly by T).
+   2. Any of the methods provided by a visible interface implemented by `T`.
+      If `T` is a type parameter, methods provided by interface bounds on `T` are looked up first.
+   3. All remaining methods scopes are looked up.
+3. Pick the methods matching the arguments.
+
+> _Note_: more detailed info about argument resolution, check the function definition item
+
+If this results in multiple possible candidates, then it is an error, and the receiver must be converted to an appropriate receiver type to make the method call.
+
+This process does not take into account the mutability of the receiver, or whether a method is `unsafe`.
+Once a method is looked up, if it can't be called for one (or more) of those reasons, it will result in a compiler error.
+
+If a step is reacehhd where there is more than one possible methods, such as where generic methods or interfaces are considered the same, the it is a compiler error.
+These cases requre a disambiguating function call syntax for metods and functon invocations.
+
+An argument can have an additional function argument label in case the function requires one.
+Any default arguments do not need to be provided and will be evaluated after evaluating the supplied operands, in the order they were defined in the signature.
+
+## 9.16. Field access
+
+```
+<field-access-expr> := <expr> ( '.' | '?.' ) <name>
+```
+
+A field expression is a place expression that evaluates to the location of a field of a struct or union.
+When the operand is mutable, the field expression is also mutable.
+
+Field expression cannot be followed by an opening parenthesis, as this would be a method call expression.
+
+A field can be accessed in 2 ways:
+- A direct field access using `.`: this will just access the field
+- A 'null'-checked field access using `?.`: this will eitehr access the field if the left-hand-side expression is valid, in case of an erronous value, it will just return the value of the expression.
+
+The pseudo-access `!.` is actually an unwrap operator, followed by a field access.
+
+### 9.16.1 Automatic dereferencing
+
+If the type of the left-hand-side operand implements `Deref` or `DerefMut` depending on whether the operand is mutable, it is automatically dereferenced as many times as necessary to make the field access possible.
+This process is also called 'autoderef' for short.
+
+### 9.16.2. Borrowing
+
+The field of a struct or a reference to a struct are treated as separate entities when borrowing.
+If the struct does not implement `Drop` and iis stored in a local variable, this also applies to moving out of each of its fields.
+This also does not apply if automatic dereferencing is done through user defined types that don't support this.
+
+## 9.17. Closure expressions
+
+```
+<closure-expr> := ( 'move' )? '|' ( <closure-parameters> ) '|' ( <expr> | ( '->' <func-ret> <block> ) )
+<closure-parameters> := <closure-parameter> ( ',' <closure-parameter> )* ( ',' )?
+<closure-parameter> := ( <attribute> )* <pattern-no-top-alt> ( ':' <type> )
+```
+
+A closure expression, also known as a lambda expression, a lambda, or a functor in some languages, defines a closure type and evaluates to a value of that type.
+Each parameter can have an optional type, but this can be infered depending on the location the closure is defined.
+If there is a return type, the closure must have a block.
+
+A closure expression denotes a function that maps a list of parameters onto the expression that follows the paramters.
+Just like a `let` binding, the closure paramters are irrefutable patterns, whose type annotation is optional and will be inferred from context if not given.
+Each closure expression has a unique, anonymous type.
+
+Significantly, closure expressions capture their environment, which regular function definitions do not.
+Without the `move` keyword, the closure expression infers how it captures each variable from its environment, preferring capture by shared reference, effectively borrowing all outer variables mentioned inside the closure's body.
+If needed, the compiler will infer that insted of mutable references should be taken, or that the values should be moved or copied (depending on their type) from the environment.
+A closure can be forced to capture its environment by copying or moving valures by prefixing it with the `move` keyword.
+This is often used to ensure that the closure's lifetime is static.
+
+### 9.17.1. Closure trait implementations
+
+Which trait a closure type implemetns depends on how variables are captured and the typesss of the captured expression.
+See the call trait section for how and when a closure implements the respective trait.
+
+## 9.18. Range expression
+
+```
+<range-expr> := <range-exclusive-expr>
+              | <range-from-expr>
+              | <range-to-expr>
+              | <range-full-expr>
+              | <range-inclusive-expr>
+              | <range-to-inclusive-expr>
+
+<range-exclusive-expr> := <expr> '..' <expr>
+<range-from-expr> := <expr> '..'
+<range-to-expr> := '..' <expr>
+<range-full-expr> := '..'
+<range-inclusive-expr> := <expr> '..=' <expr>
+<range-to-inclusive-expr> := '..=' <expr>
+```
+
+The '..' and '..=' operators will construct an object of one of the following range variants:
+
+Production                  | Syntax        | Type               | Range
+----------------------------|---------------|--------------------|-------------------
+<`range-exclusive-expr`>    | `start..end`  | `Range`            | start <= x < end
+<`range-from-expr`>         | `start..`     | `RangeFrom`        | start <= x
+<`range-to-expr`>           | `..end`       | `RangeTo`          | x <= end
+<`range-full-expr`>         | `..`          | `RangeFull`        | -
+<`range-inclusive-expr`>    | `start..=end` | `RangeInclusive`   | start <= x <= end
+<`range-to-inclusive-expr`> | `..=end`      | `RangeToInclusive` | x <= end
+
+## 9.19. If expression
+
+```
+<if-expr> := <label-decl> 'if' <branch-condition> <block> ( 'else' <block> )?
+<branch-condition> := ( <expr> | <cond-let-binding> ) ( '&&' ( <expr> | <cond-let-binding> ) )*
+<cond-let-binding> := 'let' <pattern> '=' { <scrutinee> excluding lazy boolean operator expressions }
+```
+
+An `if` expression is a conditional branch in program control.
+The condition must resolve to a boolean expression.
+If the condition operand evaluates to `true`, the consequent block is executed and any subsequent `else if` and `else` block is skipped.
+If the condition operand evaluates to `false`, the consequent block is skipped and the subsequenct `else if`  condition is evaluate.
+If all `if` and `else if` conditons evaluated to `false`, then any `else` block is executed.
+An `if` expression evaluates to the same value as the executed block, or `()` if no block is evaluated.
+An `if` expression must have the sae type in all situations.
+
+When a constant experession used for the condition operand, the `if` will be essentially eliminated, depending on the result of the value.
+
+When any branch returns a value, all possible branches should return the same value.
+
+### 9.19.1 If let
+
+In addition to general expression, the `if` expressions also supported let bindings.
+A let binding will be true if the scrutinee matches the pattern matches the pattern.
+When a pattern matches, the bound variable will be accessible within the consequent block.
+
+Multiple pattens may be specified using the `|` operator.
+This is the same semantics as with `|` in `match` expressions.
+
+When a `let` binding is introduces, the use on the lazy OR boolean operator is not allowed when not in a parenthesized expression.
+
+## 9.20. Loops
+
+Xenon supports five loop expressions:
+- a `loop` expression denoting an infinite loop
+- a `while` expression looping until a predicate is false
+- a `do while` expression looping until a predicate is false, guaranteeing to run the loop at least once
+- a `for` expression extracting a value from an interator, looping until the iterator is empty
+- a labelled block expression running a loop exactly once, but allowing the loop to exit early with `break`
+
+All six types of loop expression support `break` expressions and labels.
+All except labelled block expressions support `continue` expressions.
+Only `loop` and labelled block expressions support evaluating to non-trivial values.
+
+### 9.20.1. Loop expression
+
+```
+<loop-expr> := <label-decl> 'loop' <basic-block>
+```
+
+A `loop` expression repeats execution of a body continuously.
+
+A `loop` expression without an associated `break` expression is diverging and has type `!`.
+A loop expression containing associated `break` expressions will terminate, and must be type compatible with the value of the `break` expressions.
+
+### 9.20.2. While expression
+
+```
+<while-expr> := <label-decl> 'while' <branch-condition> <basic-block>
+```
+
+A `while` loop begins by evaluating the loop condition operand.
+If the loop conditional operand evaluates to true, the loop block executes, the control return to the loop conditional operand.
+If the loop conditional expression evaluates to `false`, the `while` expression completes.
+
+_TODO: `while else` might have some good usecases_
+
+#### While let
+
+In addition to a general expression, the `while` expression also supports let bindings.
+A let binding will be true if the scrutinee matches the pattern matches the pattern.
+When a pattern matches, the bound variable will be accessible within the consequent block.
+
+Multiple pattens may be specified using the `|` operator.
+This is the same semantics as with `|` in `match` expressions.
+
+When a `let` binding is introduces, the use on the lazy OR boolean operator is not allowed when not in a parenthesized expression.
+
+## 9.20.3. Do-while expression
+
+```
+<do-while-expr> := <label-decl> 'do' <basic-block> 'while' <expr>
+```
+
+A `do while` loops begins by running the body of the loop at least once, after which the boolean loop condition operand is evaluated.
+If the loop conditional operand evaluates to true, the loop block executes, the control return to the loop conditional operand.
+If the loop conditional expression evaluates to `false`, the `do while` expression completes.
+
+### 9.20.4. For expression
+
+```
+<for-expr> := ( <label-decl>? ) 'for' <patern> 'in' <expr> <block>
+```
+
+A `for` expression is a syntactic construct for looping over elements provided by an implementation of `IntoIterator`.
+If the iterator yields a value, that value is matched against the irrefutable pattern, the body of hte loop is executed, and then control returns to the head of the `for` loop.
+If the iterator is empty, the `for` expression completes.
+
+### 9.20.5. Labelled block expressions
+
+```
+<labelled-block-expr> := <label> <block-expr>
+```
+
+Labelled block expressions are exactly like block expressions, except they allow using `break` expressions within the block.
+Unlike loops, `break` expressions within a labelled block experssion must have a label (i.e. the label is not optional).
+Similarly, labelled block expressions must begin with a label.
+
+### 9.20.6. Loop labels
+
+A loop expression may optionally have a label.
+If the label is present, the labeled `break` and `continue` expressions nested within the loop may exit out of this loop or return control to its head.
+
+Labels follow the hygeine and shadowing rules of local variables.
+
+## 9.21. Match expression
+
+```
+<match-expr> := ( <label-decl> )? 'match' <expr> '{' ( ( <match-case> )* <final-case> ) '}'
+<match-case> := ( <label-decl> )? <pattern> ( <match-guard> )? '=>' ( ( <expr> ',' ) | ( <block> ( ',' )? ) )
+<final-case> := ( <label-decl> )? <pattern> ( <match-guard> )? '=>' ( ( <expr> ( ',' )? ) | ( <block> ( ',' )? ) )
+<scrutinee> := { <expr> except structure expressions }
+```
+
+A `match` expression branches on a pattern.
+The exact form of matching that occurs depends on the pattern.
+A `match` expressions has a scrutinee expression, which is the value to compare to the patterns.
+The scrutinee expression and the patterns must have the same type.
+
+A `match` behaves differently depending on whether or not the scrutinee expression is a place or value expression.
+If the scrutinee expression is a value expression, if is first evaluated into a temporary location, and the resulting value is subsequently compared to the patterns in the arms until a match is found.
+The first arm with a matching pattern is chosen as the branch target of the `match`, any variables bound  by the patten are assigned to local variables in the arm's block, and control enters the block.
+
+When the scrutinee is a place expression, the match does not allocate a temporary location; however, a by-value binding may copy or move from the memory location.
+When possible, it is preferable t omatch on place expressions, as the lifetie of these matches inherits the lifetime of the place expression rather than being restricted to the inside of the match.
+
+Variables bound within the pattern are scoped to the match guard and the arm's expression.
+The binding mode (move, copy, or reference) depends on the pattern.
+
+Multiple match patterns may be joinded with the '|' operator.
+Each pattern will be tested in a left-to-right sequence until a successful match is found
+
+Every binding in each `|` separated pattern must appear in all of the patterns in the arm.
+Every binding of the same name must have the same type, and have the same binding mode.
+
+### 9.21.1. Match guards
+
+```
+<match-guard> := 'if' <expr>
+```
+
+Match arms can accept match guards to further refine the criteria for matching a case.
+Patten guards appear after the pattern and consts of a boolean expression.
+
+When the pattern matches successfully, the pattern guard expression is executed.
+If the expression evaluates to `true`, the pattern is successfully matched against.
+Otherwise, the next pattern including other matching with the `|` operator in the same arm is tested.
+
+A pattern guard may refer to the variable bound within the pattern they follow.
+Before evaluating the guard, this shared reference is then used when accessing the variable.
+Only when the guard evaluates to `true` is the value moved, or copied without moving out of the scrutinee in case the guard fails to match.
+Moreover, by holding a shared reference while evaluating the guard, mutation inside the guard is also prevented.
+
+### 9.21.2. Fallthrough labels
+
+A pattern is allowed to have a label.
+A label may only be referenced by a `fallthrough` expression within an arm of the `match` expression.
+This will then proceed to evaluate another arm in the `match`.
+
+Labels are only allowed if the arm does not capture any bindings.
+
+
+## 9.22. Break expression
+
+```
+<break-expr> := 'break' ( <label> )? ( <expr> )?
+```
+
+When `break` is encountered:
+- in a loop, execution of the associated loop body is immediatelly terminated.
+- in a `match`, execution of the associated arm is immediatelly terminated.
+
+A `break` expression is normaly associated with the innermost loop or `match` exclosing the `break` expression, but a label can be used to specify which enclosing loop or `match` is affected.
+
+A `break` expression is only permited in the body of a loop, or an arm of a `match`.
+
+### 9.22.1. Break and loop/match values.
+
+When associated with a loop, a break expression may be used to return a value from that loop, via one of the forms `break EXPR` or `break 'label EXPR`,
+where `EXPR` is an expression whose result is returned from the loop.
+
+In the case a loop has an associated `break`, it is not consifered diverging, and the `loop` must have a type compatible with each `break` expression.
+`break` without an explicit expression is considered identical to a `break` with the expression `()`.
+
+## 9.23. Continue expression
+
+```
+<continue-expr> := 'continue' ( <label> )?
+```
+
+When `continue` is encountered, the current iteration of the associated loop body is immediatally terminated, returning control to the loop head.
+These correspond to the following for given loops:
+- `while` and `do while` loop: the head is the conditional expression controlling the loop
+- iterator `for` loop: the head is the call expression controlling the loop
+- manual `for` loop: the head is the increment expression of the loop.
+
+Like a `break`, `continue` is normally associated with the innermost enclosing loop, but `continue 'label` may be used to specify the loop affected.
+A `continue` expression is only permitted in the body of a loop.
+
+## 9.24. Fallthrough expression
+
+```
+<fallthrough-expr> := 'fallthrough' ( <label> )?
+```
+
+When a `fallthrough` is encountered, the current arm of a `match` will immediatelly terminate and the arm next arm will be evaluated next.
+If a label is given, the associated with the label will be evaluated instead.
+
+## 9.25. Return expression
+
+```
+<return-expr> := 'return' ( <expr> )?
+```
+
+Return expressions moves its argument into the designated output location for the current function call, destroys the current function activation frame, and transfers control to the caller frame.
+When the function being called has named returns, the `return` expression is allowed to overwrite the named return values.
+
+## 9.26. Underscore expression
+
+```
+<underscore-expr> := '_'
+```
+
+Underscore experssions are used to signify a placeholder in a destructuring assignment.
+The may only appear in the left-hand side of an assignment.
+
+> _Note_: that this is distinct from a wildcard pattern.
+
 
 # 10. Patterns
-_TODO_
+
+```
+<pattern> := <pattern-no-top-alt> ( | <pattern-no-top-alt> )*
+<pattern-no-top-alt> := <pattern-no-range>
+                      | <range-pattern>
+<pattern-no-range> := <lit-pattern>
+                    | <identifier-pattern>
+                    | <wildcard-pattern>
+                    | <reference-pattern>
+                    | <struct-pattern>
+                    | <tuple-struct-pattern>
+
+
+```
+
+Patterns are both used to match values, but also to optionally bind them (in case of uses like 'let ...', binding is the intended usecase).
+
+Patterns can be used to destructure types like struct, enums, and tuples.
+Destructuring breaks up a value in its constituent elements.
+
+Patterns can be said to be refutable if there is a possibility for it to not be matched, if they will always be matched, they are said to be irrifutable.
+
+## 10.1. Literal pattern
+
+```
+<lit-pattern> := <literal>
+```
+
+Literal patterns match the exact value of the literal.
+
+## 10.2. Identifier pattern
+
+```
+<identifier-pattern> := [ 'ref' ] [ 'mut' ] <name> [ '@' <pattern> ]
+```
+
+Identifier patterns bind the value they are matched to, to a variable of a given name.
+This names needs to be unique within the pattern.
+This binding (newly created variable) is allowed to shadow any variable that is defined before the pattern.
+The scope of the binding depends on the location of where the pattern is used.
+
+'mut' can be added to make the resulting binding mutable in code.
+'ref' can be added to take reference to the element being matched, instead of moving or copying it on match.
+'ref' must be used instead of '&' as it actually does the oposite of this.
+
+In addition, a binding may also have a restriction placed on it by appending a pattern behind the name.
+
+By default, the binding mode of this is determined based on the variable being compared.
+
+## 10.3. Wildcard pattern
+
+```
+<wildcard-patter> := '_'
+```
+
+A wildcard pattern matches any single element in a pattern, and is used to ignore its value.
+
+## 10.4. Rest pattern
+
+```
+<rest-pattern> := '..'
+```
+
+A special case of the wildcard that matches 0 or more elements, and can be used to discard any remaining elements that are not cared about in the match.
+
+## 10.5. Range pattern
+
+```
+<range-pattern> := <exclusive-range-pattern>
+                 | <inclusive-range-pattern>
+                 | <from-range-pattern>
+                 | <to-range-pattern>
+                 | <inclusive-to-range-pattern>
+<exclusive-range-pattern> := <range-pattern-bound> '..' <range-pattern-bound>
+<inclusive-range-pattern> := <range-pattern-bound> '..=' <range-pattern-bound>
+<from-range-pattern> := <range-pattern-bound> '..'
+<to-range-pattern> := '..' <range-pattern-bound>
+<inclusive-to-range-pattern> := '..=' <range-pattern-bound>
+<range-pattern-bound> := <number-literal>
+                       | <char-literal>
+                       | <path-expr>
+```
+
+A range pattern can match a value within the given range.
+The start of the range needs to preceed the value of the end.
+
+When using path as a bound, it has to be able to be resolved at compile time.
+
+## 10.6. Reference pattern
+
+```
+<reference-pattern> := '&' [ 'mut' ] <pattern-no-range>
+```
+
+Reference patterns is used to derefence pointers and references.
+
+Similar to identifier patterns, 'mut' can be added to make the resulting variable mutable.
+
+## 10.7. Struct pattern
+
+```
+<struct-pattern> := <path> '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' ] ) | <rest-pattern> ] '}'
+<struct-pattern-elem> := ( <attribute> )* ( <struct-pattern-elem-tuple> | <struct-pattern-elem-member> | <struct-pattern-elem-iden> )
+<struct-pattern-elem-tuple> := <tuple-index> ':' <pattern>
+<struct-pattern-elem-member> := <ext-name> ':' pattern
+<struct-pattern-elem-iden> := [ 'ref' ] [ 'mut' ] <ext-name>
+```
+
+A struct pattern can match struct, enum, and union values that match the defined criteria in the subpatterns.
+The also allow for the value to be deconstructed to its members.
+
+There are 3 ways of matching elements:
+- Using a tuple element in case of tuple-like types
+- Using a values name, followed by a pattern
+- Using a value directly with a matching name (this requires a normal name and not an extended name).
+
+## 10.8. Tuple struct pattern
+
+```
+<tuple-struct-pattern> := <path> '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-patter> ] ] ) ) | <rest-patter> ')'
+```
+
+A tuple struct pattern can match tuple structs that match the defined criteria in the subpatterns.
+
+## 10.9. Tuple pattern
+
+```
+<tuple-pattern> := '(' ( <pattern> ( ',' <patter> )* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ')'
+```
+
+A tuple pattern can match a tuple values that match the defined criteria in the subpatterns.
+
+## 10.10. Grouped pattern
+
+```
+<grouped-pattern> := '(' <pattern> ')'
+```
+
+Grouped patterns are used to explicitly control the precedence of compound patterns.
+
+## 10.11. Slice pattern
+
+```
+<slice-patter> := '[' ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-pattern> ] ] ) | <rest-patter> ']'
+```
+
+A slice pattern can match array and slice values that match the defined criteria in the subpatterns.
+
+## 10.12. Path pattern
+
+```
+<path-pattern> := <path>
+```
+
+A path pattern can match any constant, or struct or enum member that have no fields.
+
+## 10.13. Enum member pattern
+
+```
+<enum-member-pattern> := ':' <ext-name>
+```
+
+A enum member pattern can match any enum member that has no field.
+
+## 10.14. Alternative pattern
+
+```
+<alt-pattern> := <pattern-no-top-alt> { | <pattern-no-top-alt> }*
+```
+
+An alternative pattern is a set of subpattern where only a single one needs to match.
+Use of this pattern does disallow any identifier patterns, as they cannot be guaranteed to have a value, therefore if you need to capture, you should use individual matches.
+
+## 10.15. Type check pattern
+
+```
+<type-check-patter> := 'is' <type>
+```
+
+A type check pattern can be used to explicitly check for a certain type, this includes builtin-types.
+Type check patterns can also be used to check if a DST is a given type.
 
 # 11. Type System
 
