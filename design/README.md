@@ -283,6 +283,10 @@ Version: 0.0
     7. [Specialization](#127-specialization-)
         1. [Resolution](#1271-resolution-)
 13. [Macros](#13-macros-)
+    1. [Declarative macros](#131-declarative-macros-)
+        1. [Macro patterns & metavariables](#1311-macro-patterns--metavariables-)
+    2. [Procedural macros](#132-procedural-macros-)
+    3. [Macro Hygiene](#133-macro-hygiene-)
 14. [Operators](#14-operators-)
     1. [Borrow operators](#141-borrow-operators-)
         1. [Raw address-of operators](#1411-raw-address-of-operators-)
@@ -4595,6 +4599,84 @@ This is done using the following steps:
 > _Note_: This is an extremely simple explentation at the moment, as specifics still need to figured out
 
 # 13. Macros [↵](#tables-of-contents)
+
+```
+<macro-item> := <decl-macro> | <proc-macro>
+<macro-invocation> := '#' <name> <macro-invocation-body>
+<macro-invocation-body> := '(' <ast-tokens> ')'
+                         | '{' <ast-tokens> '}'
+                         | '[' <ast-tokens> ']'
+```
+
+Macros allow for the compile-time generation of code.
+
+Macros are invoked using so-called AST-tokens or metavariables, these consists out of an array of either tokens or AST nodes which can be used from within the macro.
+
+> _Note_: This is currently a WIP of macros, as they haven't been fully flushed out yet, so changes are still being expected
+
+## 13.1. Declarative macros [↵](#13-macros-)
+
+```
+<decl-macro> := { <attribute> }* [ <vis> ] 'macro' <name> '{' { <decl-macro-member> ';' }* '}'
+<decl-macro-member> := '(' <decl-macro-pattern> ')' '=>' <macro-body>
+```
+
+A declaritive macro is a pattern-matching based macro, which directly insert a set of AST nodes within the location it is invoked.
+Procudural macros go over each pattern from top to bottom and will use the first one that matches the token sequence passed at the invocation site.
+
+### 13.1.1. Macro patterns & metavariables [↵](#131-declarative-macros-)
+
+```
+<decl-macro-pattern> := { <macro-metavariable> }*
+<macro-metavariable> := '$' <name> ':' <macro-metavariable-type>
+                      | '$' '{' { <macro-metavariable> }* '}' <macro-rep>
+<macro-metavariable-type> := 'item' 
+                           | 'block'
+                           | 'stmt'
+                           | 'pat'
+                           | 'expr'
+                           | 'ty'
+                           | 'name'
+                           | 'path'
+                           | 'meta'
+                           | 'vis'
+                           | 'literal'
+                           | 'toks'
+<macro-rep> := '?' | '*' | '+'
+```
+
+A macro pattern constist out of a sequence of metavaraibles.
+Metavariables represent an element within an AST, which can either be a sequence of tokens, or an ast node.
+
+The following metavariables types are supported:
+- `item`: an [item](#7-items-)
+- `block`: a [block](#95-block-expression--)
+- `stmt`: a [statement](#8-statements-)
+- `pat`: a [pattern](#10-patterns-)
+- `expr`: an [expression](#9-expressions-)
+- `ty`:  a [type](#111-types-)
+- `name`: a [name](#51-names-) 
+- `path`: a [path](#53-paths-)
+- `meta`: an [attribute](#16-attributes-), exluding visibility attributes
+- `vis`: a [visibility attribute]()
+- `literal`: a [literal](#6-literals-)
+- `toks`: a sequence of tokens
+
+Macros also allow for repititions, the exact type is defined by the repition token
+- `?`: 0 or 1
+- `*`: 0 or more
+- `+`: 1 or more
+
+## 13.2. Procedural macros [↵](#13-macros-)
+
+```
+<proc-macro> := { <attribute> }* [ <vis> ] 'macro' 'fn' <name> '(' <name> ':' <type> ')' '->' <type> <block>
+```
+
+A procedural macro is a function that takes in a sequence of AST-tokens and generates a resulting AST.
+
+## 13.3. Macro hygiene [↵](#13-macros-)
+
 _TODO_
 
 # 14. Operators [↵](#tables-of-contents)
