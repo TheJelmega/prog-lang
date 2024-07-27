@@ -269,6 +269,19 @@ Version: 0.0
         9. [Extending based on expressions](#1179-extending-based-on-expressions-)
         10. [Not running destructors](#11710-not-running-destructors-)
 12. [Generics](#12-generics-)
+    1. [Type generics](#121-type-generics-)
+    2. [Value generics](#122-value-generics-)
+    3. [Parameter packs](#123-paramter-packs-)
+    4. [Constaints](#124-constraints-)
+    5. [Where clause](#125-where-clause-)
+        1. [Type bound](#1251-type-bound-)
+            - [Trait bounds](#trait-bounds)
+            - [Explicit boudns](#explicit-bounds)
+            - [Constraint bounds](#constraint-bounds)
+        2. [Value bound](#1252-value-bound-)
+    6. [Generic arguments](#126-generic-arguments-)
+    7. [Specialization](#127-specialization-)
+        1. [Resolution](#1271-resolution-)
 13. [Macros](#13-macros-)
 14. [Operators](#14-operators-)
     1. [Borrow operators](#141-borrow-operators-)
@@ -437,6 +450,7 @@ char8
 char16
 char32
 const
+constraint
 cstr
 defer
 dyn
@@ -478,6 +492,7 @@ union
 unsafe
 use
 usize
+where
 ```
 
 ### Reserved keywords
@@ -979,6 +994,7 @@ For more info, see the [Operator](#12-operators--precedence) section.
         | <trait-item>
         | <impl-item>
         | <external-block>
+        | <constraint-item>
 ```
 
 An item is a component of a package.
@@ -1191,7 +1207,7 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 ### 7.3.1. Parameters [↵](#73-function-)
 
 ```
-<fn-params> := [ <receiver-param> ] [  <fn-param> { ',' <opt-fn-param> }* ] [  <fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
+<fn-params> := [ <receiver-param> ] [  <fn-param> { ',' <fn-param> }* ] [  <opt-fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
 
 
 <receiver-param> := <simple-receiver> | <typed-receiver>
@@ -1200,7 +1216,7 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 
 <fn-param> := { <attribute> }* <fn-param-name> { ',' <fn-param-name> }* ':' <type>
 <opt-fn-param> := { <attribute> }* <name> <pattern-top-no-alt> ':' <type> '=' <expr>
-<fn-param-name> := [ <name> ] <name>
+<fn-param-name> := [ <name> ] [ 'mut' ] <name>
                  | <name> <pattern-top-no-alt>
 
 <variadic-param> := <label> '...' ':' <type>
@@ -4401,15 +4417,182 @@ The operand of any extending expression has its temporary scope extended.
 > Besides the place where destructors are guaranteed to run as defined by this document, types may not safely rely on a destructor being run for soundness.
 
 # 12. Generics [↵](#tables-of-contents)
-_TODO_
+
+```
+<generic-decl> := '[' <generic-param> [ ',' <generic-param> ] [ ',' <parameter-pack> ] ']'
+<generic-param> := <generic-type-param> | <generic-value-param>
+```
+
+A subset of items may be paramterized by types and constants.
+These parameters generally follow the name of the item defined, but for an `impl`, these must be defined after the keyword.
+Type and value paramters may come in any order, if a parameter pack it used, it must come as the last value in the declaration.
+
+Generic parameters are defined within the scope of the item they are in, and can be used inside of inner scopes, unless they are shadowed.
+
+> _Note_: Generics haven't been fully flushed out yet, so changes are still being expected
 
 ## 12.1. Type generics [↵](#12-generics-)
 
+```
+<generic-type-param> := <name> [ 'is' <generic-bounds> ] [ '=' <type> ]
+                      | 'is!' <type>
+```
+
+A generic type parameter defines a type which can be used inside of a generic item.
+By default, all type parameters have a `Sized` bound, which can be relazed using the `?Sized` bound.
+
+A type paramter may have bounds declared directly after the type.
+These are syntactic sugar for a bound in the while clause.
+
+Type generics can also be given a default value, which will be used as the type if no explicit type is passed.
+
+If the paramters starts with `is!`, this is a specialized generic.
+
 ## 12.2. Value generics [↵](#12-generics-)
+
+```
+<generic-value-param> := <name> ':' <type> [ '=' <expr> ]
+                       | '{' <expr> '}'
+```
+
+A generic value parameter allows items to be passed a constant value.
+
+The type of the value is explicitly given and must be either:
+- A built-in type
+- A sized type implementing the relavent trait.
+
+A value parameter can be used anywhere a constant value is allowed, with the following exceptions:
+- They cannot be used in a static item
+
+Value generics can also have a default value, which will be used as the value if not explicit type is passed.
+
+If the generics is a block, this is a specialization of the generics.
 
 ## 12.3. Paramter packs [↵](#12-generics-)
 
-## 12.4. Contraints [↵](#12-generics-)
+```
+<parameter-pack> := <name> '...' [ 'is' <generic bounds> ] [ '=' <type> { ',' <type> }* ]
+```
+
+A parameter pack represents a set of 0 or more types, of which the count and types are only known during monomorphization.
+They can be thought of as a tuple of generic types, and use the same constraitns as those of types.
+
+A parameter pack must always be at the end of any generic parameters declaration, using this fact, the default value of the parameter pack is represented as a comma separated list of types.
+
+_TODO: figure out ergonomics, i.e. number of params, looping over them, etc_
+
+## 12.4. Constraints [↵](#12-generics-)
+
+```
+<constraint-item> := { <attribute> }* [ <vis> ] 'constraint' <name> [ <generic-params> ] '{' <constraint-members> '}'
+<inline-constraint> := 'constraint' '{' <constraint-members> '}'
+<constraint-member> := <contraint-function> | <contraint-method> | <contraint-property> | <constraint-type> | <constraint-const>
+<contraint-function> := 'fn' <name> '(' [ <constrait-params> ] ')' [ '->' <type> ] ';'
+<contraint-method> := [ '&' [ 'mut' ] ] `self` '.' <name> '(' [ <constrait-params> ] ')' [ '->' <type> ] ';'
+<contraint-property> := <trait-property>
+<constraint-type> := 'type' <name> ';'
+<constraint-const> := 'const' <name> ':' <type> ';'
+<constrait-params> := <constraint-param> { ',' <constraint-param> }* [ ',' ]
+<constrait-param> := [ <name> ':' ] <type>
+```
+
+A constraint is an item used to a arbitrary restriction to a given type without requiring the to implement a given interface, this can be used as a form of duck-typing.
+A constrait defines what functions, methods, properties, types, and constants a type is required to have to be used.
+All functionality defined inside of the contraint can be used inside a generic item.
+
+## 12.5. Where clause [↵](#12-generics-)
+
+```
+<where-clause> := `where` <generic-bound> { ',' <generic-bound> }*
+<generic-bound> := <generic-type-bound> | <generic-value-bound>
+```
+
+A where clause represents a set of constraints that must be followed by the generic arguments to be able to create an instance of it during monomorphization.
+
+A type may be constrained using either a trait bound, or a constraint.
+A value may be consttrained using a value bound.
+
+> _Note_: After syntactic sugar is resolved, this will also contain all bounds that were added direclty to the generic paramters.
+
+### 12.5.1. Type bound [↵](#125-where-clause-)
+
+```
+<generic-type-bound> := <generic-trait-bound>
+                      | <generic-explicit-bound>
+<generic-trait-bound> := <type> 'is' <trait-constraint-bounds>
+<trait-constraint-bounds> := <trait-constraint-bound> [ '&' <trait-constraint-bound> ]
+<trait-constraint-bound> := <name> | <inline-constraint>
+```
+
+A type bound limits a both what types can be used when monomorphization, and what functionality is available inside of the the generic item. 
+
+#### Trait bounds
+
+```
+<trait-bound> := <name> { '&' <name> }*
+```
+
+A trait bound limits a type to only types implementing the given traits.
+
+#### Explicit bounds
+
+```
+<generic-explicit-bound> := <type> 'is!' <explicit-bound>
+<explicit-bound> := <type> { '|' <type> }*
+```
+
+An explicit type bound is used to define an explicit set of types that a generic type can have.
+
+Explicit bounds are especially useful for the specialization of generics.
+
+#### Constraint bounds
+
+A constraint bound limits a type to only types matching the given constraint.
+
+### 12.5.2. Value bound [↵](#125-where-clause-)
+
+```
+<generic-value-bound> := '{' <expr> { ';' <expr> }*[ '?' ] '}'
+```
+
+A value bound exists out of a list of boolean expression, where each expression must operate on at least 1 value generic.
+These expressions are then used to apply a bound on the value given to their respective value generic(s).
+
+## 12.6. Generic Arguments [↵](#12-generics-)
+
+```
+<generic-args> := '.[' <generic-arg> [ ',' <generic-arg> ] ']'
+<generic-arg> := <generic-type-arg> | <generic-value-arg>
+<generic-type-arg> := <type>
+<generic-value-arg> := <path-expr>
+                     | <block-expr>
+```
+
+Generic arguments are the types and value passed to an item for it to be instanced (i.e. monomorphized).
+Type argument have no special syntax and may be passed without any additional syntax.
+Value arguments on the other hand, are only allowed as either directly referencing a path, or as a block expression.
+If a value is a path, it may also be placed inside a block expression to differentiate it from a type, as if there is any ambiguity, the compiler will by default interpret it as a type.
+
+The value passed to a value argument, must be a value that can be evaluated at compile time.
+
+## 12.7. Specialization [↵](#12-generics-)
+
+Specialization is the ability to have an multiple versions of the same generic item, but changing the behavior based on the types being passed.
+To be able to specialize a generic, there has to be a shared common denominator which will be the fallback when a specialization cannot be found.
+
+Any type paramters that starts with `is!` or a value parameter with a block, is a specialization, this is similar to this being the bound for the generics in a where clause.
+Value generic specialization is required to return a matching type to the value being requested and cannot be inferred automatically.
+
+### 12.7.1. Resolution [↵](#127-specialization-)
+
+When deciding on which specialization to use, the compiler will go over each possible version and pick out the most specific specialization.
+
+This is done using the following steps:
+1. Get all versions of the generic
+2. Filter out all versions with which the arguments are compatible
+3. Go over each version until either an exact match is found, or a most specialized bound is found
+
+> _Note_: This is an extremely simple explentation at the moment, as specifics still need to figured out
 
 # 13. Macros [↵](#tables-of-contents)
 _TODO_
@@ -4741,10 +4924,10 @@ Prefix operators:
 
 Operator | type                  | Trait | precedence | meaning                                        | Example
 ---------|-----------------------|-------|------------|------------------------------------------------|----------------------------------------
-`+`      | numeric               | `Pos` | Unary      | unit operators, return the same value as given | `+a == a`
-`-`      | signed/floating point | `Neg` | Unary      | negate expression                              | `-a != -1 if a == 1` and `-(-a) == a`
-`!`      | bool                  | `Not` | Unary      | Logical not                                    | `!false == true`
-`!`      | integer               | `Not` | Unary      | Bitwise not                                    | `!0 == usize::MAX` 
+`+`      | numeric               | `Pos` | `Unary`    | unit operators, return the same value as given | `+a == a`
+`-`      | signed/floating point | `Neg` | `Unary`    | negate expression                              | `-a != -1 if a == 1` and `-(-a) == a`
+`!`      | bool                  | `Not` | `Unary`    | Logical not                                    | `!false == true`
+`!`      | integer               | `Not` | `Unary`    | Bitwise not                                    | `!0 == usize::MAX` 
 
 
 Infix/binary operators:
@@ -4753,26 +4936,26 @@ Operator | type                  | Trait          | precedence  | meaning       
 ---------|-----------------------|----------------|-------------|-------------------------------------------------------|----------------------------------------
 `+`      | numeric               | `Add`          | `AddSub`    | Addition, panics on overflow (in debug)               | `1 + 2 == 3`
 `+%`     | integer               | `WrapAdd`      | `AddSub`    | Addition, wraps on overflow                           | `u32::MAX +% 1 == 0`
-`+\|`     | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32::MAX +\| 1 == u8::MAX`
+`+\|`    | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32::MAX +\| 1 == u8::MAX`
 `-`      | numeric               | `Sub`          | `AddSub`    | Subtraction, panics on underflow (in debug)           | `3 - 2 == 1`
 `-%`     | integer               | `WrapSub`      | `AddSub`    | Subtraction, wraps on underflow                       | `0 -% 1 == u32::MAX`
-`-\|`     | integer               | `SaturateSub`  | `AddSub`    | Subtraction, saturates on underflow                   | `0 -\| 1 == 0`
+`-\|`    | integer               | `SaturateSub`  | `AddSub`    | Subtraction, saturates on underflow                   | `0 -\| 1 == 0`
 `*`      | integer               | `Mul`          | `MulDivRem` | Multiplication, panics on overflow (in debug)         | `2 * 3 == 6`
 `*%`     | integer               | `WrapMul`      | `MulDivRem` | Multiplication, wraps on overflow                     | `128:u8 *% 3 == 128:u8`
-`*\|`     | integer               | `SaturateMul`  | `MulDivRem` | Multiplication, saturates on overflow                 | `128:u8 *\| 3 == 255:u8`
+`*\|`    | integer               | `SaturateMul`  | `MulDivRem` | Multiplication, saturates on overflow                 | `128:u8 *\| 3 == 255:u8`
 `*`      | floating point        | `Mul`          | `MulDivRem` | Multiplication, according IEEE-754-2008               | `1.5 * 2.0 == 3.0`
 `/`      | integer               | `Div`          | `MulDivRem` | Division, panics on divide by 0 (traps in non-debug)  | `6 / 2 == 3`
 `/`      | floating point        | `Div`          | `MulDivRem` | Division, according IEEE-754-2008                     | `3.0 / 1.5 == 2.0`
 `%`      | numeric               | `Rem`          | `MulDivRem` | Remainder, panics on divide by 0 (traps in non-debug) | `5 % 2 == 2` or `7.0 % 1.5 == 1.0`
-`\|`      | integer               | `Or`           | `BitOr`     | Bitwise or                                            | `0x1010  \| 0x1100 == 0x1110`
-`!\|`     | integer               | `Nor`          | `BitOr`     | Bitwise not-or                                        | `0x1010 !\| 0x1100 == 0x0001`
+`\|`     | integer               | `Or`           | `BitOr`     | Bitwise or                                            | `0x1010  \| 0x1100 == 0x1110`
+`!\|`    | integer               | `Nor`          | `BitOr`     | Bitwise not-or                                        | `0x1010 !\| 0x1100 == 0x0001`
 `&`      | integer               | `And`          | `BitAnd`    | Bitwise and                                           | `0x1010  & 0x1100 == 0x1000`
 `!&`     | integer               | `Nand`         | `BitAnd`    | Bitwise not-and                                       | `0x1010 !& 0x1100 == 0x0111`
 `&!`     | integer               | `Mask`         | `BitAnd`    | Bitwise masking (and if inverse of `b`)               | `0x1010 &! 0x1100 == 0x0010`
 `~`      | integer               | `Xor`          | `BitXor`    | Bitwise not-xor                                       | `0x1010  ~ 0x1100 == 0x0110`
 `!~`     | integer               | `Xor`          | `BitXor`    | Bitwise xor                                           | `0x1010 !~ 0x1100 == 0x1001`
 `<<`     | integer               | `Shl`          | `ShiftRot`  | Bit-shift left                                        | `0x101 << 3 == 0x101000`
-`<<\|`    | integer               | `SaturateShl`  | `ShiftRot`  | Bit-shift left, saturates if 1 bit is shifted out     | `0x10:u8 <<\| 4 == 0xFF`
+`<<\|`   | integer               | `SaturateShl`  | `ShiftRot`  | Bit-shift left, saturates if 1 bit is shifted out     | `0x10:u8 <<\| 4 == 0xFF`
 `>>`     | signed                | `Shr`          | `ShiftRot`  | Bit-shift right (implicitly arithmetic shift)         | `0x10..01  >> 3 == 0x11110..00`
 `>>`     | unsigned              | `Shr`          | `ShiftRot`  | Bit-shift right (implicitly logical shift)            | `0x10..01  >> 3 == 0x00010..00`
 `>>-`    | integer               | `Shra`         | `ShiftRot`  | Explicit arithmetic bit-shift right                   | `0x10..01 >>- 3 == 0x11110..00`
