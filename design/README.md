@@ -4753,26 +4753,26 @@ Operator | type                  | Trait          | precedence  | meaning       
 ---------|-----------------------|----------------|-------------|-------------------------------------------------------|----------------------------------------
 `+`      | numeric               | `Add`          | `AddSub`    | Addition, panics on overflow (in debug)               | `1 + 2 == 3`
 `+%`     | integer               | `WrapAdd`      | `AddSub`    | Addition, wraps on overflow                           | `u32::MAX +% 1 == 0`
-`+|`     | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32::MAX +| 1 == u8::MAX`
+`+\|`     | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32::MAX +\| 1 == u8::MAX`
 `-`      | numeric               | `Sub`          | `AddSub`    | Subtraction, panics on underflow (in debug)           | `3 - 2 == 1`
 `-%`     | integer               | `WrapSub`      | `AddSub`    | Subtraction, wraps on underflow                       | `0 -% 1 == u32::MAX`
-`-|`     | integer               | `SaturateSub`  | `AddSub`    | Subtraction, saturates on underflow                   | `0 -| 1 == 0`
+`-\|`     | integer               | `SaturateSub`  | `AddSub`    | Subtraction, saturates on underflow                   | `0 -\| 1 == 0`
 `*`      | integer               | `Mul`          | `MulDivRem` | Multiplication, panics on overflow (in debug)         | `2 * 3 == 6`
 `*%`     | integer               | `WrapMul`      | `MulDivRem` | Multiplication, wraps on overflow                     | `128:u8 *% 3 == 128:u8`
-`*|`     | integer               | `SaturateMul`  | `MulDivRem` | Multiplication, saturates on overflow                 | `128:u8 *| 3 == 255:u8`
+`*\|`     | integer               | `SaturateMul`  | `MulDivRem` | Multiplication, saturates on overflow                 | `128:u8 *\| 3 == 255:u8`
 `*`      | floating point        | `Mul`          | `MulDivRem` | Multiplication, according IEEE-754-2008               | `1.5 * 2.0 == 3.0`
 `/`      | integer               | `Div`          | `MulDivRem` | Division, panics on divide by 0 (traps in non-debug)  | `6 / 2 == 3`
 `/`      | floating point        | `Div`          | `MulDivRem` | Division, according IEEE-754-2008                     | `3.0 / 1.5 == 2.0`
 `%`      | numeric               | `Rem`          | `MulDivRem` | Remainder, panics on divide by 0 (traps in non-debug) | `5 % 2 == 2` or `7.0 % 1.5 == 1.0`
-`|`      | integer               | `Or`           | `BitOr`     | Bitwise or                                            | `0x1010  | 0x1100 == 0x1110`
-`!|`     | integer               | `Nor`          | `BitOr`     | Bitwise not-or                                        | `0x1010 !| 0x1100 == 0x0001`
+`\|`      | integer               | `Or`           | `BitOr`     | Bitwise or                                            | `0x1010  \| 0x1100 == 0x1110`
+`!\|`     | integer               | `Nor`          | `BitOr`     | Bitwise not-or                                        | `0x1010 !\| 0x1100 == 0x0001`
 `&`      | integer               | `And`          | `BitAnd`    | Bitwise and                                           | `0x1010  & 0x1100 == 0x1000`
 `!&`     | integer               | `Nand`         | `BitAnd`    | Bitwise not-and                                       | `0x1010 !& 0x1100 == 0x0111`
 `&!`     | integer               | `Mask`         | `BitAnd`    | Bitwise masking (and if inverse of `b`)               | `0x1010 &! 0x1100 == 0x0010`
 `~`      | integer               | `Xor`          | `BitXor`    | Bitwise not-xor                                       | `0x1010  ~ 0x1100 == 0x0110`
 `!~`     | integer               | `Xor`          | `BitXor`    | Bitwise xor                                           | `0x1010 !~ 0x1100 == 0x1001`
 `<<`     | integer               | `Shl`          | `ShiftRot`  | Bit-shift left                                        | `0x101 << 3 == 0x101000`
-`<<|`    | integer               | `SaturateShl`  | `ShiftRot`  | Bit-shift left, saturates if 1 bit is shifted out     | `0x10:u8 <<| 4 == 0xFF`
+`<<\|`    | integer               | `SaturateShl`  | `ShiftRot`  | Bit-shift left, saturates if 1 bit is shifted out     | `0x10:u8 <<\| 4 == 0xFF`
 `>>`     | signed                | `Shr`          | `ShiftRot`  | Bit-shift right (implicitly arithmetic shift)         | `0x10..01  >> 3 == 0x11110..00`
 `>>`     | unsigned              | `Shr`          | `ShiftRot`  | Bit-shift right (implicitly logical shift)            | `0x10..01  >> 3 == 0x00010..00`
 `>>-`    | integer               | `Shra`         | `ShiftRot`  | Explicit arithmetic bit-shift right                   | `0x10..01 >>- 3 == 0x11110..00`
