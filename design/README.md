@@ -271,7 +271,30 @@ Version: 0.0
 12. [Generics](#12-generics-)
 13. [Macros](#13-macros-)
 14. [Operators](#14-operators-)
+    1. [Borrow operators](#141-borrow-operators-)
+        1. [Raw address-of operators](#1411-raw-address-of-operators-)
+    2. [Dereference operator](#142-derefence-operator-)
+    3. [Try operator](#143-try-operator-)
+        1. [Propagating try](#1431-propagating-try-)
+        2. [Unwrapping try](#1432-unwrapping-try-)
+    4. [Comparison](#144-comparison-operators-)
+    5. [Lazy boolean operators](#145-lazy-boolean-operators-)
+    6. [Contains operators](#146-contains-operator-)
+    7. [Pipe operators](#147-pipe-operators-)
+    8. [Or-else operator](#148-or-else-operator-)
+    9. ['err'-coalescing operator](#149-err-coalescing-operator-)
+    10. [Contract capture operator](#1410-contract-capture-operator-)
+    11. [Assignment operators](#1411-assginment-operators-)
+        1. [Basic assignment](#14111-basic-assignment-)
+        2. [Destructuring assignment](#14112-destructuring-assignment-)
+        3. [Compound assignment](#14103-compound-assignment-)
+    12. [Built-in operators](#1412-built-in-operators-)
+    13. [User defined operators](#1413-user-define-operators-)
 15. [Precedence](#15-precedence-)
+    1. [Built-in precedences](#151-built-in-precedences-)
+    2. [User defined precedence](#152-user-defined-precedence-)
+        1. [Precedence order](#1521-precendence-order)
+        2. [Associativity](#1522-associativity)
 16. [Attributes](#16-attributes-)
 17. [Implicit context](#17-implicit-context-)
 18. [Effect system](#18-effect-system-)
@@ -4396,17 +4419,20 @@ _TODO_
 ```
 <prefix-op> := <borrow-op>
              | <deref-op>
-             | <>
+             | <builin-op>
+             | <user-op>
 <postfix-op> := <deref-op>
               | <try-op>
-              | <>
+              | <builin-op>
+              | <user-op>
 <infix-op> := <cmp-op>
             | <lazy-bool-op>
             | <contains-op>
             | <pipe-op>
             | <or-else-op>
             | <err-coalesce-op>
-            | <>
+            | <builin-op>
+            | <user-op>
 ```
 
  An opertor is a set of tokens that can be used to operate on its sub-expressions.
@@ -4484,7 +4510,7 @@ The associated trait for the operator is `Try`
 
 The operator has the `Unary` precedence.
 
-### 14.3.2. Unwrapping type [↵](#tables-of-contents)
+### 14.3.2. Unwrapping try [↵](#tables-of-contents)
 
 The unwrapping try operator (`!`) will cause a program to panic if an erronous value is encountered.
 
@@ -4492,7 +4518,7 @@ The associated trait for the operator is `Unwrap`
 
 The operator has the `Unary` precedence.
 
-## 14.4. Comparison [↵](#14-operators-)
+## 14.4. Comparison operators [↵](#14-operators-)
 
 ```
 <comparison-op> := <eq-op> | <ord-op>
@@ -4680,7 +4706,7 @@ This assigned value will be evaluated first, followed by the assginee expression
 Before assignment, the assignment will first drop the current value of hte assigned place, unless the place is an uninitialized value.
 Next, it will either copy or move the assigned value in the location of hte assignee.
 
-### 14.11.2. Dstructuring assignment [↵](#1411-assginment-operators-)
+### 14.11.2. Destructuring assignment [↵](#1411-assginment-operators-)
 
 Destructuring assingment is a counterpart ot destructuring patterns for variable declarations, permitting assignment of complex values such as tuples and structures.
 
@@ -4691,7 +4717,7 @@ The desugared patterns must be irrifutable: in particulat, this means that only 
 
 Underscore experssions and empty range expressions may be used to ignore certain values, without binding them.
 
-### 14.10.3. Compound assignment [↵](#1411-assginment-operators-)
+### 14.11.3. Compound assignment [↵](#1411-assginment-operators-)
 
 Compound assignment expressions combine infix operators with assignment expressions.
 
@@ -4707,7 +4733,7 @@ It will then set the value of the assignee to the value of perfroming the operat
 Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
 A mutable borrow to the assignee is automatically taken
 
-## 14.11. Built-in operators [↵](#14-operators-)
+## 14.12. Built-in operators [↵](#14-operators-)
 
 The following section contains a list of built-in prefix, postfix and infix operators that weren't mentioned in previous sections
 
@@ -4756,11 +4782,12 @@ Operator | type                  | Trait          | precedence  | meaning       
 
 Compound assignment operators have a similar trait name to the normal infix operators, but are followed by `Assign`, i.e. the compound assignment version of `Add` is `AddAssign`
 
-## 14.11. User define operators [↵](#14-operators-)
+## 14.13. User define operators [↵](#14-operators-)
 
 ```
 <user-defined-op-decl> := { <attribute> }* [ <vis> ] <op-trait-type> 'trait' <name> '=' <user-defined-op> ':' <name> ';'
 <op-trait-type> := 'prefix' | 'infix' | 'postfix'
+<user-op> := { sequence of symbol characters except (see below) }
 ```
 
 Xenon also support user defined operators.
@@ -4796,7 +4823,7 @@ For example, the expression `a + b + c` can be written as either `(a + b) + c` o
 While this doesn't always have an impact on the result generated, it should be assumed that the order can have an impact.
 Each order could not only result in an actual difference in value, but even in type the expression will result, or in worse cases, fail to compile the underlying code.
 
-## 15.1. Built-in precendences [↵](#tables-of-contents)
+## 15.1. Built-in precedences [↵](#tables-of-contents)
 
 The built-in precendences can be found in the table below, with the strongest at the to, and the weakest as the botton:
 
