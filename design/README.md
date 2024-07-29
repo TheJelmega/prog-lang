@@ -358,7 +358,20 @@ Version: 0.0
     2. [Internals](#182-internals-)
 19. [Effect system](#19-effect-system-)
 20. [Contracts](#20-contracts-)
+    1. [Function contracts](#201-function-contracts-)
+    2. [Asserts](#202-asserts-)
+    3. [Contract groups](#203-contract-groups-)
+    4. [Testing](#204-testing)
 21. [ABI](#21-abi-)
+    1. [`target_arch`](#221-target_arch-)
+    2. [`target_feature`](#222-target_feature-)
+        1. [x86/64](#2221-x86x64-x86_64-)
+    3. [`target_os`](#223-target_os-)
+    4. [`target_endianness`](#224-target_endianness-)
+    5. [`target_pointer_width`](#225-target_pointer_width-)
+    6. [`assertions`](#227-assertions-)
+    7. [`panic`](#229-panic-)
+
 
 # 1. Introduction [↵](#tables-of-contents)
 
@@ -484,6 +497,7 @@ A strong keyword is a keyword that always has a meaning, regardless of where in 
 A list of strong keywords can be found below (in a close to alphabetic order):
 ```
 as
+assert
 b8
 b16
 b32
@@ -560,9 +574,12 @@ A list of weak keywords can be found below (in a close to alphabetic order):
 distinct
 flag
 infix
+invar
 opaque
 override
+post
 postfix
+pre
 prefix
 property
 record
@@ -5615,7 +5632,73 @@ Libraries define an external symbol, which is the index into the pointer array, 
 _TODO_
 
 # 20. Contracts [↵](#tables-of-contents)
-_TODO_
+
+Contracts are used to find certain conditions that code needs to adhere to, these are generally split up in 2 main types.
+
+Constracts evaluation happens in the following order:
+1. Check if the contract group is active, if not, stop.
+2. Check if the contract group has a predicate, and if it evaluates to `false`, stop.
+3. Check the condition inside of the contract, if it evaluates to `false`, stop.
+4. Finally report the validation via the contract group.
+
+> _Note_: The exact API of contract groups still needs to be determined
+
+## 20.1. Function contracts [↵](#20-contracts-)
+
+```
+<fn-contract> := <pre-contract> | <post-contract> | <invar-contract>
+<pre-contract> := 'pre' [ '[' <expr> ']' ] '(' <expr> ')'
+<post-contract> := 'post' [ '[' <expr> ']' ] '(' [ <name> '=>' ]  <expr> ')'
+<invar-contract> := 'invar' [ '[' <expr> ']' ] '(' <expr> ')' 
+```
+
+Function contracts are composed out of 3 different kinds:
+- preconditions
+- postconditions
+- Invariant conditions
+
+A preconditions is used to define what values may be passed into a function.
+Preconditions are evaluated before the function body gets executed.
+For example what range an integer value should be in.
+
+A postconditions is used to to check if the resulting state at the end of the function.
+Postconditions may access unnamed return values by prepending the condition with `name =>`.
+Postconditions are evaluated at after the function body, but before the function returns.
+For example, checking if an a value was set to a value in a given range.
+
+Postconditions also allow use of the contract capture operator to capture a value at the start of a function to use in the contract.
+
+An invariant conditions is used to check the invariance of certain value, meaning that they cannot change value over the functions lifetime.
+Invariant conditions are evuated when pre- or postconditions are evaluated.
+
+## 20.2. Asserts [↵](#20-contracts-)
+
+```
+<assert> := [ 'const' ] 'assert' [ '[' <expr> ']' ] '(' <expr> ')' ';'
+```
+
+An assert is a special condition which may be used at any moment in code to check if a value adheres to given conditions.
+They can be evaluated both at runtime or compiletime.
+
+## 20.3. Contract groups [↵](#20-contracts-)
+
+Contract groups are used to manage the evaluation of a contracts.
+The allow entire contracts to be disable, under which conditions they need to be evaluated, and how they should report an error.
+
+Contract groups can be specified between `[` and `]` in an assert.
+If no contract group is specified, the default contract groups is used, which has the following state:
+- Only active when assertions are enabled via the assert configuration option
+- Has no predicate, i.e. will always be checked
+- Panics on a contract violation
+
+> _Note_: The exact API of contract groups still needs to be determined.
+> It also still needs to be determined how to override the default contract group.
+
+## 20.4. Testing
+
+Contract groups are also used for testing and are hooked into by the testing framework.
+
+> _Note_: The testing framework has not entirely been figured out yet
 
 # 21. ABI [↵](#tables-of-contents)
 _TODO_
