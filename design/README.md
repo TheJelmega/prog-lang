@@ -363,6 +363,7 @@ Version: 0.0
     3. [Contract groups](#203-contract-groups-)
     4. [Testing](#204-testing)
 21. [ABI](#21-abi-)
+22. [Configuration options](#22-configuration-options-)
     1. [`target_arch`](#221-target_arch-)
     2. [`target_feature`](#222-target_feature-)
         1. [x86/64](#2221-x86x64-x86_64-)
