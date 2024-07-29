@@ -161,8 +161,10 @@ Version: 0.0
         1. [Loop expression](#9201-loop-expression-)
         2. [While expression](#9202-while-expression-)
             - [While let](#while-let)
+            - [While else](#while-else)
         3. [Do-while expression](#9203-do-while-expression-)
         4. [For expression](#9204-for-expression-)
+            - [For else](#for-else)
         5. [labelled block expression](#9205-labelled-block-expressions-)
         6. [Loop labels](#9206-loop-labels-)
     21. [Match expression](#921-match-expression-)
@@ -175,6 +177,7 @@ Version: 0.0
     26. [Underscore expression](#926-underscore-expression-)
     27. [Throw expression](#927-throw-expression-)
     28. [Comma expression](#928-comma-expression-)
+    28. [When expression](#929-when-expression-)
 10. [Patterns](#10-patterns-)
     1. [Literal pattern](#101-literal-pattern-)
     2. [Identifier pattern](#102-identifier-pattern-)
@@ -310,13 +313,52 @@ Version: 0.0
 15. [Precedence](#15-precedence-)
     1. [Built-in precedences](#151-built-in-precedences-)
     2. [User defined precedence](#152-user-defined-precedence-)
-        1. [Precedence order](#1521-precendence-order)
-        2. [Associativity](#1522-associativity)
-16. [Attributes](#16-attributes-)
-17. [Implicit context](#17-implicit-context-)
-18. [Effect system](#18-effect-system-)
-19. [Contracts](#19-contracts-)
-20. [ABI](#20-abi-)
+        1. [Precedence order](#1521-precendence-order-)
+        2. [Associativity](#1522-associativity-)
+16. [Visibility](#16-visibility)
+17. [Attributes](#17-attributes-)
+    1. [Built-in attributes](#171-built-in-attributes-)
+        1. [Conditional compilation attributes](#1711-conditional-compilation-attributes-)
+            - [`cfg`](#cfg)
+            - [`cfg_attr`](#cfg_attr)
+        2. [Derive attributes](#1712-derive-attributes-)
+            - [`derive`](#derive)
+            - [`auto_derive`](#auto_derive)
+        3. [Macro attributes](#1713-macro-attributes-)
+        4. [Diagnostic attributes](#1714-diagnostic-attributes-)
+            - [`lint` attribute](#lint-attributes)
+            - [`deprecated`](#deprecated)
+            - [`must_use`](#must_use)
+            - [`diagnostics`](#diagnostics)
+        5. [ABI, link, symbol, and FFI attributes](#1715-abi-link-symbol-and-ffi-attributes-)
+            - [`link`](#link)
+            - [`link_name`](#link_name)
+            - [`link_ordinal`](#link_ordinal)
+            - [`repr`](#repr)
+            - [`export_name`](#export_name)
+            - [`link_section`](#link_section)
+            - [`no_mangle`](#no_mangle)
+            - [`used`](#used)
+        6. [Code generation attributes](#1716-code-generation-attributes-)
+            - [`inline`](#inline)
+            - [`cold`](#cold)
+            - [`track_caller`](#track_caller)
+            - [`instruction_set`](#instruction_set)
+            - [`opt_level`](#opt_level)
+            - [`no_alias`](#no_alias)
+            - [`bounds_check`](#bounds_check)
+        7. [Module attributes](#1717-module-attributes-)
+            - [`path`](#path)
+        8. [Debug attributes](#1718-debug-attributes-)
+            - [`debug_visualizer`](#debugger_visualizer)
+    2. [Tool attributes](#172-tool-attributes-)
+    3. [User-defined attributes](#173-user-defined-attributes)
+18. [Implicit context](#18-implicit-context-)
+    1. [Defining context](#181-defining-context-)
+    2. [Internals](#182-internals-)
+19. [Effect system](#19-effect-system-)
+20. [Contracts](#20-contracts-)
+21. [ABI](#21-abi-)
 
 # 1. Introduction [↵](#tables-of-contents)
 
@@ -496,6 +538,7 @@ union
 unsafe
 use
 usize
+when
 where
 ```
 
@@ -2921,14 +2964,16 @@ A loop expression containing associated `break` expressions will terminate, and 
 ### 9.20.2. While expression [↵](#920-loops-)
 
 ```
-<while-expr> := <label-decl> 'while' <branch-condition> <basic-block>
+<while-expr> := <label-decl> 'while' <branch-condition> [ ';' <expr> ] <basic-block> [ 'else' <basic-block> ]
 ```
 
 A `while` loop begins by evaluating the loop condition operand.
 If the loop conditional operand evaluates to true, the loop block executes, the control return to the loop conditional operand.
 If the loop conditional expression evaluates to `false`, the `while` expression completes.
 
-_TODO: `while else` might have some good usecases_
+A while loop can also have an increment expression, this is followed after the branch condition, and separated by a ';'.
+This expression will be called at the end of each loop.
+The increment can be used emulated C-style for-loops.
 
 #### While let
 
@@ -2940,6 +2985,11 @@ Multiple pattens may be specified using the `|` operator.
 This is the same semantics as with `|` in `match` expressions.
 
 When a `let` binding is introduces, the use on the lazy OR boolean operator is not allowed when not in a parenthesized expression.
+
+#### While else
+
+In some cases, it can be useful to execute some different code if a while loop fails to enter its first iteration, therefore a `while` loop can be followed by an `else`.
+This in only executed if the initial condition returns false, not when the loop breaks on a subsequent iteration.
 
 ## 9.20.3. Do-while expression [↵](#920-loops-)
 
@@ -2954,12 +3004,17 @@ If the loop conditional expression evaluates to `false`, the `do while` expressi
 ### 9.20.4. For expression [↵](#920-loops-)
 
 ```
-<for-expr> := ( <label-decl>? ) 'for' <patern> 'in' <expr> <block>
+<for-expr> := ( <label-decl>? ) 'for' <patern> 'in' <expr> <block> [ 'else' <basic-block> ]
 ```
 
 A `for` expression is a syntactic construct for looping over elements provided by an implementation of `IntoIterator`.
 If the iterator yields a value, that value is matched against the irrefutable pattern, the body of hte loop is executed, and then control returns to the head of the `for` loop.
 If the iterator is empty, the `for` expression completes.
+
+#### For else
+
+In some cases, it can be useful to execute some different code if a for loop fails to enter its first iteration, therefore a `for` loop can be followed by an `else`.
+This in only executed if the no values are iterated over, not when the loop breaks on a subsequent iteration.
 
 ### 9.20.5. Labelled block expressions [↵](#920-loops-)
 
@@ -3119,6 +3174,22 @@ Unlike languages with exception, this expression can be seen as a 'fancy' return
 
 Comma expressions are a set of expressions separated by commas,
 It is a very niche expression type that has a very limited amount of places it can be used.
+
+## 9.29. When expressions
+
+```
+<when-expression> := 'when' <expr> <block> [ 'else' <expr-with-block> ]
+```
+
+A when expression is similar to an if expressions, but comes with 2 fundamental differences
+- The condition needs to be compile time, but can directly access feature and target configurations
+- The when expression does not produce a new scope, instead the content will be placed in the surrounding scope.
+
+The `else` can only be followed by a block, or another `when` expression.
+
+This can be thought of as containing code marked with the cfg attribute.
+
+_Todo: this might be allowed outside of expressions in the future_
 
 # 10. Patterns [↵](#tables-of-contents)
 
@@ -5130,7 +5201,7 @@ Assingment expression          | right to left |
 
 A precedence item can be used to define a custom precedence of user-defined operators.
 
-### 15.2.1. Precendence order
+### 15.2.1. Precendence order [↵](#152-user-defined-precedence-)
 
 The item can decide which precedences must come before and after the new precedence, this can be defined by the `higher_than` and `lower_then` fields and refer the the name of the precendences.
 The value given to `higher_tan` must have a lower precedence than the item given to `lower_then`, and may not be the same.
@@ -5149,7 +5220,7 @@ C   |
 ```
 operators of precendence `B` or `C` may not be used together with those of `D` without explicit parentheses, meaning that `v0 B v1 C v2` and `v0 B (v1 D v2)` are allowed, but not `v0 B v1 D v2` (if `B`, `C`, and `D` represent operators with those precendeces).
 
-### 15.2.2. Associativity
+### 15.2.2. Associativity [↵](#152-user-defined-precedence-)
 
 The associativity can also be defined, and can be set to `left`, `right`, or `none`.
 This defines the resulting order of the expressions using these.
@@ -5167,17 +5238,510 @@ For example, if `+` would have had `none` associativity, the expressions `(a + b
 Unary expression ignore associativity and go solely based on their precedence order.
 
 
-# 16. Attributes [↵](#tables-of-contents)
+# 16. Visibility
+
+```
+<vis> := 'pub' [ '(' <vis-kind> ')' ]
+<vis-kind> := 'package'
+            | 'lib'
+            | 'super'
+            | 'in' <simple-path>
+```
+
+name resolution operates on a global hierarchy of names scopes.
+Each level in the hierarchy can be seen as an item, this inludes items defined in the current library, but also those elsewhere in the package or external packages.
+
+To control whether these can be used from accoress different locations, each item is checked for its availability in other scopes and whether these can be used or not.
+If it is not available due to the items visibility, a compile error will be generated.
+
+By default, everything is private, with 2 exceptions:
+- Associated items in a `pub` trait are public
+- Enum variants of a `pub` enum are also public by default.
+
+When an item is declared as `pub`, it can be thought of as being accessible to the outside world.
+
+With the notion of an item being private of public, items can be accessed in 2 cases:
+- If an item is public, then it can be accessed externally from some module `m` if you can access all the item's ancester modules from `m`
+   YOu can also potentially be able to name the item through re-exports.
+- If an item is private, it may be accessed by the current module and its descendants.
+
+## 16.1. Specifiers
+
+In addition to purely having items being purely private or public, items can also have a visibility spanning a specific scope, this is done with a specifier.
+The following specifiers are available:
+- `pub(package)`: Makes items visible inside of the current package
+- `pub(lib)`: Makes item visible inside of the current library (no equivalent exists for binaries, as `pub` has the same effect in them, as they do cannot be used by another artifact)
+- `pub(super)`: Makes the item visible inside of the parent's named scope.
+- `pub(in path)`: Makes the item visible to the path specified (path is relative to the current artifact)
+
+# 17. Attributes [↵](#tables-of-contents)
+
+```
+<attribute> := '@' [ '!' ] '[' <attrib-meta> ']'
+<attrib-meta> := <simple-path> 
+               | <simple-path> '(' <inner-meta> ')'
+               | <simple-path> '=' <expression>
+<inner-meta> := <attrib-meta> { ',' <attrib-meta> } [ ',' ]
+              | <expression>
+```
+
+An attribute is general metadata that is given to the compiler, the resulting action depends on the attribute itself.
+There are 2 types of attributes:
+- module attributes starting with `@!`
+- normal attributes starting with `@`
+
+The difference between these attributes, is that the first one defined an attribute that is applied to the module it is in (or on the library if the file is a root module),
+while the second applies to the item following it.
+
+The following elements can have a attribute applied to them:
+- All items
+- Most statements
+- Block expressions
+- Enum variants
+- Struct fields
+- Match arms
+- Function, function pointer, and closure paramters
+
+## 17.1. Built-in attributes [↵](#17-attributes-)
+
+Built-in attributes are attributes that the compiler can use to change its behavior.
+
+### 17.1.1. Conditional compilation attributes [↵](#171-built-in-attributes-)
+
+#### `cfg`
+
+The `cfg` attribute can be used to change the what code is compiled when certain configuration condtions are matched.
+The `cfg` attribute is similar to the [`when` expression](#929-when-expressions), but is only allowed to access configuration values, these can be combined with lazy boolean operators and the not operator to define the condition for when the code should be compiled in.
+
+#### `cfg_attr`
+
+The `cfg_attr` attribute can be used to change whether an attribute is applied when certain configurations are matched.
+The `cfg_attr` is similar to the `cfg` attribute, but instead of being applied to the element below it, it has a second paramter containing the actual attribute that it represents
+
+### 17.1.2. Derive attributes [↵](#171-built-in-attributes-)
+
+#### `derive`
+
+The `derive` attribute allows new items to automatically generated for other items.
+It contains a list of meta data with paths to builtin traits to implement or derive macros to process.
+
+#### `auto_derive`
+
+The `auto_derive` attribute is automatically added to any implementations generated by the `derive` attribute.
+This attribute has no effect, but allows for tools and lints to detct that these have been automatically generated
+
+### 17.1.3. Macro attributes [↵](#171-built-in-attributes-)
+
 _TODO_
 
-# 17. Implicit context [↵](#tables-of-contents)
+### 17.1.4. Diagnostic attributes [↵](#171-built-in-attributes-)
+
+These attributes are used for controlling or generating diagnostic messages during compilation
+
+#### `lint` attributes
+
+Linting attributes allows linters to check for potentially undesirable code patterns, such as unreachable code or omitted documentation.
+
+The following lints attributes are supported:
+- `allow(rule)`: overrides checks for `rule` and allows them to be treated as valid, so they are ignored.
+- `warn(rule)`: Generates a warning whenever an occurance of `rule` is found, but continues compilation
+- `deny(rule)`: Generates an error whenever an occurance of `rule` is found, and terminates compilation
+- `forbid(rule)`: Similar to `deny`, but forbids changing the lint level afterwards
+
+The `rule`s used for these lint checks can be one of the standard compiler lints, or additional linter-specific rules.
+
+Lint attributes are allowed to override the level specified by a previously define lint attribute, as lolng as the level does not try to change a forbidden lint.
+Previous attributes are attributes defined in a higher level in the module hierarchy, or those passed directly to the compiler
+
+##### Lint groups
+
+Lint attributes may be combined within lint groups, these have distint names and simultaniously set the lint level for all underlying attributes.
+Lint groups can have their individual lint rules overriden by subsequent lint groups.
+
+##### Tool lints
+
+A tool lints are scopes lint rules for certain tools.
+
+Tool lints only get checked when their associated tools are active.
+If a tool lint is encountered, but its tools is not active, they will be ignored
+
+#### `deprecated`
+
+The `deprecated` attributes allows items to marked as deprecated and will generate a warning on any use of it.
+
+The `deprecated` attribute can be defined in multiple ways:
+- `deprecated`: issues a generic message
+- `deprecated = "message"`: includes the given string in the deprecation message
+- `deprecated(...)`: includes the given attributes in the deprecation message
+    - `msg`: The main message
+    - `note`: Additional notes for the deprecated item, can be used for to specify alternatives, or additional info why it was deprecated
+    - `since`: Defines the semantic version of the package in which this item was deprecated.
+
+#### `must_use`
+
+The `must_use` attribute will issue an warning or error (depending on the current lint level) when the resulting item is not used.
+They can be defined on user-defined types and any kind of funtion.
+
+When applied to a user-defined type, any return of a value of this type will result a message.
+When applied to a function, if the return value of that function is not used, it will result in a message.
+
+The `must_use` can return a generic message, or can be supplied with a message (`must_use = "reason"`), which will print out the reason why the value must be used.
+
+#### `diagnostics`
+
+The `diagnostics` attribute is a namespace of attributes that can affect compile time error reporting.
+The hints provided by these attributes are not guaranteed to be used.
+Unknown attributes in this namespace are accepted, though they may emit warnings for unsused attributes.
+
+_TODO: Add diagnostics sub-attribs_
+
+### 17.1.5. ABI, link, symbol, and FFI attributes [↵](#171-built-in-attributes-)
+
+#### `link`
+
+The `link` attributes specifies the name and kind of native libarary the compiler should link with for external items.
+
+The `name` label is required when the link kind is specified.
+
+The `kind` field is optional and the compile will try to automatically determine the kind of the library.
+The following kinds are supported:
+- `dynlib`: Indicated a dynamic library
+- `static`: Indicates a static library
+- `raw-dynlib`: Indicates the dynamic library where the compiler will generate an import library to link against.
+  This is the same as `dynlib` on platforms that don't required an import library (i.e. only windows).
+
+##### Modifiers
+
+In addition to the `name` and `kind` values, additional modifiers may also be added to the link attributes.
+This is a comma separated list of attributes names prefixed with either a `+` or `-`, which defined whether the modifier is used.
+
+The following modifiers are supported
+- `+bundle`: This modifier is only compatible with `static`. Using this for any other kind will result in a compile error.
+
+  When building a static library, the teh `+bundle` modifier indicates that the library should be included (bundled) within the current library, and used from there when linking the final library.
+
+  When building with the `-bundle` modifier, the static library will be marked as a dependency and will by included only during linking of the final binary.
+
+- `+whole-archive`: This modifier is only compatible with `static`. Using this for any other kind will result in a compile error.
+
+  `+whole-archive` indicates that the static libary is linked as a whole archive without throwing away any code, meaning that any unreferenced code will still be in the final library
+
+- `+verbatim`: This means that the compiler tiself won't add nay target-specifed libray prefixes or suffixes (like `.lib` or .`a`) to the libary name, and will try its best to ask fo the same thing from the linker.
+
+  `-verbatim` means that the compiler will eitehr add a target-specific prefix and subbix to the libary name before passing it to the linker, or won't prevent the linker from implicitly adding it
+
+##### `dynlib` vs `raw-dynlib`
+
+On windows, linking against a dynamic library requires an import library is provided to the linker.
+This is a companion `.lib` for the `.dll` that declares all symbols exported by thee dynamic library in such a way that the linker knows that they have to be dynamically loaded at runtime.
+
+Specifying `kind = dynlib` instructs the compiler to link an import library with a name based on the dynamic library's name.
+The linker will then use its normal library resolution logic to find that import library.
+Alternatively, when specifying `kind = raw-dynlib`, the compiler is instructed to generate an import library during compile time.
+
+##### `import_name_type`
+
+On x86 windows, names of functions are"decorated' (i.e. have a specific prefix and/or suffix added) to indicate their calling convention.
+For ecample, a `stdcall` calling convention function wit the name `fn1` that has no arguments would be cdecorated as `_fn1@0`.
+However, the [PE format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#import-name-type) does also permit names to have no prefix or be undecorated.
+Additionalyy, the MSVC and GNU toolchains use different decorations for the same calling conventions which means, by default, some Win32 function cannot be called using `raw-dylib` link kind via the GNU toolchain.
+
+To allow for these differences, when using the `raw-dylib` link kind, an `import_name_type` can also be specified with one of the following values to change how functions are names in the generated import library:
+- `decorated`: The function name will be fully-decorated using the MSVC toolchain format.
+- `noprefix`: The function name will be decorated uisng the MSVC toolchain format, but skipping the leading `?`, `@`, or optionally `_`.
+- `undecorated`: The function name will not be decorated.
+
+If the `import_name_type` is not specified, then the function name will be fully-decorated using the target's toolchain.
+
+Variables are never decoreated and so the `import_type_name` attribute has no effect on how they are named in the generated import library.
+
+Like `raw-dynlib`, on platforms that don't support this, the attribute will be ignored.
+
+#### `link_name`
+
+The `link_name` attribute is used to specify the link name of an external function or static.
+
+#### `link_ordinal`
+
+The `link_ordinal` can be used to specify the numeric ordinal of an external function or static.
+The ordinal is a unique number identifying a symbol exported by a dynamic library on windows and can be used when the library is being loaded to find that symbol rather than having to look it up by name.
+
+> **Warning**: The `link_ordinal` should only be used in cases where the oridnal of the symbol is stable: if the ordinal of a symbol is not explicitly set when its containing binary is built, then one will automitically be assigned to it, and tha tassigned oridinal may change between build of the binary.
+
+This attribute can only be used with the `raw-dynlib` kind, and will otherwise be ignored.
+
+#### `repr`
+
+The `repr` trait controls the type layout as defined in the [Layout representation section](#11412-layout-representation-)
+
+#### `export_name`
+
+The `export_name` attribute specifies the name of the symbol that will be exported on a function or static.
+
+#### `link_section`
+
+The `link_section` attribute specifies the section of hte object file that a function of static's conetent will be placed into
+
+#### `no_mangle`
+
+The `no_mangle` attribute disables name mangling and will output a symbol with the same name as  the function or static.
+
+#### `used`
+
+The `used` attribute can only be applied to static items.
+This attribute is used to keep the variable in the output object file, even if the variable is not used or refernced by any other item inside the library.
+However, the linker is still fee to remove such an item.
+
+### 17.1.6. Code generation attributes [↵](#171-built-in-attributes-)
+
+Code generation attributes affect the resulting code generated by the compiler.
+They give hints to the compiler to allow it to generate code that might be faster without these hints.
+The compiler is free to ignore these hints
+
+#### `inline`
+
+The `inline` attributes suggests taht the function should be placed inline in the caller, rather than generating a function call.
+The following variations of the attribute are allowed:
+- `inline`: suggest performing an inline expansion
+- `inline(always)`: suggest to always performing an inline expensions, i.e. strongly hints at it
+- `inline(never)`: suggest to never inline expansions
+
+> _Note_: The compiler automatically inlines code based on a set of heuristics, these attributes apply modifiers to the heuristics on when to inline.
+> Incorrect usage of this attribute may result in slower code, so should be used with care.
+
+#### `cold`
+
+The `cold` attribute suggest that the function is unlikely to be called.
+
+#### `track_caller`
+
+The `track_caller` attribute allows code within the function to get a hint of the `Location` of the top-most tracked call that leads to the function's invocation.
+At the point of observation, an implementation behaves as if it walks up the stack from the function's frae to find the nearest frame of an unattributed function, and return the location of the tracked caller.
+
+
+It can be applied to all `Xenon` ABI functions with the exception of the main function.
+When applied to a function declaration inside of a trait, it will be applied to all implementations, if it is applied to a default implementation, it will also be applied to all overriding implementations.
+
+#### `instruction_set`
+
+The `instruction_set` atrtibute allows multiple identical function to be generated based on the instruction set being used in a program that can run multiple instructions sets on CPU architectures that support it.
+An example of this is normal and thumb arm code.
+
+#### `opt_level`
+
+The `opt_level` attribute can be used to override the optimization level for a given functions.
+This has the same possible values as the `opt_level` compiler setting.
+
+#### `no_alias`
+
+The `no_alias` attribute is applied to function paramters with a pointer or pointer-like types, guaranteeing that these do not alias and may therefore apply optimizations based on this fact.
+
+##### `bounds_check`
+
+The `bounds_check` attribute allows the control on whether bounds check should be generated when indexing arrays or slices.
+The following modes are supported:
+- `on`: Bounds checks will always generated
+- `debug`: Bound checks will only generated in debug builds
+- `off`: Bound checks are not generated
+
+The default in `on`.
+
+### 17.1.7. Module attributes [↵](#171-built-in-attributes-)
+
+These are module specific attributes
+
+#### `path`
+
+The `path` attribute defines a path a module uses, as defined in [module path attribute section](#713-path-attribute-)
+
+### 17.1.8. Debug attributes [↵](#171-built-in-attributes-)
+
+Debug attributes allow for additional debug information to be specified for a given item.
+
+#### `debugger_visualizer`
+
+The `debugger_visualizer` attribute can be used to embed debugger visualizer info into the debugging information.
+This enables an improved debugger experience for displaying values in the debugger.
+
+The attribute exists out of a `kind` and either a `file` or `inline` specifier.
+
+The `kind` specifier can be one of the following
+- `natvis`: XML-based natvis for microsoft debuggers. More detail on the format can be found in Microsoft's [natvis documentation](https://learn.microsoft.com/en-us/visualstudio/debugger/create-custom-views-of-native-objects?view=vs-2022).
+- `gdb`: GDB uses a python script based visualizer. More details on the format can be found in GDB's [pretty printing documentation](https://sourceware.org/gdb/current/onlinedocs/gdb.html/Pretty-Printing.html).
+- `xenon`: Xenon specific debug visualization (not supported yet)
+
+The actual visualization can be specified in 2 ways:
+- `file`: the visualization is specified in an internal file, this contains a path to it.
+- `inline`: the visualization is specified inline inside of the code file
+
+## 17.2. Tool attributes [↵](#17-attributes-)
+
+Tool attributes allow for external tools to supply its own attributes, with their own namespace
+
+## 17.3. User-defined attributes
+
+User-defined attributes will be done via macros, which are still WIP
+
+# 18. Implicit context [↵](#tables-of-contents)
+
+Xenon passes an implicit context to all function and method calls and can be access in any one of them (assuming it uses the 'Xenon' ABI).
+
+The context is passed to all function implicitly, and can be accessed from any valid locations.
+All data in the context is immutable and can only be accessed via [interior mutability](#115-interior-mutability-).
+
+Each member of the implicit context is stored within an optional, which by default will have a value of `.None`, and must be explicitly initialized by the program.
+Since it's not possible to determine the exact order used to drop member (as libraries can add their own members), each member needs to be explicitly dropped by calling the explicit `.drop()` method on the member
+
+The implicit context can be accessed via the `#context()` macro.
+
+## 18.1 Defining context [↵](#18-implicit-context-)
+
+Each libary is allowed to define any amount of additional context members, but they need to have unique names.
+
+Context member can be defined in 2 ways:
+- as a fixed type member
+- as a trait member
+
+A trait member can be defined from outside of the library adding it, a fixed type needs to be done via the library defining it.
+
+## 18.2. Internals [↵](#18-implicit-context-)
+
+The context is passed via a pointer in a fixed register, the context itself contains a number of nullable pointers to each individual member.
+Members are accessed via a property.
+
+Libraries define an external symbol, which is the index into the pointer array, while binaries define the final layout inside of the context and define the required symbols to access member correctly.
+
+# 19. Effect system [↵](#tables-of-contents)
 _TODO_
 
-# 18. Effect system [↵](#tables-of-contents)
+# 20. Contracts [↵](#tables-of-contents)
 _TODO_
 
-# 19. Contracts [↵](#tables-of-contents)
+# 21. ABI [↵](#tables-of-contents)
 _TODO_
 
-# 20. ABI [↵](#tables-of-contents)
+# 22. Configuration options [↵](#tables-of-contents)
+
+Configuration options can be used inside [conditional compilation attributes](#22-configuration-options) and the [`when` expressions](#929-when-expressions).
+
+The possible configuration options are generated per-project and may be extended past the built-in values by compilation set extensions (_TODO: link to compiler docs_).
+
+> _Note_: This section contains the currently supported and planned values, some may not be supported yet
+
+## 22.1. `target_arch` [↵](#22-configuration-options-)
+
+This value defines which architecture the code is being compiled for.
+
+Architecture | Description
+-------------|-------------
+`.interp`    | interpreter
+`.x64`       | x86_64
+`.aarch64`   | 64-bit arm (unsupported)
+`.riscv`     | riscv (unsupported)
+
+## 22.2. `target_feature` [↵](#22-configuration-options-)
+
+Defines the features available on the current architecture.
+If a feature for a differen architecture is used then is allowed in the current scope, an error will be returned.
+
+Tools should generally only show the target features of architectures a that are available within the scope
+
+### 22.2.1. x86/x64 (x86_64) [↵](#222-target_feature-)
+
+Feature               | Implicit features | Description
+----------------------|-------------------|-------------
+`.adx`                |                   | [ADX](https://en.wikipedia.org/wiki/Intel_ADX) - multi-precision ADd-carry instruction eXtensions
+`.aes`                | `.sse2`           | [AES](https://en.wikipedia.org/wiki/AES_instruction_set) - Advanced Encryption Standard
+`.avx`                | `.sse4_2`         | [AVX](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions) - Advanced Vector eXtensions
+`.avx2`               | `.avx`            | [AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#AVX2) - Advanced Vector eXtensions 2
+`.avx512f`            | `.avx2`           | [AVX512F](https://en.wikipedia.org/wiki/AVX-512) - Advanced Vector eXtensions 512 - Foundation
+`.avx512cd`           | `.avx512f`        | [AVX512CD](https://en.wikipedia.org/wiki/AVX-512#Conflict_detection) - Advanced Vector eXtensions 512 - 
+`.avx512er`           | `.avx512f`        | [AVX512ER](https://en.wikipedia.org/wiki/AVX-512#Exponential_and_reciprocal) - Advanced Vector eXtensions 512 - 
+`.avx512pf`           | `.avx512f`        | [AVX512PF](https://en.wikipedia.org/wiki/AVX-512#Prefetch) - Advanced Vector eXtensions 512 - 
+`.avx512vl`           | `.avx512f`        | [AVX512VL](https://en.wikipedia.org/wiki/AVX-512) - Advanced Vector eXtensions 512 - Vector Length
+`.avx512dq`           | `.avx512f`        | [AVX512DQ](https://en.wikipedia.org/wiki/AVX-512#BW,_DQ_and_VBMI) - Advanced Vector eXtensions 512 - Doubleword and Quadword
+`.avx512bw`           | `.avx512f`        | [AVX512BW](https://en.wikipedia.org/wiki/AVX-512#BW,_DQ_and_VBMI) - Advanced Vector eXtensions 512 - Byte and Word
+`.avx512ifma`         | `.avx512f`        | [AVX512IFMA](https://en.wikipedia.org/wiki/AVX-512#IFMA) - Advanced Vector eXtensions 512 - Integer Fused Multiply Add
+`.avx512vbmi`         | `.avx512f`        | [AVX512VBMI](https://en.wikipedia.org/wiki/AVX-512#BW,_DQ_and_VBMI) - Advanced Vector eXtensions 512 - Vector Byte Manipulation Instructions
+`.avx512_4vnni`       | `.avx512f`        | [AVX512_4VNNI](https://en.wikipedia.org/wiki/AVX-512#4FMAPS_and_4VNNIW) - Advanced Vector eXtensions 512 - Vector Neural Network Instrauction Word variable precision
+`.avx512_4fmaps`      | `.avx512f`        | [AVX512_4FMAPS](https://en.wikipedia.org/wiki/AVX-512#4FMAPS_and_4VNNIW) - Advanced Vector eXtensions 512 - Fused Multiply Add packed single precision
+`.avx512vpopcntdq`    | `.avx512f`        | [AVX512VPOPCNTDQ](https://en.wikipedia.org/wiki/AVX-512#VPOPCNTDQ_and_BITALG) - Advanced Vector eXtensions 512 - Vector POPulation CouNT
+`.avx512vnni`         | `.avx512f`        | [AVX512VNNI](https://en.wikipedia.org/wiki/AVX-512#VNNI) - Advanced Vector eXtensions 512 - Vector Neural Network Instructions
+`.avx512vbmi2`        | `.avx512f`        | [AVX512VBMI2](https://en.wikipedia.org/wiki/AVX-512#VBMI2) - Advanced Vector eXtensions 512 - Vector Byte Manipulation Instructions 2
+`.avx512bitalg`       | `.avx512f`        | [AVX512BITALG](https://en.wikipedia.org/wiki/AVX-512#VPOPCNTDQ_and_BITALG) - Advanced Vector eXtensions 512 - BIT ALGorithms
+`.avx512vp2intersect` | `.avx512f`        | [AVX512VP2INTERSECT](https://en.wikipedia.org/wiki/AVX-512#VP2INTERSECT) - Advanced Vector eXtensions 512 - 
+`.avx512gfni`         | `.avx512f`        | [AVX512GFNI](https://en.wikipedia.org/wiki/AVX-512#GFNI) - Advanced Vector eXtensions 512 - Galois Field New Instructions
+`.avx512vpclmulqdq`   | `.avx512f`        | [AVX512VPCLMULQDQ](https://en.wikipedia.org/wiki/AVX-512#VPCLMULQDQ) - Advanced Vector eXtensions 512 - Vector Carry-Less Multiply Quadword
+`.avx512veas`         | `.avx512f`        | [AVX512VEAS](https://en.wikipedia.org/wiki/AVX-512#VAES) - Advanced Vector eXtensions 512 - Vector AES instructions
+`.avx512BF16`         | `.avx512f`        | [AVX512BF16](https://en.wikipedia.org/wiki/AVX-512#BF16) - Advanced Vector eXtensions 512 - BFloat16
+`.avx512FP61`         | `.avx512f`        | [AVX512FP16](https://en.wikipedia.org/wiki/AVX-512#FP16) - Advanced Vector eXtensions 512 - Half-Precision floating point
+`.bmi1`               |                   | [BMI1](https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#BMI1) - Bit Manipulation Instructions set 1
+`.bmi2`               |                   | [BMI2](https://en.wikipedia.org/wiki/X86_Bit_manipulation_instruction_set#BMI2) - Bit Manipulation Instructions set 2
+`.cmpxchg16`          |                   | [cmpxchg16](https://www.felixcloutier.com/x86/cmpxchg8b:cmpxchg16b) CoMPare and eXCHange 16 Bytes (128-bits) of data atomically
+`.f16c`               | `.avx`            | [F16C](https://en.wikipedia.org/wiki/F16C) - 16-bit Floating point Conversion instructions
+`.fma`                | `.avx`            | [FMA3](https://en.wikipedia.org/wiki/FMA_instruction_set) - 3-operand Fused Multiply-Add
+`.fxsr`               |                   | [fxsave](https://www.felixcloutier.com/x86/fxsave) and [fxrstor](https://www.felixcloutier.com/x86/fxrstor) - Save and restore x87 FPU, MMX technology and SSE state
+`.lzcnt`              |                   | [lzcnt](https://www.felixcloutier.com/x86/lzcnt) - Leading Zero CouNT
+`.movbe`              |                   | [movbe](https://www.felixcloutier.com/x86/movbe) - MOVe data after swapping bytes
+`.pclmulqdq`          | `.sse2`           | [pclmulqdq](https://www.felixcloutier.com/x86/pclmulqdq) - Packed Carry-Less Multiply Quadword
+`.popcnt`             |                   | [popcnt](https://www.felixcloutier.com/x86/popcnt) - POPulation CouNT
+`.rdrand`             |                   | [rdrand](https://en.wikipedia.org/wiki/RDRAND) - ReaD RANDom number
+`.rdseed`             |                   | [rdseed](https://en.wikipedia.org/wiki/RDRAND) - ReaD random SEED
+`.sha`                | `.sse2`           | [SHA](https://en.wikipedia.org/wiki/Intel_SHA_extensions) - Secure Hash Algorith
+`.sse`                |                   | [SSE](https://en.wikipedia.org/wiki/Streaming_SIMD_Extensions) - Streaming SIMD Extensions
+`.sse2`               | `.sse`            | [SSE2](https://en.wikipedia.org/wiki/SSE2) - Streaming SIMD Extensions 2
+`.sse3`               | `.sse2`           | [SSE3](https://en.wikipedia.org/wiki/SSE3) - Streaming SIMD Extensions 3
+`.sse4_1`             | `.ssse3`          | [SSE4.1](https://en.wikipedia.org/wiki/SSE4#SSE4.1) - Streaming SIMD Extensions 4.1
+`.sse4_2`             | `.sse4_2`         | [SSE4.2](https://en.wikipedia.org/wiki/SSE4#SSE4.2) - Streaming SIMD Extensions 4.2
+`.ssse3`              | `.sse3`           | [SSSE3](https://en.wikipedia.org/wiki/SSSE3) - Supplemental Streaming SIMD Extensions 3
+`.xsave`              |                   | [xsave](https://www.felixcloutier.com/x86/xsave) - SAVE processor eXtended state
+`.xsavec`             |                   | [xsavec](https://www.felixcloutier.com/x86/xsavec) - SAVE processor eXtended states with Compaction
+`.xsaveopt`           |                   | [xsaveopt](https://www.felixcloutier.com/x86/xsaveopt) - SAVE processor eXtended state OPTimized
+`.xsaves`             |                   | [xsaves](https://www.felixcloutier.com/x86/xsaves) - SAVE processor eXtended sate Supervisor
+
+
+> _Note_: this list may be incomplete
+
+### 22.2.1. arm/aarch64 [↵](#222-target_feature-)
+
 _TODO_
+
+### 22.2.3. riscv [↵](#222-target_feature-)
+
+_TODO_
+
+## 22.3. `target_os` [↵](#22-configuration-options-)
+
+This value defines the operating system the code is being compiled for:
+- `.windows`
+- `.linux`
+
+## 22.4. `target_endianness` [↵](#22-configuration-options-)
+
+This value defines the endianness of the target:
+- `.little`
+- `.big`
+
+## 22.5. `target_pointer_width` [↵](#22-configuration-options-)
+
+This value defines the pointer width on the target:
+- `32`
+- `64`
+
+## 22.6. `compilation_mode` [↵](#22-configuration-options-)
+
+This value defines the compilation mode:
+- `.debug`
+- `.release`
+
+## 22.7. `assertions` [↵](#22-configuration-options-)
+
+This value defines whether assertions are enabled:
+- `.on`
+- `.off`
+
+## 22.9. `panic` [↵](#22-configuration-options-)
+
+This value defined the panic mode
+- `.unwind`
+- `.abort`
