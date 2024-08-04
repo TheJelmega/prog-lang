@@ -376,15 +376,15 @@ Version: 0.0
 
 # 1. Introduction [↵](#tables-of-contents)
 
-This file contains the current langauge design for the Xenon language, including rationals for design decisions.
-This is not a full specification, as the specification will be derived from this design once the langauge reaches v1.0 of the langague.
+This file contains the current langauge design for the Xenon language, and may optionally include rationals for design decisions.
+This is not a full specification, as the final specification will be derived from this design once the langauge reaches v1.0 of the langague.
 
-This documentation is an overview of the Xenon language in it's current state, and is written for the development of the langauge and those who are interested in the langauge.
+This documentation is an overview of the Xenon language in its current state, and is written for the development of the langauge and those who are interested in the langauge.
 
 ## This document is provisional
 
 The contents of this document is still provisional and is subject to change at any time.
-This means that the syntax, languages uresl, core and standard libary, compiler infrastructure, package manager/build tool, and other aspect of the designes that have not bee decided on yet.
+This means that the syntax, languages reles, core and standard libary, compiler infrastructure, package manager/build tool, and other aspect of the design that have not been decided on yet.
 This therefore will contain gaps for parts that have not been decided on yet.
 
 ## Notation
@@ -393,30 +393,30 @@ The notation used in the design documents can be found within the [Notation sect
 
 # 2. Source code representation [↵](#tables-of-contents)
 
-This section contains info about the source code representation in the file, and by extension on disk
+This section contains info about the source code representation in the file, and by extension about the data on disk.
 
-## 2.1. Input format [↵](#notation)
+## 2.1. Input format [↵](#2-source-code-representation-)
 
 Each source file is interpreted as a sequence of Unicode codepoints encoded within the utf-8 format.
 If a file does not contain a valid utf-8 sequence, this will result in an error.
 
 Xenon source files use the extension `.xn`
 
-## 2.2. Byte order markers [↵](#notation)
+## 2.2. Byte order markers [↵](#2-source-code-representation-)
 
 ```
 <byte-order-marker> := "\xEF\xBB\xBF"
 ```
 
 The file may begin using a byte order marker, this marker is kept track of, but generally ignored by the compiler.
-This is as the utf-8 byte order marker does not encode the order, as utf-8 work in single byte units and can therefore not be in a different marker.
+The utf-8 byte order marker does not encode the order, as utf-8 work in single byte units and can therefore not be in a different marker.
 It is mainly there to indicate the that content of this file encodes a utf-8 sequence, preventing it to be interpreted as another text encoding.
 
 If the file would be reconstructed from its lexical representation, the file will be rebuilt to include the byte order marker if it was present before.
 
 The utf-8 byte order marker is the following: `EF BB BF`.
 
-Any other byte order marker is invalid and will produce an error, as the text file would represent another encoding.
+Any other byte order marker is invalid and will produce an error, as the text file would represent another text encoding.
 The disallowed byte order markers are the following:
 
 Encoding    | Representation
@@ -432,7 +432,7 @@ scsu        | 0E FE FF
 bocu-1      | FB EE 28
 gb18030     | 84 31 95 33
 
-## 2.3. Newline sequences [↵](#notation)
+## 2.3. Newline sequences [↵](#2-source-code-representation-)
 
 ```
 <new-line> := [ "\r" ] "\n"
@@ -440,24 +440,20 @@ gb18030     | 84 31 95 33
 
 A newline within the file is represented using a newline sequence `\n` (U+000A).
 This may also be preceded by a carriage return '\r' (U+000D), any other occurance is ignored by the compiler.
-Any other occurance of a carriage returned in the file will be ignored.
 
 Carriage returns will be preserved in any reconstructed file.
 
-## 2.4. Shebang [↵](#notation)
+## 2.4. Shebang [↵](#2-source-code-representation-)
 
 ```
 <shebang> := '#!' ? any valid character ? <newline>
 ```
 
 A file may contain a shebang in the first line in a file, but will be ignored by the compiler.
-When a shebang is encountered on the first line, it will be skipped until the first newline sequence is encountered.
-
-_todo: depending on the attribute syntax, we might have to change this definition slightly to include the used of `#!`_
 
 # 3. Lexical structure [↵](#tables-of-contents)
 
-This section contains info about the lexical struture of a code file, which will be interpreted as tokens.
+This section contains information about the lexical structure of a code file, which will be interpreted as tokens.
 
 ## 3.1. Whitespace [↵](#3-lexical-structure-)
 
@@ -494,7 +490,7 @@ There are 3 types of keywords:
 
 ### Strong keywords
 
-A strong keyword is a keyword that always has a meaning, regardless of where in the code it is located, and can therefore not be used for anything else
+A strong keyword is a keyword that always has a meaning, regardless of where in the code it is located, and can therefore not be used for anything else.
 A list of strong keywords can be found below (in a close to alphabetic order):
 ```
 as
@@ -600,14 +596,13 @@ There are 3 types of comments, both having 2 forms:
 
 ### Regular comment
 
-
 ```
 <regular-comment> := <line-comment> | <block-comment>
 <line-comment> := "//" {? any unicode character ?}* <new-line>
 <block-comment> := "/*" { ? any unicode character ? | <block-comment> } "*/"
 ```
 
-Regular comments are add additional info to code only, and can also be used to comment out code, meaning the code is still in the file, but interpreted as a comment.
+Regular comments are used to just add additional info to code, or used to comment out code, meaning the code is still in the file, but interpreted as a comment.
 
 Comments are stored as metadata associated with tokens and are not tokens by themselves.
 
@@ -621,14 +616,14 @@ Comments are stored as metadata associated with tokens and are not tokens by the
 <top-lvl-doc-comment> := <top-lvl-doc-line-comment> | <top-lvl-doc-line-comment>
 ```
 
-Doc(umentation) comments are used to provide documentation of the item that is blow them.
-The comments are written like normal comment, but the character signalling them is slightly different:
+Doc(umentation) comments are used to provide documentation of the item that is below them.
+These comments are written similarly like normal comment, but the character signalling them is slightly different:
 - Line comments start with exactly 3 forward slashes, i.e. `///`
 - Block comments start with a forward slash, followed by exactly 2 astrisks, i.e. `/**`
 
-Doc comment act both like metadata to the tokens, but also as special documentation attributes for an item, mainly the `doc` attribute.
-- `/// Foo` maps to _TODO when having figured out attribute syntax_
-- `/** Bar */` maps to _TODO when having figured out attribute syntax_
+Doc comment act both like metadata to the tokens, and as special documentation attributes for an item, mainly the `doc` attribute.
+- `/// Foo` maps to `@[doc = "Foo"]`
+- `/** Bar */` maps to `@[doc = "Bar"]`
 
 During parsing, this metadata will be converted to the relavent attributes.
 
@@ -653,7 +648,7 @@ Additional info can be found in [the package design](packages.md).
 
 ## 4.1. Packages [↵](#4-package-structure-)
 
-A package represents the upper level of the hierarchy of artifacts and the main unit of distribution.
+A package represents the upper level of a hierarchy of artifacts and the main unit of distribution.
 
 Packages themselves are not the direct result of compilation, but play an integral part if code organization, including how packages are 'imported'.
 A package can contain any number of artifacts, allowing allow related code to be shared as a single unit,
@@ -673,7 +668,7 @@ Artifact themselves are made up from modules.
 ### Binaries
 
 Binaries are the resulting runnable executables, these are not meant to be 'imported', as they miss all the data required for it.
-These can be delivered together with binaries not only be used as the final application, but also tools used for any operation
+These can be delivered together with binaries, not only be used as the final application, but also tools used for additional functionality.
 
 ### Static ibraries
 
@@ -684,16 +679,16 @@ If possible, the compiler can inline any code within the static library.
 
 ### Dynamic ibraries
 
-A dynamic library is a library that is meant to be referenced by code linking to it, unlike a static binary, this is not linked directly into the code, but lives as it's own file right next to io.
+A dynamic library is a library that is meant to be referenced by code linking to it, unlike a static binary, this is not linked directly into the code, but live as their own file right next to it.
 Dynamic libraries actually generates 2 resulting file: a xenon library and a OS-specific dynamic library.
-The xenon library is similar to that produces for static libraries, but does not contain all data that the static library has, but only includes what is needed to successfully build and reference the dynamic library in code using it.
+The xenon library is similar to those produced for static libraries, but does not contain all data that the static library has, i.e. they only include what is needed to successfully build and to reference the dynamic library in the code using it.
 
 ## 4.3. Modules [↵](#4-package-structure-)
 
-A module generally represents a single file or inlined module definition (if a file is not direclty included within another file).
+A module generally represents a single file or inlined module definition (if a file is not directly included within another file).
 Each module is allowed to have multiple sub-modules.
 
-Each artifact has it's own main module, which by default uses the following files:
+Each artifact has its own main module, which by default uses the following files:
 - binaries: `main.xn`
 - static and dynamic libraries: `lib.xn`
 
@@ -788,9 +783,9 @@ _TODO_
            | <string-literals>
 ```
 
-A literal is a compile time constant representing a given value as either an integer or floating-point type.
+A literal is a compile time constant representing a given value as defined below.
 
-> _Note_: Literals are tokens and not symbols, and will therefore be processed in the lexer stage_
+> _Note_: Literals are tokens and will therefore be parsed in the lexer stage_
 
 ## 6.1. Numeric literals [↵](#6-literals-)
 
@@ -809,7 +804,7 @@ Numeric literals are literals representing a value of either an integer or float
 A common feature for integer literals are digit separators.
 These don't effect the value represented, but can make the literals more readable to the programmer.
 
-There are generally 4 categories of numerics literals, and these are defined below.
+There are generally 5 categories of numerics literals, and these are defined below.
 
 ### 6.1.1. Decimal literal [↵](#61-numeric-literals-)
 
@@ -821,14 +816,14 @@ There are generally 4 categories of numerics literals, and these are defined bel
 
 A decimal literal can represent either an integer or floating point value.
 Decimal literals may be prefixed with `0`s without affecting the value, unlike some other languages, this does **not** get interpreted as an octal value and they are ignored.
-Decimal literals also support being preceded by a `-`, this is not counted as a separate operator, but is part of the component.
+Decimal literals also support being preceded by a `-`, this is not counted as a separate operator, but is part of the literal.
 
 Integer values are a sequence of up to 39 digits and should represent a value that fits in at most a 128-bit limit.
 
 Floating points have a more complex representation.
-The start with at least a single digit, and are then optionally followed by a decimal separator (`.`) and its fractional component, but this is not required.
-After this, it is also possible to use scientific notation by writing an 'e' or 'E', followed by the exponent, this will modify the value before it by multiplying it by `10 ^^ exponent`.
-The exponent is limited to the range -308 to 308.
+They start with at least a single digit, and are then optionally followed by a decimal separator (`.`) and its fractional component, but this is not required.
+After this, it is also possible to use scientific notation by writing an 'e' or 'E', followed by the exponent, this will modify the value before it by multiplying it by `10^exponent`.
+The exponent is limited to the range -4932 to 4932.
 
 #### Examples
 ```
@@ -870,7 +865,7 @@ Currently a binary literal is limited to containing 128 digits, representing a 1
 ```
 
 An octal literal represents an integer value written as a sequence of octal values ranging from 0 to 7.
-Curently an octal literal is limited to 43 digits, with the upper digit of these being limited in the range 0 to 3, so not to overflow the maximum value of a 128-bit type.
+Currently an octal literal is limited to 43 digits, with the upper digit of these being limited in the range 0 to 3, so not to overflow the maximum value of a 128-bit type.
 
 #### Examples
 ```
@@ -890,7 +885,7 @@ Curently an octal literal is limited to 43 digits, with the upper digit of these
 
 A hexadecimal literal represents an integer value written as a sequence of nibbles, values ranging from 0 to 9, and then from A/a to F/f.
 Mixing lower case and upper case letters is allowed, but is discouraged.
-Currently a hexadecimal literal is limited to 32 digits, so not to over flow the maximum value of a 128-bit type.
+Currently a hexadecimal literal is limited to 32 digits, so not to overflow the maximum value of a 128-bit type.
 
 #### Examples
 ```
@@ -911,7 +906,7 @@ In addition to integer hexadecimal literals, there is also support to represent 
 These are composed out of a sign, a mantissa and an exponent.
 
 The literal is written with an optional `-`, followed by a the hexadecimal indicator '0x'. 
-This can then be followed by either a '0.' followed by at most 13 0s, or a '1.' follows by at most 13 hexadecimal digits.
+This can then be followed by either a '0.' followed by at most 13 0s, or a '1.' follows by at most 14 hexadecimal digits.
 After which the exponent indicator 'p' appears, followed by an either `-` or '+', and at the exponent in decimal digits.
 
 When the literal starts with `0x0.`, both the mantissa and exponent are limited to 0.
@@ -931,11 +926,11 @@ The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encod
 <bool-literal> := 'true' | 'false'
 ```
 
-A boolean literal represents either a `true` of a `false` value
+A boolean literal represents either a `true` of a `false` value.
 
 ## 6.3. Character literals [↵](#6-literals-)
 
-A character literal defines a character, represented by it's unicode codepoints.
+A character literal defines a character, represented by its unicode codepoints.
 
 ```
 <character-literal> := "'" ( ? any unicode codepoint, except for \ and ' ? | <escape-code> ) "'"
@@ -955,7 +950,7 @@ A character literal defines a character, represented by it's unicode codepoints.
                | '\u{' { <hex-digit> }[1,6] '}'
 ```
 
-An escape code, also known as an escaped character is used to represent certain character value that normally cannot be represented in a character or string.
+An escape code, also known as an escaped character, is used to represent certain character values that normally cannot be represented in a character or string.
 
 These can be generally split into 3 categories:
 - Simple escape codes
@@ -963,7 +958,7 @@ These can be generally split into 3 categories:
 - Unicode codepoints
 
 A simple escape code exists out of a forward slash `/`, followed by single character.
-The following escape codes are available
+The following escape codes are available:
 
 code | Escaped codes
 -----|-------------------------
@@ -989,16 +984,16 @@ A unicode escape code is written as `\u{`, followed by between 1 and 6 hex digit
 <raw-string-literal> := 'r' { '#' }[N] { ? any valid unicode codepoint ? }* '"' { '#' }[N]
 ```
 
-A string literal defines a static string withing a binray which can be used immutably, and are stored within read-only memory in the binary.
+A string literal defines a static string within a binary which can be used immutably, and are stored within read-only memory in the binary.
 
 Regular string are usually limited to being on a single line, except for when a string continuation sequence is encountered (see below).
-Regular strings are written as a sequence of characters between 2 `"`.
+Regular strings are written as a sequence of characters between 2 `"`s.
 
-Raw string can appear accross multiple lines within code, the first like starts from the `"`, but any other line that start at he beginning will contain all whitespace since the start of the line.
+Raw string can appear accross multiple lines within code, the first line starts from the `"`, but any other line that start at he beginning will contain all whitespace since the beginning of the line.
 Raw string also don't allow any escape codes, as they will just be interpreted as raw text.
 
-to define a raw string, the prefix `r` is used, followed by any number of `#`, and then a `"`.
-The text in the string will not run until the next encounter of a `"`, followed with as many `#`s as proceeed the string's starting `"`.
+to define a raw string, the prefix `r` is used, followed by any number of `#`s, and then a `"`.
+The text in the string will now run until the next encounter of a `"`, followed with as many `#`s as proceeed the string's starting `"`.
 
 ### 6.4.1. String continuation sequence [↵](#64-string-literals-)
 
@@ -1016,7 +1011,7 @@ it will then continue to parse the string.
 While literals can coerce into a certain set of types, sometimes it can be useful to define a custom literal operator.
 A literal operator can apply compile time checks on the value in the operator + changes the type generated by the literal
 
-Below is a list of the builtin literal operators
+Below is a list of the builtin literal operators:
 
 literal operator | literal kind | resulting type | Info
 -----------------|--------------|----------------|-------------
@@ -1040,8 +1035,7 @@ utf7             | String       | str16          | UTF-7 string literal, require
 utf16            | String       | str16          | UTF-16 string literal
 utf32            | String       | str32          | UTF-32 string literal
 
-For more info, see the [Operator](#12-operators--precedence) section.
-
+For more info, see the [Operator](#14-operators-) section.
 
 # 7. Items [↵](#tables-of-contents)
 
@@ -1062,15 +1056,13 @@ For more info, see the [Operator](#12-operators--precedence) section.
         | <constraint-item>
 ```
 
-An item is a component of a package.
-Items are organized within a package, inside of modules.
+An item is a component of a package and are organized within it, inside one of its modules.
 Every artifact within the package has a single "outermost" anonymous module; all further items within the package have paths within the package hierarchy.
 
 Items are entirely determined at compile time, generally remain fixed during execution, and may reside in read-only memory.
 
 Some items form an implicit scope for the declarations of sub-items.
-In other words, within a function of module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar comonents that otherwhise compose the item body.
-If the item was declared outside of the outer scope - i still a static item - except that the item's path name within the module namespace is qualified by the name of the enclosing item, or is private to the enclosing item (in the case of functions).
+In other words, within a function or module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar components that otherwhise compose the item body.
 
 ## 7.1. Module item [↵](#7-items-)
 
@@ -1081,12 +1073,12 @@ If the item was declared outside of the outer scope - i still a static item - ex
 
 A module is a container of zero or more items.
 
-A module item introduses a a new named module into the tree of modules making up the current artifact.
+A module item introduces a a new named module into the tree of modules making up the current artifact.
 Modules can be nested arbitrarily.
 
-_TODO: exmaple_
+_TODO: example_
 
-Modules adn types share the same namespace.
+Modules and types share the same namespace.
 Declaring a named type with the same name as a module in a scope is forbidden; that is, any item cannot shadow the name of a module in the scope and vice versa.
 Items brought into scope with a `use` also have this restriction.
 
@@ -1097,7 +1089,7 @@ Modules are generally split up in 2 kinds.
 Inline modules are declared directly within another module and allows manual nesting within the file.
 
 Inline modules are allowed to declare any file modules within them, but the path is interpreted differently, see below for more info.
-An inline module can also have a single segment path defined to name the sub-folder they would map to if they would have been file modules.
+An inline module also have a single segment path defined to name the sub-folder they would map to if they would have been file modules.
 
 When using a nested module in a file:
 ```
@@ -1141,7 +1133,7 @@ If a `path` attribute is applied on a module that is not inside an inline module
 For example, with the following code in a file:
 _TODO: Is this attribute notation correct?_
 ```
-#[path = "foo.xn"]
+@[path = "foo.xn"]
 mod c;
 ```
 will produce the following paths:
@@ -1181,23 +1173,21 @@ Module path    | `inner`'s file location   | `inner`'s module path
             | <simple-path> [ "as" ( <ext-name> ) ]
 ```
 
-A `use` declaration creates a local binding associated to a module path.
+A `use` declaration creates a local binding associated to a item path.
 These are used for 2 reasons:
-- Introduce a libary's root module into the scope
-- Shorten the path required to refer to a module.
+- Introduce a libary's root module into the scope.
+- Shorten the path required to refer to a item.
 
-These declations may appear in modules and blocks.
+These declarations may appear in modules and blocks.
 
 To access any path from outside the current scope, each `use` declaration must start by indicating the package and library modules come from.
-This is called the root name as is shown as `package:library`, these do not explicitly be written down in the following usecases:
+This is called the root name and is shown as `package:library`, these do not need to explicitly be written down in the following usecases:
 - the package can be left out if the path refers to the current package
 - the library can be left out in 2 cases:
-    - If there is no explicit package (i.e. the current package), it will refer to the current package
-    - If tehre is an explicit package, it will refer to the library within that package with the same name
+    - If there is no explicit package (i.e. the current package), it will refer to the current library or binary
+    - If there is an explicit package, it will refer to the library within that package with that same name
 
-An example of this can be seen in the below table for the following project structure
-
-For example, with the package and library structure:
+An example of this can be seen in the below table for the following project structure:
 ```
 A (package)
 - Cur (lib)
@@ -1221,7 +1211,7 @@ Use root | Package | Library
 The `use` root can be omitted for any value relative to the current module, including at most 1 level up using the `super` keyword.
 
 Use declarations support a number of convenient shortcuts:
-- Simultaneously bind a list of paths with a common prefix, using a braced represetnation, i.e. `:.a.b.{c, d.e, f.g.h}`
+- Simultaneously bind a list of paths with a common prefix, using a braced representation, i.e. `:.a.b.{c, d.e, f.g.h}`
 - Simultaneously bind a list of paths with a common prefix, and their parent module, e.g. `:.a.b.{self, c, d.e}`
 - Rebind a module or item to a local name, e.g. `:.a.b.c as d`
 - Bind all paths with a common prefix, e.g. `:.a.b.*`
@@ -1252,7 +1242,7 @@ fn main {
 ### 7.2.2. Underscore imports [↵](#72-use-declarations-)
 
 Items can be imported without binding to a name by using an underscore with the form `use path as _`.
-This is particularly useful to import an trait so that its methods may be used without impoiting the trait symbol, for example if the trait's symbol may conflict with another symbol.
+This is particularly useful to import a trait so that its methods may be used without importing the trait symbol, for example if the trait's symbol may conflict with another symbol.
 
 ## 7.3 Function [↵](#7-items-)
 
@@ -1263,9 +1253,9 @@ This is particularly useful to import an trait so that its methods may be used w
            | ';'
 ```
 
-A function associates a block of code with a name with a set of generics, parameters, effects, a return type, only the name is required.
+A function associates a block of code with a name with a set of generics, parameters, effects, and a return type, only the name is required.
 
-When refered to, a function yields a first-class value of a the corresponding zero-sized [function item type](#11114-function-types), which when called evaluates to a drectir call to a function.
+When refered to, a function yields a first-class value of a the corresponding zero-sized [function item type](#11114-function-types), which when called evaluates to a direct call to a function.
 
 A function can be declared `unsafe`, requiring it to be called from an unsafe context, but allowing any `unsafe` code to be called from within the function.
 
@@ -1287,30 +1277,35 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 <variadic-param> := <label> '...' ':' <type>
 ```
 
-Function parameters consists out of an label, a pattern, and a type.
+Function parameters consists out of a label, a pattern, and a type.
 A label can be optional if the pattern is an identifier pattern.
 
 The first parameter can be a special receiver parameter, which indicates that this function is a method, and can therefore only be declared within an implementation block.
-The receiver has an implicit '_' label, and can be any of the following types:
+The receiver has an implicit `_` label, and can be any of the following types:
 - `Self`
 - `&Self`
 - `&mut Self`
 - any `T` that implements `Deref<Target = Self>`. _TODO: might need an additional `Dispatch` bound_
 
+The receiver can also be defined as a simple receiver, which results in a receiver with the following types:
+- `self`: `self: Self`
+- `&self`: `self: &Self`
+- `&mut self`: `self: &mut Self`
+
 Any other parameter is a normal parameters.
 If an explicit label is provided, it can be either
-- a name, this is the label any argument needs to be 'bound' to, and needs to be provided for this parameter when calling the function
+- a name, this is the label that any argument needs to be 'bound' to, and needs to be provided for this parameter when calling the function.
 - an '_', this implies an unnamed parameter and has no label needs to be provided for this parameter when calling the function.
 
-If no explicit label is provided, this will default to a label with the same name as a paramters, so `foo: i32` will become `foo foo: i32`.
+If no explicit label is provided, this will default to a label with the same name as the parameter, so `foo: i32` will become `foo foo: i32`.
 
-Parameters can be provided default parameters after `=`, and are also known as default parameters.
+Parameters can be provided with default values after `=`, and are also known as default parameters.
 The default value needs to be an expression that can be evaluated at compile time.
 All default parameters are required to have a label, as these may appear in any order in a function call.
 
-If a function has no default parameters, or only has labeled default parameters, they may be followed by a variadic parameter.
-This is a special parameter that allows any number of element of that type to be provided.
-This will generate a generic paramter pack with a type constraint to the type given.
+If a function may also be followed by a variadic parameter.
+This is a special parameter that allows any number of elements of that type to be provided.
+This will generate a generic parameter pack with a type constraint to the type given.
 
 Any 2 parameters may not have the same label.
 
@@ -1334,18 +1329,20 @@ Named return are required to be assigned a value, using them inside of a functio
 Xenon supports a way of overloading functions, but instead of it being based on any type, it is based on the labels of the receiver and non-default paramters.
 
 Function overlap gets checked for each set of functions in the following steps:
-1. Generate a label signature for each function, in the styled of `fn_name(arg0:_:arg1?def1?def2?...)`
-2. If the name of the function does not match that of the other function, we have no collision, otherwise proceed to the next step.
-3. Check the first set of matching required parameters, meaning if function `a` has `N` parameters, and `b` has `M` paramters, compare the first `min(N, M)` parameters:
-   If a pair of corresponding parameters do not match, we have no collisions, otherwise proceed to the next step.
-4. If both functions have the same number of non-default paramters, proceed to the next step, otherwise take the `N` parameters that are left from the additional paramters one of the functions has, and for each paramters, do the following:
+1. If the name of the function does not match that of the other function, we have no collision, otherwise proceed to the next step.
+2. Check the first set of matching required parameters, meaning if function `a` has `N` parameters, and `b` has `M` paramters, compare the first `min(N, M)` parameters:
+   If a pair of corresponding parameters do not match, we have no collisions.
+   If no parameters match, proceed to the next step.
+3. If both functions have the same number of non-default parameters, proceed to the next step, otherwise take the `N` parameters that are left from the additional parameters the functions with remaining non-default parameters has, and for each paramters, do the following:
    1. Walk through the other functions default arguments
       - If a label matches that of the optional argument and we are at the last paramter of the function (i.e. no other params left), we got a collision
       - If we only match the labels, and go the next iteration.
       - Otherwise go to the next sub-step
    2. If we hit the end of the other functions optional parameters, we have no collision, otherwise break otherwise go to the next iteration
-5. If any default parameters are left over, there is a collision, otherwise go the the next step
-6. If both functions have variadic arguments, we have a collision, otherwise we don't have one and the functions 
+4. If any default parameters are left over, there is a collision, otherwise go the the next step
+5. If both functions have variadic arguments, we have a collision, otherwise we have no collision.
+
+If a collision is encountered, we have conflicting function declarations.
 
 #### Resolve examples
 
@@ -1425,17 +1422,16 @@ A const function allows the function to be called at compile-time.
 <assoc-fn-body> := ';' | <fn-body>
 ```
 An associated function is allowed to leave out a body, if this is done, the function must be implemented (either down the trait bounded by the current trait), or by the type that implements the trait.
-If an associated function has it's body defined, this definition will act as the default definition of the function.
+If an associated function has its body defined, this definition will act as the default definition of the function.
 
 Any function that in the base interface may have its default implementation overwritten by the current interface, for this the weak keyword `override` can be used.
 As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#7122-function-override-resolution).
 
 > _Note_: Overridden functions do not define a function with the same name for the current trait, but instead exclusively overwrites a default implementation.
 
-
 #### Trait function override resolution
 
-As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrided to incur the so-called "diamond problem".
+As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrides to incur the so-called "diamond problem".
 Imagine a trait `A`, defining a function foo (with or without a default implementation).
 2 traits, `B` and `C` both have `A` as a supertrait and overide the default implementation.
 Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
@@ -1476,10 +1472,11 @@ trait D: B, C {
 
 This is somewhat similar to the resolution for conflicting generic specializations.
 
+_TODO: How to decide what base interface we are overriding here_
 
 ### 7.3.6. External function qualifier [↵](#73-function-)
 
-The extern qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
+The `extern` qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
 
 If an extern function does not define a body, then this is a binding to a function declared in an external library.
 If it has a body, then this is a function that gets exported so it can be used from external code.
@@ -1493,20 +1490,18 @@ If it has a body, then this is a function that gets exported so it can be used f
 <opaque-type> := 'type' <name> '=' 'opaque' [ '[' <expr> ']' ]
 ```
 
-A type alias defines a new name for an existing type, an allows for partial specialization of the generic parameters.
+A type alias defines a new name for an existing type, and allows for partial specialization of the generic parameters.
 The 'alias type' is the new type being created, the 'aliasee' is the type that is being aliased, i.e. `type alias_type = aliasee;`.
 
 If a generic type is passed to the aliasee, the generic in the alias type itself will gain the same bounds as those for the aliasee.
-
-Type aliases are declared using the `type` keyword.
 
 There are also 2 'variants' of the type alias.
 
 ### 7.4.1. Distinct types [↵](#74-type-aliases-)
 
-A distinct type is a special type alias, that does not only gives a different name, etc to a type, but splits it of into a separate type, these are also known as 'newtypes.'
+A distinct type is a special type alias, that does not only gives a different name, etc to a type, but splits it off into a separate type, these are also known as 'newtypes.'
 
-Distinct types take over all fields and functionality of the aliasee, but can also implement additional functionality independently of the type.
+Distinct types take over all fields and functionality of the aliasee, but can also implement additional functionality independently of the aliasee's type.
 
 > _Note_: a limitation of this is that a disctinct type cannot acces fields that are private to the aliasee.
 
@@ -1528,13 +1523,13 @@ Internally, an opaque type is represented as:
 A struct is a composite type that consists out of a number of types, called 'fields'.
 
 Fields within a structure can be defined as either being mutable, or not (which is the default).
-Non-mutable field can only be set when the struct is fully assigned, i.e. the individual field cannot be modified.
-If the entire struct is marked as mutable, all fields within it will be mutable, no matter if they are individual declared as.
+Non-mutable field can only be set when the struct is constructed, i.e. the individual field cannot be modified.
+If the entire struct is marked as mutable, all fields within it will be mutable, no matter if they are individual declared as `mut` or not.
 
 Fields can also be assigned default value, which need to be able to be evaluated at compile time, but allow them to be left out when constructing a value of this type.
 
 > _Note_: Default values for fields should not be confused with the value of fields if the `Default` trait is implemented.
-> Field default values are used to allow omitted when constructing a new struct, not to retrieve a default value for the entire struct,
+> Field default values are used to allow them to be omitted when constructing a new struct, not to retrieve a default value for the entire struct,
 > this means that `Default::default()` may return a different value that a field's individual default value, as it is allowed to decide these values at runtime.
 
 There are 3 kinds of structs:
@@ -1551,27 +1546,27 @@ There are 3 kinds of structs:
 ```
 
 A regular structure exists out of a collection of named fields.
-A field can be left out, but have its space reserved for future use, by giving it the name of `_` which will the field for all other purposes.
+A field can be left out, but have its space reserved for future use, by giving it the name of `_`, which will leave the field out for all other purposes.
 
-Each field defintion may contain multiple names, this will result in a field to be created for each, with the type defined before each field.
+Each field defintion may contain multiple names, this will result in a field to be created for each, with the type defined.
 If only a single name is defined, a field may also have a default value assigned to it (see note above).
 
 #### Use fields
 
-Sometimes it may be usefull to add the contents from another structure directly within the body of the current struct.
-This can be done using the special case of the `use` keywords, as inside of a structure, instead of importing another module, it means that the body of the strucuture after the will be placed within the current stuct.
-There are some limitiations when it comes caused by the visibility of fields, for a struct to be included within another struct:
-- if the `use` comes from another library, all it's member need to be public to include it within the body.
+Sometimes it may be useful to add the contents from another structure directly within the body of the current structure.
+This can be done using the special case of the `use` keywords, as inside of a structure, instead of importing another module, it means that the body of the strucuture after it will be placed within the current structure.
+There are some limitiations when it comes to the visibility of fields, for a structure to be included within another structure:
+- if the `use` comes from another library, all it's member need to be public to be included it within the body.
 - if the `use` comes from the same library, all fields need to be visible from the current namespace and and the visibility of the `use` may not be greater than that of any of those fields.
 
 These fields will then all also be given the visibility as define before the `use`.
 
 To take over mutable fields, the `use`, it needs to be explicitly marked as `mut`.
-Use will also take over default field values
+Use will also take over default field values.
 
 Below is an example of `use`:
 ```
-// Library file
+// Library: lib
 
 struct Quux {
     pub     qq: i32 = 1,
@@ -1592,13 +1587,13 @@ struct Bar {
 }
 
 struct Baz {
-    pub(mod) use Foo, //< 'b' will not not be `pub`, but `pub(mod)` instead
-    // use Bar,       //< uncommenting this like will result in a compile error, as 'c' is not visible from 'Baz'
+    pub(mod) use Foo, //< 'b' will not be `pub`, but `pub(mod)` instead
+    // use Bar,       //< uncommenting this like will result in a compile error, as 'c' is not visible from outside of 'Baz'
     mut use lib.Quux, //< Mutably include `lib.Quux`
 }
 
 // When compiler, Baz will result in
-struct ...Baz {
+struct Baz {
     pub(mod) a:  i32,
     pub(mod) b:  i32,
              qq: i32 = 1,
@@ -1628,7 +1623,7 @@ They are generally similar to inline records, but allow visibility and default v
 A tuple struct, also called a named tuple, represents a list of types that form their own nominal type.
 
 Tuple struct fields may contain default values, but these need to come at the end of the tuple.
-If a field without a default value follows one with a default value, it is a compile error
+If a field without a default value follows one with a default value, it is a compile error.
 
 #### Record tuple struct
 
@@ -1641,8 +1636,8 @@ The distinction can be made by the weak keyword `record` coming before the `stru
 <unit-struct> := { <attribute> }* [ <vis> ] 'struct' <name> ';'
 ```
 
-A unit structure is a special structure containing no fields, and which can be be initialized by using the structure as the initialization expression.
-Unit stuctures can be seen as distinct type aliases of the unit type, but with the ergonomics of being an extual individual structure.
+A unit structure is a special structure containing no fields, and which can be be initialized by using the name of the structure as the initialization expression.
+Unit stuctures can be seen as distinct type aliases of the unit type, but with the ergonomics of being an actual individual structure.
 
 ## 7.6. Union [↵](#7-items-)
 
@@ -1663,33 +1658,33 @@ Union fields are restricted to the following subset of types:
 
 When initializing a union, only 1 field can be set, in this design document, this is known as the 'active field'.
 
-> _Note_: unions have no notion of an 'active field', i.e. it has no special meaning, but is only used to in the design document to indicate the currently assigned field
+> _Note_: unions have no notion of an 'active field', i.e. it has no special meaning, but is only used to in the design document to indicate the currently assigned field.
 
 Any member can be accessed at any time, it directly reads the underlying memory as the type of the field being accessed.
 Which means that any field which has an incompattible layout with the active field **may** therefore contain invalid data.
-The programmer should be certain that the field contains valid before using it, failing to do so in undefined behavior.
+The programmer should be certain that the field contains valid data before using it, failing to do so in undefined behavior.
 
 Because of what's mentioned above, this means that all reads field in the union are `unsafe`.
-Unlike reads, writes are always safe, as the user is just overwriting arbitrary data, so cannot be undefined behavior.
-As union field will never be dropped.
+Unlike reads, writes are always safe, as the user is just overwriting arbitrary data, so it cannot be undefined behavior.
+A union field will never be dropped.
 
 ### 7.6.1. Union field offsets [↵](#76-union-)
 
 By default, all fields are guaranteed to be at an offset of `0`.
 Sometimes it might be useful to have certain fields overlap at a non-zero offset, this can be done using the `union_offset` attribute.
 
-The `union_offset` macro defines an offset in bytes, which will then be the resulting offset of the field.
+The `union_offset` attribute defines an offset in bytes, which will then be the resulting offset of the field.
 
 ### 7.6.2. Pattern matching on unions [↵](#76-union-)
 
 Another way to access union fields is to use pattern matching.
-Pattern mathinc on union field uses the same syntax as those for structs, except that the pattern must specificy exactly 1 field.
+Pattern matching on a union field uses the same syntax as those for structs, except that the pattern must specify exactly 1 field.
 Since reading from a union is unsafe, the entire match expression must be in an unsafe block.
 
 ### 7.6.3. References to union fields [↵](#76-union-)
 
 Since unions fields share a common storage, gaining writing access to one field of the union can give write access to all its remaining fields.
-For this reason, if any field is borrowed immutably, no other field can be borrowed mutably in the same lifetime.
+For this reason, if any field is borrowed immutably, no other field can be borrowed mutably at the same time.
 
 ## 7.7. Enum [↵](#7-items-)
 
@@ -1715,13 +1710,13 @@ The visibility of the enum is shared by all variants and their fields
 <tuple-variant-body> := '(' <type> { ',' <type> }* [ ',' ] ')'
 ```
 
-Each ADT enum constists out of at minimum a discriminant, but may inn addition also contain a set of fields that are associated with each variant.
+Each ADT enum constists out of at minimum a discriminant, but may in addition also contain a set of fields that are associated with each variant.
 
 Variants with fields can be presented as either a regular structure or a tuple structure, and is called the variant's 'payload'.
-This payload is effectively a struct or enum struct, where it's body is defined after the name of the variant.
+This payload is effectively a struct or tuple struct, where it's body is defined after the name of the variant.
 For more info about the payloads, see the [Struct item](#75-structs-).
 
-> _Note_: field may not have their own visibility defined
+> _Note_: Enum fields may not have their own visibility defined.
 
 #### Discriminant
 
@@ -1732,21 +1727,21 @@ An explicit type can be chosen using a primitive representation.
 
 Discriminant values can be explicitly be set by following the variant with a `=` followed by an expression returning an integer.
 The discriminant needs to be a value that can be evaluated at compile time.
-The expression may also not reference any other varaint in the enum.
+The expression may also not reference any other variants in the enum.
 
-When no explicit discriminant is given, this will automatically be set to one higher than the discriminant of the pervious variant.
+When no explicit discriminant is given, this will automatically be set to one higher than the discriminant of the previous variant.
 If the discriminant for the first value is not set, this will become 0, and if at any point, the discriminant would overflow, this will result in a compile error.
 
-No 2 variants may have the same descriminant, meaning that if an implicit discriminant value appears after the maximum value of the current descriminant type, that this will result in an error.
+No 2 variants may have the same discriminant, meaning that if an implicit discriminant's value is the same as the discriminant of another variant, that this will result in an error.
 
 The discriminant value of any enum can be extracted using `discriminant`
 _TODO: add full path to function_
 
-If an enum has a known discriminant type, it is allowed to cast a pointer to the enum to an pointer with the descrimant type.
+If an enum has a known discriminant type, it is allowed to cast a pointer to the enum to an pointer with the discriminant type.
 
 #### Field-less enum
 
-A field-less enum is a variant of an ADT enum that contains no payload and it therefore just its discriminant internally.
+A field-less enum is a variant of an ADT enum that contains no payload and is therefore just its discriminant internally.
 This allows field-less enums to be cast to their underlying integer type.
 
 ### 7.7.2. Record enums [↵](#77-enum-)
@@ -1761,11 +1756,11 @@ A record enum is a variant of a normal enum, but instead of each variant with fi
 <flag-enum-variant> := <name> [ '=' <expr> ]
 ```
 
-A flag enum can be thought of as a special variant of a field-less enum, but instead of representing discrete fields, it represents a collection of bitflags.
-Each flag enum can contain as many unique flags are as allowed by the primitive type, by default this will be chosen based on the number of variants within the enum.
+A flag enum can be thought of as a special variant of a field-less enum, but instead of representing discrete fields, it represents a collection of bit-flags.
+Each flag enum can contain as many unique flags are as allowed by the primitive type, by default this will be chosen based on the values of variants within the enum.
 
 When no explicit discriminant is given, this will automomatically be set as the next power of 2 that greater than the previous flags.
-If the discriminant for hte first value is not , this will become 1, and if at any point the next flag value would overflow, this will result in a compile error.
+If the discriminant for the first value is not set, this will become 1, and if at any point the next flag value would overflow, this will result in a compile error.
 
 If no explicit flag is provided with a value of 0, the enum will implicitly add a `.None` flag.
 
@@ -1782,9 +1777,9 @@ _TODO: list of functions_
 <bitfield-field> := <name> ':' <type> [ '|' <expr> ]
 ```
 
-A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned type.
+A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned and sized types.
 
-A field in a bitfield may is defined as a signle named field would be in struct, and optionally followed by an additonal `|` and an expression giving the number of bits the value should take in.
+A field in a bitfield is defined as how a single named field would be in struct, and optionally followed by an additonal `|` and an expression giving the number of bits the value should take in.
 
 If the number of bits is given explicitly, the expressions must represent a value that can be evaluated at compile time.
 
@@ -1794,7 +1789,7 @@ If no explicit number of bits have been given, the type will automatically take 
 - If the type has a bit-size defined using the `bit_size` attribute, it will take this value as the bit-size.
 
 The size of a bitfield may be explicitly defined in an expression after the bitfield's name.
-If no explicit size is defined, it will take in the minimum number of bits needed to store all field in the bitset.
+If no explicit size is defined, it will take in the minimum number of bytes needed to store all field in the bitset.
 
 Access to bitfield elements are an example of propties being used.
 
@@ -1816,7 +1811,7 @@ Constants are generally explicitly types, unless a certain sub-set expressions a
 
 Constants live throught the entirety of the program and any reference to them is always valid.
 
-Constants may be of types that have a destructor, and will be dropped when the copy of the value that they are assigned too go out of scope.
+Constants may be of types that have a destructor, and will be dropped when the copy of the value that they are assigned to go out of scope.
 
 When defined inside of an implementation, the const item will be an associated with that type.
 
@@ -1826,8 +1821,7 @@ When defined inside of an implementation, the const item will be an associated w
 <assoc-trait-const> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
 ```
 
-An associated trait type declares a signature for an associated constant implementation.
-It declares both the name and the type the associated constant should have.
+An associated trait constant declares a signature for an associated constant implementation, i.e. it declares both the name and the type the associated constant should have.
 
 ## 7.10. Static item [↵](#7-items-)
 
@@ -1836,14 +1830,14 @@ It declares both the name and the type the associated constant should have.
 <extern-static-item> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'tls' ] 'static' <name> [ ':' <type> ] ';'
 ```
 
-A static item is a named location within the programs static memory.
+A static item is a named location within the program's static memory.
 All references to a static refer to the same memory location.
-Static item live for the entirety of the programs life and are never dropped at the end of the program.
+Static items live for the entirety of the programs life and are never dropped at the end of the program.
 Therefore it is not allowed to assign a type which implements `Drop` as the type of a static.
 
-Static items must be initialized using a an expression that can be evaluated at compile time.
+Static items must be initialized using an expression that can be evaluated at compile time.
 
-Non-mutable static items do not support interior mutability and will be allocated in read-only static memory.
+Non-mutable static items that do not support interior mutability and will be allocated in read-only static memory.
 
 All access to statics is safe, but there are a number of restrictions:
 - The type must have a `Sync` trait bound to allow thread-safe access.
@@ -1866,10 +1860,10 @@ When a static variable is declared within a generic scope, it will result in exa
 <extern-static> := { <attribute> }* [ <vis> ] [ 'extern' <abi> ] ['mut']  <name> ':' <type> ';'
 ```
 
-Statics can be defined external, or within an external block.
+Statics can be defined as external, or within an external block.
 These are declared without an initial value, as this will be retrieved from an external location.
 
-It is always `unsafe` to access an external static, whether or not it is mutable or not, as there is no guarantees that the bit pattern in static memory contains is valid for the type declared, since argitraty (e.g. C) code is in charge of initializing this value.
+It is always `unsafe` to access an external static, whether or not it is mutable or not, as there is no guarantees that the bit pattern in static memory contains is valid for the type declared, since arbitrary (e.g. C) code is in charge of initializing this value.
 
 Unlike normal statics, an external static is allowed to be declared mutable, without needing to rely on interior mutability.
 An immutable static must be initialized before any Xenon code is executed.
@@ -1893,10 +1887,9 @@ When declaring a static within a external block, `extern` has to be left out.
 
 A property allows a field-like value to be associated with a set of expressions that handle the underlying value changes.
 
-Properties are implemented as having either a _getter_, a _setter_ or both.
+Properties are implemented as having either _getters_, a _setter_ or both.
 
-
-The program needs to be aware that using properties may result in slower code, depending on the underlying implementation
+The program needs to be aware that using properties may result in slower code, depending on the underlying implementation.
 
 Properties can only be declared as associated items.
 
@@ -1917,8 +1910,9 @@ A property needs to have at minimum one of them.
 
 #### Internal representation
 
-Internally, getters and setters get converted to internal function that get called when a property get's accesed.
+Internally, getters and setters get converted to internal functions that get called when a property gets accesed.
 
+Pseudo-code for these are the following:
 ```
 property value : Type { get { ... } };
 // => 
@@ -1934,7 +1928,7 @@ fn get_mut_value(&mut self) -> &mut Type { ... }
 
 property value : Type { set { ... } };
 // => 
-fn get_value(&self, value: Type) { ... }
+fn set_value(&self, value: Type) { ... }
 ```
 
 ### 7.11.2. Associated trait properties [↵](#711-properties-)
@@ -1973,11 +1967,11 @@ Any generic paramter applied to the trait, are also passed along to the `Self` t
 
 Traits can be implemented via individual implementations.
 
-A trait can be defined as sealed, this means that the trait can only be implemented from the current library and any implementation outside of the current library will result in a compile error.
+A trait can be defined as `sealed`, this means that the trait can only be implemented from the current library and any implementation outside of the current library will result in a compile error.
 
 ### 7.12.1. Object safety [↵](#712-trait-)
 
-Object safety specifies a set of requireents that the interface needs to adhere to to be allowed to be used in places where an interface object type is allowed.
+Object safety specifies a set of require,ents that the trait needs to adhere to to be allowed to be used in places where a trait object type is allowed.
 These are:
 - All supertraits must be object safe.
 - The trait cannot be sized, i.e. it may not requires `Self is Sized`.
@@ -1986,9 +1980,9 @@ These are:
 - All associated functions must either be dispatchable from a trait object or be explicilty non-dispatchable.
     - Dispatchable functions must adhere to:
         - Not have any generic parameters.
-        - Method is only allowed to use the `Self` within the receiver.
-        - The receiver needs to allow for dynamic disapatch, e.g. `&self` or `&mut Self`, and types implementing `DispatchFromDyn`.
-        - Parameters and return type must not be an inferable type, meaning they may not be an impl trait type.
+        - Method is only allowed to use the `Self` type within the receiver.
+        - The receiver needs to allow for dynamic dispatch, e.g. `&self` or `&mut Self`, and types implementing `DispatchFromDyn`.
+        - Parameters and return types must not be an inferable type, meaning they may not be an impl trait type.
         - May not have a sized bound on the receiver (`Self is Sized` implies this).
     - Explicit non-dispatchable functions require:
         - Have a sized bound on the receiver (`Self is Sized` implies this).
@@ -1996,16 +1990,16 @@ These are:
 ### 7.12.2. Supertraits [↵](#712-trait-)
 
 A 'super trait' is a trait that is required to be implemented by a type to implement a specific trait.
-Aneywhere a generic or interface object is bounded by a trait, it is also bound by that trait's supertraits.
+Anywhere a generic or interface object is bounded by a trait, it is also bound by that trait's supertraits.
 
-Supertraits are declared as a trait bound on the `Self` type, and transitively the supertraits of traits declared in those trait bounds.
-The can either be defined as a bound directly on the trait, or to `Self` in a where clause.
+Supertraits are declared as a trait bound on the `Self` type, and transitively the supertraits of traits declared in their trait bounds.
+They can either be defined as a bound directly on the trait, or to `Self` in a where clause.
 A trait cannot be its own supertrait, and they cannot form any cyclical supertrait dependence.
 
 ### 7.12.3. Unsafe traits [↵](#712-trait-)
 
 Traits can be declared as `unsafe`.
-Unsafe traits come with additional requirements that the programmer needs to guarantee to follow.
+Unsafe traits come with additional requirements that the programmer needs to guarantee is being followed follow.
 
 ### 7.12.4. Visibility [↵](#712-trait-)
 
@@ -2027,18 +2021,18 @@ There are 2 types of implementations:
 <inherent-impl> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'impl' [ <generic-params> ] <type> [ <where-clause> ] '{' { <assoc-item> }* '}'
 ```
 
-An inherent implementation is defined without specifying a trait to implements.
+An inherent implementation is defined without specifying a trait to implement.
 The type implementing is called the _implementing type_ and the associated itms are the _associated items_ of the implementing type.
 
-Inherent implementations assoicated hte contained items ot the implementing type.
+Inherent implementations associated hte contained items ot the implementing type.
 Inherent implementaions can support associated functions (including methods), properties, and constants.
 
-The path to an assoicated item is the path to the implementing type, followed by the associated item's identifier as the final component of the path.
+The path to an associated item is the path to the implementing type, followed by the associated item's identifier as the final component of the path.
 
 A type can also have multiple inherent implementations.
 An implementation for a type must be defined in the same library as the original type definition.
 
-If a visibility attribute is defined for the block, all items with in the block will default to that visibility and may not be lowered.
+If a visibility attribute is defined for the block, all items with in the block will default to that visibility.
 If `unsafe` is added to the block, then all functions within the block will be marked as unsafe.
 
 ### 7.13.2. Trait implementation [↵](#713-implementation-)
@@ -2047,23 +2041,23 @@ If `unsafe` is added to the block, then all functions within the block will be m
 <trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <assoc-item> }* '}'
 ```
 
-A `trait` implementation is defined like an inherent implementation, but also include the interface to be implemented.
+A `trait` implementation is defined like an inherent implementation, but also include the trait to be implemented.
 
-The trait is known as the _implemented trait_, and the implementing type implements the trait.
+The trait is known as the _implemented trait_, and the _implementing type_ implements the trait.
 
-A trait implementation must define all non-default associated types declared by the implemented trait and it can redefine (i.e. override) an item that has a default implementation.
+A trait implementation must define all non-default associated items declared by the implemented trait and it can redefine (i.e. override) an item that has a default implementation.
 It is not allowed to define any implementation that is not defined in the implemented trait.
 
 If an implemented trait contains an override for an associated function, but the implementing type has already implemented it by itself, the overriden default will be ignored.
 
 Unsafe traits require the `unsafe` keyword to be added to the implementation.
-`trait` implemetnations are not allowed to specify any visibility for items. 
+`trait` implementations are not allowed to specify any visibility for items. 
 
 #### Coherence
 
-A trait implemention is coherent when it can be be defined within the current library.
+A trait implementation is coherent when it can be be defined within the current library.
 
-A trait implemention is considered coherent if either the below rules aren't followed, or there are overlapping implementations.
+A trait implementation is considered coherent if either the below rules are followed, or there are overlapping implementations.
 
 Two trait implementations overlap when there is 2 implementations ca be instantiated for the same type.
 
@@ -2083,7 +2077,7 @@ The coherence rules require that the implementation `impl<P0..=Pn> T0 as Trait<T
 ```
 
 Associated items are items that can be defined in traits or implemetentations to be associated with the given trait or type.
-They are a subset of items that can be clared inside of a module.
+They are a subset of items that can be declared inside of a module.
 
 Associated items are useful when wanting to make items logically related to a given item.
 
@@ -2109,7 +2103,7 @@ Associated types can generally be split into 2 types:
 
 An associated trait type definition declared a signature for associated type implementation.
 They can include generic paramters, trait bounds and a where clause.
-When a trait bound is defined, it requires any type which can be used as the associated type to implement those traits
+When a trait bound is defined, it requires any type which can be used as the associated type to implement those traits.
 An implicit `Sized` trait is also bound on associated types, but can be relaxed using the `?Sized` bound.
 
 #### Associated type implementation
@@ -2119,8 +2113,8 @@ An implicit `Sized` trait is also bound on associated types, but can be relaxed 
 ```
 
 An associated type definition has a very similar syntax than that of a type alias, except is cannot define any generic paramters.
-If a type `Item` has an associated type `Assoc` from a trait `Trait`, then `path_to_trait_assoc_type` is a type tht is an alias to the type specificed in the associated type definition.
-Otherwise a the type can be accessed as `Item::Assoc`, this can also be used if there in only 1 trait implementation with an associated type with a given name.
+If a type `Item` has an associated type `Assoc` from a trait `Trait`, then `.[Item as Trait].Assoc` is a type that is an alias to the type specificed in the associated type definition.
+Otherwise a the type can be accessed as `Item.Assoc`, this can also be used if there in only 1 trait implementation with an associated type with a given name.
 
 ### 7.14.2. Associated constants [↵](#714-associated-items-)
 
@@ -2149,7 +2143,7 @@ They come in 2 kinds:
 - Regular functions associated with a type
 - Methods taking in a the type as a receiver
 
-For more info, ee the section about function at [7.3. Function](#73-function-)
+For more info, see the section about function at [7.3. Function](#73-function-)
 
 ## 7.15. External block [↵](#7-items-)
 
@@ -2173,7 +2167,7 @@ More info about [external functions](#736-external-function-qualifier-) and [sta
 ```
 
 A statement is a component of a block, which is in turn part of an outer expression or a functions.
-Statements differ from expressions, as they do not return a value and can only directly exist within a scope
+Statements differ from expressions, as they do not return a value and can only directly exist within a scope.
 
 ## 8.1. Item statement [↵](#8-statements-)
 
@@ -2181,8 +2175,8 @@ Statements differ from expressions, as they do not return a value and can only d
 <item-stmt> := <item>
 ```
 
-An item statement is a itemswhich can be defined within a block.
-Declaring them at a location a statement can be defined limits their definition to the block they belong to.
+An item statement is a items which can be defined within a block.
+Declaring them at a location other than inside a module, and limits their definition to the block they belong to.
 As such, they cannot be referenced outside of the specific scope they are declared in.
 
 They may implicitly capture generics from an outer scope, unless they are shadowed by the generic with the same name by the item.
@@ -2190,7 +2184,8 @@ They may implicitly capture generics from an outer scope, unless they are shadow
 ## 8.2. Variable declaration [↵](#8-statements-)
 
 ```
-<var-decl> := 'let' <pattern-top-no-alt> [ ':' <type> ] [ '=' <expr> [ 'else' <block-expr> ] ] ';'
+<var-decl> := 'let' <pattern-top-no-alt> ':' <type> [ '=' <expr> [ 'else' <block-expr> ] ] ';'
+            | 'let' <pattern-top-no-alt> ':=' <expr> [ 'else' <block-expr> ] ';'
 ```
 
 A variable declartion introduces a new variable withing a scope.
@@ -2202,7 +2197,7 @@ Any variable introduced will be visible until the end of the scope, unless they 
 
 A variable may also be declared as being unitialized, this requires:
 - An explicit type to be given
-- Only identifier or tuple patterns
+- Only identifiers or tuple patterns
 - The variable needs to be assigned a value in all possible paths that can reach the first use of that variable.
 
 A variable declaration may also contain an `else` block, allowing a refutable pattern.
@@ -2219,8 +2214,8 @@ If an `else` block is not present, the pattern needs to be irrefutable.
 An expressions statement evaluated a given expression and ignored the result.
 As a rule, an expression statement's purpose is to trigger the effects of evaluating its expression.
 
-If an expression ends with a block, if used in a context where a statement is permitted, the trailing semicolon can be omitted.
-This could lead to ambiguity when this can be parsed as both part of a larger expression or as a standalone expression, it will be parsed as a statement.
+If an expression ends with a block, and if used in a context where a statement is permitted, the trailing semicolon can be omitted.
+This could lead to ambiguity, when this can be parsed as both part of a larger expression or as a standalone expression, it will be parsed as a statement.
 
 The return type of an exprssion used in a statement must be a unit type.
 
@@ -2234,18 +2229,18 @@ The return type of an exprssion used in a statement must be a unit type.
 <err-defer-capture> := '|' [ 'mut' ] <name> '|'
 ```
 
-A defer expressions delays the execution of an expression until the end of the scope, but before any destructors are being run.
+A defer expressions delays the execution of an expression until the end of the scope, but before any varialbes are being dropped.
 Defers ere evaluated in the reverse order they are called, in a so-called LIFO (Last-In First-Out) order.
 
 ### 8.4.1. Defer-on-error statement [↵](#841-defer-on-error-statement-)
 
 A defer-on-error statement is a variation of a defer statement.
-Unlike its normal defer statement, only defers when the function is returned by either a [propagating try operator](#1431-propagating-try-) or a [throw expression](#927-throw-expression-).
+Unlike a normal defer statement, it only defers when the function is returned by either a [propagating try operator](#1431-propagating-try-) or a [throw expression](#927-throw-expression-).
 Defer-on-error will only be evaluated if the error defer is in the current scope, meaning that if a scope is exited, the defer-on-error will not be executed when one of the above expressions are used.
 
 Evaluating error defers can be avoided by explicitly returning an erronous value.
 
-A defer on error statement can also capture a reference of mutable reference of the resulting error to be used inside of the error defer's body.
+A defer-on-error statement can also capture a reference of mutable reference of the resulting error to be used inside of the error defer's body.
 
 # 9. Expressions [↵](#tables-of-contents)
 
@@ -2285,19 +2280,19 @@ Expressions are to do 2 things:
 - produce a side-effect
 
 Each expression will return the value produced by it, while also applying any effect during evaluation.
-An expression ca contain multiple sub-expressions, which are called the operands of an expression.
+An expression can contain multiple sub-expressions, which are called the operands of an expression.
 
 Each expression dictates the following:
-- Whether or not to evaluate teh operands when evaluating the expression.
+- Whether or not to evaluate the operands when evaluating the expression.
 - The order in which to evaluate the operands
-- How to combine the operands' values to obtain the value of the expression
+- How to combine the operands' values to obtain the value of the expression.
 
 In this way, the structure of the expression dictates the structure of execution.
 
 For information about the precedence of expression, see the [precedence section](#15-precedence-).
 
 In general, the operands of an expression will be evaluated before any side-effects will be applied, and the operands are evaluated from left to right.
-Each expression will define if and in which order there expressions are evaluated, if they deviate from this order.
+Each expression that deviates from this order, will define if and in which order there expressions are evaluated.
 
 ## 9.1. Expression details [↵](#9-expressions-)
 
@@ -2313,7 +2308,7 @@ The evaluation of an expression depends both on its own category and the context
 
 #### Place expressions
 
-A place expressions represents an expression that point to a location in memory.
+A place expression represents an expression that points to a location in memory.
 
 They refer to the following expressions:
 - Local variable, like a path
@@ -2323,7 +2318,7 @@ They refer to the following expressions:
 - Field references
 - Parenthesized place expressions
 - Any call (function and operator) that results in a place expression
-- Any propery resulting in a place expression
+- Any property resulting in a place expression
 
 #### Assign expressions
 
@@ -2340,7 +2335,7 @@ They refer to the following expressions:
 
 #### Value expressions
 
-A value expression is any other expressions.
+A value expression is any other expression.
 
 ### 9.1.2. Moved & copied types [↵](#91-expression-details-)
 
@@ -2349,10 +2344,10 @@ If the type is copyable, then the value will be copied, otherwise if the value i
 Only the following place expressions can be moved out from:
 - variables that are not currently borrowed
 - temporary fields
-- fields of place expressions that can be moved out of, if the field is does not need to be dropped or used in a drop implementation, i.e. if the field can be partially moved
+- fields of place expressions that can be moved out of, if the field does not need to be dropped or used in a drop implementation, i.e. if the field can be partially moved
 - Result of a expressions that supports moving out of. _TODO: This needs a good API_
 
-After moving out of a place expression that evaluates a local expression, the location is deinitialized and cannot be read from again until it is reinitialized.
+After moving out of a place expression that is evaluated in a local expression, the location is then deinitialized and cannot be read from again until it is reinitialized.
 
 In all other places, a place expression in a value expression will result in an error.
 
@@ -2377,7 +2372,7 @@ The temporary value will then be used as the place expressions and will be dropp
 
 ### 9.1.5 Implicit borrows [↵](#91-expression-details-)
 
-Certain expressions will treat an expression as a place expression by implicitly borrow it.
+Certain expressions will treat an expression as a place expression by implicitly borrowing it.
 
 Implicit borrowing takes place in the following expressions:
 - Left operand in a method call
@@ -2406,10 +2401,10 @@ Literal expressions also allow a special literal operator to be applied to them,
 ```
 
 A path expression uses a path to refer to a local variable or item.
-Path expressions referencing local or static variables are place expression, all other path expressions are value expressons.
+Path expressions referencing local or static variables are place expression, all other path expressions are value expressions.
 
 A path may also refer to an inferred path, which is represented by a `.`, followed by a name.
-This is currently limited to plain enum members of enum types that can be inferred.
+This is currently limited to plain enum members when the enum type can be inferred from the surrounding context.
 
 
 ## 9.4. Unit expression  [↵](#9-expressions-)
@@ -2418,7 +2413,7 @@ This is currently limited to plain enum members of enum types that can be inferr
 <unit-expr> := '(' ')'
 ```
 
-A unit expressions is an empty expressions that does nothing and return a unit type.
+A unit expressions is an empty expression that does nothing and returns a unit type.
 
 ## 9.5. Block expression  [↵](#9-expressions-)
 
@@ -2426,31 +2421,29 @@ A unit expressions is an empty expressions that does nothing and return a unit t
 <block-expr> := [ 'unsafe' | 'const' | 'try' | 'try!' ] <block>
 ```
 
-A block expression creates a new anonymous scope witin an expression, allowing more than just expressions to be defined in a location normally only an expressions would be allowed.
+A block expression creates a new anonymous scope within an expression, allowing more than just expressions to be defined in a location normally only a single expressions would be allowed.
 A block executes its non-item components and then its last optional expression.
-Any items or local variable in the scope only live for the lenght of the scope and are not accessible outside of the scope.
+Any items or local variable in the scope only live for the length of the scope and are not accessible outside of the scope.
 
 The block can contain a final expression that is not ended by a semicolon, this will implicitly return its value from the block.
-
-There are 2 special types of block expressions:
-- `unsafe`: they allow expression that are normally only allowed in unsafe contexts
-- `const`: their contents is resolved at compile time.
 
 Blocks allow for the arbitrary nesting of code, meaning that it allows statements, expressions, and items.
 
 Blocks are always value expressions.
 
+There are 3 special types of block expressions star:
+
 ### 9.5.1. Unsafe block [↵](#95-block-expression--)
 
-An unsafe block will run the entirety of its code within an unsafe constext, allowing unsafe operation to be called within it.
+An `unsafe` block will run the entirety of its code within an unsafe constext, allowing unsafe operation to be called within it.
 
 ### 9.5.2. Const block [↵](#95-block-expression--)
 
-A constant block will execute its code at compile time and will become an inline constant value after compilation.
+A constant block (`const`) will execute its code at compile time and will become an inline constant value after compilation.
 
 ### 9.5.3. Try blocks [↵](#95-block-expression--)
 
-A try block, indicated by either `try` or `try!`, will implicitly apply the either the `?` or `!` try operator in each expression that can return an erronous value, respectively.
+A `try` block, indicated by either `try` or `try!`, will implicitly apply the either the `?` or `!` try operator in each expression that can return an erronous value, respectively.
 
 ## 9.6. Operator expression  [↵](#9-expressions-)
 
@@ -2472,7 +2465,7 @@ For additional info on operators, check the [Operator section](#14-operators-).
 <paren-expr> := '(' <expr> ')'
 ```
 
-A parenthesized epxression wraps a single expression, allowing the expression to be evaluated before any other expressions that are outside of the parentheses will be executed.
+A parenthesized expression wraps a single expression, allowing the expression to be evaluated before any other expressions that are outside of the parentheses will be executed.
 
 Parenthesized expressions can be both place and value expressions, depending on the expression within parentheses.
 
@@ -2487,7 +2480,7 @@ Parentheses explicitly increase the precedence of this expression above that of 
 In some occasions, it might be preferable to directly write to the assignee, without creating an temporary value on the stack first, particularly for large types.
 An in-place assignment expession allows a value to be directly writtin inside of an assignee expressions.
 
-Currently the expressions allows to be used for in-place assignments are limited to so called 'constructing expressions`.
+Currently the expressions allows to be used for in-place assignments are limited to so called [constructing expressions](#911-constructing-expression--).
 
 > _Note_: might need some syntax to pass arguments through to functions
 
@@ -2505,9 +2498,9 @@ Executing the expression will cast the value on the left hand side to the type o
 
 ### 9.9.1. Builtin casts [↵](#99-type-cast-expression--)
 
-The builtin cast `as` can be used to explicilty perform coercions, as well as the follwoing casts.
-Any cast that does not fis eitehr a coercion rule or an entry in the table is a compiler error.
-Here `*T` means either `*const T` or `*mut T`. `m_` stands for an optional `mut` in referecne types and `mut` or `const` in pointer types.
+The builtin cast `as` can be used to explicitly perform coercions, as well as the following casts.
+Any cast that does not fit either a coercion rule or an entry in the table below is a compiler error.
+Here `^T` means either `^T` or `^mut T`. `m_` stands for an optional `mut` in reference and pointer types.
 
 Type of `e`               | `U`                                 | Cast performed by `e as U`
 --------------------------|-------------------------------------|----------------------------
@@ -2515,18 +2508,18 @@ Integer or Float type     | Integer or float type               | Numeric cast
 Enumeration               | Integer type                        | Enum cast
 Boolean or character type | Integer type                        | Primitive to integer cast
 Integer type              | Character type                      | Integer to character cast
-`*T`                      | `*U` where `U` is sized *           | Pointer to pointer cast †
-`*T` where `T` is sized   | Integer type                        | Pointer to address cast †
-`&m1 T`                   | `*m2 T` **                          | Reference to pointer cast †
-`&m1 [T; N]`              | `*m2 T` **                          | Array to pointer cast †
+`^T`                      | `^U` where `U` is sized *           | Pointer to pointer cast †
+`^T` where `T` is sized   | Integer type                        | Pointer to address cast †
+`&m1 T`                   | `^m2 T` **                          | Reference to pointer cast †
+`&m1 [T; N]`              | `^m2 T` **                          | Array to pointer cast †
 Function item             | Function pointer                    | Function item to function pointer cast †
-Function item             | `*U` where `U` is sized             | Function item to pointer cast †
+Function item             | `^U` where `U` is sized             | Function item to pointer cast †
 Function item             | Integer                             | Function item to address cast †
-Function pointer          | `*U` where `U` is sized             | Function pointer to address cast †
+Function pointer          | `^U` where `U` is sized             | Function pointer to address cast †
 Function pointer          | Integer                             | Function pointer to address cast †
 Closure ***               | Function pointer                    | Closure to function pointer cast †
 `T`                       | Opaque type                         | Type to opaque cast
-`*T`                      | `*U` where 'U' is an opaque type    | Type to opaque cast
+`^T`                      | `^U` where 'U' is an opaque type    | Type to opaque cast
 `&m1T`                    | `&m2 U` where 'U' is an opaque type | Type to opaque cast
 
 \* or `T` and `U` are compatible unsized types, e.g. both slices, both are the same interface 
@@ -2550,9 +2543,9 @@ _NOTE: casting an integer type to a pointer is only allowed via the appropriate 
   - Values larger than the maximum value, including `INFINITY`, will saturate to the maximum value of the integer type
   - Values samller than the minimum integer value, including `-INFINITY`, will saturate to the minimum value of the integer type
 - Casting from an integer to a floating point will produce the closest possible float *
-  - if necessary, rounding is accoring to `roundTiesToEven` mode ***
-  - on overflow, infinity (of the same sign as the input) is produces
-  - note: with teh current set of numeric types, overflow can only happen on `u128 as f32` for values greater or equal to `f32::MAX + 0.5`
+  - if necessary, rounding is according to `roundTiesToEven` mode ***
+  - on overflow, infinity (of the same sign as the input) is produced
+  - note: with the current set of numeric types, overflow can only happen on `u128 as f32` for values greater or equal to `f32::MAX + 0.5`, for for casts to an `f16`
 - Casting from an f32 to an f64 is perfect and lossless
 - Casting from an f64 to an f32 will produce the closest possible f32 value **
   - if necessary, rounding according to `roundTiesToEven` mode ***
@@ -2566,19 +2559,19 @@ _NOTE: casting an integer type to a pointer is only allowed via the appropriate 
 
 #### Enum cast semantics
 
-Casts from an enum to its distriminant, then uses a numeric cast is needed. Casting is limited to the following kinds of enumerations:
+Casts from an enum to its distriminant, then uses a numeric cast if needed. Casting is limited to the following kinds of enumerations:
 - Unit-only enums
-- Field-less enums without explicit discriminants, or werhe only unit variants have explicit discriminants
+- Field-less enums without explicit discriminants, or where only unit variants have explicit discriminants
 - Flag enums
 
 #### Primtive to integer cast semantics
 
 - `false` casts to 0, `true` casts to 1.
-- character types cast to the value of the code point, then uses a numeric cast is needed.
+- character types cast to the value of the code point, then uses a numeric cast if needed.
 
 #### Integer to character cast semantics
 
-Casts an integer type corresponding to the size of the character type, then cast to a character type with the corresponding code point.
+Casts an integer type corresponding to the size of the character type, then cast to a character type with the corresponding codepoint.
 
 #### Pointer to address casts semantics
 
@@ -2587,20 +2580,20 @@ If the integer type is smaller than the pointer type, the address may be truncat
 
 #### Pointer-to-pointer semantics
 
-`*const T`/`*mut T` can be cast to `*const U`/`*mut U` with the following behavior:
+`^T`/`^mut T` can be cast to `^U`/`^mut U` with the following behavior:
 - If `T` and `U` are both sized, the pointer returned is unchanged.
 - If `T` and `U` are both unsized, the pointer is also returned unchanged. In particular, the metadata is preserved exactly.
   If `T` and `U` are objects, this does require that they are compatible types, e.g. same non-marker interfaces.
 
-  For instance, a cast from `*const [T]` to `*const [U]` preserves the number of elements.
-  Note that, as a consequence, such casts do not neccesarily preserve the size of the pointer's referent (e.g. casting `*const [u16]` to `*const [u8]`) will result in a raw pointer which refers to an object of half the size of the original).
+  For instance, a cast from `^[T]` to `^[U]` preserves the number of elements.
+  Note that, as a consequence, such casts do not neccesarily preserve the size of the pointer's reference (e.g. casting `^[u16]` to `^[u8]`) will result in a raw pointer which refers to an object of half the size of the original.
   The same holds for `str` and any compound type whose unsized tail is a slice type, such as `struct Foo(i32, [u8])` or `(u64, Foo)`
-- If `T` is unsized and `U` is sized, the cast discards all metadata that completes the wide pointe `T` and produces a thin ponter `U` consisting of hte data part of the unsized pointer.
+- If `T` is unsized and `U` is sized, the cast discards all metadata that completes the wide pointer `T` and produces a thin ponter `U` consisting of the data part of the unsized pointer.
 
 ### 9.9.2. Try and unwrap casts [↵](#99-type-cast-expression--)
 
-A try cast `as?` can be used to cast a type from an interface object, impl interface object, or a generic to a given type, returning an optional type with valid value when the cast is possible and a `None` when it's not.
-This can therefore be used to dynamically handle code based on a type when RTTI info is avaiable.
+A try cast `as?` can be used to cast a type from an interface object, impl interface object, or a generic to a given type, returning an optional type with a valid value when the cast is possible and a `None` when it's not.
+This can therefore be used to dynamically handle code based on a type when RTTI info is available.
 
 An unwrap cast `as!` is similar to a try cast, but meant for in usecases the user is certain that the cast is possible, as it will unwrap the resulting nullable type.
 This could also be written as `(a as? T)!`.
@@ -2634,7 +2627,7 @@ Any cast that happens on a generic or impl interface object will be resolved at 
 ```
 
 A constructing expression constructs a new instance of a type.
-This consists of a group of multiple expressions and can be used 
+This consists of a group of multiple expressions and can also be used in [in-place expressions](#98-in-place-expression--).
 
 ### 9.11.1. Tuple expression [↵](#911-constructing-expression--)
 
@@ -2645,7 +2638,7 @@ This consists of a group of multiple expressions and can be used
 A tuple expression constructs a tuple value.
 
 The construction exists out of a comma separated list of values that need to be placed within the tuple.
-Since 1-ary tuples are not supported, if the expression only contains 1 operand, it will be interpreted as a parenthesized expression.
+Since 1-ary tuples are not supported, if the expression only contains 1 operand, it will be interpreted as a [parenthesized expression](#97-parenthesized-expression--).
 Similarly if the expressions contains 0 operands, a unit type will be created.
 
 The number of operands within the tuple initializer defines the arity of the tuple.
@@ -2662,7 +2655,7 @@ Tuple expressions are value expressions.
 <array-count-expr> ;= '[' <expr> ';' <expr> ']'
 ```
 
-An array expression constructs arrays, an come in 2 forms.
+An array expression constructs arrays, and come in 2 forms.
 
 The first form lists out all values in the array, this is represented as a comma separated list of expressions.
 Each expression is evaluated in the order that they are written, i.e. left-to-right.
@@ -2670,7 +2663,7 @@ Each expression is evaluated in the order that they are written, i.e. left-to-ri
 The second form consists out of 2 expression separated by a `;`.
 The expression on the left is called the 'repeat' operand, the expression on the right the 'count' operand.
 The count operand must be able to be evaluated at compile time and have a `usize` type.
-This form creates an array with a length of the value of the cound operand, with each value being a copy of the value evaluated from the repeat operand.
+This form creates an array with a length of the value of the count operand, with each value being a copy of the value evaluated from the repeat operand.
 This means that `[a;b]` create an array of `b` elements with the value `a`.
 If the value of the count operand is larger than 1, the repeat operand must be copyable or must point to a constant item.
 
@@ -2686,17 +2679,17 @@ Creating a multi-dimensional array can be done by nesting array expressions with
 ```
 
 A struct expression creates a structure, enum, or union value.
-There are 3 forms of this expression, corresponding in the 3 types it can create
+There are 3 forms of this expression, corresponding in the 3 types it can create.
 
 #### Struct (& union) expression
 
 A struct expressions with fields enclosed in curly braces allows the specifying of values for each individual field in the structure.
 
-A unions is created as a struct expression with only a single field.
+A union is created as a struct expression with only a single field.
 
 ##### Functional update syntax
 
-An struct expression tha constructs a value of a struct type can terminate with a `..` followed by an expression.
+An struct expression that constructs a value of a struct type can terminate with a `..` followed by an expression.
 This entire expression uses the given values for fields that were specified and moved or copies the remaining fields from the base expression.
 As with all struct expressions, all of hte views of tghe struct must be visble, even those not explicitly named.
 
@@ -2737,18 +2730,18 @@ When the expression being indexed is either an array or a slice, it will get the
 If the array of slice is mutable, the resulting value will be memory location that can be assigned to.
 
 Indices are 0-based for arrays and slices.
-If array access is a constant expression, bounds can be checked at compile-time, otherwise the check will be performed at runtime and will panic when being indexed out of range
+If array access is a constant expression and the array has a known size, bounds can be checked at compile-time, otherwise the check will be performed at runtime and will panic when being indexed out of range/
 
 For any other type, the resulting indexing will depend on whether the index implementation returns a reference or not.
 
 For all other types, the following operations will happen:
 - In an immutable place context, the resulting value will be `Index::index(&a, b)`.
 
-  If the index implementation were to return a refernce, it would be implicitly dereferenced.
+  If the index implementation were to return a reference, it would be implicitly dereferenced.
 
 - In a mutable place context, the resulting value will be `*IndexMut::index_mut(&a, b)`.
 
-Indexing allows comma expressions to be passed, this will implicitly converted to an index call taking in a tuple of expressions.
+Indexing allows comma expressions to be passed, this will implicitly be converted to an index call taking in a tuple of expressions.
 
 The interfaces associated with the index expressions are:
 - `Index`
@@ -2762,10 +2755,10 @@ The interfaces associated with the index expressions are:
 
 A tuple index expressions is used to access fields within a tuple type (a tuple or tuple structure).
 
-A tuple is indexed using an unsigned decimal literal, wit h no leading zeros or underscores.
+A tuple is indexed using an unsigned decimal literal, with no leading zeros or underscores.
 
 Evaluation of a tuple has no side-effects, other than the evaluation of the tuple operand.
-This expressions is a place expression, so it evaluateds to the location of tuple field with the same name as the tuple index.
+This expressions is a place expression, so it evaluates to the location of tuple field with the same name as the tuple index.
 
 ## 9.14. Call expression [↵](#9-expressions-)
 
@@ -2775,16 +2768,16 @@ This expressions is a place expression, so it evaluateds to the location of tupl
 <func-args> := [ <name> ':' ] <expr>
 ```
 
-A call expessions call a function.
+A call expessions calls a function.
 
 The expression will complete when the function returns.
 If the function return a value, this value will be returned, this function is therefore a place or value expression, depending on the returned value.
 
 The function expression can be called if it follows either of the following cases
-- The expression is function or function pointer expr type.
-- The expression is of a value that implement one of the relavent function interfaces.
+- The expression is of a function or function pointer type.
+- The expression is of a value that implement one of the relevant function interfaces.
 
-If needed, an automatic borrow of the function expression is takes.
+If needed, an automatic borrow of the function expression is taken.
 
 An argument can have an additional function argument label in case the function requires one.
 Any default arguments do not need to be provided and will be evaluated after evaluating the supplied operands, in the order they were defined in the signature.
@@ -2795,10 +2788,10 @@ Arguments are evaluated in the order they are written. i.e. left-to-right.
 
 All function calls support UFCS, meaning that for method calls, if they are called as normal functions, the receiver is passed as the first argument to the function and has an optional 'self' label.
 
-Several situation can occur with result in ambiguities of which function is being called.
+Several situation can occur which result in ambiguities of which function is being called.
 This situation only will happen when the first argument is unlabeled, as a receiver is unlabeled, and may occur when:
 - Multiple in-scope interfaces define methods with the same name, and parameters for the same types.
-- Auto-`deref` is undesireable; for example, distinguishing between methods on a smart pointer itself and their pointer's referent,  
+- Auto-`deref` is undesireable; for example, distinguishing between methods on a smart pointer itself and their pointer's reference,  
 - Methods which take no arguments and return properies of types.
 
 To resolve the ambiguity, the programmer may refer to their desired method or function using more specific paths, types, or interfaces.
@@ -2809,9 +2802,9 @@ To resolve the ambiguity, the programmer may refer to their desired method or fu
 <method-call-expr> := <expr> '.' <name> '(' ( <func-args> )? ')'
 ```
 
-A method call constists of an expression (the 'receiver') followed dot, and identifier, and a set of function arguments.
+A method call constists of an expression (the 'receiver') followed by a dot, an identifier, and a set of function arguments.
 Methods calls are resolved to associated methods on specific interfaces, either statically dispatching to a method if the exact self-type of the left hand-size is known,
-or dynamically dispatching if the left-hand-side expression is an indidirect interface object.
+or dynamically dispatching if the left-hand-side expression is an indirect interface object.
 
 When looking up a method call, the receiver may be automatically dereferenced or borrowed in order to call a method.
 This requires a more complex lookup process than for other functions, since there may be a number of possible methods to call. The following procedure is used:
@@ -2827,15 +2820,15 @@ This requires a more complex lookup process than for other functions, since ther
    3. All remaining methods scopes are looked up.
 3. Pick the methods matching the arguments.
 
-> _Note_: more detailed info about argument resolution, check the function definition item
+> _Note_: more detailed info about argument resolution and conflicts, check the [function definition item](#73-function-)
 
 If this results in multiple possible candidates, then it is an error, and the receiver must be converted to an appropriate receiver type to make the method call.
 
 This process does not take into account the mutability of the receiver, or whether a method is `unsafe`.
 Once a method is looked up, if it can't be called for one (or more) of those reasons, it will result in a compiler error.
 
-If a step is reacehhd where there is more than one possible methods, such as where generic methods or interfaces are considered the same, the it is a compiler error.
-These cases requre a disambiguating function call syntax for metods and functon invocations.
+If a step is reached where there is more than one possible methods such as where generic methods or interfaces are considered the same, then it is a compiler error.
+These cases require a disambiguating function call syntax for metods and function invocations.
 
 An argument can have an additional function argument label in case the function requires one.
 Any default arguments do not need to be provided and will be evaluated after evaluating the supplied operands, in the order they were defined in the signature.
@@ -2853,7 +2846,7 @@ Field expression cannot be followed by an opening parenthesis, as this would be 
 
 A field can be accessed in 2 ways:
 - A direct field access using `.`: this will just access the field
-- A 'err'-checked field access using `?.`: this will eitehr access the field if the left-hand-side expression is valid, in case of an erronous value, it will just return the value of the expression.
+- A 'err'-checked field access using `?.`: this will either access the field if the left-hand-side expression is valid, in case of an erronous value, it will just return the value of the expression.
 
 The pseudo-access `!.` is actually an unwrap operator, followed by a field access.
 
@@ -2865,7 +2858,7 @@ This process is also called 'autoderef' for short.
 ### 9.16.2. Borrowing [↵](#916-field-access-)
 
 The field of a struct or a reference to a struct are treated as separate entities when borrowing.
-If the struct does not implement `Drop` and iis stored in a local variable, this also applies to moving out of each of its fields.
+If the struct does not implement `Drop` and is stored in a local variable, this also applies to moving out of each of its fields.
 This also does not apply if automatic dereferencing is done through user defined types that don't support this.
 
 ## 9.17. Closure expressions [↵](#9-expressions-)
@@ -2878,21 +2871,21 @@ This also does not apply if automatic dereferencing is done through user defined
 
 A closure expression, also known as a lambda expression, a lambda, or a functor in some languages, defines a closure type and evaluates to a value of that type.
 Each parameter can have an optional type, but this can be infered depending on the location the closure is defined.
-If there is a return type, the closure must have a block.
+If there is an explicit return type, the closure must have a block.
 
-A closure expression denotes a function that maps a list of parameters onto the expression that follows the paramters.
-Just like a `let` binding, the closure paramters are irrefutable patterns, whose type annotation is optional and will be inferred from context if not given.
+A closure expression denotes a function that maps a list of parameters onto the expression that follows the parameters.
+Just like a `let` binding, the closure parameters are irrefutable patterns, whose type annotation is optional and will be inferred from context if not given.
 Each closure expression has a unique, anonymous type.
 
 Significantly, closure expressions capture their environment, which regular function definitions do not.
 Without the `move` keyword, the closure expression infers how it captures each variable from its environment, preferring capture by shared reference, effectively borrowing all outer variables mentioned inside the closure's body.
-If needed, the compiler will infer that insted of mutable references should be taken, or that the values should be moved or copied (depending on their type) from the environment.
+If needed, the compiler will infer that instead of mutable references should be taken, or that the values should be moved or copied (depending on their type) from the environment.
 A closure can be forced to capture its environment by copying or moving valures by prefixing it with the `move` keyword.
 This is often used to ensure that the closure's lifetime is static.
 
 ### 9.17.1. Closure trait implementations [↵](#917-closure-expressions-)
 
-Which trait a closure type implements depends on how variables are captured and the typesss of the captured expression.
+Which trait a closure type implements depends on how variables are captured and the types of the captured expression.
 See the call trait section for how and when a closure implements the respective trait.
 
 ## 9.18. Range expression [↵](#9-expressions-)
@@ -2938,17 +2931,17 @@ If the condition operand evaluates to `true`, the consequent block is executed a
 If the condition operand evaluates to `false`, the consequent block is skipped and the subsequenct `else if`  condition is evaluate.
 If all `if` and `else if` conditons evaluated to `false`, then any `else` block is executed.
 An `if` expression evaluates to the same value as the executed block, or `()` if no block is evaluated.
-An `if` expression must have the sae type in all situations.
+An `if` expression must have the same type in all situations.
 
 When a constant experession used for the condition operand, the `if` will be essentially eliminated, depending on the result of the value.
 
-When any branch returns a value, all possible branches should return the same value.
+When any branch returns a value, all possible branches should return the value a value with the same type.
 
 ### 9.19.1 If let [↵](#919-if-expression-)
 
-In addition to general expression, the `if` expressions also supported let bindings.
-A let binding will be true if the scrutinee matches the pattern matches the pattern.
-When a pattern matches, the bound variable will be accessible within the consequent block.
+In addition to general expression, the `if` expressions also support `let` bindings.
+A `let` binding will be true if the scrutinee matches the pattern.
+When a pattern matches, the bound variable will be available within the consequent block.
 
 Multiple pattens may be specified using the `|` operator.
 This is the same semantics as with `|` in `match` expressions.
@@ -2964,7 +2957,7 @@ Xenon supports five loop expressions:
 - a `for` expression extracting a value from an interator, looping until the iterator is empty
 - a labelled block expression running a loop exactly once, but allowing the loop to exit early with `break`
 
-All six types of loop expression support `break` expressions and labels.
+All five types of loop expression support `break` expressions and labels.
 All except labelled block expressions support `continue` expressions.
 Only `loop` and labelled block expressions support evaluating to non-trivial values.
 
@@ -2977,7 +2970,7 @@ Only `loop` and labelled block expressions support evaluating to non-trivial val
 A `loop` expression repeats execution of a body continuously.
 
 A `loop` expression without an associated `break` expression is diverging and has type `!`.
-A loop expression containing associated `break` expressions will terminate, and must be type compatible with the value of the `break` expressions.
+A loop expression containing an associated `break` expressions can terminate, and must be type compatible with the value of the other `break` expressions.
 
 ### 9.20.2. While expression [↵](#920-loops-)
 
@@ -2986,7 +2979,7 @@ A loop expression containing associated `break` expressions will terminate, and 
 ```
 
 A `while` loop begins by evaluating the loop condition operand.
-If the loop conditional operand evaluates to true, the loop block executes, the control return to the loop conditional operand.
+If the loop conditional operand evaluates to `true`, the loop block executes, the control return to the loop conditional operand.
 If the loop conditional expression evaluates to `false`, the `while` expression completes.
 
 A while loop can also have an increment expression, this is followed after the branch condition, and separated by a ';'.
@@ -2996,7 +2989,7 @@ The increment can be used emulated C-style for-loops.
 #### While let
 
 In addition to a general expression, the `while` expression also supports let bindings.
-A let binding will be true if the scrutinee matches the pattern matches the pattern.
+A let binding will be `true` if the scrutinee matches the pattern matches the pattern.
 When a pattern matches, the bound variable will be accessible within the consequent block.
 
 Multiple pattens may be specified using the `|` operator.
@@ -3016,7 +3009,7 @@ This in only executed if the initial condition returns false, not when the loop 
 ```
 
 A `do while` loops begins by running the body of the loop at least once, after which the boolean loop condition operand is evaluated.
-If the loop conditional operand evaluates to true, the loop block executes, the control return to the loop conditional operand.
+If the loop conditional operand evaluates to `true`, the loop block executes, the control return to the loop conditional operand.
 If the loop conditional expression evaluates to `false`, the `do while` expression completes.
 
 ### 9.20.4. For expression [↵](#920-loops-)
@@ -3026,13 +3019,13 @@ If the loop conditional expression evaluates to `false`, the `do while` expressi
 ```
 
 A `for` expression is a syntactic construct for looping over elements provided by an implementation of `IntoIterator`.
-If the iterator yields a value, that value is matched against the irrefutable pattern, the body of hte loop is executed, and then control returns to the head of the `for` loop.
+If the iterator yields a value, that value is matched against the irrefutable pattern, the body of the loop is executed, and then control returns to the head of the `for` loop.
 If the iterator is empty, the `for` expression completes.
 
 #### For else
 
 In some cases, it can be useful to execute some different code if a for loop fails to enter its first iteration, therefore a `for` loop can be followed by an `else`.
-This in only executed if the no values are iterated over, not when the loop breaks on a subsequent iteration.
+This in only executed if no values are iterated over, not when the loop breaks on a subsequent iteration.
 
 ### 9.20.5. Labelled block expressions [↵](#920-loops-)
 
@@ -3067,15 +3060,15 @@ The scrutinee expression and the patterns must have the same type.
 
 A `match` behaves differently depending on whether or not the scrutinee expression is a place or value expression.
 If the scrutinee expression is a value expression, if is first evaluated into a temporary location, and the resulting value is subsequently compared to the patterns in the arms until a match is found.
-The first arm with a matching pattern is chosen as the branch target of the `match`, any variables bound  by the patten are assigned to local variables in the arm's block, and control enters the block.
+The first arm with a matching pattern is chosen as the branch target of the `match`, any variables bound by the patten are assigned to local variables in the arm's block, and control enters the block.
 
 When the scrutinee is a place expression, the match does not allocate a temporary location; however, a by-value binding may copy or move from the memory location.
-When possible, it is preferable t omatch on place expressions, as the lifetie of these matches inherits the lifetime of the place expression rather than being restricted to the inside of the match.
+When possible, it is preferable to match on place expressions, as the lifetime of these matches inherits the lifetime of the place expression rather than being restricted to the inside of the match.
 
 Variables bound within the pattern are scoped to the match guard and the arm's expression.
 The binding mode (move, copy, or reference) depends on the pattern.
 
-Multiple match patterns may be joinded with the '|' operator.
+Multiple match patterns may be joined with the `|` operator.
 Each pattern will be tested in a left-to-right sequence until a successful match is found
 
 Every binding in each `|` separated pattern must appear in all of the patterns in the arm.
@@ -3092,7 +3085,7 @@ Patten guards appear after the pattern and consts of a boolean expression.
 
 When the pattern matches successfully, the pattern guard expression is executed.
 If the expression evaluates to `true`, the pattern is successfully matched against.
-Otherwise, the next pattern including other matching with the `|` operator in the same arm is tested.
+Otherwise, the next pattern including other matching patterns with the `|` operator in the same arm are tested.
 
 A pattern guard may refer to the variable bound within the pattern they follow.
 Before evaluating the guard, this shared reference is then used when accessing the variable.
@@ -3138,6 +3131,7 @@ In the case a loop has an associated `break`, it is not consifered diverging, an
 
 When `continue` is encountered, the current iteration of the associated loop body is immediatally terminated, returning control to the loop head.
 These correspond to the following for given loops:
+- `while` loop: the head is the increment (if it exists), or the conditional expression controllering the loop (which also always follows the increment).
 - `while` and `do while` loop: the head is the conditional expression controlling the loop
 - iterator `for` loop: the head is the call expression controlling the loop
 - manual `for` loop: the head is the increment expression of the loop.
@@ -3151,8 +3145,8 @@ A `continue` expression is only permitted in the body of a loop.
 <fallthrough-expr> := 'fallthrough' ( <label> )?
 ```
 
-When a `fallthrough` is encountered, the current arm of a `match` will immediatelly terminate and the arm next arm will be evaluated next.
-If a label is given, the associated with the label will be evaluated instead.
+When a `fallthrough` is encountered, the current arm of a `match` will immediatelly terminate and the arm next arm will be evaluated.
+If a label is given, the arm associated with the label will be evaluated instead.
 
 ## 9.25. Return expression [↵](#9-expressions-)
 
@@ -3182,7 +3176,7 @@ The may only appear in the left-hand side of an assignment.
 
 Throw can be used to return an erronous value from a function returning an erronous-supporting type, and also evaluate all in-scope [defer-on-error statements](#841-defer-on-error-statement-).
 
-Unlike languages with exception, this expression can be seen as a 'fancy' return expression returning an erronous value, thus _not_ inflicting any unclear control flow.
+Unlike languages with exception, this expression can be seen as a 'fancy' return expression returning an erronous value, thus _not_ causing any unclear control flow.
 
 ## 9.28. Comma expression [↵](#9-expressions-)
 
@@ -3190,7 +3184,7 @@ Unlike languages with exception, this expression can be seen as a 'fancy' return
 <comma-expr> := <expr> { ',' <expr> }*
 ```
 
-Comma expressions are a set of expressions separated by commas,
+Comma expressions are a set of expressions separated by commas.
 It is a very niche expression type that has a very limited amount of places it can be used.
 
 ## 9.29. When expressions
@@ -3199,7 +3193,7 @@ It is a very niche expression type that has a very limited amount of places it c
 <when-expression> := 'when' <expr> <block> [ 'else' <expr-with-block> ]
 ```
 
-A when expression is similar to an if expressions, but comes with 2 fundamental differences
+A `when` expression is similar to an if expressions, but comes with 2 fundamental differences
 - The condition needs to be compile time, but can directly access feature and target configurations
 - The when expression does not produce a new scope, instead the content will be placed in the surrounding scope.
 
@@ -3225,7 +3219,7 @@ _Todo: this might be allowed outside of expressions in the future_
 
 ```
 
-Patterns are both used to match values, but also to optionally bind them (in case of uses like 'let ...', binding is the intended usecase).
+Patterns are both used to match values, but also to optionally bind them (in case of uses like `let ...`, binding is the intended usecase).
 
 Patterns can be used to destructure types like struct, enums, and tuples.
 Destructuring breaks up a value in its constituent elements.
@@ -3246,14 +3240,14 @@ Literal patterns match the exact value of the literal.
 <identifier-pattern> := [ 'ref' ] [ 'mut' ] <name> [ '@' <pattern> ]
 ```
 
-Identifier patterns bind the value they are matched to, to a variable of a given name.
+Identifier patterns bind the value they are matched to to a variable of a given name.
 This names needs to be unique within the pattern.
 This binding (newly created variable) is allowed to shadow any variable that is defined before the pattern.
 The scope of the binding depends on the location of where the pattern is used.
 
-'mut' can be added to make the resulting binding mutable in code.
-'ref' can be added to take reference to the element being matched, instead of moving or copying it on match.
-'ref' must be used instead of '&' as it actually does the oposite of this.
+`mut` can be added to make the resulting binding mutable in code.
+`ref` can be added to take reference to the element being matched, instead of moving or copying it on match.
+`ref` must be used instead of '&' as it actually does the oposite of this.
 
 In addition, a binding may also have a restriction placed on it by appending a pattern behind the name.
 
@@ -3834,7 +3828,7 @@ Trait objects are stored in so-called "fat pointers' which consists out of 2 com
 
 Trait object types allowe for "late binding" in cases where the types being used cannot be known at compile time, but the programmer knowns the functionality they posses.
 Calling a method will use a virtual dispatch of the method: that is, teh function pointer is loaded from the vtable, and is then invoked indirectly, incurring a pointer indirection.
-The actual implemention of each vtable may vary on an object-by-object basis.
+The actual implementation of each vtable may vary on an object-by-object basis.
 
 ### 11.1.18. Impl trait types [↵](#111-types-)
 
