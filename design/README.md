@@ -1219,7 +1219,7 @@ Use declarations support a number of convenient shortcuts:
 ### 7.2.1. Use visibility [↵](#72-use-declarations-)
 
 Like other items, `use` declarations are private to the containing module by default.
-But it can also have its visibility declared, while for most items, this is explained in the [attribute]() section, visibility attributes work slightly differently on `use` declarations.
+But it can also have its visibility declared, while for most items, this is explained in the [attribute](#17-attributes-) section, visibility attributes work slightly differently on `use` declarations.
 `use` declaration can be used to re-export symbols to a different target definition with a diffferent visibility and/or name.
 For example, a symbol with a more restricted visibility like 'private' in one module to a `pub` symbol in another module.
 If the resulting sequence of re-exports form a cycle or cannot be resolved, this will be a compile error.
@@ -4156,7 +4156,7 @@ Fields with a higher priority will be prefered to be laid out first in the type.
 struct Foo {
     big: [256]u8,
     // Ensure the compiler lays out the fields in such a way that important will be most likely to be on a cache line
-    #[field_priority(15)]
+    @[field_priority(15)]
     important: u32,
 }
 ```
@@ -5558,6 +5558,19 @@ The following modes are supported:
 
 The default in `on`.
 
+#### `union_offset`
+
+The `union_offset` attribute allows a the offset of a field in a union to be defined, see [union field offsets](#761-union-field-offsets-).
+
+#### `bit_size`
+
+The `bit_size` attribute is used to explicitly define the bitsize of a type when used in a [bitfield](#78-bitfield-).
+The attribute takes an integer literal value defining the bitwidth of a type in bits.
+
+#### `field_prioity`
+
+The `field_priority` attribute is used to define the priority of field within a `struct` with a xenon representation, see [field priority](#field-priority).
+
 ### 17.1.7. Module attributes [↵](#171-built-in-attributes-)
 
 These are module specific attributes
@@ -5585,6 +5598,12 @@ The `kind` specifier can be one of the following
 The actual visualization can be specified in 2 ways:
 - `file`: the visualization is specified in an internal file, this contains a path to it.
 - `inline`: the visualization is specified inline inside of the code file
+
+### 17.1.9. Documentation comments
+
+#### `doc`
+
+The `doc` comment specifies a pseudo-attribute that represent [doc comments](#1719-documentation-comments).
 
 ## 17.2. Tool attributes [↵](#17-attributes-)
 
