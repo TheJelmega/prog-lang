@@ -1,0 +1,17 @@
+#! shebang something
+
+// This imports something
+use 2d:.geom.Rect;
+
+/** This is a doc comment
+    But also a block comment
+*/
+-fn main() {
+    let a = 0b0101_01010101;
+    let b = 0o1234567;
+    let c = 0x123456789ABCDEF;
+    let d = 0x1.ABCDp-EF;
+
+    let mut val = 3;
+    val += 1;
+}

@@ -2,3 +2,7 @@
 
 # Bootstrap intermediates & binaries
 bootstrap/target
+cargo.lock
+
+# Editor files
+.vscode/
