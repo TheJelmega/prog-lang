@@ -347,6 +347,10 @@ Version: 0.0
             - [`opt_level`](#opt_level)
             - [`no_alias`](#no_alias)
             - [`bounds_check`](#bounds_check)
+            - [`union_offset`](#union_offset)
+            - [`bit_size`](#bit_size)
+            - [`field_priority`](#field_prioity)
+            - [`val_range`](#val_range)
         7. [Module attributes](#1717-module-attributes-)
             - [`path`](#path)
         8. [Debug attributes](#1718-debug-attributes-)
@@ -494,6 +498,8 @@ A strong keyword is a keyword that always has a meaning, regardless of where in 
 A list of strong keywords can be found below (in a close to alphabetic order):
 ```
 as
+as?
+as!
 assert
 b8
 b16
@@ -523,10 +529,14 @@ i16
 i32
 i64
 i128
+in
+!in
 impl
 is
+!is
 isize
 mut
+ref
 self
 static
 str
@@ -539,7 +549,6 @@ throw
 true
 try
 try!
-ref
 u8
 u16
 u32
@@ -717,13 +726,13 @@ Names, identifiers, and paths are used to refer to things like:
 <name> := ( <letter> | <non-dec-number> | '_' ) { <alphanum> |  }*
 <ext-name> := { <alphanum> | '_' }* ( <ext-letter> | <non-dec-number> )  { <alphanum> | '_' }*
 ```
+*TODO: XID_Start and XID_Continue*
 
 A name is part of an identifier and 
 
 There are 2 types of names:
 - Normal names that cannot start with a decimal digit
-- Extended names that can start with a decimal digit, but must contain at least 1 non-decimal digit or letter (excluding 'e')
-_TODO: Need to look into this a bit more_
+- Extended names that can start with a decimal digit, but must be distinguishable from any decimal literal, i.e. needs to contain at least 1 non-supported letter, or multiple letters supported by decimal literals.
 
 Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
 Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
@@ -764,8 +773,8 @@ Simple path are used for visitility, attributes, macros and use items.
 ### 5.3.2. Paths in expression [↵](#53-paths-)
 
 ```
-<path-in-expr> := [ '.' ] <path-expr-segment> { '.' <path-expr-segment> }*
-<path-expr-segment> := <path-ident> [ <generic-path-args> ]
+<path-in-expr> := [ '.' ] <identifier> { '.' <path-expr-segment> }*
+<path-expr-segment> := <identifier> | <ext-name>
 ```
 
 Paths in experessions allow for paths with generic arguments specified.
@@ -810,13 +819,12 @@ There are generally 5 categories of numerics literals, and these are defined bel
 
 ```
 <dec-digit> := '0'-'9'
-<int-dec-literal> := [ '-' ] { <dec-digit> }+
-<float-dec-literal> := [ '-' ] { <dec-digit> }+ [ '.' { <dec-digit> }+ ] [ ( 'e' | 'E' ) [ '-' ] { dec-digit }+ ]
+<int-dec-literal> := { <dec-digit> }+
+<float-dec-literal> := { <dec-digit> }+ [ '.' { <dec-digit> }+ ] [ ( 'e' | 'E' ) [ '-' ] { dec-digit }+ ]
 ```
 
 A decimal literal can represent either an integer or floating point value.
 Decimal literals may be prefixed with `0`s without affecting the value, unlike some other languages, this does **not** get interpreted as an octal value and they are ignored.
-Decimal literals also support being preceded by a `-`, this is not counted as a separate operator, but is part of the literal.
 
 Integer values are a sequence of up to 39 digits and should represent a value that fits in at most a 128-bit limit.
 
@@ -829,12 +837,12 @@ The exponent is limited to the range -4932 to 4932.
 ```
 // Integers
 10
--195
+195
 0042 // value of 42
 
 // Floating point
 0.5
--128.64
+128.64
 3e10
 005.2 // value of 5.2
 ```
@@ -843,7 +851,7 @@ The exponent is limited to the range -4932 to 4932.
 
 ```
 <bin-digit> := '0' | '1'
-<bin-literal> := "0x" <bin-digit> [ { <bin-digit> | <digit-sep> }[,126] <bin-digit> ]
+<bin-literal> := "0b" [ { <bin-digit> | <digit-sep> }* ] <bin-digit> { <bin-digit> | <digit-sep> }*
 ```
 
 A binary literal represents an integer value written as sequence of 0s or 1s, directly representing each bit in the resulting value.
@@ -861,7 +869,7 @@ Currently a binary literal is limited to containing 128 digits, representing a 1
 
 ```
 <oct-digit> := '0'-'7'
-<oct-literal> := "0o" <oct-digit> [ { <oct-digit> | <digit-sep> }[,41] <oct-digit> ]
+<oct-literal> := "0o"  { <oct-digit> | <digit-sep> }* <oct-digit> { <oct-digit> | <digit-sep> }*
 ```
 
 An octal literal represents an integer value written as a sequence of octal values ranging from 0 to 7.
@@ -880,7 +888,7 @@ Currently an octal literal is limited to 43 digits, with the upper digit of thes
 
 ```
 <hex-digit> := <dec-digit> | 'a'-'z' | 'A'-'Z'
-<int-hex-literal> := "0o" <hex-digit> [ { <hex-digit> | <digit-sep> }[,30] <hex-digit> ]
+<int-hex-literal> := "0x" { <hex-digit> | <digit-sep> }* <hex-digit> { <hex-digit> | <digit-sep> }*
 ```
 
 A hexadecimal literal represents an integer value written as a sequence of nibbles, values ranging from 0 to 9, and then from A/a to F/f.
@@ -899,13 +907,13 @@ Currently a hexadecimal literal is limited to 32 digits, so not to overflow the 
 ### 6.1.5. Hexadecimal floating point literals [↵](#61-numeric-literals-)
 
 ```
-<float-hex-literal> := [ '-' | '+' ] "0x" ( "1." | "0." ) <hex-digit> { <hex-digit> | <digit-sep> } 'p' [ '-' | '+' ] { <dec-digit> }[,4]
+<float-hex-literal> := "0x" ( "1." | "0." ) <hex-digit> { <hex-digit> | <digit-sep> } 'p' [ '-' | '+' ] { <dec-digit> }[,4]
 ```
 
 In addition to integer hexadecimal literals, there is also support to represent floating points as decimal literals.
 These are composed out of a sign, a mantissa and an exponent.
 
-The literal is written with an optional `-`, followed by a the hexadecimal indicator '0x'. 
+The literal is written with a hexadecimal indicator '0x'. 
 This can then be followed by either a '0.' followed by at most 13 0s, or a '1.' follows by at most 14 hexadecimal digits.
 After which the exponent indicator 'p' appears, followed by an either `-` or '+', and at the exponent in decimal digits.
 
@@ -1540,8 +1548,8 @@ There are 3 kinds of structs:
 <nominal-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '{' [ <struct-fields> ] '}'
 <struct-fields> := <struct-field> { ',' <struct-field> } ','
 <struct-field> := <struct-member> | <struct-use>
-<struct-member> := [ <vis> ] [ 'mut' ] <name> { ',' <name> }* ':' <type>
-                 | [ <vis> ] [ 'mut' ] <name> ':' <type> [ '=' <expr> ]
+<struct-member> := [ <vis> ] [ 'mut' ] <ext-name> { ',' <ext-name> }* ':' <type>
+                 | [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '=' <expr> ]
 <struct-usze> := [ <vis> ] 'use' <type>
 ```
 
@@ -1644,7 +1652,7 @@ Unit stuctures can be seen as distinct type aliases of the unit type, but with t
 ```
 <union-item> := { <attribute> }* [ 'vis' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
 <union-fields> := <union-field> { ',' <union-field> }* [ ',' ]
-<union-field> := [ <vis> ] <name> ':' <type>
+<union-field> := [ <vis> ] <ext-name> ':' <type>
 ```
 
 A union is a struct-like type, but instead of all fields being available at all times, a union's main characteristic is that all field share a common storage.
@@ -1704,7 +1712,7 @@ The visibility of the enum is shared by all variants and their fields
 ```
 <adt-enum> { <attribute> }* [ <vis> ] [ 'flag' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
 <enum-variants> := <enum-variant> { ',' <enum-variant> } [ ',' ]
-<enum-variant> := <name> [ <variant-body> ] [ '=' <expr> ]
+<enum-variant> := <ext-name> [ <variant-body> ] [ '=' <expr> ]
 <variant-body> := <struct-variant-body> | <tuple-variant-body>
 <struct-variant-body> := '{' <struct-fields> '}'
 <tuple-variant-body> := '(' <type> { ',' <type> }* [ ',' ] ')'
@@ -1774,7 +1782,7 @@ _TODO: list of functions_
 ```
 <bitfield-item> := { <attribute> }* [ <vis> ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
 <bitfield-fields> := <bitfield-field> { ',' <bitfield-field> }* [ ',' ]
-<bitfield-field> := <name> ':' <type> [ '|' <expr> ]
+<bitfield-field> := <ext-name> ':' <type> [ '|' <expr> ]
 ```
 
 A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned and sized types.
@@ -1873,7 +1881,7 @@ When declaring a static within a external block, `extern` has to be left out.
 ## 7.11. Properties [↵](#7-items-)
 
 ```
-<prop-item> := { <attribute> }* [ <vis> ] 'property' <name> '{' { <prop-get-set> }[1,4] '}'
+<prop-item> := { <attribute> }* [ <vis> ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
 <prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
 <prop-get> := 'get' <expr-no-block> ';'
             | 'get' <expr-with-block>
@@ -1934,7 +1942,7 @@ fn set_value(&self, value: Type) { ... }
 ### 7.11.2. Associated trait properties [↵](#711-properties-)
 
 ```
-<assoc-trait-property> := 'property' <name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
+<assoc-trait-property> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
 <trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
 ```
@@ -2386,7 +2394,7 @@ Implicit borrowing takes place in the following expressions:
 ## 9.2. Literal expression  [↵](#9-expressions-)
 
 ```
-<lit-expr> := <literal> [ ':' <name> ]
+<lit-expr> := <literal> [ ':' <ext-name> ]
 ```
 
 A literal expression is used to get a value of a given literals, and is evaluated at compile time.
@@ -2397,7 +2405,7 @@ Literal expressions also allow a special literal operator to be applied to them,
 
 ```
 <path-expr> := <path-in-expr>
-             | '.' <name>
+             | '.' <ext-name>
 ```
 
 A path expression uses a path to refer to a local variable or item.
@@ -2721,10 +2729,13 @@ The unit struct value can also be constructed in 2 ways:
 ## 9.12. Index expression [↵](#9-expressions-)
 
 ```
-<index-expr> := <expr> '[' <expr> ']'
+<index-expr> := <expr> '[' [ '?' ] <expr> ']'
 ```
 
 An index expression can be used to get a value out of a type using a given index.
+
+In addition to direct indexing, there is also a variant allowing for the index expression to return an optional value that will be `.None` when no value is found at the given index.
+This is done by using the `[?expr]` version of the indexing expression.
 
 When the expression being indexed is either an array or a slice, it will get the relevant element at a given index or a subslice at the given range.
 If the array of slice is mutable, the resulting value will be memory location that can be assigned to.
@@ -2735,17 +2746,19 @@ If array access is a constant expression and the array has a known size, bounds 
 For any other type, the resulting indexing will depend on whether the index implementation returns a reference or not.
 
 For all other types, the following operations will happen:
-- In an immutable place context, the resulting value will be `Index::index(&a, b)`.
+- In an immutable place context, the resulting value will be `Index::index(&a, b)` or `OptIndex::opt_index(&a, b)`.
 
   If the index implementation were to return a reference, it would be implicitly dereferenced.
 
-- In a mutable place context, the resulting value will be `*IndexMut::index_mut(&a, b)`.
+- In a mutable place context, the resulting value will be `*IndexMut::index_mut(&a, b)` or `OptIndexMut::opt_index_mut(&a, b)`.
 
 Indexing allows comma expressions to be passed, this will implicitly be converted to an index call taking in a tuple of expressions.
 
 The interfaces associated with the index expressions are:
 - `Index`
 - `IndexMut`
+- `OptIndex`
+- `OptIndexMut`
 
 ## 9.13. Tuple index expression [↵](#9-expressions-)
 
@@ -2836,7 +2849,7 @@ Any default arguments do not need to be provided and will be evaluated after eva
 ## 9.16. Field access [↵](#9-expressions-)
 
 ```
-<field-access-expr> := <expr> ( '.' | '?.' ) <name>
+<field-access-expr> := <expr> ( '.' | '?.' ) <ext-name>
 ```
 
 A field expression is a place expression that evaluates to the location of a field of a struct or union.
@@ -4789,6 +4802,8 @@ _TODO_
  - postfix unary operators, these come after a sub-expression
  - infix/binary operators, these come between 2 sub-expressions
 
+ When written in code, operators needs to be be separated by spaces, unless they are separated by a symbol that cannot appear as part of an operator.
+
 ## 14.1. Borrow operators [↵](#14-operators-)
 
 ```
@@ -5144,8 +5159,8 @@ User defined operators must be made up from symbol characters are not allowed to
 - `@`
 - `#`
 - `$`
-- `=`
 - `:`
+- `;`
 - `(` or `)`
 - `[` or `]`
 - `{` or `}`
@@ -5186,8 +5201,9 @@ Indexing                       |               |               |
 Highest user-defined (no expr) |               | `Highest`     | n/a
 Try operators                  |               | `Try    `     | `Highest`
 Borrowing & Dereferencing      |               | `BorrowDeref` | `Try`
-Unary operators                |               | `Unary`       | `BorrowDeref`
-Multiply/divide/remainder      | left to right | `MulDivRem`   | `Unary`
+Unary postfix operators        |               | `Postfix`     | `BorrowDeref`
+Unary prefix operators         |               | `Prefix`      | `Postfix`
+Multiply/divide/remainder      | left to right | `MulDivRem`   | `Prefix`
 Addition/Subtraction           | left to right | `AddSub`      | `MulDivRem`
 Shift and rotate               | left to right | `ShiftRot`    | `AddSub`
 Bitwise AND operations         | left to right | `BitAnd`      | `ShiftRot`
@@ -5570,6 +5586,11 @@ The attribute takes an integer literal value defining the bitwidth of a type in 
 #### `field_prioity`
 
 The `field_priority` attribute is used to define the priority of field within a `struct` with a xenon representation, see [field priority](#field-priority).
+
+#### `val_range`
+
+The `val_range` attribute is used to define a range of valid value for any type that contains a single integer element.
+This information can then be used for optimization by the compiler.
 
 ### 17.1.7. Module attributes [↵](#171-built-in-attributes-)
 
