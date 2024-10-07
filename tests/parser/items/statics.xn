@@ -1,0 +1,5 @@
+static Foo0: i32 = 1337;
+tls static Foo1: u8 = 42;
+mut tls static Foo2: i16 = 2;
+extern "C" static Foo3: i32;
+extern "Xenon" mut static Foo3: i64;

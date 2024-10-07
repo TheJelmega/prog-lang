@@ -1,0 +1,4 @@
+fn Foo() {
+    return;
+    return value;
+}

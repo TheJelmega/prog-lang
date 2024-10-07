@@ -1,0 +1,15 @@
+impl Foo0 {}
+unsafe impl Foo1 {}
+impl Foo2 as Trait.Path {}
+
+
+impl Foo3 {
+    property A {
+        get 1;
+        set 2;
+    }
+    property B {
+        ref get 1;
+        mut get 2;
+    }
+}

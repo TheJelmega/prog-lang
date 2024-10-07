@@ -1,0 +1,13 @@
+fn foo0() {}
+fn foo1(a: i32, b: i32) {}
+fn foo2(a, b: i32) {}
+fn foo3(:a b: i32) {}
+fn foo4(:a A{b, c: d}: Ty) {}
+fn foo5(self) {}
+fn foo6(&self, a: i32) {}
+fn foo7(&mut self) {}
+fn foo8(mut self) {}
+fn foo9(self: Ty) {}
+fn foo10(mut self: Ty, a: i32) {}
+fn foo11() -> i32 {}
+fn foo12() -> {a: i32, b: f32} {}

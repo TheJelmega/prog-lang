@@ -1,0 +1,21 @@
+enum Foo0 {
+    A{
+        a: i32,
+        b, c: f32
+    },
+    B(i16, f16),
+    C,
+}
+record enum Foo1 {
+    mut D {
+        d: i64,
+    }
+}
+mut enum Foo2 {
+}
+mut record enum Foo3 {
+}
+flag enum Bar {
+    FlagA,
+    FlagB,
+}

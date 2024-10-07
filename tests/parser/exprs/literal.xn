@@ -1,0 +1,18 @@
+fn Foo() {
+    10;
+    42:i32;
+    32:km;
+    12.3;
+    34.6:f32;
+    98.0:l;
+    0b1010;
+    0o237;
+    0o127:val;
+    0xCAFE;
+    'c';
+    'd':char;
+    'e':utf8;
+    "Some Text";
+    "a":cstr;
+    "a":hex;
+}

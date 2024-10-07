@@ -1,0 +1,4 @@
+type Foo = Bar;
+distinct type Foo = Bar;
+type Foo = opaque;
+type Foo = opaque[4];

@@ -1,0 +1,6 @@
+fn Foo() -> str {}
+fn Foo() -> str7 {}
+fn Foo() -> str8 {}
+fn Foo() -> str16 {}
+fn Foo() -> str32 {}
+fn Foo() -> cstr {}

@@ -1,0 +1,4 @@
+fn Foo() {
+    fallthrough;
+    fallthrough :place:;
+}

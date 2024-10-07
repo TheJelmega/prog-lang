@@ -1,0 +1,4 @@
+fn Foo() {
+    let Path{} = 1;
+    let Pat{ a: 2, b } = 3;
+}

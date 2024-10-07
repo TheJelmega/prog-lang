@@ -1,0 +1,16 @@
+precedence A {
+}
+precedence B {
+    higher_than: A
+}
+precedence C {
+    lower_than: B
+}
+precedence D {
+    associativity: left
+}
+precedence E {
+    higher_than: B,
+    lower_than: D,
+    associativity: none
+}

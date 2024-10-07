@@ -1,0 +1,12 @@
+bitfield Foo0 {
+    a: i32,
+}
+record bitfield Foo1 {
+    b, c: u8 | 2,
+}
+mut bitfield Foo2 {
+    use Foo1
+}
+mut record bitfield Foo3 {
+
+}

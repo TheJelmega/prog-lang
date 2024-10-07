@@ -1,0 +1,8 @@
+fn Foo() {
+    let a: i32 = 1;
+    let b = 2;
+    let c: u8;
+    d := 3;
+    e, f := 4;
+    mut g := 5;
+}

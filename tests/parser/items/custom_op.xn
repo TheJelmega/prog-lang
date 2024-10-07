@@ -1,0 +1,3 @@
+prefix trait Not = ! : PrefixPrecedence;
+postfix trait Unwrap = ! : PostfixPrecedence;
+infix trait Add = + : AddPrecedence;

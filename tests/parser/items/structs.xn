@@ -1,0 +1,14 @@
+struct Foo0 {}
+record struct Foo1 {
+    a: i32,
+    mut b: i32,
+}
+mut struct Foo2 {
+    a, b: i32,
+}
+mut record struct Foo3 {
+    use SomeOtherStruct
+}
+struct Foo4(i32, f32);
+struct Foo4;
+struct Unit;                

@@ -1,0 +1,2 @@
+fn Foo() -> dyn Trait {}
+// TODO: Mult-trait bound

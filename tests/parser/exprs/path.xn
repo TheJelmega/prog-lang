@@ -1,0 +1,5 @@
+fn Foo() {
+    name;
+    this.isa.path;
+    .should.be.inferred;
+}

@@ -1,0 +1,6 @@
+fn Foo() -> ^u8 {}
+fn Foo() -> ^mut u8 {}
+fn Foo() -> [^]u8 {}
+fn Foo() -> [^]mut u8 {}
+fn Foo() -> [^;0]u8 {}
+fn Foo() -> [^;0]mut u8 {}

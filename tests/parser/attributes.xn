@@ -1,0 +1,6 @@
+
+@[basic]
+@![module]
+@[val = "bla"]
+@[nest(foo, bar = 10, baz("2"))]
+fn Foo() {}

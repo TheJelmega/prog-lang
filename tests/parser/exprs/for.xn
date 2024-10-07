@@ -1,0 +1,10 @@
+fn Foo() {
+    for a in b {
+
+    }
+    for (c, d) in e {
+        1
+    } else {
+        2
+    }
+}

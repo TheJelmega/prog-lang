@@ -1,0 +1,8 @@
+fn Foo() {
+    {};
+    unsafe {}
+    const {}
+    try {}
+    try! {}
+    :labeled: {}
+}

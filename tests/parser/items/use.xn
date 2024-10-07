@@ -1,0 +1,10 @@
+use foo:bar.a;
+use baz.foo:bar.a;
+use foo:.a;
+use :bar.a;
+use :.a;
+use :.b.c;
+use :.d.e.{f, g.h, i.j.k};
+use :.l.m.{self, n};
+use :.o.p as q;
+use :.r.{s as t, u.v as w};

@@ -1,0 +1,5 @@
+fn Foo() {
+    when target_arch == .x86_64 {
+        1
+    }
+}

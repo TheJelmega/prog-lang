@@ -1,0 +1,6 @@
+fn Foo() {
+    // Declataration parse, but are invalid
+    let 1 = 1;
+    let 2:u8 = 2;
+    let true = 3;
+}

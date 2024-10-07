@@ -1,0 +1,2 @@
+const FOO0: i32 = 42;
+const FOO1 = 2;

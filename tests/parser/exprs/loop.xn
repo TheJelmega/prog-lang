@@ -1,0 +1,8 @@
+fn Foo() {
+    loop {
+        1
+    }
+    :name: loop {
+        2
+    }
+}

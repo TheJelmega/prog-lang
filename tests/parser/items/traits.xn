@@ -1,0 +1,9 @@
+trait Foo1 {}
+unsafe trait Foo2 {}
+sealed trait Foo3 {}
+unsafe sealed trait Foo4 {}
+
+trait Foo {
+    property A { get; set; }
+    property B { ref get; mut get; }
+}

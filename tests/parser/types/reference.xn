@@ -1,0 +1,2 @@
+fn Foo() -> &u8 {}
+fn Foo() -> &mut u8 {}

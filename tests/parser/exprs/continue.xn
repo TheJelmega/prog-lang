@@ -1,0 +1,4 @@
+fn Foo() {
+    continue;
+    continue :place:;
+}

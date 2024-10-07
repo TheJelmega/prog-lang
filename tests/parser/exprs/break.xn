@@ -1,0 +1,6 @@
+fn Foo() {
+    break;
+    break :place:;
+    break value;
+    break :place: value;
+}

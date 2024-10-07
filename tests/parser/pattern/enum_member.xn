@@ -1,0 +1,3 @@
+fn Foo() {
+    let .Var = 1;
+}

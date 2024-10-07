@@ -1,0 +1,15 @@
+fn Foo() {
+    if 1 {
+    }
+    if 2 {
+        3
+    } else {
+        4
+    }
+    if let a = 5 {
+    }
+    if let b = 6 + 1 && 7 + 2 {
+        
+    }
+
+}

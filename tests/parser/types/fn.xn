@@ -1,0 +1,7 @@
+fn Foo() -> fn() {}
+fn Foo() -> fn() -> i32 {}
+fn Foo() -> fn(i32) {}
+fn Foo() -> fn(a: i32) {}
+fn Foo() -> fn(a, b: i32) {}
+fn Foo() -> unsafe fn() {}
+fn Foo() -> unsafe extern "ABI" fn() {}

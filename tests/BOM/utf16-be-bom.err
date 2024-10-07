@@ -1,0 +1,1 @@
+utf16-be-bom.xn(1:1): Found unsupported Byte Order Marker (BOM): utf-16 (be), expected either no BOM or a utf-8 BOM.

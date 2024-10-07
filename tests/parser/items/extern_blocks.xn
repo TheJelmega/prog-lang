@@ -1,0 +1,4 @@
+extern "C" {
+    fn Foo0() {}
+    static Foo1: i32 = 0;
+}

@@ -1,0 +1,7 @@
+union Foo {
+    a: i32,
+    mut b: f32,
+}
+mut union Foo2 {
+    c: isize
+}

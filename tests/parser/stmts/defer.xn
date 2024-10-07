@@ -1,0 +1,6 @@
+fn Foo() {
+    defer 1;
+    errdefer 2;
+    errdefer |a| 3;
+    errdefer |mut b| 4;
+}

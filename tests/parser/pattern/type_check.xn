@@ -1,0 +1,3 @@
+fn Foo() {
+    let is i32 = 1;
+}

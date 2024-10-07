@@ -1,0 +1,3 @@
+fn Foo() -> enum {} {}
+fn Foo() -> enum { A, B } {}
+fn Foo() -> enum { C(i32, f32), D{ a, b: i32, c: f64 } } {}

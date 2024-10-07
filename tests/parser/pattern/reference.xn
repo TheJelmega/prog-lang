@@ -1,0 +1,4 @@
+fn Foo() {
+    let &val = 1;
+    let &mut var = 2;
+}

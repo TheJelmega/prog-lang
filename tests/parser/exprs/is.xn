@@ -1,0 +1,4 @@
+fn Foo() {
+    a is i32;
+    b !is bool;
+}

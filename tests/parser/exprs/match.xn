@@ -1,0 +1,13 @@
+fn Foo() {
+    match a {
+        A => {},
+        B | C => {},
+        D if e => {},
+    }
+    :some_label: match f {
+
+    }
+    match g {
+        :branch: H => {}
+    }
+}

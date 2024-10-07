@@ -1,0 +1,3 @@
+fn Foo(a: {}) {}
+fn Foo(a: { a: i32 }) {}
+fn Foo(a: { a, b: i32, c: f32 }) {}
