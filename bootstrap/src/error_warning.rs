@@ -1,4 +1,7 @@
 use core::fmt::Display;
+use std::mem::discriminant;
+
+use crate::lexer::{OpenCloseSymbol, Token};
 
 
 // Error ranges
@@ -13,156 +16,125 @@ use core::fmt::Display;
 // E8000-E8999:
 // E9000-E9999:
 #[derive(Debug)]
+#[repr(u16)]
 pub enum ErrorCode {
+    InternalError(&'static str) = 0,
+
     // E1000-E1999: Lexer error
 
-
-
     /// Invalid BOM
-    E1000(&'static str),
+    LexInvalidBOM(&'static str) = 100,
 
     // Invalid character in binary literal
-    E1001,
+    LexInvalidBinInLit = 1001,
     // Invalid character in octal literal
-    E1002,
+    LexInvalidOctInLit = 1002,
     // Invalid character in hexadecimal literal
-    E1003,
+    LexInvalidHexInLit = 1003,
     // Invalid leading hexadecimal in hex floating point literal
-    E1004,
+    LexInvalidLeadHexFp = 1004,
     // Missing hex floating point exponent indicator 'p'
-    E1005,
+    LexMissHexFpInd = 1005,
     //  Invalid character in decimal literal
-    E1006,
+    LexInvalidDecInLit = 1006,
 
     // Block comment is not closed
-    E1010,
+    LexUnclosedBlockComment = 1010,
 
     // Not enough characters left for valid character literal.
-    E1020,
+    LexNotEnoughCharInLit = 1020,
     // Invalid escape code in character literal.
-    E1021,
+    LexInvalidEscape = 1021,
     // Invalid character in hex character literal
-    E1022,
+    LexInvalidHexInChar = 1022,
     // Invalid character in unicode character literal
-    E1023,
+    LexInvalidUnicodeInLit = 1023,
     // Character is not a valid unicode character
-    E1024,
+    LexInvalidUnicode = 1024,
 
     // Not enough characters left for a valid string
-    E1030,
+    LexNotEnoughString = 1030,
     // String cannot be accross multiple lines without a string continuation sequence
-    E1031,
+    LexStringNoContinue = 1031,
     // Not enough characters left for a valid raw string
-    E1032,
+    LexNotEnoughRawString = 1032,
     // Missing '"' after 'r' or '#' at the start of a raw string
-    E1033,
+    LexInvalidStartRawString = 1033,
 
     // Trying to close ... block without its respective opening symbol
-    E1040{ open: char, close: char },
+    LexNoOpeningSym{ sym: OpenCloseSymbol } = 1040,
     // Mismatch when closing block, found ... expected ...
-    E1041{ found: char, expected: char },
-}
+    LexMismatchCloseSym{ found: OpenCloseSymbol, expected: OpenCloseSymbol } = 1041,
 
-impl ErrorCode {
-    pub fn lex_invalid_bom(bom: &'static str) -> Self {
-        Self::E1000(bom)
-    }
+    // Not enough tokens
+    ParseNotEnoughTokens = 200,
+    // Expected, found
+    ParseFoundButExpected{ found: Token, expected: Token } = 2001,
+    // Unexpected token ... for ...
+    ParseUnexpectedFor{ found: Token, for_reason: &'static str } = 2002,
 
-    pub fn lex_bin_lit_invalid_char() -> Self {
-        Self::E1001
-    }
+    // Invalid token at start of path
+    ParseInvalidPathStart{ found:Token } = 2010,
 
-    pub fn lex_oct_lit_invalid_char() -> Self {
-        Self::E1002
-    }
+    // Use: expected package name or nothing before ':'
+    ParseExpectPackageName{ found: Token } = 2011,
+    // Use: expected module name or nothing between ':' and '.'
+    ParseExpectModuleName{ found: Token } = 2012,
+    
 
-    pub fn lex_hex_lit_invalid_char() -> Self {
-        Self::E1003
-    }
+    // Invalid use of "extern"
+    ParseInvalidExternUse = 2020,
 
-    pub fn lex_hex_fp_lit_invalid_leading_digit() -> Self {
-        Self::E1004
-    }
+    // Duplicate property getter/setter
+    ParseDuplicateProp{ get_set: &'static str } = 2021,
 
-    pub fn lex_hex_fp_lit_missing_exp_indicator() -> Self {
-        Self::E1005
-    }
+    // Label unsupported in location
+    ParseInvalidLabel = 2030,
 
-    pub fn lex_dec_lit_invalid_char() -> Self {
-        Self::E1006
-    }
+    ParseExprNotSupported{ expr: &'static str, loc: &'static str } = 2031,
 
-    pub fn lex_block_comment_not_closed() -> Self {
-        Self::E1010
-    }
-
-    pub fn lex_char_lit_not_enough_chars() -> Self {
-        Self::E1020
-    }
-
-    pub fn lex_char_lit_invalid_escape_code() -> Self {
-        Self::E1021
-    }
-
-    pub fn lex_char_lit_invalid_hex_val() -> Self {
-        Self::E1022
-    }
-
-    pub fn lex_char_lit_invalid_unicode_val() -> Self {
-        Self::E1023
-    }
-
-    pub fn lex_invalid_unicode_codepoint() -> Self {
-        Self::E1024
-    }
-
-    pub fn lex_string_lit_not_enough_chars() -> Self {
-        Self::E1030
-    }
-
-    pub fn lex_string_lit_invalid_multi_line() -> Self {
-        Self::E1031
-    }
-
-    pub fn lex_raw_string_lit_not_enough_chars() -> Self {
-        Self::E1032
-    }
-
-    pub fn lex_raw_string_lit_invalid_start() -> Self {
-        Self::E1033
-    }
-
-    pub fn lex_block_no_open(open: char, close: char) -> Self {
-        Self::E1040 { open, close }
-    }
-
-    pub fn lex_block_unexpected(found: char, expected: char) -> Self {
-        Self::E1041 { found, expected }
-    }
+    ParseInvalidPrecedenceAssoc{ name: String } = 2032,
 }
 
 impl Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code: u16 = unsafe { *((self as *const Self).cast()) };
+        write!(f, "E{code:04}: ")?;
         match self {
-            Self::E1000(bom) => writeln!(f, "E1000: Found unsupported Byte Order Marker (BOM): {bom}, expected either no BOM or a utf-8 BOM."),
-            Self::E1001 => write!(f, "E1001: Found invalid character in binary literal"),
-            Self::E1002 => write!(f, "E1002: Found invalid character in octal literal"),
-            Self::E1003 => write!(f, "E1003: Found invalid character in hexadecimal integer literal"),
-            Self::E1004 => write!(f, "E1004: Found invalid leading digit in a hexadecimal floating point literal"),
-            Self::E1005 => write!(f, "E1005: Missing hexadecimal floating point exponent indicator 'p'"),
-            Self::E1006 => write!(f, "E1006: Found invalid character in decimal literal"),
-            Self::E1010 => write!(f, "E1010: Block comment was not closed"),
-            Self::E1020 => write!(f, "E1020: Not enough characters to form a valid character literal"),
-            Self::E1021 => write!(f, "E1021: Invalid escape code in integer literal"),
-            Self::E1022 => write!(f, "E1022: Invalid character in hex character literal"),
-            Self::E1023 => write!(f, "E1023: Invalid character in unicode character literal"),
-            Self::E1024 => write!(f, "E1024: Invalid unicode codepoint"),
-            Self::E1030 => write!(f, "E1030: Not enough characters left for a valid string"),
-            Self::E1031 => write!(f, "E1031: String cannot cross multiple lines without a string continuation sequence"),
-            Self::E1032 => write!(f, "E1032: Not enough characters left for a valid raw string"),
-            Self::E1033 => write!(f, "E1033: Missing '\"' after 'r' or '#' at start of raw string"),
-            Self::E1040 { open, close } => write!(f, "E1040: Trying to close '{open}{close}' block without matching opening '{open}' symbol"),
-            Self::E1041 { found, expected } => write!(f, "E1041: Missmatch when closing block, found '{found}', expected '{expected}'"),
+            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
+            // Lexer
+            Self::LexInvalidBOM(bom)                        => write!(f, "Found unsupported Byte Order Marker (BOM): {bom}, expected either no BOM or a utf-8 BOM."),
+            Self::LexInvalidBinInLit                        => write!(f, "Found invalid character in binary literal"),
+            Self::LexInvalidOctInLit                        => write!(f, "Found invalid character in octal literal"),
+            Self::LexInvalidHexInLit                        => write!(f, "Found invalid character in hexadecimal integer literal"),
+            Self::LexInvalidLeadHexFp                       => write!(f, "Found invalid leading digit in a hexadecimal floating point literal"),
+            Self::LexMissHexFpInd                           => write!(f, "Missing hexadecimal floating point exponent indicator 'p'"),
+            Self::LexInvalidDecInLit                        => write!(f, "Found invalid character in decimal literal"),
+            Self::LexUnclosedBlockComment                   => write!(f, "Block comment was not closed"),
+            Self::LexNotEnoughCharInLit                     => write!(f, "Not enough characters to form a valid character literal"),
+            Self::LexInvalidEscape                          => write!(f, "Invalid escape code in integer literal"),
+            Self::LexInvalidHexInChar                       => write!(f, "Invalid character in hex character literal"),
+            Self::LexInvalidUnicodeInLit                    => write!(f, "Invalid character in unicode character literal"),
+            Self::LexInvalidUnicode                         => write!(f, "Invalid unicode codepoint"),
+            Self::LexNotEnoughString                        => write!(f, "Not enough characters left for a valid string"),
+            Self::LexStringNoContinue                       => write!(f, "String cannot cross multiple lines without a string continuation sequence"),
+            Self::LexNotEnoughRawString                     => write!(f, "Not enough characters left for a valid raw string"),
+            Self::LexInvalidStartRawString                  => write!(f, "Missing '\"' after 'r' or '#' at start of raw string"),
+            Self::LexNoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_str(), sym.as_close_str(), sym.as_open_str()),
+            Self::LexMismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_str(), expected.as_close_str()),
+
+            // Parser & ASTs
+            Self::ParseNotEnoughTokens                      => write!(f, "not enough tokens to parse"),
+            Self::ParseFoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
+            Self::ParseUnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
+            Self::ParseInvalidPathStart { found }           => write!(f, "Invalid token at start of path: {}", found.as_display_str()),
+            Self::ParseExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
+            Self::ParseExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
+            Self::ParseInvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
+            Self::ParseDuplicateProp { get_set }            => write!(f, "Duplicate {get_set} in property item"),
+            Self::ParseInvalidLabel                         => write!(f, "A label is not supported in this location"),
+            Self::ParseExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
+            Self::ParseInvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
         }
     }
 }

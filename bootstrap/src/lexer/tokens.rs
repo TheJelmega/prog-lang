@@ -1,9 +1,9 @@
 use std::{
-    fmt::{Display, Write as _},
+    fmt::{self, Display, Write as _},
     io
 };
-use super::{NameTable, NameTableId, PunctuationId, PuncutationTable};
-use crate::literals::{LiteralId, LiteralTable};
+use super::{NameTable, NameId, PunctuationId, PuncutationTable};
+use crate::literals::{Literal, LiteralId, LiteralTable};
 
 
 /// Strong keywords
@@ -19,6 +19,7 @@ pub enum StrongKeyword {
     B64,
     Bitfield,
     Bool,
+    Break,
     Char,
     Char7,
     Char8,
@@ -26,29 +27,44 @@ pub enum StrongKeyword {
     Char32,
     Const,
     Constraint,
+    Continue,
     CStr,
     Defer,
+    Do,
     Dyn,
+    Else,
     Enum,
+    ErrDefer,
     ExclaimIn,
     ExclaimIs,
+    Extern,
     F16,
     F32,
     F64,
     F128,
     False,
+    Fallthrough,
     Fn,
+    For,
     I8,
     I16,
     I32,
     I64,
     I128,
+    If,
     In,
     Impl,
     Is,
     Isize,
+    Let,
+    Loop,
+    Match,
+    Mod,
+    Move,
     Mut,
-    KwSelf,
+    Pub,
+    SelfTy,
+    SelfName,
     Static,
     Str,
     Str7,
@@ -57,10 +73,13 @@ pub enum StrongKeyword {
     Str32,
     Struct,
     Throw,
+    Trait,
     True,
     Try,
     TryExclaim,
+    Type,
     Ref,
+    Return,
     U8,
     U16,
     U32,
@@ -72,6 +91,7 @@ pub enum StrongKeyword {
     Usize,
     When,
     Where,
+    While,
 
     // Reserved
     Async,
@@ -82,72 +102,92 @@ pub enum StrongKeyword {
 impl StrongKeyword {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::As         => "as",
-            Self::AsQuestion => "as?",
-            Self::AsExclaim  => "as!",
-            Self::Assert     => "assert",
-            Self::B8         => "b8",
-            Self::B16        => "b16",
-            Self::B32        => "b32",
-            Self::B64        => "b64",
-            Self::Bitfield   => "bitfield",
-            Self::Bool       => "bool",
-            Self::Char       => "char",
-            Self::Char7      => "char7",
-            Self::Char8      => "char8",
-            Self::Char16     => "char16",
-            Self::Char32     => "char32",
-            Self::Const      => "const",
-            Self::Constraint => "constraint",
-            Self::CStr       => "cstr",
-            Self::Defer      => "defer",
-            Self::Dyn        => "dyn",
-            Self::Enum       => "enum",
-            Self::ExclaimIn  => "!in",
-            Self::ExclaimIs  => "!is",
-            Self::F16        => "f16",
-            Self::F32        => "f32",
-            Self::F64        => "f64",
-            Self::F128       => "f128",
-            Self::False      => "false",
-            Self::Fn         => "fn",
-            Self::I8         => "i8",
-            Self::I16        => "i16",
-            Self::I32        => "i32",
-            Self::I64        => "i64",
-            Self::I128       => "i128",
-            Self::Impl       => "impl",
-            Self::Is         => "is",
-            Self::In         => "in",
-            Self::Isize      => "isize",
-            Self::Mut        => "mut",
-            Self::KwSelf     => "self",
-            Self::Static     => "static",
-            Self::Str        => "str",
-            Self::Str7       => "str7",
-            Self::Str8       => "str8",
-            Self::Str16      => "str16",
-            Self::Str32      => "str32",
-            Self::Struct     => "struct",
-            Self::Throw      => "throw",
-            Self::True       => "true",
-            Self::Try        => "try",
-            Self::TryExclaim => "try!",
-            Self::Ref        => "ref",
-            Self::U8         => "u8",
-            Self::U16        => "u16",
-            Self::U32        => "u32",
-            Self::U64        => "u64",
-            Self::U128       => "u128",
-            Self::Union      => "union",
-            Self::Unsafe     => "unsafe",
-            Self::Use        => "use",
-            Self::Usize      => "usize",
-            Self::When       => "when",
-            Self::Where      => "where",
-            Self::Async      => "asycn",
-            Self::Await      => "await",
-            Self::Yield      => "yield",
+            Self::As          => "as",
+            Self::AsQuestion  => "as?",
+            Self::AsExclaim   => "as!",
+            Self::Assert      => "assert",
+            Self::B8          => "b8",
+            Self::B16         => "b16",
+            Self::B32         => "b32",
+            Self::B64         => "b64",
+            Self::Bitfield    => "bitfield",
+            Self::Bool        => "bool",
+            Self::Break       => "break",
+            Self::Char        => "char",
+            Self::Char7       => "char7",
+            Self::Char8       => "char8",
+            Self::Char16      => "char16",
+            Self::Char32      => "char32",
+            Self::Const       => "const",
+            Self::Constraint  => "constraint",
+            Self::Continue    => "continue",
+            Self::CStr        => "cstr",
+            Self::Defer       => "defer",
+            Self::Do          => "do",
+            Self::Dyn         => "dyn",
+            Self::Else        => "else",
+            Self::Enum        => "enum",
+            Self::ErrDefer    => "errdefer",
+            Self::ExclaimIn   => "!in",
+            Self::ExclaimIs   => "!is",
+            Self::Extern      => "extern",
+            Self::F16         => "f16",
+            Self::F32         => "f32",
+            Self::F64         => "f64",
+            Self::F128        => "f128",
+            Self::False       => "false",
+            Self::Fallthrough => "fallthrough",
+            Self::Fn          => "fn",
+            Self::For         => "for",
+            Self::I8          => "i8",
+            Self::I16         => "i16",
+            Self::I32         => "i32",
+            Self::I64         => "i64",
+            Self::I128        => "i128",
+            Self::If          => "if",
+            Self::Impl        => "impl",
+            Self::Is          => "is",
+            Self::In          => "in",
+            Self::Isize       => "isize",
+            Self::Let         => "let",
+            Self::Loop        => "loop",
+            Self::Match       => "match",
+            Self::Mod         => "mod",
+            Self::Move        => "move",
+            Self::Mut         => "mut",
+            Self::Pub         => "pub",
+            Self::Ref         => "ref",
+            Self::Return      => "return",
+            Self::SelfName    => "self",
+            Self::SelfTy      => "Self",
+            Self::Static      => "static",
+            Self::Str         => "str",
+            Self::Str7        => "str7",
+            Self::Str8        => "str8",
+            Self::Str16       => "str16",
+            Self::Str32       => "str32",
+            Self::Struct      => "struct",
+            Self::Throw       => "throw",
+            Self::Trait       => "trait",
+            Self::True        => "true",
+            Self::Try         => "try",
+            Self::TryExclaim  => "try!",
+            Self::Type        => "type",
+            Self::U8          => "u8",
+            Self::U16         => "u16",
+            Self::U32         => "u32",
+            Self::U64         => "u64",
+            Self::U128        => "u128",
+            Self::Union       => "union",
+            Self::Unsafe      => "unsafe",
+            Self::Use         => "use",
+            Self::Usize       => "usize",
+            Self::When        => "when",
+            Self::Where       => "where",
+            Self::While       => "while",
+            Self::Async       => "asycn",
+            Self::Await       => "await",
+            Self::Yield       => "yield",
         }
     }
 }
@@ -155,53 +195,190 @@ impl StrongKeyword {
 // Weak keywords
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum WeakKeyword {
+    Associativity,
     Distinct,
     Flag,
+    Get,
+    HigherThan,
     Infix,
     Invar,
+    Lib,
+    LowerThan,
     Opaque,
     Override,
+    Package,
     Post,
     Postfix,
     Pre,
+    Precedence,
     Prefix,
     Property,
     Record,
     Sealed,
+    Set,
     Super,
     Tls
 }
 
 impl WeakKeyword {
     pub fn as_str(self) -> &'static str {
+        &Self::WEAK_KEYWORD_NAMES[self as usize]
+    }
+
+    pub const WEAK_KEYWORD_NAMES: [&'static str; 23] = [
+        "associativity",
+        "distinct",
+        "flag",
+        "get",
+        "higher_than",
+        "infix",
+        "invar",
+        "lib",
+        "lower_than",
+        "opaque",
+        "override",
+        "package",
+        "post",
+        "postfix",
+        "pre",
+        "precedence",
+        "prefex",
+        "property",
+        "record",
+        "sealed",
+        "set",
+        "super",
+        "tls",
+    ];
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Punctuation {
+    Dot,
+    DotDot,
+    DotDotDot,
+    DotDotEquals,
+    Semicolon,
+    At,
+    AtExclaim,
+    Colon,
+    ColonEquals,
+    Comma,
+    Exclaim,
+    Caret,
+    Ampersand,
+    Question,
+    Or,
+    Equals,
+    AndAnd,
+
+    SingleArrowR,
+    SingleArrowL,
+    DoubleArrow,
+
+    Custom(PunctuationId),
+}
+
+impl Punctuation {
+    pub fn as_str<'a>(&'a self, punctuations: &'a PuncutationTable) -> &'a str {
         match self {
-            WeakKeyword::Distinct => "distinct",
-            WeakKeyword::Flag     => "flag",
-            WeakKeyword::Infix    => "infix",
-            WeakKeyword::Invar    => "invar",
-            WeakKeyword::Opaque   => "opaque",
-            WeakKeyword::Override => "override",
-            WeakKeyword::Post     => "post",
-            WeakKeyword::Postfix  => "postfix",
-            WeakKeyword::Pre      => "pre",
-            WeakKeyword::Prefix   => "prefex",
-            WeakKeyword::Property => "property",
-            WeakKeyword::Record   => "record",
-            WeakKeyword::Sealed   => "sealed",
-            WeakKeyword::Super    => "super",
-            WeakKeyword::Tls      => "tls",
+            Self::Custom(id) => &punctuations[*id],
+            _ => self.as_display_str(),
+        }
+    }
+
+    pub fn as_display_str(self) -> &'static str {
+        match self {
+            Self::Dot          => ".",
+            Self::DotDot       => "..",
+            Self::DotDotDot    => "...",
+            Self::DotDotEquals => "..=",
+            Self::Semicolon    => ";",
+            Self::At           => "@",
+            Self::AtExclaim    => "@!",
+            Self::Colon        => ":",
+            Self::ColonEquals  => ":=",
+            Self::Comma        => ",",
+            Self::Exclaim      => "!",
+            Self::Caret        => "^",
+            Self::Ampersand    => "&",
+            Self::Question     => "?",
+            Self::Or           => "|",
+            Self::Equals       => "=",
+            Self::AndAnd       => "&&",
+
+            Self::SingleArrowR => "->",
+            Self::SingleArrowL => "<-",
+            Self::DoubleArrow  => "=>",
+         
+            Self::Custom(_)    => "custom_punct",
         }
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum OpenCloseSymbol {
+    Paren,
+    Brace,
+    Bracket,
+}
+
+impl OpenCloseSymbol {
+    pub fn as_open_str(self) -> &'static str {
+        match self {
+            Self::Paren      => "(",
+            Self::Brace      => "{",
+            Self::Bracket    => "[",
+        }
+    }
+
+    pub fn as_close_str(self) -> &'static str {
+        match self {
+            Self::Paren      => ")",
+            Self::Brace      => "}",
+            Self::Bracket    => "]",
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Token {
     StrongKw(StrongKeyword),
     WeakKw(WeakKeyword),
-    Name(NameTableId),
-    Punctuation(PunctuationId), 
-    OpenSymbol(char),
-    CloseSymbol(char),
+    Name(NameId),
+    Punctuation(Punctuation), 
+    OpenSymbol(OpenCloseSymbol),
+    CloseSymbol(OpenCloseSymbol),
     Literal(LiteralId),
+    Underscore
+}
+
+impl Token {
+    pub fn fmt_full(&self, f: &mut dyn fmt::Write, names: &NameTable, literals: &LiteralTable, punctuations: &PuncutationTable) -> fmt::Result {
+        match self {
+            Self::StrongKw(kw) => write!(f, "{}", kw.as_str()),
+            Self::WeakKw(kw) => write!(f, "{}", kw.as_str()),
+            Self::Name(name_id) => write!(f, "{}", &names[*name_id]),
+            Self::Punctuation(punct) => write!(f, "{}", punct.as_str(&punctuations)),
+            Self::OpenSymbol(sym) => write!(f, "{}", sym.as_open_str()),
+            Self::CloseSymbol(sym) => write!(f, "{}", sym.as_close_str()),
+            Self::Literal(lit_id) => write!(f, "{}", &literals[*lit_id]),
+            Self::Underscore => write!(f, "_"),
+        }
+    }
+
+    pub fn as_display_str(&self) -> &str {
+        match self {
+            Self::StrongKw(kw) => kw.as_str(),
+            Self::WeakKw(kw) => kw.as_str(),
+            Self::Name(_) => "name",
+            Self::Punctuation(punct) => punct.as_display_str(),
+            Self::OpenSymbol(sym) => sym.as_open_str(),
+            Self::CloseSymbol(sym) => sym.as_close_str(),
+            Self::Literal(_) => "literal",
+            Self::Underscore => "_",
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -235,6 +412,12 @@ impl Display for TokenMetadata {
             self.char_len,
             self.byte_len,
         )
+    }
+}
+
+impl TokenMetadata {
+    pub fn as_error_loc_string(&self) -> String {
+        format!("{}:{}:", self.line, self.column)
     }
 }
 
@@ -273,12 +456,14 @@ impl TokenStore {
 
         let mut print_buf = String::with_capacity(64);
         let mut depth = 0;
-        for (token, meta) in self.tokens.iter().zip(self.metadata.iter()) {
+        for (idx, (token, meta)) in self.tokens.iter().zip(self.metadata.iter()).enumerate() {
             if let Token::CloseSymbol(_) = token {
                 depth -= 1;
             }
 
             print_buf.clear();
+            _ = write!(&mut print_buf, "{idx:05} ");
+
             for _ in 0..depth {
                 _ = write!(&mut print_buf, "| ");
             }
@@ -288,15 +473,16 @@ impl TokenStore {
                 Token::StrongKw(kw) => write!(&mut print_buf, "StrongKw: {}", kw.as_str()),
                 Token::WeakKw(kw) => write!(&mut print_buf, "WeakKw: {}", kw.as_str()),
                 Token::Name(name_id) => write!(&mut print_buf, "Name({name_id}): {}", &names[*name_id]),
-                Token::Punctuation(punct_id) => write!(&mut print_buf, "Symbol({punct_id}): {}", &punctuations[*punct_id]),
-                Token::OpenSymbol(ch) => {
+                Token::Punctuation(punct) => write!(&mut print_buf, "Symbol: {}", punct.as_str(&punctuations)),
+                Token::OpenSymbol(sym) => {
                     depth += 1;
-                    write!(&mut print_buf, "OpenSymbol: {ch}")
+                    write!(&mut print_buf, "OpenSymbol: {}", sym.as_open_str())
                 },
-                Token::CloseSymbol(ch) => {
-                    write!(&mut print_buf, "CloseSymbol: {ch}")
+                Token::CloseSymbol(sym) => {
+                    write!(&mut print_buf, "CloseSymbol: {}", sym.as_close_str())
                 },
                 Token::Literal(lit_id) => write!(&mut print_buf, "Literal({lit_id}): {}", &literals[*lit_id]),
+                Token::Underscore => write!(&mut print_buf, "Underscore"),
             };
 
             println!("{print_buf:64} | {}", meta);
@@ -308,16 +494,26 @@ impl TokenStore {
 
         for (token, meta) in self.tokens.iter().zip(self.metadata.iter()) {
             match token {
-                Token::StrongKw(kw) => write!(writer, "{},,", kw.as_str())?,
-                Token::WeakKw(kw) => write!(writer, "{},,", kw.as_str())?,
+                Token::StrongKw(kw) => write!(writer, "strong keyword,{},", kw.as_str())?,
+                Token::WeakKw(kw) => write!(writer, "weak keyword,{},", kw.as_str())?,
                 Token::Name(name_id) => write!(writer, "name,{},", &names[*name_id])?,
-                Token::Punctuation(punct_id) => write!(writer, "punctuation,{},", &punctuations[*punct_id])?,
-                Token::OpenSymbol(ch) => write!(writer, "punctuation,{},", ch)?,
-                Token::CloseSymbol(ch) => write!(writer, "punctuation,{},", ch)?,
-                Token::Literal(lit_id) => write!(writer, "literal,{},", literals[*lit_id])?,
+                Token::Punctuation(punct) => write!(writer, "punctuation,\"{}\",", punct.as_str(&punctuations))?,
+                Token::OpenSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_open_str())?,
+                Token::CloseSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_close_str())?,
+                Token::Literal(lit_id) => {
+                    let lit = &literals[*lit_id];
+                    if let Literal::String(s) = lit {
+                        let s = s.replace('\"', "\"\"");
+                        write!(writer, "literal,{s},")?;
+                    } else {
+                        write!(writer, "literal,{lit},", )?;
+                    }
+
+                },
+                Token::Underscore => write!(writer, "underscore,_,")?,
             }
 
-            writeln!(writer, "{},{},{},{},{},{}", meta.line, meta.column, meta.char_offset, meta.byte_offset, meta.char_offset, meta.byte_len)?;
+            writeln!(writer, "{},{},{},{},{},{}", meta.line, meta.column, meta.char_offset, meta.byte_offset, meta.char_len, meta.byte_len)?;
         }
 
         Ok(())

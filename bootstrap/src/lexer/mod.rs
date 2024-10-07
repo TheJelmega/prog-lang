@@ -212,8 +212,36 @@ impl Lexer<'_> {
     }
 
     fn add_punctuation(&mut self, s: &str) {
-        let id = self.punctuation.add(s);
-        self.add_token(Token::Punctuation(id), s.chars().count() as u32, s.len() as u32);
+        let punct = match s {
+            "."   => Punctuation::Dot,
+            ".."  => Punctuation::DotDot,
+            "..." => Punctuation::DotDotDot,
+            "..=" => Punctuation::DotDotEquals,
+            ";"   => Punctuation::Semicolon,
+            "@"   => Punctuation::At,
+            "@!"  => Punctuation::AtExclaim,
+            ":"   => Punctuation::Colon,
+            ":="  => Punctuation::ColonEquals,
+            ","   => Punctuation::Comma,
+            "!"   => Punctuation::Exclaim,
+            "^"   => Punctuation::Caret,
+            "&"   => Punctuation::Ampersand,
+            "?"   => Punctuation::Question,
+            "|"   => Punctuation::Or,
+            "="   => Punctuation::Equals,
+            "&&"  => Punctuation::AndAnd,
+
+            "->"  => Punctuation::SingleArrowR,
+            "<-"  => Punctuation::SingleArrowL,
+            "=>"  => Punctuation::DoubleArrow,
+
+            _ => {
+                let id = self.punctuation.add(s);
+                Punctuation::Custom(id)
+            },
+        };
+
+        self.add_token(Token::Punctuation(punct), s.chars().count() as u32, s.len() as u32);
     }
 
     fn add_literal(&mut self, lit: Literal, char_len: u32, byte_len: u32) {
@@ -268,24 +296,29 @@ impl Lexer<'_> {
                         self.add_strong_keyword(StrongKeyword::As);
                     }
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('a', 5) => if sub_str == "async" {
                     self.add_strong_keyword(StrongKeyword::Async);
                 } else if sub_str == "await" {
                     self.add_strong_keyword(StrongKeyword::Await);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('a', 6) => if sub_str == "assert" {
                     self.add_strong_keyword(StrongKeyword::Assert);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                },
+                ('a', 13) => if sub_str == "associativity" {
+                    self.add_weak_keyword(WeakKeyword::Associativity);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('b', 2) => if sub_str == "b8" {
                     self.add_strong_keyword(StrongKeyword::B8);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('b', 3) => if sub_str == "b16" {
                     self.add_strong_keyword(StrongKeyword::B16);
@@ -294,24 +327,29 @@ impl Lexer<'_> {
                 } else if sub_str == "b64" {
                     self.add_strong_keyword(StrongKeyword::B64);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('b', 4) => if sub_str == "bool" {
                     self.add_strong_keyword(StrongKeyword::Bool);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                },
+                ('b', 5) => if sub_str == "break" {
+                    self.add_strong_keyword(StrongKeyword::Break);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('b', 8) => if sub_str == "bitfield" {
                     self.add_strong_keyword(StrongKeyword::Bitfield);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('c', 4) => if sub_str == "char" {
                     self.add_strong_keyword(StrongKeyword::Char);
                 } else if sub_str == "cstr" {
                     self.add_strong_keyword(StrongKeyword::CStr);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('c', 5) => if sub_str == "const" {
                     self.add_strong_keyword(StrongKeyword::Const);
@@ -320,39 +358,61 @@ impl Lexer<'_> {
                 } else if sub_str == "char8" {
                     self.add_strong_keyword(StrongKeyword::Char8);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('c', 6) => if sub_str == "char16" {
                     self.add_strong_keyword(StrongKeyword::Char16);
                 } else if sub_str == "char32" {
                     self.add_strong_keyword(StrongKeyword::Char32);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                },
+                ('c', 8) => if sub_str == "continue" {
+                    self.add_strong_keyword(StrongKeyword::Continue);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('c', 10) => if sub_str == "constraint" {
                     self.add_strong_keyword(StrongKeyword::Constraint);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                },
+                ('d', 2) => if sub_str == "do" {
+                    self.add_strong_keyword(StrongKeyword::Do);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('d', 3) => if sub_str == "dyn" {
                     self.add_strong_keyword(StrongKeyword::Dyn);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('d', 5) => if sub_str == "defer" {
                     self.add_strong_keyword(StrongKeyword::Defer);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('d', 8) => if sub_str == "distinct" {
                     self.add_weak_keyword(WeakKeyword::Distinct);
                 } else {
                     self.add_name(sub_str);
                 },
-                ('e', 4) => if sub_str == "enum" {
+                ('e', 4) => if sub_str == "else" {
+                    self.add_strong_keyword(StrongKeyword::Else);
+                } else if sub_str == "enum" {
                     self.add_strong_keyword(StrongKeyword::Enum);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                },
+                ('e', 6) => if sub_str == "extern" {
+                    self.add_strong_keyword(StrongKeyword::Extern);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('e', 8) => if sub_str == "errdefer" {
+                    self.add_strong_keyword(StrongKeyword::ErrDefer);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('f', 2) => if sub_str == "fn" {
                     self.add_strong_keyword(StrongKeyword::Fn);
@@ -365,27 +425,48 @@ impl Lexer<'_> {
                     self.add_strong_keyword(StrongKeyword::F32);
                 } else if sub_str == "f64" {
                     self.add_strong_keyword(StrongKeyword::F64);
+                } else if sub_str == "for" {
+                    self.add_strong_keyword(StrongKeyword::For);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('f', 4) => if sub_str == "f128" {
                     self.add_strong_keyword(StrongKeyword::F128);
                 } else if sub_str == "flag" {
                     self.add_weak_keyword(WeakKeyword::Flag);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('f', 5) => if sub_str == "false" {
                     self.add_strong_keyword(StrongKeyword::False);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('f', 11) => if sub_str == "fallthrough" {
+                    self.add_strong_keyword(StrongKeyword::Fallthrough);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('g', 3) => if sub_str == "get" {
+                    self.add_weak_keyword(WeakKeyword::Get);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('h', 11) => if sub_str == "higher_than" {
+                    self.add_weak_keyword(WeakKeyword::HigherThan);
+                } else {
+                    self.add_name(sub_str);
                 },
                 ('i', 2) => if sub_str == "i8" {
                     self.add_strong_keyword(StrongKeyword::I8);
+                } else if sub_str == "if" {
+                    self.add_strong_keyword(StrongKeyword::If);
                 } else if sub_str == "is" {
                     self.add_strong_keyword(StrongKeyword::Is);
                 } else if sub_str == "in" {
                     self.add_strong_keyword(StrongKeyword::In);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('i', 3) => if sub_str == "i16" {
                     self.add_strong_keyword(StrongKeyword::I16);
@@ -401,7 +482,7 @@ impl Lexer<'_> {
                 } else if sub_str == "impl" {
                     self.add_strong_keyword(StrongKeyword::Impl);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('i', 5) => if sub_str == "isize" {
                     self.add_strong_keyword(StrongKeyword::Isize);
@@ -410,71 +491,113 @@ impl Lexer<'_> {
                 } else if sub_str == "invar" {
                     self.add_weak_keyword(WeakKeyword::Invar);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
-                ('m', 3) => if sub_str == "mut" {
-                    self.add_strong_keyword(StrongKeyword::Mut);
+                ('l', 3) => if sub_str == "let" {
+                    self.add_strong_keyword(StrongKeyword::Let);
+                } else if sub_str == "lib" {
+                    self.add_weak_keyword(WeakKeyword::Lib);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
+                }
+                ('l', 4) => if sub_str == "loop" {
+                    self.add_strong_keyword(StrongKeyword::Loop);
+                } else {
+                    self.add_name(sub_str);
                 },
+                ('l', 10) => if sub_str == "lower_than" {
+                    self.add_weak_keyword(WeakKeyword::LowerThan);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('m', 3) => if sub_str == "mod" {
+                    self.add_strong_keyword(StrongKeyword::Mod);
+                } else if sub_str == "mut" {
+                    self.add_strong_keyword(StrongKeyword::Mut)
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('m', 4) => if sub_str == "move" {
+                    self.add_strong_keyword(StrongKeyword::Move);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('m', 5) => if sub_str == "match" {
+                    self.add_strong_keyword(StrongKeyword::Match);
+                } else {
+                    self.add_name(sub_str);
+                }
                 ('o', 6) => if sub_str == "opaque" {
                     self.add_weak_keyword(WeakKeyword::Opaque);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('o', 8) => if sub_str == "override" {
                     self.add_weak_keyword(WeakKeyword::Override);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('p', 3) => if sub_str == "pre" {
                     self.add_weak_keyword(WeakKeyword::Pre);
+                } else if sub_str == "pub" {
+                    self.add_strong_keyword(StrongKeyword::Pub);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('p', 4) => if sub_str == "post" {
                     self.add_weak_keyword(WeakKeyword::Post);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('p', 6) => if sub_str == "prefix" {
                     self.add_weak_keyword(WeakKeyword::Prefix);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
-                ('p', 7) => if sub_str == "postfix" {
+                ('p', 7) => if sub_str == "package" {
+                    self.add_weak_keyword(WeakKeyword::Package);
+                } else if sub_str == "postfix" {
                     self.add_weak_keyword(WeakKeyword::Postfix);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('p', 8) => if sub_str == "property" {
                     self.add_weak_keyword(WeakKeyword::Property);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
+                ('p', 10) => if sub_str == "precedence" {
+                    self.add_weak_keyword(WeakKeyword::Precedence);
+                } else {
+                    self.add_name(sub_str);
+                }
                 ('r', 3) => if sub_str == "ref" {
                     self.add_strong_keyword(StrongKeyword::Ref);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
-                ('r', 6) => if sub_str == "record" {
+                ('r', 6) => if sub_str == "return" {
+                    self.add_strong_keyword(StrongKeyword::Return);
+                } else if sub_str == "record" {
                     self.add_weak_keyword(WeakKeyword::Record);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('s', 3) => if sub_str == "str" {
                     self.add_strong_keyword(StrongKeyword::Str);
-                } else {
-                    self.add_name(sub_str)
+                } else if sub_str == "set" {
+                    self.add_weak_keyword(WeakKeyword::Set);
+                } else  {
+                    self.add_name(sub_str);
                 },
                 ('s', 4) => if sub_str == "str7" {
                     self.add_strong_keyword(StrongKeyword::Str7);
                 } else if sub_str == "str8" {
                     self.add_strong_keyword(StrongKeyword::Str8);
                 } else if sub_str == "self" {
-                    self.add_strong_keyword(StrongKeyword::KwSelf);
+                    self.add_strong_keyword(StrongKeyword::SelfName);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('s', 5) => if sub_str == "str16" {
                     self.add_strong_keyword(StrongKeyword::Str16);
@@ -483,7 +606,7 @@ impl Lexer<'_> {
                 } else if sub_str == "super" {
                     self.add_weak_keyword(WeakKeyword::Super);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('s', 6) => if sub_str == "static" {
                     self.add_strong_keyword(StrongKeyword::Static);
@@ -492,33 +615,42 @@ impl Lexer<'_> {
                 } else if sub_str == "sealed" {
                     self.add_weak_keyword(WeakKeyword::Sealed);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
+                ('S', 4) => if sub_str == "Self" {
+                    self.add_strong_keyword(StrongKeyword::SelfTy);
+                } else {
+                    self.add_name(sub_str);
+                }
                 ('t', 3) => if sub_str == "try" {
-                    if self.source[3..].starts_with('!') {
-                        self.add_strong_keyword(StrongKeyword::Try);
-                    } else {
+                    if self.cursor[3..].starts_with("!") {
                         self.add_strong_keyword(StrongKeyword::TryExclaim);
+                    } else {
+                        self.add_strong_keyword(StrongKeyword::Try);
                     }
                 } else if sub_str == "tls" {
                     self.add_weak_keyword(WeakKeyword::Tls);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('t', 4) => if sub_str == "true" {
                     self.add_strong_keyword(StrongKeyword::True);
+                } else if sub_str == "type" {
+                    self.add_strong_keyword(StrongKeyword::Type);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
-                ('t', 5) => if sub_str == "throw" {
+                ('t', 5) => if sub_str == "trait" {
+                    self.add_strong_keyword(StrongKeyword::Trait);
+                } else if sub_str == "throw" {
                     self.add_strong_keyword(StrongKeyword::Throw);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('u', 2) => if sub_str == "u8" {
                     self.add_strong_keyword(StrongKeyword::U8);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('u', 3) => if sub_str == "u16" {
                     self.add_strong_keyword(StrongKeyword::U16);
@@ -529,39 +661,41 @@ impl Lexer<'_> {
                 } else if sub_str == "use" {
                     self.add_strong_keyword(StrongKeyword::Use);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('u', 4) => if sub_str == "u128" {
                     self.add_strong_keyword(StrongKeyword::U128);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('u', 5) => if sub_str == "usize" { 
                     self.add_strong_keyword(StrongKeyword::Usize);
                 } else if sub_str == "union" {
                     self.add_strong_keyword(StrongKeyword::Union);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('u', 6) => if sub_str == "unsafe" { 
                     self.add_strong_keyword(StrongKeyword::Unsafe);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('w', 4) => if sub_str == "when" {
                     self.add_strong_keyword(StrongKeyword::When);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('w', 5) => if sub_str == "where" {
                     self.add_strong_keyword(StrongKeyword::Where);
+                } else if sub_str == "while" {
+                    self.add_strong_keyword(StrongKeyword::While);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('y', 5) => if sub_str == "yield" {
                     self.add_strong_keyword(StrongKeyword::Yield);
                 } else {
-                    self.add_name(sub_str)
+                    self.add_name(sub_str);
                 },
                 ('0', _) => if sub_str.starts_with("0b") {
                     self.lex_binary_lit(sub_str).map_err(|err| self.gen_err(err, sub_str.len() as u32, sub_str.chars().count() as u32))?;
@@ -628,7 +762,7 @@ impl Lexer<'_> {
                 },
                 ('!', _) => {
                     let end = self.cursor[1..].find(|ch: char| !ch.is_alphabetic()).unwrap_or(self.cursor.len());
-                    let sub_str = &self.cursor[..end];
+                    let sub_str = &self.cursor[..end + 1];
                     if sub_str == "!in" {
                         self.add_strong_keyword(StrongKeyword::ExclaimIn);
                     } else if sub_str == "!is" {
@@ -637,39 +771,42 @@ impl Lexer<'_> {
                         self.lex_punctuation(ch);
                     }
                 },
-                ('(' | '{' | '[', _) => {
-                    self.add_token(Token::OpenSymbol(ch), 1, 1);
-                    open_close_stack.push(ch);
+                ('(', _) => {
+                    self.add_token(Token::OpenSymbol(OpenCloseSymbol::Paren), 1, 1);
+                    open_close_stack.push(OpenCloseSymbol::Paren);
+                },
+                ('{', _) => {
+                    self.add_token(Token::OpenSymbol(OpenCloseSymbol::Brace), 1, 1);
+                    open_close_stack.push(OpenCloseSymbol::Brace);
+                },
+                ('[', _) => {
+                    self.add_token(Token::OpenSymbol(OpenCloseSymbol::Bracket), 1, 1);
+                    open_close_stack.push(OpenCloseSymbol::Bracket);
                 },
                 (')' | '}' | ']', _) => {
-                    let open = match ch {
-                        ')' => '(',
-                        '}' => '{',
-                        ']' => '[',
+                    let sym = match ch {
+                        ')' => OpenCloseSymbol::Paren,
+                        '}' => OpenCloseSymbol::Brace,
+                        ']' => OpenCloseSymbol::Bracket,
                         _ => unreachable!(),
                     };
-                    
-                    if let Some(prev) = open_close_stack.pop() {
-                        if prev != open {
-                            let expected = match ch {
-                                '(' => ')',
-                                '{' => '}',
-                                '[' => ']',
-                                _ => unreachable!(),    
-                            };
 
-                            return Err(self.gen_err(ErrorCode::lex_block_unexpected(ch, expected), 1, 1));
+                    if let Some(prev) = open_close_stack.pop() {
+                        if prev != sym {
+                            return Err(self.gen_err(ErrorCode::LexMismatchCloseSym{ found: sym, expected: prev }, 1, 1));
                         }
                     } else {
-                        return Err(self.gen_err(ErrorCode::lex_block_no_open(open, ch), 1, 1));
+                        return Err(self.gen_err(ErrorCode::LexNoOpeningSym{ sym }, 1, 1));
                     }
-                    
-                    self.add_token(Token::CloseSymbol(ch), 1, 1);
+                    self.add_token(Token::CloseSymbol(sym), 1, 1);
                 },
                 // character
                 (_, 0) => {
                     self.lex_punctuation(ch);
                 },
+                ('_', 1) => {
+                    self.add_token(Token::Underscore, 1, 1);
+                }
                 // Name or symbol
                 _ => {
                     self.add_name(sub_str);
@@ -695,36 +832,36 @@ impl Lexer<'_> {
                 self.source = self.cursor;
             },
             0xFE => if bytes[0..=1] == [0xFE, 0xFF] {
-                return Err((ErrorCode::lex_invalid_bom("utf16 (be)"), 2));
+                return Err((ErrorCode::LexInvalidBOM("utf16 (be)"), 2));
             }
             0xFF => 
             if bytes[0..=1] == [0xFF, 0xFE] {
                 if bytes[2..=3] == [0x00, 0x00] {
-                    return Err((ErrorCode::lex_invalid_bom("utf32 (le)"), 4));
+                    return Err((ErrorCode::LexInvalidBOM("utf32 (le)"), 4));
                 } else {
-                    return Err((ErrorCode::lex_invalid_bom("utf16 (le)"), 2));
+                    return Err((ErrorCode::LexInvalidBOM("utf16 (le)"), 2));
                 }
             },
             0x00 => if bytes[0..=3] == [0x00, 0x00, 0xFE, 0xFF] {
-                return Err((ErrorCode::lex_invalid_bom("utf32 (be)"), 4));
+                return Err((ErrorCode::LexInvalidBOM("utf32 (be)"), 4));
             },
             0x2B => if bytes[0..=2] == [0x2B, 0x2F, 0x76] {
-                return Err((ErrorCode::lex_invalid_bom("utf-7"), 3));
+                return Err((ErrorCode::LexInvalidBOM("utf-7"), 3));
             },
             0xF7 => if bytes[0..=2] == [0xF7, 0x64, 0x4C] {
-                return Err((ErrorCode::lex_invalid_bom("utf-1"), 3));
+                return Err((ErrorCode::LexInvalidBOM("utf-1"), 3));
             },
             0xDD => if bytes[0..=3] == [0xDD, 0x73, 0x66, 0x73] {
-                return Err((ErrorCode::lex_invalid_bom("utf-ecbdic"), 4));
+                return Err((ErrorCode::LexInvalidBOM("utf-ecbdic"), 4));
             },
             0x0E => if bytes[0..=2] == [0x0E, 0xFE, 0xFF] {
-                return Err((ErrorCode::lex_invalid_bom("scsu"), 3));
+                return Err((ErrorCode::LexInvalidBOM("scsu"), 3));
             },
             0xFB => if bytes[0..=2] ==[0xFB, 0xEE, 0x28] {
-                return Err((ErrorCode::lex_invalid_bom("bocu-1"), 3));
+                return Err((ErrorCode::LexInvalidBOM("bocu-1"), 3));
             },
             0x84 => if bytes[0..=3] == [0x84, 0x31, 0x95, 0x33] {
-                return Err((ErrorCode::lex_invalid_bom("gb18030"), 4));
+                return Err((ErrorCode::LexInvalidBOM("gb18030"), 4));
             },
             _ => {},
         }
@@ -759,7 +896,7 @@ impl Lexer<'_> {
             if ch == b'_' {
                 continue;
             } else if ch != b'0' && ch != b'1' {
-                return Err(ErrorCode::lex_bin_lit_invalid_char());
+                return Err(ErrorCode::LexInvalidBinInLit);
             }
 
             let shift = idx & 7;
@@ -790,22 +927,35 @@ impl Lexer<'_> {
 
     fn lex_punctuation(&mut self, ch: char) {
         const SINGLE_SYMBOLS: &[char] = &[
-            '@', '#', '$', ':', ';'
+            '#', '$', ';', '.',
+        ];
+        const INVALID_SYMBOLS: &[char] = &[
+            '{', '}', '(', ')', '[', ']',
         ];
 
-        if SINGLE_SYMBOLS.contains(&ch) {
+        if ch == '.' {
+            if self.cursor.starts_with("...") {
+                self.add_punctuation("...");
+            } else if self.cursor.starts_with("..=") {
+                self.add_punctuation("..=");
+            } else if self.cursor.starts_with("..") {
+                self.add_punctuation("..");
+            } else if self.cursor.starts_with("..") {
+                self.add_punctuation("..");
+            } else {
+                self.add_punctuation(".");
+            }
+        } else if SINGLE_SYMBOLS.contains(&ch) {
             self.add_punctuation(&self.cursor[..1]);
         } else {
-            let end = self.cursor.find(|ch: char| ch.is_alphanumeric() || ch.is_whitespace() || SINGLE_SYMBOLS.contains(&ch)).unwrap_or(self.cursor.len());
+            let end = self.cursor.find(|ch: char| ch.is_alphanumeric() || ch.is_whitespace() || SINGLE_SYMBOLS.contains(&ch) || INVALID_SYMBOLS.contains(&ch)).unwrap_or(self.cursor.len());
             let punct_str = &self.cursor[..end];
             self.add_punctuation(punct_str);
         }
-
-        
     }
 
     fn lex_octal_lit(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
-        let digits = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Oct, false).map_err(|_| ErrorCode::lex_oct_lit_invalid_char())?;
+        let digits = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Oct, false).map_err(|_| ErrorCode::LexInvalidOctInLit)?;
 
         let len = sub_str.len() as u32;
         self.add_literal(literals::Literal::Octal { digits }, len, len);
@@ -823,14 +973,14 @@ impl Lexer<'_> {
             } else if bytes[2] == b'1' {
                 true
             } else {
-                return Err(ErrorCode::lex_hex_fp_lit_invalid_leading_digit());
+                return Err(ErrorCode::LexInvalidLeadHexFp);
             };
             
             let Some(exp_p_offset) = self.cursor.find('p') else {
-                return Err(ErrorCode::lex_hex_fp_lit_missing_exp_indicator());
+                return Err(ErrorCode::LexMissHexFpInd);
             };
 
-            let mantissa = Self::lex_lit_digits(&self.cursor[4..exp_p_offset], DigitLexMode::Hex, true).map_err(|_| ErrorCode::lex_hex_lit_invalid_char())?;
+            let mantissa = Self::lex_lit_digits(&self.cursor[4..exp_p_offset], DigitLexMode::Hex, true).map_err(|_| ErrorCode::LexInvalidHexInLit)?;
 
             let sub_str = &self.cursor[exp_p_offset + 1..];
             let (exp_sign, has_sign, offset) = if sub_str.starts_with('+') {
@@ -840,13 +990,13 @@ impl Lexer<'_> {
             } else if sub_str.starts_with(|ch: char| (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') || ch == '_' ) {
                 (true, false, 0)
             } else {
-                return Err(ErrorCode::lex_hex_lit_invalid_char());
+                return Err(ErrorCode::LexInvalidHexInLit);
             };
             let sub_str = &sub_str[offset..];
 
             let end = sub_str.find(|ch: char| !ch.is_alphanumeric() && ch != '_').unwrap_or(sub_str.len());
             let exp_str = &sub_str[..end];
-            let exponent = Self::lex_lit_digits(exp_str, DigitLexMode::Hex, false).map_err(|_| ErrorCode::lex_hex_lit_invalid_char())?;         
+            let exponent = Self::lex_lit_digits(exp_str, DigitLexMode::Hex, false).map_err(|_| ErrorCode::LexInvalidHexInLit)?;         
 
             let len = exp_p_offset as u32 + end as u32 + has_sign as u32 + 1;
 
@@ -860,7 +1010,7 @@ impl Lexer<'_> {
 
         } else {
             // Hex integer
-            let nibbles = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Hex, false).map_err(|_| ErrorCode::lex_hex_lit_invalid_char())?;
+            let nibbles = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Hex, false).map_err(|_| ErrorCode::LexInvalidHexInLit)?;
             let len = sub_str.len() as u32;
             self.add_literal(Literal::HexInt { nibbles }, len, len);
         }
@@ -869,7 +1019,7 @@ impl Lexer<'_> {
     }
 
     fn lex_decimal(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
-        let int_digits = Self::lex_lit_digits(sub_str, DigitLexMode::Dec, false).map_err(|_| ErrorCode::lex_dec_lit_invalid_char())?;
+        let int_digits = Self::lex_lit_digits(sub_str, DigitLexMode::Dec, false).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
 
         let mut end = sub_str.len();
         let (frac_digits, exp_sign, exp_digits) = if self.cursor.len() > sub_str.len() && self.cursor.as_bytes()[sub_str.len()] == b'.' {
@@ -883,7 +1033,7 @@ impl Lexer<'_> {
             } else {
                 end = offset + frac_end;
                 let frac_str = &self.cursor[offset..end];
-                let frac_digits = Self::lex_lit_digits(frac_str, DigitLexMode::Dec, true).map_err(|_| ErrorCode::lex_dec_lit_invalid_char())?;
+                let frac_digits = Self::lex_lit_digits(frac_str, DigitLexMode::Dec, true).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
 
                 let (exp_sign, expr_digits) = if bytes.len() > end + 1 && bytes[end] == b'e' {
                     let (exp_sign, offset) = if bytes[end + 1] == b'-' {
@@ -896,7 +1046,7 @@ impl Lexer<'_> {
 
                     end = offset + self.cursor[offset..].find(|ch: char| (ch < '0' || ch > '9') && ch != '_').unwrap_or(self.cursor.len() - offset);
                     let exp_string = &self.cursor[offset..end];
-                    let exp_digits = Self::lex_lit_digits(exp_string, DigitLexMode::Dec, false).map_err(|_| ErrorCode::lex_dec_lit_invalid_char())?;
+                    let exp_digits = Self::lex_lit_digits(exp_string, DigitLexMode::Dec, false).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
 
                     (exp_sign, exp_digits)
                 } else {
@@ -994,7 +1144,8 @@ impl Lexer<'_> {
             let comment = &self.cursor[start..end];
 
             self.add_comment(comment, false, is_doc, is_top);
-            self.consume_str(&self.cursor[..end + 1]);
+            let end = end.min(self.cursor.len());
+            self.consume_str(&self.cursor[..end]);
             return Ok(true);
         } else if comment_kind_indicator == b'*' {
             let (is_doc, is_top) = if self.cursor.len() > 3 {
@@ -1016,10 +1167,10 @@ impl Lexer<'_> {
             let mut comment_len = start;
             loop {
                 let Some(next) = cursor.find(|ch: char| ch == '*' || ch == '/') else {
-                    return Err((ErrorCode::lex_block_comment_not_closed(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((ErrorCode::LexUnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 };
                 if next + 1 >= cursor.len() {
-                    return Err((ErrorCode::lex_block_comment_not_closed(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((ErrorCode::LexUnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 }
 
                 if cursor.as_bytes()[next] == b'*' {
@@ -1049,7 +1200,7 @@ impl Lexer<'_> {
     fn lex_character(&mut self) -> Result<(), (ErrorCode, u32, u32)> {
         let bytes = self.cursor.as_bytes();
         if bytes.len() <= 3 {
-            return Err((ErrorCode::lex_char_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         if bytes[1] == b'\\' {
@@ -1063,46 +1214,46 @@ impl Lexer<'_> {
                 b'\\' => ('\\', 4),
                 b'x' => {
                     if bytes.len() <= 6 {
-                        return Err((ErrorCode::lex_char_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     }
 
-                    let hi = Self::lex_digit(bytes[3], DigitLexMode::Hex).map_err(|_| (ErrorCode::lex_char_lit_invalid_hex_val(), 6, 6))?;
-                    let low = Self::lex_digit(bytes[4], DigitLexMode::Hex).map_err(|_| (ErrorCode::lex_char_lit_invalid_hex_val(), 6, 6))?;
+                    let hi = Self::lex_digit(bytes[3], DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidHexInChar, 6, 6))?;
+                    let low = Self::lex_digit(bytes[4], DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidHexInChar, 6, 6))?;
 
                     let val = (hi << 4) | low;
                     (val as char, 6)
                 },
                 b'u' => {
                     if bytes.len() <= 7 {
-                        return Err((ErrorCode::lex_char_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     }
                     if bytes[3] != b'{' {
-                        return Err((ErrorCode::lex_char_lit_invalid_unicode_val(), 4, 4));
+                        return Err((ErrorCode::LexInvalidUnicodeInLit, 4, 4));
                     }
                     let Some(end) = self.cursor[4..].find('\'').map(|val| val + 4) else {
-                        return Err((ErrorCode::lex_char_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     };
                     if bytes[end - 1] != b'}' || end > 11 {
-                        return Err((ErrorCode::lex_char_lit_invalid_unicode_val(), end as u32, end as u32));
+                        return Err((ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32));
                     }
 
                     let mut code: u32 = 0;
                     for ch in self.cursor[4..end - 1].chars() {
                         if ch.len_utf8() > 1 {
-                            return Err((ErrorCode::lex_char_lit_invalid_unicode_val(), end as u32, end as u32));
+                            return Err((ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32));
                         }
 
                         code <<= 4;
-                        code |= Self::lex_digit(ch as u8, DigitLexMode::Hex).map_err(|_| (ErrorCode::lex_char_lit_invalid_unicode_val(), end as u32, end as u32))? as u32;
+                        code |= Self::lex_digit(ch as u8, DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32))? as u32;
                     }
 
                     if code > 0x10FFFF {
-                        return Err((ErrorCode::lex_invalid_unicode_codepoint(), end as u32, end as u32));
+                        return Err((ErrorCode::LexInvalidUnicode, end as u32, end as u32));
                     }
 
                     (unsafe { char::from_u32_unchecked(code) }, end as u32 + 1)
                 },
-                _ => return Err((ErrorCode::lex_char_lit_invalid_escape_code(), 4, 4)),
+                _ => return Err((ErrorCode::LexInvalidEscape, 4, 4)),
             };
 
             self.add_literal(Literal::Char(ch), len, len);
@@ -1116,7 +1267,7 @@ impl Lexer<'_> {
 
     fn lex_string(&mut self) -> Result<(), (ErrorCode, u32, u32)> {
         if self.source.len() <= 2 {
-            return Err((ErrorCode::lex_string_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         let mut cursor = &self.cursor[1..];
@@ -1124,13 +1275,13 @@ impl Lexer<'_> {
         let mut string_content = String::new();
         loop {
             let Some(mut next) = cursor.find(|ch: char| ch == '"' || ch == '\n') else {
-                return Err((ErrorCode::lex_string_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
             };
             end += next + 1;
 
             if !string_content.is_empty() {
                 let Some(start) = cursor.find(|ch: char| !HORIZONTAL_WHITESPACE.contains(&ch)) else {
-                    return Err((ErrorCode::lex_string_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 };
                 cursor = &cursor[start..];
                 next -= start;
@@ -1139,11 +1290,11 @@ impl Lexer<'_> {
             let bytes = cursor.as_bytes();
             if bytes[next] == b'\n' {
                 if next > 2 && bytes[next - 1] != b'\\' {
-                    return Err((ErrorCode::lex_string_lit_invalid_multi_line(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((ErrorCode::LexStringNoContinue, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 }
                 string_content += &cursor[..next - 1];
 
-            } else if next > 2 && bytes[next - 1] != b'\\' {
+            } else if next < 2 || bytes[next - 1] != b'\\' {
                 string_content += &cursor[..next];
                 break;
             } else {
@@ -1163,10 +1314,10 @@ impl Lexer<'_> {
         let num_hashes = self.cursor[1..].find(|ch: char| ch != '#').unwrap();
 
         if self.cursor.as_bytes().len() < 2 * num_hashes + 2 {
-            return Err((ErrorCode::lex_raw_string_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((ErrorCode::LexNotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
         if self.cursor.as_bytes()[num_hashes + 1] != b'"' {
-            return Err((ErrorCode::lex_raw_string_lit_invalid_start(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((ErrorCode::LexInvalidStartRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         let start = num_hashes + 2;
@@ -1178,7 +1329,7 @@ impl Lexer<'_> {
             ending.push('#');
         }
         let Some(end) = cursor.find(&ending) else {
-            return Err((ErrorCode::lex_raw_string_lit_not_enough_chars(), self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((ErrorCode::LexNotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         };
 
         let end = start + end;
@@ -1455,6 +1606,7 @@ mod tests {
     #[test]
     fn text_string_lex() {
         let source = r###"
+"C"
 "hello world"
 "プログラミング"
 "multi \
@@ -1477,6 +1629,7 @@ string
         let token_store = &lexer.tokens;
 
         let expected: &[&str] = &[
+            "C",
             "hello world",
             "プログラミング",
             "multi line",

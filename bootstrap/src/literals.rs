@@ -92,6 +92,10 @@ fn print_digits(f: &mut std::fmt::Formatter<'_>, digits: &Vec<u8>, show_precedin
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct LiteralId(u32);
 
+impl LiteralId {
+    pub const INVALID: Self = Self(u32::MAX);
+}
+
 impl Display for LiteralId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)

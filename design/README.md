@@ -340,6 +340,7 @@ Version: 0.0
             - [`no_mangle`](#no_mangle)
             - [`used`](#used)
         6. [Code generation attributes](#1716-code-generation-attributes-)
+            - [`builtin`](#builtin)
             - [`inline`](#inline)
             - [`cold`](#cold)
             - [`track_caller`](#track_caller)
@@ -507,6 +508,7 @@ b32
 b64
 bitfield
 bool
+break
 char
 char7
 char8
@@ -514,29 +516,42 @@ char16
 char32
 const
 constraint
+continue
 cstr
 defer
+do
 dyn
+else
 enum
+errdefer
 f16
 f32
 f64
 f128
 false
+fallthrough
 fn
+for
 i8
 i16
 i32
 i64
 i128
+if
 in
 !in
 impl
 is
 !is
 isize
+let
+loop
+match
+mod
+move
 mut
 ref
+return
 self
 static
 str
@@ -549,6 +564,7 @@ throw
 true
 try
 try!
+type
 u8
 u16
 u32
@@ -558,6 +574,7 @@ union
 unsafe
 use
 usize
+while
 when
 where
 ```
@@ -577,15 +594,21 @@ yield
 A weak keyword is a keyword that is dependent on the surrounding context and can be used anywhere outside
 A list of weak keywords can be found below (in a close to alphabetic order):
 ```
+associativity
 distinct
 flag
+higher_than
 infix
 invar
+lib
+lower_than
 opaque
 override
+package
 post
 postfix
 pre
+precedence
 prefix
 property
 record
@@ -740,7 +763,9 @@ Extended names on the other hand have much more limited scope of where they can 
 ## 5.2. Identifiers [↵](#5-names-and-paths-)
 
 ```
-<identifier> := <name> [ <generic-args> ]
+<expr-path-ident> := <name> [ '.' <generic-args> ]
+<type-path-ident> := <name> [ [ '.' ] ( <generic-args> | <ident-fn-path>) ]
+<ident-fn-path> := ( [ <type> { ',' <type> }* [ ',' ] ] ) [ '->' <type> ]
 ```
 
 An identifier is a sub-segment of a path, which consists out of a name and optional generic arguments.
@@ -764,8 +789,9 @@ There are multiple types of paths:
 ### 5.3.1. Simple paths [↵](#53-paths-)
 
 ```
-<simple-path> := [ '.' ] <simple-path-segment> { '.' <simple-path-segment> }*
-<simple-path-segment> := <name> | 'super' | 'self'
+<simple-path> := <simple-path-start> { '.' <simple-path-segment> }*
+<simple-path-start> := ([ '.' ] <name>) | 'super' | 'self'
+<simple-path-segment> := <name> | <ext-name>
 ```
 
 Simple path are used for visitility, attributes, macros and use items.
@@ -773,15 +799,26 @@ Simple path are used for visitility, attributes, macros and use items.
 ### 5.3.2. Paths in expression [↵](#53-paths-)
 
 ```
-<path-in-expr> := [ '.' ] <identifier> { '.' <path-expr-segment> }*
-<path-expr-segment> := <identifier> | <ext-name>
+<expr-path> := [ '.' ] <expr-path-ident> { '.' <path-expr-segment> }*
+<path-expr-segment> := <expr-path-ident> | <ext-name>
 ```
 
 Paths in experessions allow for paths with generic arguments specified.
 They are used in various places in expressions and patterns.
 
-### 5.3.3. Qualified paths [↵](#53-paths-)
-_TODO_
+### 5.3.3. Paths in types [↵](#53-paths-)
+
+```
+<type-path> := [ '.' ] <type-path-segment> { '.' <type-path-segment> }*
+<type-path-segment> := 
+```
+
+### 5.3.4. Qualified paths [↵](#53-paths-)
+```
+<qualified-path> '(:' <type> 'as' <identifier> ':)' { '.' <path-expr-segment> }
+```
+
+Qualified path allow for disambuating the path for trait implementations.
 
 # 6. Literals [↵](#tables-of-contents)
 
@@ -1173,12 +1210,14 @@ Module path    | `inner`'s file location   | `inner`'s module path
 ## 7.2. Use declarations [↵](#7-items-)
 
 ```
-<use-item> := `use` <use-root> [ '.' <use-tree> ] ';'
-            | `use` <use-tree> ';'
-<use-root> := [ <name> ] ':' [ <name> ]
-<use-tree> := <simple-path> '.' '*'
-            | <simple-path> '.` '{' <use-tree> { ',' <use-tree> }* [ ',' ] '}'
-            | <simple-path> [ "as" ( <ext-name> ) ]
+<use-item>     := `use` <use-root> [ '.' <use-tree> ] ';'
+                | `use` <use-tree> ';'
+<use-root>     := [ <name> ] ':' [ <name> ]
+<package|name> := [ <ext-name> '.' ] <name>
+<module-name>  := <ext-name>
+<use-tree>     := <simple-path> '.' '*'
+                | <simple-path> '.` '{' <use-tree> { ',' <use-tree> }* [ ',' ] '}'
+                | <simple-path> [ "as" ( <ext-name> ) ]
 ```
 
 A `use` declaration creates a local binding associated to a item path.
@@ -1215,6 +1254,11 @@ Use root | Package | Library
 `A:`     | `A`     | `A`
 `B:`     | `B`     | `B`
 `B:D`    | `B`     | `D`
+
+The package name may contain 2 parts: an optional group name, and the actual name of the package.
+The group name can be used to put a set of packages under a single organization or developer.
+
+For example, the Xenon std library may be an `std` package within a `xenon` package group, meaning it can be used as `xenon.std` when a shorthand is not defined within the project's settings.
 
 The `use` root can be omitted for any value relative to the current module, including at most 1 level up using the `super` keyword.
 
@@ -1278,11 +1322,12 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 <typed-receiver> := 'self' ':' <type>
 
 <fn-param> := { <attribute> }* <fn-param-name> { ',' <fn-param-name> }* ':' <type>
-<opt-fn-param> := { <attribute> }* <name> <pattern-top-no-alt> ':' <type> '=' <expr>
-<fn-param-name> := [ <name> ] [ 'mut' ] <name>
-                 | <name> <pattern-top-no-alt>
+<opt-fn-param> := [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt> ':' <type> '=' <expr>
+<fn-param-name> := [ <fn-param-label> ] { <attribute> }* [ 'mut' ] <name>
+                 | [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt>
+<fn-param-label> := ':' <ext-name>
 
-<variadic-param> := <label> '...' ':' <type>
+<variadic-param> := <name> ':' <type> '...'
 ```
 
 Function parameters consists out of a label, a pattern, and a type.
@@ -1548,15 +1593,17 @@ There are 3 kinds of structs:
 <nominal-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '{' [ <struct-fields> ] '}'
 <struct-fields> := <struct-field> { ',' <struct-field> } ','
 <struct-field> := <struct-member> | <struct-use>
-<struct-member> := [ <vis> ] [ 'mut' ] <ext-name> { ',' <ext-name> }* ':' <type>
-                 | [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '=' <expr> ]
-<struct-usze> := [ <vis> ] 'use' <type>
+<struct-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> { ',' <ext-name> }* ':' <type>
+                 | { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '=' <expr> ]
+<struct-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path>
 ```
 
 A regular structure exists out of a collection of named fields.
 A field can be left out, but have its space reserved for future use, by giving it the name of `_`, which will leave the field out for all other purposes.
 
 Each field defintion may contain multiple names, this will result in a field to be created for each, with the type defined.
+If the visibility and/or mutability is defined, they will apply to all names following it.
+
 If only a single name is defined, a field may also have a default value assigned to it (see note above).
 
 #### Use fields
@@ -1564,7 +1611,7 @@ If only a single name is defined, a field may also have a default value assigned
 Sometimes it may be useful to add the contents from another structure directly within the body of the current structure.
 This can be done using the special case of the `use` keywords, as inside of a structure, instead of importing another module, it means that the body of the strucuture after it will be placed within the current structure.
 There are some limitiations when it comes to the visibility of fields, for a structure to be included within another structure:
-- if the `use` comes from another library, all it's member need to be public to be included it within the body.
+- if the `use` comes from another library, all it's member need to be public to be included within the body.
 - if the `use` comes from the same library, all fields need to be visible from the current namespace and and the visibility of the `use` may not be greater than that of any of those fields.
 
 These fields will then all also be given the visibility as define before the `use`.
@@ -1583,7 +1630,7 @@ struct Quux {
 
 // File: main.xn
 
-use :lib; // Include lib
+use :.lib; // Include lib
 
 struct Foo {
     pub(mod) a: i32,
@@ -1619,10 +1666,10 @@ They are generally similar to inline records, but allow visibility and default v
 ### 7.5.2. Tuple structure [↵](#75-structs-)
 
 ```
-<tuple-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '(' [ <tuple-struct-fields> ] [ <tuple-struct-tail-fields> ] [ ',' ] ')'
-<tuple-struct-fields> := [ <tuple-struct-field> { ',' <tuple-struct-field> }* ]  [ ',' ]
+<tuple-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '(' [ <tuple-struct-fields> ] ')' ';'
+<tuple-struct-fields> := [ <tuple-struct-field> { ',' <tuple-struct-field> }* ] [ <tuple-struct-tail-fields> ] [ ',' ]
 
-<tuple-struct-tail-field> := [ <tuple-struct-tail-field> { ',' <tuple-struct-tail-field> }* ]
+<tuple-struct-tail-fields> := ',' <tuple-struct-tail-field> { ',' <tuple-struct-tail-field> }*
 
 <tuple-struct-field> := [ <vis> ] [ 'mut' ] <type>
 <tuple-struct-tail-field> := [ <vis> ] [ 'mut' ] <type> [ '=' <expr> ]
@@ -1650,9 +1697,9 @@ Unit stuctures can be seen as distinct type aliases of the unit type, but with t
 ## 7.6. Union [↵](#7-items-)
 
 ```
-<union-item> := { <attribute> }* [ 'vis' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
+<union-item> := { <attribute> }* [ 'vis' ] [ 'mut' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
 <union-fields> := <union-field> { ',' <union-field> }* [ ',' ]
-<union-field> := [ <vis> ] <ext-name> ':' <type>
+<union-field> := [ <vis> ] [ 'mut' ] <ext-name> ':' <type>
 ```
 
 A union is a struct-like type, but instead of all fields being available at all times, a union's main characteristic is that all field share a common storage.
@@ -1676,6 +1723,9 @@ Because of what's mentioned above, this means that all reads field in the union 
 Unlike reads, writes are always safe, as the user is just overwriting arbitrary data, so it cannot be undefined behavior.
 A union field will never be dropped.
 
+Similar to structs, unions allow individual member to bet set as `mut`, or the entire union.
+This can be useful to keep some variant as read-only, so field `a` can be interpreted as `b`, but not the other way around.
+
 ### 7.6.1. Union field offsets [↵](#76-union-)
 
 By default, all fields are guaranteed to be at an offset of `0`.
@@ -1697,7 +1747,7 @@ For this reason, if any field is borrowed immutably, no other field can be borro
 ## 7.7. Enum [↵](#7-items-)
 
 ```
-<enum-item> { <attribute> }* [ <vis> ] ( <adt-enum> | <flag-enum> )
+<enum-item> := { <attribute> }* [ <vis> ] ( <adt-enum> | <flag-enum> )
 ```
 
 An enum, or enumeration, is a type that can be used for one of the following use-cases:
@@ -1710,12 +1760,12 @@ The visibility of the enum is shared by all variants and their fields
 ### 7.7.1. ADT enum [↵](#77-enum-)
 
 ```
-<adt-enum> { <attribute> }* [ <vis> ] [ 'flag' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
+<adt-enum> := [ 'mut' ] [ 'record' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
 <enum-variants> := <enum-variant> { ',' <enum-variant> } [ ',' ]
-<enum-variant> := <ext-name> [ <variant-body> ] [ '=' <expr> ]
+<enum-variant> := { <attribute> }* [ 'mut' ] <ext-name> [ <variant-body> ] [ '=' <expr> ]
 <variant-body> := <struct-variant-body> | <tuple-variant-body>
 <struct-variant-body> := '{' <struct-fields> '}'
-<tuple-variant-body> := '(' <type> { ',' <type> }* [ ',' ] ')'
+<tuple-variant-body> := '(' [ <tuple-struct-fields> ] ')'
 ```
 
 Each ADT enum constists out of at minimum a discriminant, but may in addition also contain a set of fields that are associated with each variant.
@@ -1725,6 +1775,11 @@ This payload is effectively a struct or tuple struct, where it's body is defined
 For more info about the payloads, see the [Struct item](#75-structs-).
 
 > _Note_: Enum fields may not have their own visibility defined.
+
+Like a struct, the fields of each variant can also be declared to be mutable or not, this can be done at 3 levels:
+- For the entire enum by placing `mut` infront of the `enum` keyword.
+- For an entire variant, by defining that variant as `mut`
+- On a field per field basis
 
 #### Discriminant
 
@@ -1751,6 +1806,13 @@ If an enum has a known discriminant type, it is allowed to cast a pointer to the
 
 A field-less enum is a variant of an ADT enum that contains no payload and is therefore just its discriminant internally.
 This allows field-less enums to be cast to their underlying integer type.
+
+#### Record enums
+
+A variation of an enum is a record enum, which is a structural type.
+The distinction can be made by putting the weak keyword `record` before the `enum` keyword.
+
+Inline enums will also be record enums.
 
 ### 7.7.2. Record enums [↵](#77-enum-)
 
@@ -1780,9 +1842,11 @@ _TODO: list of functions_
 ## 7.8. Bitfield [↵](#7-items-)
 
 ```
-<bitfield-item> := { <attribute> }* [ <vis> ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
+<bitfield-item> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'record' ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
 <bitfield-fields> := <bitfield-field> { ',' <bitfield-field> }* [ ',' ]
-<bitfield-field> := <ext-name> ':' <type> [ '|' <expr> ]
+<bitfield-field> := <bitfield-member> | <bitfield-use>
+<bitfield-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '|' <expr> ]
+<bitfield-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path> [ '|' <expr> ]
 ```
 
 A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned and sized types.
@@ -1800,6 +1864,10 @@ The size of a bitfield may be explicitly defined in an expression after the bitf
 If no explicit size is defined, it will take in the minimum number of bytes needed to store all field in the bitset.
 
 Access to bitfield elements are an example of propties being used.
+
+### 7.8.1. Record bitfield
+
+Similar to `struct`s and `union`s, a bitfield can also be a structural type by putting the weak keyword `record` before the `bitfield` keyword.
 
 ## 7.9. Const item [↵](#tables-of-contents)
 
@@ -1881,7 +1949,7 @@ When declaring a static within a external block, `extern` has to be left out.
 ## 7.11. Properties [↵](#7-items-)
 
 ```
-<prop-item> := { <attribute> }* [ <vis> ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
+<prop-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
 <prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
 <prop-get> := 'get' <expr-no-block> ';'
             | 'get' <expr-with-block>
@@ -1890,6 +1958,18 @@ When declaring a static within a external block, `extern` has to be left out.
 <prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
                 | 'mut' 'get' <expr-with-block>
 <prop-get> := 'set' <expr-no-block> ';'
+            | 'set' <expr-with-block>
+
+
+<assoc-prop-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <assoc-prop-get-set> }[1,4] '}'
+<assoc-prop-get-set> := <assoc-prop-get> | <assoc-prop-ref-get> <assoc-prop-mut-get> | <assoc-prop-set>
+<assoc-prop-get> := 'get' <expr-no-block> ';'
+            | 'get' <expr-with-block>
+<assoc-prop-ref-get> := 'ref' 'get' <expr-no-block> ';'
+                | 'ref' 'get' <expr-with-block>
+<assoc-prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
+                | 'mut' 'get' <expr-with-block>
+<assoc-prop-get> := 'set' <expr-no-block> ';'
             | 'set' <expr-with-block>
 ```
 
@@ -2192,23 +2272,25 @@ They may implicitly capture generics from an outer scope, unless they are shadow
 ## 8.2. Variable declaration [↵](#8-statements-)
 
 ```
-<var-decl> := 'let' <pattern-top-no-alt> ':' <type> [ '=' <expr> [ 'else' <block-expr> ] ] ';'
-            | 'let' <pattern-top-no-alt> ':=' <expr> [ 'else' <block-expr> ] ';'
+<var-decl> := <name-var-decl> | <let-var-decl>
+<name-var-decl> := <var-decl-name> { ',' <var-decl-namef> }* ':=' <expr> ';'
+<var-decl-name> := [ 'mut' ] <name>
+<let-var-decl> := 'let' <pattern-top-no-alt> ':' <type> [ '=' <expr> [ 'else' <block-expr> ] ] ';'
 ```
 
-A variable declartion introduces a new variable withing a scope.
+A variable declaration introduces (a) new variable(s) withing a scope.
 By default, variables are immuatable and need to explicitly be defined as `mut` to be able to be mutated.
 
 If no type is given, the compiler will infer the type from the surrounding context, or will return an error if insuffient information can be retreived from code.
 
 Any variable introduced will be visible until the end of the scope, unless they are shadowed by another declaration.
 
-A variable may also be declared as being unitialized, this requires:
+When using a `let` variable declaration, a variable may also be declared as being unitialized, this requires:
 - An explicit type to be given
 - Only identifiers or tuple patterns
 - The variable needs to be assigned a value in all possible paths that can reach the first use of that variable.
 
-A variable declaration may also contain an `else` block, allowing a refutable pattern.
+A `let` variable declaration may also contain an `else` block, allowing a refutable pattern.
 If this patten fails to match, the else block will get executed, this is generally used to either panic or return from the function.
 If an `else` block is not present, the pattern needs to be irrefutable.
 
@@ -2404,7 +2486,7 @@ Literal expressions also allow a special literal operator to be applied to them,
 ## 9.3. Path expression  [↵](#9-expressions-)
 
 ```
-<path-expr> := <path-in-expr>
+<path-expr> := <expr-path>
              | '.' <ext-name>
 ```
 
@@ -2412,7 +2494,7 @@ A path expression uses a path to refer to a local variable or item.
 Path expressions referencing local or static variables are place expression, all other path expressions are value expressions.
 
 A path may also refer to an inferred path, which is represented by a `.`, followed by a name.
-This is currently limited to plain enum members when the enum type can be inferred from the surrounding context.
+This is currently limited to enum members when the enum type can be inferred from the surrounding context.
 
 
 ## 9.4. Unit expression  [↵](#9-expressions-)
@@ -2729,7 +2811,7 @@ The unit struct value can also be constructed in 2 ways:
 ## 9.12. Index expression [↵](#9-expressions-)
 
 ```
-<index-expr> := <expr> '[' [ '?' ] <expr> ']'
+<index-expr> := <expr> '[' [ '?' ] <expr> { ',' <expr> }* [ ',' ] ']'
 ```
 
 An index expression can be used to get a value out of a type using a given index.
@@ -2741,9 +2823,11 @@ When the expression being indexed is either an array or a slice, it will get the
 If the array of slice is mutable, the resulting value will be memory location that can be assigned to.
 
 Indices are 0-based for arrays and slices.
-If array access is a constant expression and the array has a known size, bounds can be checked at compile-time, otherwise the check will be performed at runtime and will panic when being indexed out of range/
+If array access is a constant expression and the array has a known size, bounds can be checked at compile-time, otherwise the check will be performed at runtime and will panic when being indexed out of range.
 
 For any other type, the resulting indexing will depend on whether the index implementation returns a reference or not.
+
+Multiple index expression can be provided, these will implicitly get converted to a tuple expression when calling the relavent indexing method.
 
 For all other types, the following operations will happen:
 - In an immutable place context, the resulting value will be `Index::index(&a, b)` or `OptIndex::opt_index(&a, b)`.
@@ -2849,19 +2933,13 @@ Any default arguments do not need to be provided and will be evaluated after eva
 ## 9.16. Field access [↵](#9-expressions-)
 
 ```
-<field-access-expr> := <expr> ( '.' | '?.' ) <ext-name>
+<field-access-expr> := <expr> '.' <ext-name>
 ```
 
 A field expression is a place expression that evaluates to the location of a field of a struct or union.
 When the operand is mutable, the field expression is also mutable.
 
 Field expression cannot be followed by an opening parenthesis, as this would be a method call expression.
-
-A field can be accessed in 2 ways:
-- A direct field access using `.`: this will just access the field
-- A 'err'-checked field access using `?.`: this will either access the field if the left-hand-side expression is valid, in case of an erronous value, it will just return the value of the expression.
-
-The pseudo-access `!.` is actually an unwrap operator, followed by a field access.
 
 ### 9.16.1 Automatic dereferencing [↵](#916-field-access-)
 
@@ -2974,6 +3052,12 @@ All five types of loop expression support `break` expressions and labels.
 All except labelled block expressions support `continue` expressions.
 Only `loop` and labelled block expressions support evaluating to non-trivial values.
 
+The condition of a loop, or the source of a for loop may not contain a struct expression without being wrapped in a block or parentheses.
+
+In the following locations in loops may not contain a struct expression, without being wrapped in a block or parentheses, or in a let binding.
+- a `while` condition
+- a `for` source
+
 ### 9.20.1. Loop expression [↵](#920-loops-)
 
 ```
@@ -3051,6 +3135,10 @@ Unlike loops, `break` expressions within a labelled block experssion must have a
 Similarly, labelled block expressions must begin with a label.
 
 ### 9.20.6. Loop labels [↵](#920-loops-)
+
+```
+<label> := ':' <ext-name> ':'
+```
 
 A loop expression may optionally have a label.
 If the label is present, the labeled `break` and `continue` expressions nested within the loop may exit out of this loop or return control to its head.
@@ -3242,7 +3330,7 @@ Patterns can be said to be refutable if there is a possibility for it to not be 
 ## 10.1. Literal pattern [↵](#10-patterns-)
 
 ```
-<lit-pattern> := <literal>
+<lit-pattern> := <literal-expr>
 ```
 
 Literal patterns match the exact value of the literal.
@@ -3318,7 +3406,7 @@ Similar to identifier patterns, 'mut' can be added to make the resulting variabl
 ## 10.7. Struct pattern [↵](#10-patterns-)
 
 ```
-<struct-pattern> := <path> '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' ] ) | <rest-pattern> ] '}'
+<struct-pattern> := <path> '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ] '}'
 <struct-pattern-elem> := ( <attribute> )* ( <struct-pattern-elem-tuple> | <struct-pattern-elem-member> | <struct-pattern-elem-iden> )
 <struct-pattern-elem-tuple> := <tuple-index> ':' <pattern>
 <struct-pattern-elem-member> := <ext-name> ':' pattern
@@ -3336,7 +3424,7 @@ There are 3 ways of matching elements:
 ## 10.8. Tuple struct pattern [↵](#10-patterns-)
 
 ```
-<tuple-struct-pattern> := <path> '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-patter> ] ] ) ) | <rest-patter> ')'
+<tuple-struct-pattern> := <path> '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-pattern> ] ] ) ) | <rest-pattern> ')'
 ```
 
 A tuple struct pattern can match tuple structs that match the defined criteria in the subpatterns.
@@ -3344,7 +3432,7 @@ A tuple struct pattern can match tuple structs that match the defined criteria i
 ## 10.9. Tuple pattern [↵](#10-patterns-)
 
 ```
-<tuple-pattern> := '(' ( <pattern> ( ',' <patter> )* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ')'
+<tuple-pattern> := '(' ( <pattern> ( ',' <pattern> )+ [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ')'
 ```
 
 A tuple pattern can match a tuple values that match the defined criteria in the subpatterns.
@@ -3376,7 +3464,7 @@ A path pattern can match any constant, or struct or enum member that have no fie
 ## 10.13. Enum member pattern [↵](#10-patterns-)
 
 ```
-<enum-member-pattern> := ':' <ext-name>
+<enum-member-pattern> := '.' <ext-name>
 ```
 
 A enum member pattern can match any enum member that has no field.
@@ -3802,13 +3890,13 @@ When an error message is generated using this type, it will generally show up as
 ```
 
 A function pointer type can refer to a function whose identity is not known at compile time.
-The can be created via coercion from functins and non-capturing closures with a matching signature.
+The can be created via coercion from functions and non-capturing closures with a matching signature.
 
 If a function is marked `unsafe`, it is able to be assgined from both safe and unsafe functions, and must be called from an unsafe context.
 To assign a pointer with a specific ABI, the function needs to be marked as an `extern` function with a matching ABI.
 If not marked with a ABI, it will use the default Xenon ABI.
 
-Parameters may contain one or more names, but for the purposes of a function pointer these are ignored, but are instead usefull for documentation.
+Parameters may contain one or more names, but for the purposes of a function pointer these are ignored, but are instead useful for documentation.
 If multiple names are are given for a single parameter, these will be separate parameters with the same type.
 
 _TODO: Variadic paramters, if possible_
@@ -4957,8 +5045,8 @@ The following operators and their respective trait functons are:
 
 Operator | Meaning          | Trait method
 ---------|------------------|--------------------------
-`in`†    | contains         | `Contains::contains`
-`!in`    | Does not contain | `Contains::not_contains`
+`in`     | Contains         | `Contains::contains`
+`!in`†   | Does not contain | `Contains::not_contains`
 
 † By default implemented in terms of `!(a in b)`
 
@@ -5148,7 +5236,7 @@ Compound assignment operators have a similar trait name to the normal infix oper
 ## 14.13. User define operators [↵](#14-operators-)
 
 ```
-<user-defined-op-decl> := { <attribute> }* [ <vis> ] <op-trait-type> 'trait' <name> '=' <user-defined-op> ':' <name> ';'
+<user-defined-op-item> := { <attribute> }* [ <vis> ] <op-trait-type> 'trait' <name> '=' <user-defined-op> ':' <name> ';'
 <op-trait-type> := 'prefix' | 'infix' | 'postfix'
 <user-op> := { sequence of symbol characters except (see below) }
 ```
@@ -5172,6 +5260,8 @@ The actual operator is defined behind the `=`, which itself is followed by a `:`
 Each trait will also have an implicit `Output` associated type.
 
 If an infix operator is defined, an implicit generic type paramter is added, which is defaulted to Self.
+
+It is currently undecided if user defined operators may be used as a name, e.g. `a merge b`.
 
 # 15. Precedence [↵](#tables-of-contents)
 
@@ -5199,11 +5289,12 @@ Field access                   |               |               |
 Funtion calls                  |               |               |
 Indexing                       |               |               |
 Highest user-defined (no expr) |               | `Highest`     | n/a
-Try operators                  |               | `Try    `     | `Highest`
+Try operators                  |               | `Try`         | `Highest`
 Borrowing & Dereferencing      |               | `BorrowDeref` | `Try`
 Unary postfix operators        |               | `Postfix`     | `BorrowDeref`
 Unary prefix operators         |               | `Prefix`      | `Postfix`
-Multiply/divide/remainder      | left to right | `MulDivRem`   | `Prefix`
+Type cast/check                | left to right | `Typed`       | `Prefix`
+Multiply/divide/remainder      | left to right | `MulDivRem`   | `Typed`
 Addition/Subtraction           | left to right | `AddSub`      | `MulDivRem`
 Shift and rotate               | left to right | `ShiftRot`    | `AddSub`
 Bitwise AND operations         | left to right | `BitAnd`      | `ShiftRot`
@@ -5214,7 +5305,7 @@ Comparison                     | left to right | `Compare`     | `Select`
 Lazy boolean AND operators     | left to right | `LazyAnd`     | `Compare`
 Lazy boolean OR operators      | left to right | `LazyOr`      | `LazyAnd`
 range expression               | left to right | `Range`       | `LazyOr`
-pipe operators                 | left to right | `Pipe`        | `Ragne`
+pipe operators                 | left to right | `Pipe`        | `Range`
 Lowest user-defined (no expr)  |               | `Lowest`      | `Pipe`
 Assingment expression          | right to left |
 
@@ -5320,6 +5411,8 @@ There are 2 types of attributes:
 
 The difference between these attributes, is that the first one defined an attribute that is applied to the module it is in (or on the library if the file is a root module),
 while the second applies to the item following it.
+
+Expression may be used inside of attributes, but they cannot start using a name.
 
 The following elements can have a attribute applied to them:
 - All items
@@ -5525,6 +5618,10 @@ However, the linker is still fee to remove such an item.
 Code generation attributes affect the resulting code generated by the compiler.
 They give hints to the compiler to allow it to generate code that might be faster without these hints.
 The compiler is free to ignore these hints
+
+#### `builtin`
+
+The `builtin` attributes attribute tells the compiler that the following element needs to be handled by the compiler, as it represents something which cannot be declared exclusivly within code.
 
 #### `inline`
 

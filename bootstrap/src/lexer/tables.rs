@@ -1,13 +1,18 @@
 use core::ops::Index;
 use std::fmt::Display;
 
+use super::WeakKeyword;
+
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct NameTableId(u32);
+pub struct NameId(u32);
 
+impl NameId {
+    pub const INVALID: Self = NameId(u32::MAX);
+}
 
-impl Display for NameTableId {
+impl Display for NameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -20,35 +25,44 @@ pub struct NameTable {
 
 impl NameTable {
     pub fn new() -> Self {
+        // Setup names for weak keywords
+        let mut names = Vec::with_capacity(WeakKeyword::WEAK_KEYWORD_NAMES.len());
+        for kw in WeakKeyword::WEAK_KEYWORD_NAMES {
+            names.push(kw.to_string());
+        }
+        
         Self {
-            names: Vec::new(),
+            names,
         }
     }
 
-    pub fn add(&mut self, name: &str) -> NameTableId {
+    pub fn add(&mut self, name: &str) -> NameId {
         // Naive implementation
         let it = self.names.iter().enumerate().find(|(_, val)| *val == name);
         match it {
-            Some((idx, _)) => NameTableId(idx as u32),
+            Some((idx, _)) => NameId(idx as u32),
             None => {
                 let idx = self.names.len() as u32;
                 self.names.push(name.to_string());
-                NameTableId(idx)
+                NameId(idx)
             },
         }
     }
 
+    pub fn get_id_for_weak_kw(&self, kw: WeakKeyword) -> NameId {
+        NameId(kw as u32)
+    }
 
-    pub fn get_name(&self, index: NameTableId) -> &str {
+    pub fn get_name(&self, index: NameId) -> &str {
         &self.names[index.0 as usize]
     }
     
 }
 
-impl Index<NameTableId> for NameTable {
+impl Index<NameId> for NameTable {
     type Output = str;
 
-    fn index(&self, index: NameTableId) -> &Self::Output {
+    fn index(&self, index: NameId) -> &Self::Output {
         self.get_name(index)
     }
 }
@@ -56,6 +70,10 @@ impl Index<NameTableId> for NameTable {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PunctuationId(u32);
+
+impl PunctuationId {
+    pub const INVALID: Self = PunctuationId(u32::MAX);
+}
 
 impl Display for PunctuationId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
