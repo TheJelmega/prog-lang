@@ -2860,7 +2860,7 @@ This expressions is a place expression, so it evaluates to the location of tuple
 ## 9.14. Call expression [↵](#9-expressions-)
 
 ```
-<func-call> := <expr> '(' [ <function-args> ] ')'
+<func-call> := ( <expr> | <qualified-path> ) '(' [ <function-args> ] ')'
 <func-args> := <func-arg> { ',' <func-arg> }* [ ',' ]
 <func-args> := [ <name> ':' ] <expr>
 ```

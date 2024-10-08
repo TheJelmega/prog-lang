@@ -358,8 +358,39 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_qualified_path(&mut self) {
+    fn parse_qualified_path(&mut self) -> Result<AstNodeRef<QualifiedPath>, ParserErr> {
+        self.begin_scope(OpenCloseSymbol::Paren);
+        self.consume_punct(Punctuation::Colon)?;
 
+        let ty = self.parse_type()?;
+        let bound = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
+            let name = self.consume_name()?;
+            let gen_args = self.parse_generic_args(true)?;
+            Some(Identifier{ name, gen_args })
+        } else {
+            None
+        };
+
+        self.consume_punct(Punctuation::Colon)?;
+        self.end_scope();
+
+        let mut sub_path = Vec::new();
+        loop {
+            let name = self.consume_name()?;
+            let gen_args = self.parse_generic_args(true)?;
+            sub_path.push(Identifier{ name, gen_args });
+
+            if self.peek()? != Token::Punctuation(Punctuation::Dot) ||!matches!(self.peek_at(1)?, Token::Name(_)) {
+                break;
+            }
+            self.consume_punct(Punctuation::Dot)?;
+        }
+
+        Ok(self.add_node(QualifiedPath {
+            ty,
+            bound,
+            sub_path,
+        }))
     }
 
 // =============================================================================================================================
@@ -1877,6 +1908,8 @@ impl Parser<'_> {
                     self.consume_single();
                     self.consume_single();
                     Expr::Unit
+                } else if self.check_peek(&[1], Token::Punctuation(Punctuation::Colon)) {
+                    self.parse_qualified_path_expr()?
                 } else {
                     self.parse_paren_expr()?
                 }
@@ -2089,7 +2122,21 @@ impl Parser<'_> {
             }
             _ => Ok(Expr::Path(self.add_node(PathExpr{ path })))
         }
+    }
 
+    fn parse_qualified_path_expr(&mut self) -> Result<Expr, ParserErr> {
+        let path = self.parse_qualified_path()?;
+
+        let peek = self.peek()?;
+        if peek == Token::OpenSymbol(OpenCloseSymbol::Paren) {
+            let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
+            Ok(Expr::FnCall(self.add_node(FnCallExpr::Qual {
+                path,
+                args
+            })))
+        } else {
+            Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "qualified path expression" }))
+        }
     }
 
     fn parse_block_expr(&mut self, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
@@ -2276,7 +2323,7 @@ impl Parser<'_> {
 
     fn parse_call_expression(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
-        Ok(Expr::FnCall(self.add_node(FnCallExpr {
+        Ok(Expr::FnCall(self.add_node(FnCallExpr::Expr {
             expr,
             args
         })))
@@ -2773,19 +2820,7 @@ impl Parser<'_> {
                     Ok(Pattern::Tuple(self.add_node(TuplePattern { patterns })))
                 },
                 OpenCloseSymbol::Brace => {
-                    let fields = self.parse_comma_separated_closed(sym, |parser| {
-                        if parser.try_consume(Token::Punctuation(Punctuation::DotDot)) {
-                            Ok((NameId::INVALID, Some(Pattern::Rest)))
-                        } else {
-                            let name = parser.consume_name()?;
-                            let pattern = if parser.try_consume(Token::Punctuation(Punctuation::Colon)) {
-                                Some(parser.parse_pattern()?)
-                            } else {
-                                None
-                            };
-                            Ok((name, pattern))
-                        }
-                    })?;
+                    let fields = self.parse_comma_separated_closed(sym, Self::parse_struct_pattern_field)?;
                     Ok(Pattern::Struct(self.add_node(StructPattern{ fields })))
                 },
                 _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
@@ -2793,6 +2828,43 @@ impl Parser<'_> {
 
         } else {
             Ok(Pattern::Path(self.add_node(PathPattern{ path })))
+        }
+    }
+
+    fn parse_struct_pattern_field(&mut self) -> Result<StructPatternField, ParserErr> {
+        let peek = self.peek()?;
+        match peek {
+            Token::Name(name) => {
+                self.consume_single();
+                if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+                    let pattern = self.parse_pattern()?;
+                    Ok(StructPatternField::Named { name, pattern })
+                } else {
+                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden: name })
+                }
+            },
+            Token::Literal(lit_id) => {
+                self.consume_single();
+                self.consume_punct(Punctuation::Colon)?;
+                let pattern = self.parse_pattern()?;
+                Ok(StructPatternField::TupleIndex { idx: lit_id, pattern })
+            },
+            Token::StrongKw(StrongKeyword::Mut) => {
+                self.consume_single();
+                let iden = self.consume_name()?;
+                Ok(StructPatternField::Iden { is_ref: false, is_mut: true, iden })
+            },
+            Token::Punctuation(Punctuation::Ampersand) => {
+                self.consume_single();
+                let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
+                let iden = self.consume_name()?;
+                Ok(StructPatternField::Iden { is_ref: true, is_mut, iden })
+            },
+            Token::Punctuation(Punctuation::DotDot) => {
+                self.consume_single();
+                Ok(StructPatternField::Rest)
+            }
+            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "struct pattern field" }))
         }
     }
 
@@ -2804,9 +2876,9 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_struct_pattern_elem(&mut self) -> Result<StructPatternElem, ParserErr> {
+    fn parse_struct_pattern_elem(&mut self) -> Result<StructPatternField, ParserErr> {
         if self.try_consume(Token::Punctuation(Punctuation::DotDot)) {
-            return Ok(StructPatternElem::Rest);
+            return Ok(StructPatternField::Rest);
         }
 
         match self.peek()? {
@@ -2814,22 +2886,22 @@ impl Parser<'_> {
                 let is_ref = self.try_consume(Token::StrongKw(StrongKeyword::Ref));
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 let iden = self.consume_name()?;
-                Ok(StructPatternElem::Iden { is_ref, is_mut, iden })
+                Ok(StructPatternField::Iden { is_ref, is_mut, iden })
             }
             Token::Literal(lit_id) => {
                 self.consume_single();
                 self.consume_punct(Punctuation::Colon)?;
                 let pattern = self.parse_pattern()?;
 
-                Ok(StructPatternElem::TupleIndex { idx: lit_id, pattern })
+                Ok(StructPatternField::TupleIndex { idx: lit_id, pattern })
             },
             Token::Name(iden) => {
                 self.consume_single();
                 if !self.try_consume(Token::Punctuation(Punctuation::Colon)) {
-                    Ok(StructPatternElem::Iden { is_ref: false, is_mut: false, iden })
+                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden })
                 } else {
                     let pattern = self.parse_pattern()?;
-                    Ok(StructPatternElem::Named { name: iden, pattern })
+                    Ok(StructPatternField::Named { name: iden, pattern })
                 }
             }
             _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: self.peek()?, for_reason: "struct pattern element" }))

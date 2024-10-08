@@ -89,6 +89,22 @@ pub enum TypePathIdentifier {
     },
 }
 
+pub struct ExprPath {
+    pub inferred: bool,
+    pub idens:    Vec<Identifier>,
+}
+
+impl AstNode for ExprPath {
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Expr Path", |logger| {
+            logger.write_prefix();
+            logger.log_fmt(format_args!("Is Inferred: {}\n", self.inferred));
+            logger.set_last_at_indent();
+            logger.log_indented_slice("Identifiers", &self.idens, |logger, iden| iden.log(logger));
+        });
+    }
+}
+
 pub struct TypePath {
     pub idens: Vec<TypePathIdentifier>,
 }
@@ -120,29 +136,23 @@ impl AstNode for TypePath {
     }
 }
 
-pub struct ExprPath {
-    pub inferred: bool,
-    pub idens:    Vec<Identifier>,
-}
-
-impl AstNode for ExprPath {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Expr Path", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Inferred: {}\n", self.inferred));
-            logger.set_last_at_indent();
-            logger.log_indented_slice("Identifiers", &self.idens, |logger, iden| iden.log(logger));
-        });
-    }
-}
-
 pub struct QualifiedPath {
-
+    pub ty:       Type,
+    pub bound:    Option<Identifier>,
+    pub sub_path: Vec<Identifier>,
 }
 
 impl AstNode for QualifiedPath {
     fn log(&self, logger: &mut AstLogger) {
-        
+        logger.log_indented("Qualified Path", |logger| {
+            logger.log_indented_node("Type", &self.ty);
+            if let Some(bound) = &self.bound {
+                logger.log_indented("Bound", |logger| bound.log(logger));
+            }
+            
+            logger.set_last_at_indent();
+            logger.log_indented_slice("Sub Path", &self.sub_path, |logger, iden| iden.log(logger));
+        })
     }
 }
 
@@ -2048,19 +2058,33 @@ impl FnArg {
     }
 }
 
-pub struct FnCallExpr {
-    pub expr: Expr,
-    pub args: Vec<FnArg>,
+pub enum FnCallExpr {
+    Expr {
+        expr: Expr,
+        args: Vec<FnArg>,
+    },
+    Qual {
+        path: AstNodeRef<QualifiedPath>,
+        args: Vec<FnArg>,
+    },
 }
 
 impl AstNode for FnCallExpr {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Function Call Expression", |logger| {
-            logger.set_last_at_indent_if(self.args.is_empty());
-            logger.log_indented_node("Function", &self.expr);
-            logger.set_last_at_indent();
-            logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
-        });
+        match self {
+            Self::Expr { expr, args } => logger.log_ast_node("Expression Function Call", |logger| {
+                logger.set_last_at_indent_if(args.is_empty());
+                logger.log_indented_node("Function", expr);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Arguments", args, |logger, arg| arg.log(logger));
+            }),
+            Self::Qual { path, args } => logger.log_ast_node("Qualified Function Call", |logger| {
+                logger.set_last_at_indent_if(args.is_empty());
+                logger.log_indented_node_ref("Qualified path", *path);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Arguments", args, |logger, arg| arg.log(logger));
+            }),
+        }
     }
 }
 
@@ -2104,7 +2128,7 @@ pub struct ClosureExpr {
     pub is_moved: bool,
     pub params:   Vec<FnParam>,
     pub ret:      Option<FnReturn>,
-    pub body:      Expr,
+    pub body:     Expr,
 }
 
 impl AstNode for ClosureExpr {
@@ -2589,22 +2613,64 @@ impl AstNode for ReferencePattern {
 }
 
 pub struct StructPattern {
-    pub fields: Vec<(NameId, Option<Pattern>)>,
+    pub fields: Vec<StructPatternField>,
 }
 
 impl AstNode for StructPattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Struct Pattern", |logger| {
             logger.set_last_at_indent();
-            logger.log_indented_slice("Fields", &self.fields, |logger, (name, pattern)| {
-                logger.log_indented("Field", |logger| {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                    logger.set_last_at_indent();
-                    logger.log_opt_node(pattern);
-                });
-            });
+            logger.log_indented_slice("Fields", &self.fields, |logger, field| field.log(logger));
         });
+    }
+}
+
+pub enum StructPatternField {
+    Named {
+        name:    NameId,
+        pattern: Pattern,
+    },
+    TupleIndex {
+        idx:     LiteralId,
+        pattern: Pattern
+    },
+    Iden {
+        is_ref: bool,
+        is_mut: bool,
+        iden:   NameId,
+    },
+    Rest,
+}
+
+impl StructPatternField {
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            StructPatternField::Named { name, pattern } => logger.log_indented("Named Struct Field", |logger| {
+                logger.write_prefix();
+                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.set_last_at_indent();
+                logger.log_node(pattern);
+            }),
+            StructPatternField::TupleIndex { idx, pattern } => logger.log_indented("Tuple Index Struct Field", |logger| {
+                logger.write_prefix();
+                logger.log_fmt(format_args!("Index: {}\n", logger.resolve_literal(*idx)));
+                logger.set_last_at_indent();
+                logger.log_node(pattern);
+            }),
+            StructPatternField::Iden { is_ref, is_mut, iden } => logger.log_indented("Iden Struct Field", |logger| {
+                logger.write_prefix();
+                logger.log_fmt(format_args!("Is Ref: {}\n", is_ref));
+                logger.write_prefix();
+                logger.log_fmt(format_args!("Is Mut: {}\n", is_mut));
+                logger.set_last_at_indent();
+                logger.write_prefix();
+                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*iden)));
+            }),
+            StructPatternField::Rest => {
+                logger.write_prefix();
+                logger.logln("Rest Struct Field");
+            },
+        }
     }
 }
 
@@ -2622,7 +2688,7 @@ impl AstNode for TupleStructPattern {
 }
 
 pub struct TuplePattern {
-    patterns: Vec<Pattern>
+    pub patterns: Vec<Pattern>
 }
 
 impl AstNode for TuplePattern {
@@ -2658,23 +2724,6 @@ impl AstNode for SlicePattern {
             logger.log_indented_node_slice("Patterns", &self.patterns);
         })
     }
-}
-
-pub enum StructPatternElem {
-    Named {
-        name:    NameId,
-        pattern: Pattern,
-    },
-    TupleIndex {
-        idx:     LiteralId,
-        pattern: Pattern
-    },
-    Iden {
-        is_ref: bool,
-        is_mut: bool,
-        iden:   NameId,
-    },
-    Rest,
 }
 
 pub struct EnumMemberPattern {
