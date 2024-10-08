@@ -8,7 +8,7 @@ use crate::{lexer::{NameId, NameTable, Punctuation, PuncutationTable, StrongKeyw
 mod parser;
 pub use parser::{Parser, ParserErr};
 
-//mod visitor;
+mod visitor;
 
 pub trait AstNode {
 
