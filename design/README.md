@@ -154,7 +154,7 @@ Version: 0.0
         2. [Borrowing](#9162-borrowing-)
     17. [Closure experssion](#917-closure-expressions-)
         1. [Closure trait implementations](#9171-closure-trait-implementations-)
-    18. [Range expression](#918-range-expression-)
+    18. [Full range expression](#918-full-range-expression-)
     19. [If expression](#919-if-expression-)
         1. [If let](#9191-if-let-)
     20. [Loops](#920-loops-)
@@ -299,17 +299,18 @@ Version: 0.0
         2. [Unwrapping try](#1432-unwrapping-try-)
     4. [Comparison](#144-comparison-operators-)
     5. [Lazy boolean operators](#145-lazy-boolean-operators-)
-    6. [Contains operators](#146-contains-operator-)
-    7. [Pipe operators](#147-pipe-operators-)
-    8. [Or-else operator](#148-or-else-operator-)
-    9. ['err'-coalescing operator](#149-err-coalescing-operator-)
-    10. [Contract capture operator](#1410-contract-capture-operator-)
-    11. [Assignment operators](#1411-assginment-operators-)
-        1. [Basic assignment](#14111-basic-assignment-)
-        2. [Destructuring assignment](#14112-destructuring-assignment-)
-        3. [Compound assignment](#14103-compound-assignment-)
-    12. [Built-in operators](#1412-built-in-operators-)
-    13. [User defined operators](#1413-user-define-operators-)
+    6. [Contains operators](#146-range-operator-)
+    6. [Contains operators](#147-contains-operator-)
+    7. [Pipe operators](#148-pipe-operators-)
+    8. [Or-else operator](#149-or-else-operator-)
+    9. ['err'-coalescing operator](#1410-err-coalescing-operator-)
+    10. [Contract capture operator](#1411-contract-capture-operator-)
+    11. [Assignment operators](#1412-assginment-operators-)
+        1. [Basic assignment](#14121-basic-assignment-)
+        2. [Destructuring assignment](#14122-destructuring-assignment-)
+        3. [Compound assignment](#14123-compound-assignment-)
+    12. [Built-in operators](#1413-built-in-operators-)
+    13. [User defined operators](#1414-user-define-operators-)
 15. [Precedence](#15-precedence-)
     1. [Built-in precedences](#151-built-in-precedences-)
     2. [User defined precedence](#152-user-defined-precedence-)
@@ -1153,7 +1154,7 @@ Module path     | Filesystem path          | File content
 
 ### 7.1.2. File modules [↵](#71-module-item-)
 
-A file modulre refers to code located within an extrenal file.
+A file module refers to code located within an external file.
 If no explicit path is defined for the module, the path to the file will mirror the logical module path.
 All ancestor module path elements are represented by a path of nested directories within the artifact's source module.
 
@@ -1168,6 +1169,8 @@ Module path | Filesystem path                  | File content
 `:`         | `lib.xn` or `main.xn`            | `mod foo;`
 `:.foo`     | `foo/mod.xn` or `foo.xn`         | `mod bar;`
 `:.foo.bar` | `foo/bar/mod.xn` or `boo/bar.xn` |
+
+Only module that are at a file's root level or are only nested within other modules may refer to external files
 
 ### 7.1.3. Path attribute [↵](#71-module-item-)
 
@@ -2355,7 +2358,7 @@ A defer-on-error statement can also capture a reference of mutable reference of 
                  | <method-call-expr>
                  | <field-access-expr>
                  | <closure-expr>
-                 | <range-expr>
+                 | <full-range-expr>
                  | <break-expr>
                  | <continue-expr>
                  | <fallthrough-expr>
@@ -2979,34 +2982,13 @@ This is often used to ensure that the closure's lifetime is static.
 Which trait a closure type implements depends on how variables are captured and the types of the captured expression.
 See the call trait section for how and when a closure implements the respective trait.
 
-## 9.18. Range expression [↵](#9-expressions-)
+## 9.18. Full range expression [↵](#9-expressions-)
 
 ```
-<range-expr> := <range-exclusive-expr>
-              | <range-from-expr>
-              | <range-to-expr>
-              | <range-full-expr>
-              | <range-inclusive-expr>
-              | <range-to-inclusive-expr>
+<full-range-expr> := '..'
 
-<range-exclusive-expr> := <expr> '..' <expr>
-<range-from-expr> := <expr> '..'
-<range-to-expr> := '..' <expr>
-<range-full-expr> := '..'
-<range-inclusive-expr> := <expr> '..=' <expr>
-<range-to-inclusive-expr> := '..=' <expr>
-```
-
-The '..' and '..=' operators will construct an object of one of the following range variants:
-
-Production                  | Syntax        | Type               | Range
-----------------------------|---------------|--------------------|-------------------
-<`range-exclusive-expr`>    | `start..end`  | `Range`            | start <= x < end
-<`range-from-expr`>         | `start..`     | `RangeFrom`        | start <= x
-<`range-to-expr`>           | `..end`       | `RangeTo`          | x <= end
-<`range-full-expr`>         | `..`          | `RangeFull`        | -
-<`range-inclusive-expr`>    | `start..=end` | `RangeInclusive`   | start <= x <= end
-<`range-to-inclusive-expr`> | `..=end`      | `RangeToInclusive` | x <= end
+The `..` expression, unlike the range operators, represents an unbounded range, with beginning or ending.
+One of the usecases of this expression is to convert something into a slice by indexing using a full range.
 
 ## 9.19. If expression [↵](#9-expressions-)
 
@@ -5029,7 +5011,27 @@ On the other hand, the `&&` only evaluated the right-hand operand if the left-ha
 
 The `&&` operator has the `LazyAnd` precedence, and `||` has the `LazyOr` precedence.
 
-## 14.6. Contains operator [↵](#14-operators-)
+## 14.6. Range operators
+
+```
+<range-op> := '..' | '..='
+```
+
+Range operators can be prefix, infix, or postfix.
+
+The range operators, like their name implies are used to generate a range between 2 values.
+
+The following operators, their respecitive trait methods, resultant types, and ranges are
+
+Operator     | Syntax        | Trait Method                     | Type               | Range
+-------------|---------------|----------------------------------|--------------------|--------------------
+Infix `..`   | `start..end`  | `Range::range`                   | `Range`            | start <= x < end
+Postfix `..` | `start..`     | `RangeFrom::range_from`          | `RangeFrom`        | start <= x
+Prefix `..`  | `..end`       | `RangeTo::range_to`              | `RangeTo`          | x <= end
+Infix `..=`  | `start..=end` | `RangeInclusive::range_inc`      | `RangeInclusive`   | start <= x <= end
+Prefix `..=` | `..=end`      | `RangeToInclusive::range_to_inc` | `RangeToInclusive` | x <= end
+
+## 14.7. Contains operator [↵](#14-operators-)
 
 ```
 <contains-op> := 'in' | '!in'
@@ -5052,7 +5054,7 @@ Operator | Meaning          | Trait method
 
 The operator has the `Contains` precedence.
 
-## 14.7. Pipe operators [↵](#14-operators-)
+## 14.8. Pipe operators [↵](#14-operators-)
 
 ```
 <pipe-op> := '|>' | '<|'
@@ -5084,7 +5086,7 @@ The associated traits for this operators are:
 
 The operator has the `Pipe` precedence.
 
-## 14.8. Or-else operator [↵](#14-operators-)
+## 14.9. Or-else operator [↵](#14-operators-)
 
 ```
 <or-else-op> := '?:'
@@ -5102,7 +5104,7 @@ The associated trait is `OrElse`
 
 The operator has the `Select` precedence.
 
-## 14.9. 'err'-coalescing operator [↵](#14-operators-)
+## 14.10. 'err'-coalescing operator [↵](#14-operators-)
 
 ```
 <err-coalesce-op> := '??'
@@ -5114,7 +5116,7 @@ This is similar to the or-else operator, but instead of being based on a 'thruth
 
 The operator has the `Select` precedence.
 
-## 14.10. Contract capture operator [↵](#14-operators-)
+## 14.11. Contract capture operator [↵](#14-operators-)
 
 ```
 <contract-capture-op> := '$'
@@ -5128,7 +5130,7 @@ The value captures must be a a `Copy` type.
 
 The operator has the `Unary` precedence.
 
-## 14.11. Assginment operators [↵](#14-operators-)
+## 14.12. Assginment operators [↵](#14-operators-)
 
 ```
 <assign-op> := <basic-assign-op> | <compound-assign-op>
@@ -5147,7 +5149,7 @@ An assignment expression uses the following terms in its expression:
 'assignee' = 'assigned value'
 ```
 
-### 14.11.1. Basic assignment [↵](#14-operators-)
+### 14.12.1. Basic assignment [↵](#14-operators-)
 
 Evaluating assignment expressions begins by evaluating its operands.
 This assigned value will be evaluated first, followed by the assginee expression.
@@ -5157,7 +5159,7 @@ This assigned value will be evaluated first, followed by the assginee expression
 Before assignment, the assignment will first drop the current value of hte assigned place, unless the place is an uninitialized value.
 Next, it will either copy or move the assigned value in the location of hte assignee.
 
-### 14.11.2. Destructuring assignment [↵](#1411-assginment-operators-)
+### 14.12.2. Destructuring assignment [↵](#1411-assginment-operators-)
 
 Destructuring assingment is a counterpart ot destructuring patterns for variable declarations, permitting assignment of complex values such as tuples and structures.
 
@@ -5168,7 +5170,7 @@ The desugared patterns must be irrifutable: in particulat, this means that only 
 
 Underscore experssions and empty range expressions may be used to ignore certain values, without binding them.
 
-### 14.11.3. Compound assignment [↵](#1411-assginment-operators-)
+### 14.12.3. Compound assignment [↵](#1411-assginment-operators-)
 
 Compound assignment expressions combine infix operators with assignment expressions.
 
@@ -5184,7 +5186,7 @@ It will then set the value of the assignee to the value of perfroming the operat
 Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
 A mutable borrow to the assignee is automatically taken
 
-## 14.12. Built-in operators [↵](#14-operators-)
+## 14.13. Built-in operators [↵](#14-operators-)
 
 The following section contains a list of built-in prefix, postfix and infix operators that weren't mentioned in previous sections
 
@@ -5233,7 +5235,7 @@ Operator | type                  | Trait          | precedence  | meaning       
 
 Compound assignment operators have a similar trait name to the normal infix operators, but are followed by `Assign`, i.e. the compound assignment version of `Add` is `AddAssign`
 
-## 14.13. User define operators [↵](#14-operators-)
+## 14.14. User define operators [↵](#14-operators-)
 
 ```
 <user-defined-op-item> := { <attribute> }* [ <vis> ] <op-trait-type> 'trait' <name> '=' <user-defined-op> ':' <name> ';'
