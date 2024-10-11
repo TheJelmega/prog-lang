@@ -551,6 +551,7 @@ match
 mod
 move
 mut
+pub
 ref
 return
 self
@@ -562,6 +563,7 @@ str16
 str32
 struct
 throw
+trait
 true
 try
 try!
@@ -2986,6 +2988,7 @@ See the call trait section for how and when a closure implements the respective 
 
 ```
 <full-range-expr> := '..'
+```
 
 The `..` expression, unlike the range operators, represents an unbounded range, with beginning or ending.
 One of the usecases of this expression is to convert something into a slice by indexing using a full range.
