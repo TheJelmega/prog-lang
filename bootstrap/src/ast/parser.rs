@@ -10,8 +10,9 @@ use std::{
 use crate::{
     ast::*,
     error_warning::ErrorCode,
-    lexer::{NameId, NameTable, OpenCloseSymbol, Punctuation, PunctuationId, StrongKeyword, Token, TokenMetadata, TokenStore, WeakKeyword},
-    literals::LiteralId
+    lexer::{OpenCloseSymbol, Punctuation, PunctuationId, StrongKeyword, Token, TokenMetadata, TokenStore, WeakKeyword},
+    literals::LiteralId,
+    common::{NameTable, NameId}
 };
 
 use super::*;
@@ -29,6 +30,7 @@ impl fmt::Display for ParserErr {
 }
 
 
+#[derive(Clone, Copy)]
 pub struct ParserFrame {
     token_start: u32,
 }
@@ -48,6 +50,7 @@ pub struct Parser<'a> {
     token_idx:      usize,
 
     frames:         Vec<ParserFrame>,
+    last_frame:     ParserFrame,
     scope_stack:    Vec<OpenCloseSymbol>,
 
     names:          &'a NameTable,
@@ -61,6 +64,7 @@ impl<'a> Parser<'a> {
             token_idx: 0,
 
             frames: Vec::new(),
+            last_frame: ParserFrame{ token_start: 0 },
             scope_stack: Vec::new(),
 
             names,
@@ -149,7 +153,7 @@ impl Parser<'_> {
             },
             Token::WeakKw(kw) => {
                 self.consume_single();
-                let id = self.names.get_id_for_weak_kw(kw);
+                let id = self.token_store.get_name_from_weak_keyword(kw);
                 Some(id)
             }
             _ => None
@@ -165,7 +169,7 @@ impl Parser<'_> {
             },
             Token::WeakKw(kw) => {
                 self.consume_single();
-                let id = self.names.get_id_for_weak_kw(kw);
+                let id = self.token_store.get_name_from_weak_keyword(kw);;
                 Ok(id)
             }
             _ => Err(self.gen_error(ErrorCode::ParseFoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) }))
@@ -257,20 +261,26 @@ impl Parser<'_> {
         })
     }
 
+    fn push_last_frame(&mut self) {
+        self.frames.push(self.last_frame);
+    }
+
     fn pop_meta_frame(&mut self) -> Option<ParserFrame> {
         self.frames.pop()
     }
 
     fn add_node<T: AstNode + 'static>(&mut self, node: T) -> AstNodeRef<T> {
         let meta = if let Some(frame) = self.pop_meta_frame() {
+            self.last_frame = frame;
             AstNodeMeta {
                 first_tok: frame.token_start,
-                last_tok: self.token_idx as u32
+                last_tok: self.token_idx as u32,
             }
         } else {
+            self.last_frame = ParserFrame{ token_start: 0 };
             AstNodeMeta {
                 first_tok: 0,
-                last_tok: 0,
+                last_tok: 0, 
             }  
         };
         self.ast.add_node(node, meta)
@@ -278,31 +288,42 @@ impl Parser<'_> {
 
 // =============================================================================================================================
 
-    fn parse_simple_path(&mut self) -> Result<AstNodeRef<SimplePath>, ParserErr> {
+    fn parse_simple_path(&mut self, only_allow_none_start: bool) -> Result<AstNodeRef<SimplePath>, ParserErr> {
         self.push_meta_frame();
 
-        let start = self.parse_simple_path_start()?;
-        let names = if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
-            self.parse_punct_separated(Punctuation::Dot, Self::consume_name)?
-        } else {
-            Vec::new()
-        };
-
-        let node_ref = self.add_node(SimplePath { start, names });
-        Ok(node_ref)
+        let start = self.parse_simple_path_start(only_allow_none_start)?;
+        let names = self.parse_punct_separated(Punctuation::Dot, Self::consume_name)?;
+        Ok(self.add_node(SimplePath {
+            start,
+            names
+        }))
     }
 
-    fn parse_simple_path_start(&mut self) -> Result<SimplePathStart, ParserErr> {
-        let tok = self.consume_single();
+    fn parse_simple_path_start(&mut self, only_allow_none_start: bool) -> Result<SimplePathStart, ParserErr> {
+        let tok = self.peek()?;
         match tok {
-            Token::Punctuation(Punctuation::Dot) => {
-                let name = self.consume_name()?;
-                Ok(SimplePathStart::Name(true, name))
+            Token::Name(name_id)                     => {
+                Ok(SimplePathStart::None)
             },
-            Token::Name(name_id) => Ok(SimplePathStart::Name(false, name_id)),
-            Token::WeakKw(WeakKeyword::Super) => Ok(SimplePathStart::Super),
-            Token::StrongKw(StrongKeyword::SelfName) => Ok(SimplePathStart::SelfPath),
-            _ => Err(self.gen_error(ErrorCode::ParseInvalidPathStart{ found: tok }))
+            Token::Punctuation(Punctuation::Dot)     => if only_allow_none_start {
+                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "inferred simple paths are not allowed" }))
+            } else {
+                self.consume_single();
+                Ok(SimplePathStart::Inferred)
+            },
+            Token::WeakKw(WeakKeyword::Super)        => if only_allow_none_start {
+                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "'super' relative paths are not allowed" }))
+            } else {
+                self.consume_single();
+                Ok(SimplePathStart::Super)
+            },
+            Token::StrongKw(StrongKeyword::SelfName) => if only_allow_none_start {
+                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "'self' relative paths are not allowed" }))
+            } else {
+                self.consume_single();
+                Ok(SimplePathStart::SelfPath)
+            },
+            _                                        => Err(self.gen_error(ErrorCode::ParseInvalidPathStart{ found: tok, reason: "" }))
         }
     }
 
@@ -603,7 +624,6 @@ impl Parser<'_> {
          let block = if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
             None
         } else {
-            self.push_meta_frame();
             Some(self.parse_block()?)
         };
 
@@ -775,8 +795,6 @@ impl Parser<'_> {
             Vec::new()
         };
 
-        
-        self.push_meta_frame();
         let body = self.parse_block()?;
 
         Ok(self.add_node(Function {
@@ -1649,6 +1667,7 @@ impl Parser<'_> {
 // =============================================================================================================================
 
     fn parse_block(&mut self) -> Result<AstNodeRef<Block>, ParserErr> {
+        self.push_meta_frame();
         self.begin_scope(OpenCloseSymbol::Brace)?;
 
         let mut stmts = Vec::new();
@@ -1768,6 +1787,7 @@ impl Parser<'_> {
 
     fn parse_let_var_decl(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<VarDecl>, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Let)?;
+        self.push_meta_frame();
         let pattern = self.parse_pattern_no_top_alternative()?;
         let ty = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
             Some(self.parse_type()?)
@@ -1862,8 +1882,11 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::False)         |
             Token::Literal(_)                             => self.parse_literal_expr()?,
             Token::Name(_)                                |
-            Token::Punctuation(Punctuation::Dot)          => self.parse_path_like_expr(mode != ExprParseMode::NoStructLit)?,
-
+            Token::Punctuation(Punctuation::Dot)          => if self.peek_at(1)? == Token::OpenSymbol(OpenCloseSymbol::Brace) {
+                self.parse_inferred_struct_expr(mode != ExprParseMode::NoStructLit)?
+            } else {
+                self.parse_path_like_expr(mode != ExprParseMode::NoStructLit)?
+            },
             Token::StrongKw(StrongKeyword::Unsafe)        => self.parse_unsafe_block_expr()?,
             Token::StrongKw(StrongKeyword::Const)         => self.parse_const_block_expr()?,
             Token::StrongKw(StrongKeyword::TryExclaim)    |
@@ -1879,11 +1902,14 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Fallthrough)   => self.parse_fallthrough_expr()?,
             Token::StrongKw(StrongKeyword::Return)        => self.parse_return_expr()?,
             Token::StrongKw(StrongKeyword::When)          => self.parse_when_expr()?,
-
+            Token::StrongKw(StrongKeyword::SelfName)      => {
+                self.consume_single();
+                Expr::Path(self.add_node(PathExpr::SelfPath))
+            },
             Token::StrongKw(StrongKeyword::Let) if mode == ExprParseMode::AllowLet => self.parse_let_binding_expr()?,
 
             Token::StrongKw(StrongKeyword::Move)          |
-            Token::Punctuation(Punctuation::Or)           => self.parse_try_block_expr()?,
+            Token::Punctuation(Punctuation::Or)           => self.parse_closure_expr()?,
 
             Token::Punctuation(Punctuation::DotDot)       => self.parse_to_range_expr()?,
             Token::Punctuation(Punctuation::DotDotEquals) => self.parse_inclusive_to_range_expr()?,
@@ -1899,7 +1925,8 @@ impl Parser<'_> {
                     Token::OpenSymbol(OpenCloseSymbol::Brace) => Expr::Block(self.parse_block_expr(label)?),
                     _ => return Err(self.gen_error(ErrorCode::ParseInvalidLabel)),
                 }
-            }
+            },
+            Token::Punctuation(_)                             => self.parse_prefix_expr()?,
 
             Token::OpenSymbol(OpenCloseSymbol::Brace)     => Expr::Block(self.parse_block_expr(None)?),
             Token::OpenSymbol(OpenCloseSymbol::Bracket)   => self.parse_array_expr()?,
@@ -1928,19 +1955,25 @@ impl Parser<'_> {
         }
 
         Ok(loop {
+            self.push_last_frame();
             expr = match self.peek()? {
                 Token::Punctuation(Punctuation::Semicolon)    |
                 Token::Punctuation(Punctuation::Colon)        |
-                Token::Punctuation(Punctuation::DoubleArrow)  => break expr,
+                Token::Punctuation(Punctuation::DoubleArrow)  => {
+                    self.pop_meta_frame();
+                    break expr
+                },
                 
 
                 Token::Punctuation(Punctuation::SingleArrowL) => break self.parse_inplace_expr(expr)?,
                 Token::Punctuation(Punctuation::DotDot)       => self.parse_exclusive_range_expr(expr)?,
                 Token::Punctuation(Punctuation::DotDotEquals) => self.parse_inclusive_range_expr(expr)?,
-                Token::Punctuation(Punctuation::AndAnd) if mode == ExprParseMode::Scrutinee => return Ok(expr),
+                    break expr
+                },
                 Token::Punctuation(Punctuation::Comma)        => if mode == ExprParseMode::AllowComma {
                     self.parse_comma_expr(expr)?
                 } else {
+                    self.pop_meta_frame();
                     break expr;
                 },
                 
@@ -1963,8 +1996,8 @@ impl Parser<'_> {
                         }))
                     } else {
                         let right = self.parse_expr(mode)?;
-                        Expr::Binary(self.add_node(BinaryExpr {
-                            op,
+                        Expr::Infix(self.add_node(InfixExpr {
+                            op: InfixOp::Punct(op),
                             left: expr,
                             right,
                         }))
@@ -1972,15 +2005,15 @@ impl Parser<'_> {
                 },
                 Token::StrongKw(StrongKeyword::In) |
                 Token::StrongKw(StrongKeyword::ExclaimIn) => {
-                    let negate = if self.try_consume(Token::StrongKw(StrongKeyword::ExclaimIn)) {
-                        true
+                    let op = if self.try_consume(Token::StrongKw(StrongKeyword::ExclaimIn)) {
+                        InfixOp::NotContains
                     } else {
                         self.consume_strong_kw(StrongKeyword::In)?;
-                        false
+                        InfixOp::Contains
                     };
                     let right = self.parse_expr(mode)?;
-                    Expr::BinaryContains(self.add_node(BinaryContainsExpr {
-                        negate,
+                    Expr::Infix(self.add_node(InfixExpr {
+                        op,
                         left: expr,
                         right,
                     }))
@@ -2000,7 +2033,10 @@ impl Parser<'_> {
                 Token::Name(_) |
                 Token::Literal(_) => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "expression" })),
                 
-                _ => break expr,
+                _ => {
+                    self.pop_meta_frame();
+                    break expr
+                },
             }
         })
     }
@@ -2012,7 +2048,8 @@ impl Parser<'_> {
         };
         match peek {
             Token::CloseSymbol(_)                      |
-            Token::Punctuation(Punctuation::Semicolon) => true,
+            Token::Punctuation(Punctuation::Semicolon) |
+            Token::Punctuation(Punctuation::Comma)     => true,
             _ => false,
         }
     }
@@ -2098,15 +2135,16 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::OpenSymbol(OpenCloseSymbol::Brace) => self.parse_struct_expr(path, allow_struct),
+            Token::OpenSymbol(OpenCloseSymbol::Brace) => self.parse_path_struct_expr(path, allow_struct),
             Token::OpenSymbol(OpenCloseSymbol::Paren) => {
                 let path_node = &mut self.ast[path];
                 if path_node.idens.len() > 1 {
                     let method_iden = path_node.idens.pop().unwrap();
-                    let receiver = Expr::Path(self.add_node(PathExpr {
+                    let receiver = Expr::Path(self.add_node(PathExpr::Path {
                         path,
                     }));
 
+                    self.push_meta_frame();
                     let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
 
                     Ok(Expr::Method(self.add_node(MethodCallExpr {
@@ -2116,11 +2154,12 @@ impl Parser<'_> {
                         args,
                     })))
                 } else {
-                    let expr = Expr::Path(self.add_node(PathExpr { path  }));
+                    let expr = Expr::Path(self.add_node(PathExpr::Path { path  }));
+                    self.push_meta_frame();
                     self.parse_call_expression(expr)
                 }
             }
-            _ => Ok(Expr::Path(self.add_node(PathExpr{ path })))
+            _ => Ok(Expr::Path(self.add_node(PathExpr::Path { path })))
         }
     }
 
@@ -2140,10 +2179,9 @@ impl Parser<'_> {
     }
 
     fn parse_block_expr(&mut self, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
-        self.push_meta_frame();
         let block = self.parse_block()?;
         Ok(self.add_node(BlockExpr {
-            label,
+            kind: if let Some(label) = label { BlockExprKind::Labeled { label } } else { BlockExprKind::Normal },
             block
         }))
     }
@@ -2151,27 +2189,32 @@ impl Parser<'_> {
     fn parse_unsafe_block_expr(&mut self) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Unsafe)?;
 
-        self.push_meta_frame();
         let block = self.parse_block()?;
-        Ok(Expr::UnsafeBlock(self.add_node(UnsafeBlockExpr{ block })))
+        Ok(Expr::Block(self.add_node(BlockExpr{
+            kind: BlockExprKind::Unsafe,
+            block,
+        })))
     }
 
     fn parse_const_block_expr(&mut self) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Const)?;
         let block = self.parse_block()?;
-        Ok(Expr::ConstBlock(self.add_node(ConstBlockExpr{ block })))
+        Ok(Expr::Block(self.add_node(BlockExpr{
+            kind: BlockExprKind::Const,
+            block,
+        })))
     }
 
     fn parse_try_block_expr(&mut self) -> Result<Expr, ParserErr> {
-        let is_panicking = if self.try_consume(Token::StrongKw(StrongKeyword::TryExclaim)) {
-            true
+        let kind = if self.try_consume(Token::StrongKw(StrongKeyword::TryExclaim)) {
+            BlockExprKind::TryUnwrap
         } else {
             self.consume_strong_kw(StrongKeyword::Try)?;
-            false
+            BlockExprKind::Try
         };
         let block = self.parse_block()?;
-        Ok(Expr::TryBlock(self.add_node(TryBlockExpr {
-            is_panicking,
+        Ok(Expr::Block(self.add_node(BlockExpr {
+            kind,
             block,
         })))
     }
@@ -2212,12 +2255,14 @@ impl Parser<'_> {
         if self.try_consume(Token::StrongKw(StrongKeyword::AsQuestion)) {
             let ty = self.parse_type()?;
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                kind: TypeCastKind::Try,
                 expr,
                 ty,
             })))
         } else if self.try_consume(Token::StrongKw(StrongKeyword::AsExclaim)) {
             let ty = self.parse_type()?;
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                kind: TypeCastKind::Unwrap,
                 expr,
                 ty,
             })))
@@ -2225,6 +2270,7 @@ impl Parser<'_> {
             self.consume_strong_kw(StrongKeyword::As)?;
             let ty = self.parse_type()?;
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                kind: TypeCastKind::Normal,
                 expr,
                 ty,
             })))
@@ -2253,7 +2299,7 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_struct_expr(&mut self, path: AstNodeRef<ExprPath>, allow: bool) -> Result<Expr, ParserErr> {
+    fn parse_path_struct_expr(&mut self, path: AstNodeRef<ExprPath>, allow: bool) -> Result<Expr, ParserErr> {
         if !allow {
             let peek_1 = self.peek_at(1)?;
             let peek_2 = self.peek_at(2)?;
@@ -2261,21 +2307,33 @@ impl Parser<'_> {
                 return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
             }
 
-            return Ok(Expr::Path(self.add_node(PathExpr {
+            return Ok(Expr::Path(self.add_node(PathExpr::Path {
                 path,
             })));
         }
 
-
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_arg)?;
 
-        if !allow && !args.is_empty() {
+        if !allow {
             return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
         }
 
         Ok(Expr::Struct(self.add_node(StructExpr {
-            path,
+            path: StructPath::Path { path },
             args,
+        })))
+    }
+
+    fn parse_inferred_struct_expr(&mut self, allow: bool) -> Result<Expr, ParserErr> {
+        let args = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_arg)?;
+
+        if !allow {
+            return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
+        }
+
+        Ok(Expr::Struct(self.add_node(StructExpr {
+            path: StructPath::Inferred,
+            args: todo!(),
         })))
     }
 
@@ -2443,6 +2501,7 @@ impl Parser<'_> {
 
     fn parse_let_binding_expr(&mut self) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Let)?;
+        self.push_meta_frame();
         let pattern = self.parse_pattern_no_top_alternative()?;
         self.consume_punct(Punctuation::Equals)?;
         let scrutinee = self.parse_expr(ExprParseMode::Scrutinee)?;
@@ -2776,6 +2835,7 @@ impl Parser<'_> {
     fn parse_dotdot_pattern(&mut self) -> Result<Pattern, ParserErr> {
         self.consume_punct(Punctuation::DotDot)?;
         if self.pattern_available() {
+            self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
             Ok(Pattern::Range(self.add_node(RangePattern::To { end })))
         } else {
@@ -2785,6 +2845,7 @@ impl Parser<'_> {
 
     fn parse_inclusive_to_pattern(&mut self) -> Result<Pattern, ParserErr> {
         self.consume_punct(Punctuation::DotDotEquals)?;
+        self.push_meta_frame();
         let end = self.parse_pattern_no_top_alternative()?;
         Ok(Pattern::Range(self.add_node(RangePattern::InclusiveTo { end })))
     }
@@ -2799,6 +2860,7 @@ impl Parser<'_> {
             let name = self.consume_name()?;
 
             let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                self.push_meta_frame();
                 Some(self.parse_pattern_no_top_alternative()?)
             } else {
                 None
@@ -2946,6 +3008,7 @@ impl Parser<'_> {
     fn parse_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
         self.consume_punct(Punctuation::DotDot)?;
         if self.pattern_available() {
+            self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
             Ok(Pattern::Range(self.add_node(RangePattern::Exclusive { begin, end })))
         } else {
@@ -3216,7 +3279,7 @@ impl Parser<'_> {
             return Ok(None);
         }
 
-        self.consume(Token::StrongKw(StrongKeyword::Pub))?;
+        self.push_meta_frame();
         if self.try_begin_scope(OpenCloseSymbol::Paren) {
             let vis = match self.try_peek().unwrap() {
                 Token::WeakKw(WeakKeyword::Package) => {
@@ -3232,7 +3295,7 @@ impl Parser<'_> {
                     Visibility::Super
                 },
                 _ => {
-                    let path = self.parse_simple_path()?;
+                    let path = self.parse_simple_path(true)?;
                     Visibility::Path(path)
                 }
             };
@@ -3273,7 +3336,7 @@ impl Parser<'_> {
 
     fn parse_attrib_meta(&mut self) -> Result<AttribMeta, ParserErr> {
         if matches!(self.peek()?, Token::Name(_)) {
-            let path = self.parse_simple_path()?;
+            let path = self.parse_simple_path(false)?;
             if self.peek()? == Token::Punctuation(Punctuation::Equals) {
                 self.consume_punct(Punctuation::Equals)?;
                 let expr = self.parse_expr(ExprParseMode::General)?;

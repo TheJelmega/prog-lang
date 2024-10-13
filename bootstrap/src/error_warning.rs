@@ -1,5 +1,5 @@
 use core::fmt::Display;
-use std::mem::discriminant;
+use std::{fmt::write, mem::discriminant};
 
 use crate::lexer::{OpenCloseSymbol, Token};
 
@@ -74,7 +74,7 @@ pub enum ErrorCode {
     ParseUnexpectedFor{ found: Token, for_reason: &'static str } = 2002,
 
     // Invalid token at start of path
-    ParseInvalidPathStart{ found:Token } = 2010,
+    ParseInvalidPathStart{ found: Token, reason: &'static str } = 2010,
 
     // Use: expected package name or nothing before ':'
     ParseExpectPackageName{ found: Token } = 2011,
@@ -127,7 +127,7 @@ impl Display for ErrorCode {
             Self::ParseNotEnoughTokens                      => write!(f, "not enough tokens to parse"),
             Self::ParseFoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
             Self::ParseUnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
-            Self::ParseInvalidPathStart { found }           => write!(f, "Invalid token at start of path: {}", found.as_display_str()),
+            Self::ParseInvalidPathStart { found, reason }   => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
             Self::ParseExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
             Self::ParseExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
             Self::ParseInvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),

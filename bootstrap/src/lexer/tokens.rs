@@ -422,28 +422,39 @@ impl TokenMetadata {
 }
 
 pub struct TokenStore {
-    pub has_bom:         bool,
-    pub shebang:         Option<String>,
-    pub tokens:          Vec<Token>,
-    pub metadata:        Vec<TokenMetadata>,
-    pub tail_meta_elems: Vec<MetaElem>,
+    pub has_bom:          bool,
+    pub shebang:          Option<String>,
+    pub tokens:           Vec<Token>,
+    pub metadata:         Vec<TokenMetadata>,
+    pub tail_meta_elems:  Vec<MetaElem>,
+    pub weak_kw_name_map: Vec<NameId>,
 }
 
 impl TokenStore {
-    pub fn new() -> Self {
+    pub fn new(names: &mut NameTable) -> Self {
+        let mut weak_kw_name_map = Vec::with_capacity(WeakKeyword::WEAK_KEYWORD_NAMES.len());
+        for kw_name in &WeakKeyword::WEAK_KEYWORD_NAMES {
+            weak_kw_name_map.push(names.add(kw_name));
+        }
+
         Self {
             has_bom: false,
             shebang: None,
             tokens: Vec::new(),
             metadata: Vec::new(),
             tail_meta_elems: Vec::new(),
+            weak_kw_name_map,
         }
     }
 
     pub fn push(&mut self, token: Token, meta: TokenMetadata) {
         self.tokens.push(token);
         self.metadata.push(meta);
-    }   
+    }
+
+    pub fn get_name_from_weak_keyword(&self, kw: WeakKeyword) -> NameId {
+        self.weak_kw_name_map[kw as usize]
+    }
 
     pub fn log(&self, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable) {
         println!("Lexer output");

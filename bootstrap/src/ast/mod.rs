@@ -1,14 +1,25 @@
 #![allow(unused)]
 
-use std::{fmt::{self, write, Write as _}, io::{Stdout, Write}, marker::PhantomData, ops::{Index, IndexMut}, path::{self, PathBuf}};
+use std::{
+    fmt::{self, write, Write as _},
+    io::{Stdout, Write},
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+    path::{self, PathBuf},
+};
 
-use crate::{lexer::{NameId, NameTable, Punctuation, PuncutationTable, StrongKeyword, WeakKeyword}, literals::{LiteralId, LiteralTable}};
+use crate::{
+    common::{NameId, NameTable},
+    lexer::{Punctuation, PuncutationTable, StrongKeyword, WeakKeyword},
+    literals::{LiteralId, LiteralTable},
+};
 
 
 mod parser;
 pub use parser::{Parser, ParserErr};
 
 mod visitor;
+pub use visitor::{Visitor, helpers};
 
 pub trait AstNode {
 
@@ -39,7 +50,8 @@ impl Identifier {
 }
 
 pub enum SimplePathStart {
-    Name(bool, NameId),
+    None,
+    Inferred,
     SelfPath,
     Super,
 }
@@ -47,11 +59,19 @@ pub enum SimplePathStart {
 impl SimplePathStart {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            SimplePathStart::Name(leading_dot, name) => {
-                logger.log_fmt(format_args!("{}{}\n", if *leading_dot { "." } else { "" }, logger.resolve_name(*name)));
+            SimplePathStart::None => {},
+            SimplePathStart::Inferred => {
+                logger.write_prefix();
+                logger.logln("Path Start: Inferred")
             },
-            SimplePathStart::SelfPath => logger.logln("self"),
-            SimplePathStart::Super => logger.logln("super"),
+            SimplePathStart::SelfPath => {
+                logger.write_prefix();
+                logger.logln("Path Start: self")
+            },
+            SimplePathStart::Super => {
+                logger.write_prefix();
+                logger.logln("Path Start: super")
+            },
         }
     }
 }
@@ -64,12 +84,16 @@ pub struct SimplePath {
 impl AstNode for SimplePath {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Simple Path", |logger| {
-            logger.write_prefix();
             self.start.log(logger);
-            
-            for name in &self.names {
-                logger.log_fmt(format_args!(".{}", logger.resolve_name(*name)))
+            logger.write_prefix();
+            for (idx, name) in self.names.iter().enumerate() {
+                if idx == 0 {
+                    logger.log(logger.resolve_name(*name));
+                } else {
+                    logger.log_fmt(format_args!(".{}", logger.resolve_name(*name)));
+                }
             }
+            logger.logln("");
         })
     }
 }
@@ -320,7 +344,9 @@ impl AstNode for UseItem {
 }
 
 pub enum UsePath {
-    SelfPath{ alias: Option<NameId> },
+    SelfPath{
+        alias: Option<NameId>
+    },
     SubPaths{
         segments: Vec<NameId>,
         sub_paths: Vec<AstNodeRef<UsePath>>,
@@ -1533,18 +1559,12 @@ pub enum Expr {
     Path(AstNodeRef<PathExpr>),
     Unit,
     Block(AstNodeRef<BlockExpr>),
-    UnsafeBlock(AstNodeRef<UnsafeBlockExpr>),
-    ConstBlock(AstNodeRef<ConstBlockExpr>),
-    TryBlock(AstNodeRef<TryBlockExpr>),
     Prefix(AstNodeRef<PrefixExpr>),
     Postfix(AstNodeRef<PostfixExpr>),
-    Binary(AstNodeRef<BinaryExpr>),
-    BinaryContains(AstNodeRef<BinaryContainsExpr>),
+    Infix(AstNodeRef<InfixExpr>),
     Paren(AstNodeRef<ParenExpr>),
     Inplace(AstNodeRef<InplaceExpr>),
     TypeCast(AstNodeRef<TypeCastExpr>),
-    TryTypeCast(AstNodeRef<TryTypeCastExpr>),
-    UnwrapTypeCast(AstNodeRef<UnwrapTypeCastExpr>),
     TypeCheck(AstNodeRef<TypeCheckExpr>),
     Tuple(AstNodeRef<TupleExpr>),
     Array(AstNodeRef<ArrayExpr>),
@@ -1555,7 +1575,7 @@ pub enum Expr {
     Method(AstNodeRef<MethodCallExpr>),
     FieldAccess(AstNodeRef<FieldAccessExpr>),
     Closure(AstNodeRef<ClosureExpr>),
-    Range(AstNodeRef<RangeExpr>),
+    FullRange,
     If(AstNodeRef<IfExpr>),
     Let(AstNodeRef<LetBindingExpr>),
     Loop(AstNodeRef<LoopExpr>),
@@ -1576,12 +1596,10 @@ pub enum Expr {
 impl Expr {
     pub fn has_block(&self) -> bool {
         match self {
-            Self::Block(_)       |
-            Self::UnsafeBlock(_) |
-            Self::ConstBlock(_)  |
-            Self::TryBlock(_)    |
-            Self::If(_)          |
-            Self::While(_)       |
+            Self::Block(_) |
+            Self::If(_)    |
+            Self::Loop(_)  |
+            Self::While(_) |
             Self::For(_)
             => true,
             _ => false,
@@ -1592,54 +1610,51 @@ impl Expr {
 impl AstNode for Expr {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Literal(lit)         => logger.log_node_ref(*lit),
-            Self::Path(path)           => logger.log_node_ref(*path),
-            Self::Unit                 => {
+            Self::Literal(lit)      => logger.log_node_ref(*lit),
+            Self::Path(path)        => logger.log_node_ref(*path),
+            Self::Unit              => {
                 logger.write_prefix();
                 logger.logln("Unit Expression");
             },
-            Self::Block(block)         => logger.log_node_ref(*block),
-            Self::UnsafeBlock(block)   => logger.log_node_ref(*block),
-            Self::ConstBlock(block)    => logger.log_node_ref(*block),
-            Self::TryBlock(block)      => logger.log_node_ref(*block),
-            Self::Prefix(expr)         => logger.log_node_ref(*expr),
-            Self::Postfix(expr)        => logger.log_node_ref(*expr),
-            Self::Binary(expr)         => logger.log_node_ref(*expr),
-            Self::BinaryContains(expr) => logger.log_node_ref(*expr),
-            Self::Paren(expr)          => logger.log_node_ref(*expr),
-            Self::Inplace(expr)        => logger.log_node_ref(*expr),
-            Self::TypeCast(expr)       => logger.log_node_ref(*expr),
-            Self::TryTypeCast(expr)    => logger.log_node_ref(*expr),
-            Self::UnwrapTypeCast(expr) => logger.log_node_ref(*expr),
-            Self::TypeCheck(expr)      => logger.log_node_ref(*expr),
-            Self::Tuple(expr)          => logger.log_node_ref(*expr),
-            Self::Array(expr)          => logger.log_node_ref(*expr),
-            Self::Struct(expr)         => logger.log_node_ref(*expr),
-            Self::Index(expr)          => logger.log_node_ref(*expr),
-            Self::TupleIndex(expr)     => logger.log_node_ref(*expr),
-            Self::FnCall(expr)         => logger.log_node_ref(*expr),
-            Self::Method(expr)         => logger.log_node_ref(*expr),
-            Self::FieldAccess(expr)    => logger.log_node_ref(*expr),
-            Self::Closure(expr)        => logger.log_node_ref(*expr),
-            Self::Range(expr)          => logger.log_node_ref(*expr),
-            Self::If(expr)             => logger.log_node_ref(*expr),
-            Self::Let(expr)            => logger.log_node_ref(*expr),
-            Self::Loop(expr)           => logger.log_node_ref(*expr),
-            Self::While(expr)          => logger.log_node_ref(*expr),
-            Self::DoWhile(expr)        => logger.log_node_ref(*expr),
-            Self::For(expr)            => logger.log_node_ref(*expr),
-            Self::Match(expr)          => logger.log_node_ref(*expr),
-            Self::Break(expr)          => logger.log_node_ref(*expr),
-            Self::Continue(expr)       => logger.log_node_ref(*expr),
-            Self::Fallthrough(expr)    => logger.log_node_ref(*expr),
-            Self::Return(expr)         => logger.log_node_ref(*expr),
-            Self::Underscore           => {
+            Self::Block(block)      => logger.log_node_ref(*block),
+            Self::Prefix(expr)      => logger.log_node_ref(*expr),
+            Self::Postfix(expr)     => logger.log_node_ref(*expr),
+            Self::Infix(expr)       => logger.log_node_ref(*expr),
+            Self::Paren(expr)       => logger.log_node_ref(*expr),
+            Self::Inplace(expr)     => logger.log_node_ref(*expr),
+            Self::TypeCast(expr)    => logger.log_node_ref(*expr),
+            Self::TypeCheck(expr)   => logger.log_node_ref(*expr),
+            Self::Tuple(expr)       => logger.log_node_ref(*expr),
+            Self::Array(expr)       => logger.log_node_ref(*expr),
+            Self::Struct(expr)      => logger.log_node_ref(*expr),
+            Self::Index(expr)       => logger.log_node_ref(*expr),
+            Self::TupleIndex(expr)  => logger.log_node_ref(*expr),
+            Self::FnCall(expr)      => logger.log_node_ref(*expr),
+            Self::Method(expr)      => logger.log_node_ref(*expr),
+            Self::FieldAccess(expr) => logger.log_node_ref(*expr),
+            Self::Closure(expr)     => logger.log_node_ref(*expr),
+            Self::FullRange         => {
+                logger.write_prefix();
+                logger.logln("Full Range Expression")
+            }
+            Self::If(expr)          => logger.log_node_ref(*expr),
+            Self::Let(expr)         => logger.log_node_ref(*expr),
+            Self::Loop(expr)        => logger.log_node_ref(*expr),
+            Self::While(expr)       => logger.log_node_ref(*expr),
+            Self::DoWhile(expr)     => logger.log_node_ref(*expr),
+            Self::For(expr)         => logger.log_node_ref(*expr),
+            Self::Match(expr)       => logger.log_node_ref(*expr),
+            Self::Break(expr)       => logger.log_node_ref(*expr),
+            Self::Continue(expr)    => logger.log_node_ref(*expr),
+            Self::Fallthrough(expr) => logger.log_node_ref(*expr),
+            Self::Return(expr)      => logger.log_node_ref(*expr),
+            Self::Underscore        => {
                 logger.write_prefix();
                 logger.logln("Underscore Expression")
             },
-            Self::Throw(expr)          => logger.log_node_ref(*expr),
-            Self::Comma(expr)          => logger.log_node_ref(*expr),
-            Self::When(expr)           => logger.log_node_ref(*expr),
+            Self::Throw(expr)       => logger.log_node_ref(*expr),
+            Self::Comma(expr)       => logger.log_node_ref(*expr),
+            Self::When(expr)        => logger.log_node_ref(*expr),
         }
     }
 }
@@ -1694,73 +1709,59 @@ impl LiteralOp {
     }
 }
 
-pub struct PathExpr {
-    path: AstNodeRef<ExprPath>,
+pub enum PathExpr {
+    Path {
+        path: AstNodeRef<ExprPath>,
+    },
+    SelfPath,
 }
 
 impl AstNode for PathExpr {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Path Expr", |logger| {
-            logger.set_last_at_indent();
-            logger.log_node_ref(self.path);
-        });
+        match self {
+            PathExpr::Path { path } => logger.log_ast_node("Path Expr", |logger| {
+                logger.set_last_at_indent();
+                logger.log_node_ref(*path);
+            }),
+            PathExpr::SelfPath => {
+                logger.prefixed_logln("Self Path Expr");
+            },
+        }
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlockExprKind {
+    Normal,
+    Unsafe,
+    Const,
+    Try,
+    TryUnwrap,
+    Labeled{ label: NameId }
+}
+
 pub struct BlockExpr {
-    pub label: Option<NameId>,
+    pub kind:  BlockExprKind,
     pub block: AstNodeRef<Block>
 }
 
 impl AstNode for BlockExpr {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Block Expression", |logger| {
-            if let Some(label) = &self.label {
+        let name = match self.kind {
+            BlockExprKind::Normal         => "Block Expression",
+            BlockExprKind::Unsafe         => "Unsafe Block Expression",
+            BlockExprKind::Const          => "Const Block Expression",
+            BlockExprKind::Try            => "Try Block Expression",
+            BlockExprKind::TryUnwrap      => "Try Unwrap Block Expression",
+            BlockExprKind::Labeled { .. } => "Labeled Block Expression",
+        };
+
+
+        logger.log_ast_node(name, |logger| {
+            if let BlockExprKind::Labeled{ label } = self.kind {
                 logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(label)));
             }
-            logger.set_last_at_indent();
-            logger.log_node_ref(self.block);
-        });
-    }
-}
-
-pub struct UnsafeBlockExpr {
-    pub block: AstNodeRef<Block>
-}
-
-impl AstNode for UnsafeBlockExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Unsafe Block Expression", |logger| {
-            logger.set_last_at_indent();
-            logger.log_node_ref(self.block);
-        });
-    }
-}
-
-pub struct ConstBlockExpr {
-    pub block: AstNodeRef<Block>
-}
-
-impl AstNode for ConstBlockExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Const Block Expression", |logger| {
-            logger.set_last_at_indent();
-            logger.log_node_ref(self.block);
-        });
-    }
-}
-
-pub struct TryBlockExpr {
-    pub is_panicking: bool,
-    pub block:        AstNodeRef<Block>
-}
-
-impl AstNode for TryBlockExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Try Block Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Panicking: {}\n", self.is_panicking));
             logger.set_last_at_indent();
             logger.log_node_ref(self.block);
         });
@@ -1799,35 +1800,34 @@ impl AstNode for PostfixExpr {
     }
 }
 
-pub struct BinaryExpr {
-    pub op:    Punctuation,
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum InfixOp {
+    Punct(Punctuation),
+    Contains,
+    NotContains,
+}
+
+impl InfixOp {
+    fn log(&self, logger: &mut AstLogger) {
+        logger.write_prefix();
+        match self {
+            InfixOp::Punct(punct) => logger.log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(*punct))),
+            InfixOp::Contains     => logger.logln("Op: in"),
+            InfixOp::NotContains  => logger.logln("Op: !in"),
+        }
+    }
+}
+
+pub struct InfixExpr {
+    pub op:    InfixOp,
     pub left:  Expr,
     pub right: Expr,
 }
 
-impl AstNode for BinaryExpr {
+impl AstNode for InfixExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Infix expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
-            logger.log_node(&self.left);
-            logger.set_last_at_indent();
-            logger.log_node(&self.right);
-        });
-    }
-}
-
-pub struct BinaryContainsExpr {
-    pub negate: bool,
-    pub left:   Expr,
-    pub right:  Expr,
-}
-
-impl AstNode for BinaryContainsExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Infix expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op: {}\n", if self.negate { "!in" } else { "in" }));
+            self.op.log(logger);
             logger.log_node(&self.left);
             logger.set_last_at_indent();
             logger.log_node(&self.right);
@@ -1863,48 +1863,31 @@ impl AstNode for InplaceExpr {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TypeCastKind {
+    Normal,
+    Try,
+    Unwrap,
+}
+
 pub struct TypeCastExpr {
+    pub kind: TypeCastKind,
     pub expr: Expr,
     pub ty:   Type,
 }
 
 impl AstNode for TypeCastExpr {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Type Cast Expression", |logger| {
+        let name = match self.kind {
+            TypeCastKind::Normal => "Type Cast Expression",
+            TypeCastKind::Try    => "Try Type Cast Expression",
+            TypeCastKind::Unwrap => "Unwrap Type Cast Expression",
+        };
+
+        logger.log_ast_node(name, |logger| {
             logger.log_node(&self.expr);
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
-        });
-    }
-}
-
-pub struct TryTypeCastExpr {
-    pub expr: Expr,
-    pub ty:   Type,
-}
-
-impl AstNode for TryTypeCastExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Try Type Cast Expression", |logger| {
-            logger.log_node(&self.expr);
-            logger.set_last_at_indent();
-            logger.log_node(&self.ty);
-        });
-    }
-}
-
-pub struct UnwrapTypeCastExpr {
-    pub expr: Expr,
-    pub ty:   Type,
-}
-
-impl AstNode for UnwrapTypeCastExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Unwrap Type Cast Expression", |logger| {
-            logger.log_node(&self.expr);
-            logger.set_last_at_indent();
-            logger.log_node(&self.ty);
-
         });
     }
 }
@@ -1985,8 +1968,13 @@ impl StructArg {
     }
 }
 
+pub enum StructPath {
+    Path{ path: AstNodeRef<ExprPath> },
+    Inferred,
+}
+
 pub struct StructExpr {
-    pub path: AstNodeRef<ExprPath>,
+    pub path: StructPath,
     pub args: Vec<StructArg>,
 }
 
@@ -1994,7 +1982,13 @@ impl AstNode for StructExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Struct Expression", |logger| {
             logger.set_last_at_indent_if(self.args.is_empty());
-            logger.log_node_ref(self.path);
+            match &self.path {
+                StructPath::Path { path } => logger.log_node_ref(*path),
+                StructPath::Inferred      => {
+                    logger.write_prefix();
+                    logger.logln("Inferred Structure Path");
+                },
+            }
             logger.set_last_at_indent();
             logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
         });
@@ -3149,6 +3143,7 @@ pub enum Visibility {
 impl AstNode for Visibility {
     fn log(&self, logger: &mut AstLogger) {
         logger.write_prefix();
+        logger.log("Visibility: ");
         match self {
             Visibility::Pub        => logger.logln("pub"),
             Visibility::Super      => logger.logln("pub(super)"),
@@ -3239,7 +3234,11 @@ impl<T> Clone for AstNodeRef<T> {
 }
 impl<T> Copy for AstNodeRef<T> {}
 
-
+impl<T> AstNodeRef<T> {
+    pub fn index(&self) -> usize {
+        self.idx
+    }
+}
 
 
 
@@ -3341,7 +3340,7 @@ impl<'a> AstLogger<'a> {
 }
 
 impl AstLogger<'_> {
-    pub fn write_prefix(&mut self) {
+    pub fn write_prefix(&self) {
         for bit in &self.indent_kinds[..self.indent_kinds.len() - 1]   {
             if *bit {
                 self.log("|   ");
@@ -3471,6 +3470,7 @@ impl AstLogger<'_> {
 
     pub fn log_indented_node_ref<T: AstNode + 'static>(&mut self, name: &'static str, id: AstNodeRef<T>) {
         let node = &self.ast[id];
+        self.node_id = id.idx;
         self.log_indented_node(name, node);
     }
 

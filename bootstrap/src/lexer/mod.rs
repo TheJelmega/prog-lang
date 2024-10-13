@@ -9,7 +9,8 @@ pub use tables::*;
 
 use crate::{
     error_warning::ErrorCode,
-    literals::{self, Literal, LiteralTable}
+    literals::{self, Literal, LiteralTable},
+    common::*
 };
 
 #[derive(Debug)]
@@ -69,7 +70,7 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str, literals: &'a mut LiteralTable, names: &'a mut NameTable, punctuation: &'a mut PuncutationTable) -> Self {
         Self {
-            tokens: TokenStore::new(),
+            tokens: TokenStore::new(names),
             literals,
             names,
             punctuation,
@@ -927,7 +928,7 @@ impl Lexer<'_> {
 
     fn lex_punctuation(&mut self, ch: char) {
         const SINGLE_SYMBOLS: &[char] = &[
-            '#', '$', ';', '.',
+            '#', '$', ';', '.', ',',
         ];
         const INVALID_SYMBOLS: &[char] = &[
             '{', '}', '(', ')', '[', ']',

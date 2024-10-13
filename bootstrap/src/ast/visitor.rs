@@ -2,6 +2,7 @@ use super::*;
 
 
 
+
 pub trait Visitor {
 
     fn visit(&mut self, ast: &Ast) where Self: Sized {
@@ -176,18 +177,6 @@ pub trait Visitor {
         helpers::visit_block_expr(self, ast, node_id);
     }
 
-    fn visit_unsafe_block_expr(&mut self, ast: &Ast, node_id: AstNodeRef<UnsafeBlockExpr>) where Self: Sized {
-        helpers::visit_unsafe_block_expr(self, ast, node_id);
-    }
-
-    fn visit_const_block_expr(&mut self, ast: &Ast, node_id: AstNodeRef<ConstBlockExpr>) where Self: Sized {
-        helpers::visit_const_block_expr(self, ast, node_id);
-    }
-
-    fn visit_try_block_expr(&mut self, ast: &Ast, node_id: AstNodeRef<TryBlockExpr>) where Self: Sized {
-        helpers::visit_try_block_expr(self, ast, node_id);
-    }
-
     fn visit_prefix_expr(&mut self, ast: &Ast, node_id: AstNodeRef<PrefixExpr>) where Self: Sized {
         helpers::visit_prefix_expr(self, ast, node_id);
     }
@@ -196,12 +185,8 @@ pub trait Visitor {
         helpers::visit_postfix_expr(self, ast, node_id);
     }
 
-    fn visit_binary_expr(&mut self, ast: &Ast, node_id: AstNodeRef<BinaryExpr>) where Self: Sized {
+    fn visit_binary_expr(&mut self, ast: &Ast, node_id: AstNodeRef<InfixExpr>) where Self: Sized {
         helpers::visit_binary_expr(self, ast, node_id);
-    }
-
-    fn visit_binary_contains_expr(&mut self, ast: &Ast, node_id: AstNodeRef<BinaryContainsExpr>) where Self: Sized {
-        helpers::visit_binary_contains_expr(self, ast, node_id);
     }
 
     fn visit_paren_expr(&mut self, ast: &Ast, node_id: AstNodeRef<ParenExpr>) where Self: Sized {
@@ -214,14 +199,6 @@ pub trait Visitor {
 
     fn visit_type_cast_expr(&mut self, ast: &Ast, node_id: AstNodeRef<TypeCastExpr>) where Self: Sized {
         helpers::visit_type_cast_expr(self, ast, node_id);
-    }
-
-    fn visit_try_type_cast_expr(&mut self, ast: &Ast, node_id: AstNodeRef<TryTypeCastExpr>) where Self: Sized {
-        helpers::visit_try_type_cast_expr(self, ast, node_id);
-    }
-
-    fn visit_unwrap_type_cast_expr(&mut self, ast: &Ast, node_id: AstNodeRef<UnwrapTypeCastExpr>) where Self: Sized {
-        helpers::visit_unwrap_type_cast_expr(self, ast, node_id);
     }
 
     fn visit_type_check_expr(&mut self, ast: &Ast, node_id: AstNodeRef<TypeCheckExpr>) where Self: Sized {
@@ -488,7 +465,7 @@ pub trait Visitor {
 
 }
 
-mod helpers {
+pub mod helpers {
     use std::backtrace;
 
     use super::*;
@@ -1195,18 +1172,12 @@ mod helpers {
             Expr::Path(node_id)           => visitor.visit_path_expr(ast, *node_id),
             Expr::Unit                    => visitor.visit_unit_expr(ast),
             Expr::Block(node_id)          => visitor.visit_block_expr(ast, *node_id),
-            Expr::UnsafeBlock(node_id)    => visitor.visit_unsafe_block_expr(ast, *node_id),
-            Expr::ConstBlock(node_id)     => visitor.visit_const_block_expr(ast, *node_id),
-            Expr::TryBlock(node_id)       => visitor.visit_try_block_expr(ast, *node_id),
             Expr::Prefix(node_id)         => visitor.visit_prefix_expr(ast, *node_id),
             Expr::Postfix(node_id)        => visitor.visit_postfix_expr(ast, *node_id),
-            Expr::Binary(node_id)         => visitor.visit_binary_expr(ast, *node_id),
-            Expr::BinaryContains(node_id) => visitor.visit_binary_contains_expr(ast, *node_id),
+            Expr::Infix(node_id)          => visitor.visit_binary_expr(ast, *node_id),
             Expr::Paren(node_id)          => visitor.visit_paren_expr(ast, *node_id),
             Expr::Inplace(node_id)        => visitor.visit_inplace_expr(ast, *node_id),
             Expr::TypeCast(node_id)       => visitor.visit_type_cast_expr(ast, *node_id),
-            Expr::TryTypeCast(node_id)    => visitor.visit_try_type_cast_expr(ast, *node_id),
-            Expr::UnwrapTypeCast(node_id) => visitor.visit_unwrap_type_cast_expr(ast, *node_id),
             Expr::TypeCheck(node_id)      => visitor.visit_type_check_expr(ast, *node_id),
             Expr::Tuple(node_id)          => visitor.visit_tuple_expr(ast, *node_id),
             Expr::Array(node_id)          => visitor.visit_array_expr(ast, *node_id),
@@ -1238,25 +1209,13 @@ mod helpers {
 
     pub fn visit_path_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<PathExpr>) {
         let node = &ast[node_id];
-        visitor.visit_expr_path(ast, node.path);
+        match &ast[node_id] {
+            PathExpr::Path { path } => visitor.visit_expr_path(ast, *path),
+            PathExpr::SelfPath => {},
+        }
     }
 
     pub fn visit_block_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<BlockExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_block(ast, node.block);
-    }
-
-    pub fn visit_unsafe_block_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<UnsafeBlockExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_block(ast, node.block);
-    }
-
-    pub fn visit_const_block_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<ConstBlockExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_block(ast, node.block);
-    }
-
-    pub fn visit_try_block_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TryBlockExpr>) {
         let node = &ast[node_id];
         visitor.visit_block(ast, node.block);
     }
@@ -1271,13 +1230,7 @@ mod helpers {
         visitor.visit_expr(ast, &node.expr);
     }
 
-    pub fn visit_binary_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<BinaryExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_expr(ast, &node.left);
-        visitor.visit_expr(ast, &node.right);
-    }
-
-    pub fn visit_binary_contains_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<BinaryContainsExpr>) {
+    pub fn visit_binary_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<InfixExpr>) {
         let node = &ast[node_id];
         visitor.visit_expr(ast, &node.left);
         visitor.visit_expr(ast, &node.right);
@@ -1295,18 +1248,6 @@ mod helpers {
     }
 
     pub fn visit_type_cast_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TypeCastExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_expr(ast, &node.expr);
-        visitor.visit_type(ast, &node.ty);
-    }
-
-    pub fn visit_try_type_cast_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TryTypeCastExpr>) {
-        let node = &ast[node_id];
-        visitor.visit_expr(ast, &node.expr);
-        visitor.visit_type(ast, &node.ty);
-    }
-
-    pub fn visit_unwrap_type_cast_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<UnwrapTypeCastExpr>) {
         let node = &ast[node_id];
         visitor.visit_expr(ast, &node.expr);
         visitor.visit_type(ast, &node.ty);
@@ -1334,7 +1275,9 @@ mod helpers {
 
     pub fn visit_struct_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<StructExpr>) {
         let node = &ast[node_id];
-        visitor.visit_expr_path(ast, node.path);
+        if let StructPath::Path { path } = node.path {
+            visitor.visit_expr_path(ast, path);
+        }
         for arg in &node.args {
             match arg {
                 StructArg::Expr(_, expr)  => visitor.visit_expr(ast, expr),
