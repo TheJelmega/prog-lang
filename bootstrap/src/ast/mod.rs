@@ -40,8 +40,7 @@ pub struct Identifier {
 impl Identifier {
     pub fn log(&self, logger: &mut AstLogger) {
         logger.log_indented("Identifier", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             if let Some(gen_args) = self.gen_args {
                 logger.log_node_ref(gen_args);
             }
@@ -59,19 +58,10 @@ pub enum SimplePathStart {
 impl SimplePathStart {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            SimplePathStart::None => {},
-            SimplePathStart::Inferred => {
-                logger.write_prefix();
-                logger.logln("Path Start: Inferred")
-            },
-            SimplePathStart::SelfPath => {
-                logger.write_prefix();
-                logger.logln("Path Start: self")
-            },
-            SimplePathStart::Super => {
-                logger.write_prefix();
-                logger.logln("Path Start: super")
-            },
+            SimplePathStart::None     => {},
+            SimplePathStart::Inferred => logger.prefixed_logln("Path Start: Inferred"),
+            SimplePathStart::SelfPath => logger.prefixed_logln("Path Start: self"),
+            SimplePathStart::Super    => logger.prefixed_logln("Path Start: super"),
         }
     }
 }
@@ -85,10 +75,9 @@ impl AstNode for SimplePath {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Simple Path", |logger| {
             self.start.log(logger);
-            logger.write_prefix();
             for (idx, name) in self.names.iter().enumerate() {
                 if idx == 0 {
-                    logger.log(logger.resolve_name(*name));
+                    logger.prefixed_log(logger.resolve_name(*name));
                 } else {
                     logger.log_fmt(format_args!(".{}", logger.resolve_name(*name)));
                 }
@@ -121,8 +110,7 @@ pub struct ExprPath {
 impl AstNode for ExprPath {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Expr Path", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Inferred: {}\n", self.inferred));
+            logger.prefixed_log_fmt(format_args!("Is Inferred: {}\n", self.inferred));
             logger.set_last_at_indent();
             logger.log_indented_slice("Identifiers", &self.idens, |logger, iden| iden.log(logger));
         });
@@ -142,18 +130,15 @@ impl AstNode for TypePath {
 
             match iden {
                 TypePathIdentifier::Plain { name } => {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 },
-                TypePathIdentifier::GenArg { name, gen_args } => logger.log_indented("Identifier", |logger| {   
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                TypePathIdentifier::GenArg { name, gen_args } => logger.log_indented("Identifier", |logger| {
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                     logger.set_last_at_indent();
                     logger.log_node_ref(*gen_args);
                 }),
                 TypePathIdentifier::Fn { name, params, ret } => logger.log_indented("Function Identifier", |logger| {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 }),
             }
         })
@@ -300,8 +285,7 @@ impl AstNode for ModuleItem {
         logger.log_indented("Module", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Module: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Module: {}\n", logger.resolve_name(self.name)));
             logger.set_last_at_indent();
             logger.log_indented_opt_node_ref("Body", &self.block);
         });
@@ -325,16 +309,13 @@ impl AstNode for UseItem {
             logger.log_opt_node_ref(&self.vis);
 
             if let Some(group) = &self.group {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Group: {}\n", logger.resolve_name(*group)));
+                logger.prefixed_log_fmt(format_args!("Group: {}\n", logger.resolve_name(*group)));
             }
             if let Some(package) = &self.package {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Package: {}\n", logger.resolve_name(*package)));
+                logger.prefixed_log_fmt(format_args!("Package: {}\n", logger.resolve_name(*package)));
             }
             if let Some(module) = &self.module {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Module: {}\n", logger.resolve_name(*module)));
+                logger.prefixed_log_fmt(format_args!("Module: {}\n", logger.resolve_name(*module)));
             }
             
             logger.set_last_at_indent();
@@ -362,8 +343,7 @@ impl AstNode for UsePath {
             match self {
                 UsePath::SelfPath { alias } => {
                     logger.set_last_at_indent();
-                    logger.write_prefix();
-                    logger.log("SelfPath");
+                    logger.prefixed_log("SelfPath");
                     
                     if let Some(alias) = alias {
                         logger.log_fmt(format_args!(", alias: {}\n", logger.resolve_name(*alias)));
@@ -371,8 +351,7 @@ impl AstNode for UsePath {
                     logger.logln("");
                 },
                 UsePath::SubPaths { segments, sub_paths } => {
-                    logger.write_prefix();
-                    logger.log("Path: ");
+                    logger.prefixed_log("Path: ");
                     
                     for (idx, segment) in segments.iter().enumerate() {
                         if idx != 0 {
@@ -387,8 +366,7 @@ impl AstNode for UsePath {
                 },
                 UsePath::Alias { segments, alias } => {
                     logger.set_last_at_indent();
-                    logger.write_prefix();
-                    logger.log("Path: ");
+                    logger.prefixed_log("Path: ");
 
                     for (idx, segment) in segments.iter().enumerate() {
                         if idx != 0 {
@@ -431,18 +409,13 @@ impl AstNode for Function {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
 
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Override: {}\n", self.is_override));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Const: {}\n", self.is_const));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
+            logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             if let Some(abi) = self.abi {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("ABI: {}\n", logger.resolve_name(self.name)));
+                logger.prefixed_log_fmt(format_args!("ABI: {}\n", logger.resolve_name(self.name)));
             }
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             
            
             logger.log_opt_node_ref(&self.generics);
@@ -470,14 +443,11 @@ impl FnReceiver {
     pub fn log(&self, logger: &mut AstLogger) {
         match self {
             FnReceiver::SelfReceiver { is_ref, is_mut } => logger.log_indented("Self Receiver", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Ref: {is_ref}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Ref: {is_ref}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
             }),
             FnReceiver::SelfTyped{ is_mut, ty } => logger.log_indented("Typed Receiver", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
             }),
@@ -495,8 +465,7 @@ pub struct FnParam {
 impl FnParam {
     pub fn log(&self, logger: &mut AstLogger) {
         logger.log_indented("Param", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Variadic: {}\n", self.is_variadic));
+            logger.prefixed_log_fmt(format_args!("Is Variadic: {}\n", self.is_variadic));
             logger.log_indented_slice("Names", &self.names, |logger, name| name.log(logger));
             logger.set_last_at_indent();
             logger.log_indented_node("Type", &self.ty); 
@@ -515,8 +484,7 @@ impl FnParamName {
         logger.log_indented("Name", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.set_last_at_indent();
             logger.log_node(&self.pattern);
@@ -536,8 +504,7 @@ impl FnReturn {
             FnReturn::Named(rets) => logger.log_indented_slice("Named Function Return", rets, |logger, (names, ty)| {
                 logger.log_indented("Return", |logger| {
                     logger.log_indented_slice("Names", &names, |logger, name| {
-                        logger.write_prefix();
-                            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                        logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                     });
 
                     logger.set_last_at_indent();
@@ -582,8 +549,7 @@ impl AstNode for TypeAlias {
             TypeAlias::Normal { attrs, vis, name, generics, ty } => logger.log_ast_node("Typealias", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_opt_node_ref(generics);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
@@ -591,24 +557,21 @@ impl AstNode for TypeAlias {
             TypeAlias::Distinct { attrs, vis, name, generics, ty } => logger.log_ast_node("Distinct Typealias", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_opt_node_ref(generics);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
             }),
             TypeAlias::Trait { attrs, name, generics } => logger.log_ast_node("Trait Typealias", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent();
                 logger.log_opt_node_ref(generics);
             }),
             TypeAlias::Opaque { attrs, vis, name, size } => logger.log_ast_node("Opaque Typealias", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_indented_opt_node("Size", size);
             }),
         }
@@ -650,12 +613,9 @@ impl AstNode for Struct {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
 
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Record: {is_record}\n"));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Record: {is_record}\n"));
 
                 logger.set_last_at_indent_if(where_clause.is_none() && fields.is_empty());
                 logger.log_opt_node_ref(generics);
@@ -669,8 +629,7 @@ impl AstNode for Struct {
             Struct::Tuple { attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => logger.log_ast_node("Tuple Struct", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_opt_node_ref(generics);
                 logger.log_opt_node_ref(where_clause);
                 logger.set_last_at_indent();
@@ -679,8 +638,7 @@ impl AstNode for Struct {
             Struct::Unit { attrs, vis, name } => logger.log_ast_node("Unit Struct", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
             }),
         }
     }
@@ -710,12 +668,10 @@ impl RegStructField {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
 
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
 
                 logger.log_indented_slice("Names", &names, |logger, name| {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 });
 
                 logger.set_last_at_indent_if(def.is_none());
@@ -773,8 +729,7 @@ impl AstNode for Union {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
 
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
 
             logger.set_last_at_indent_if(self.where_clause.is_none() && self.fields.is_empty());
             logger.log_opt_node_ref(&self.generics);
@@ -801,10 +756,8 @@ impl UnionField {
         logger.log_indented("Field", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             logger.set_last_at_indent(); 
             logger.log_indented_node("Type", &self.ty);
         })
@@ -837,12 +790,9 @@ impl AstNode for Enum {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
 
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Record: {is_record}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Record: {is_record}\n"));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
 
                 logger.set_last_at_indent_if(where_clause.is_none() && variants.is_empty());
                 logger.log_opt_node_ref(generics);
@@ -892,8 +842,7 @@ impl EnumVariant {
         match self {
             EnumVariant::Struct { attrs, is_mut, name, fields, discriminant } => logger.log_indented("Struct Variant", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
 
                 logger.set_last_at_indent_if(discriminant.is_none());
                 logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
@@ -904,8 +853,7 @@ impl EnumVariant {
             EnumVariant::Tuple { attrs, is_mut, name, fields, discriminant } => logger.log_indented("Tuple Variant", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
 
                 logger.set_last_at_indent_if(discriminant.is_none());
                 logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
@@ -916,8 +864,7 @@ impl EnumVariant {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
 
                 logger.set_last_at_indent_if(discriminant.is_none());
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
 
                 logger.set_last_at_indent();
                 logger.log_indented_opt_node("Discriminant", discriminant);
@@ -936,8 +883,7 @@ impl FlagEnumVariant {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_indented("Flag Variant", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             logger.set_last_at_indent();
             logger.log_indented_opt_node("Discriminant", &self.discriminant);
         });
@@ -962,12 +908,9 @@ impl AstNode for Bitfield {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
 
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Record: {}\n", self.is_record));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Is Record: {}\n", self.is_record));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
 
             logger.set_last_at_indent_if(self.bit_count.is_none() && self.where_clause.is_none() && self.fields.is_empty());
             logger.log_opt_node_ref(&self.generics);
@@ -1009,12 +952,10 @@ impl BitfieldField {
             BitfieldField::Field { attrs, vis, is_mut, names, ty, bits, def } => logger.log_indented("Field", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
 
                 logger.log_indented_slice("Names", names, |logger, name| {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 });
 
                 logger.set_last_at_indent_if(bits.is_none() && def.is_none());
@@ -1029,8 +970,7 @@ impl BitfieldField {
             BitfieldField::Use { attrs, vis, is_mut, path, bits } => logger.log_indented("Use Field", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 
                 if bits.is_none() {
                     logger.set_last_at_indent();
@@ -1057,8 +997,7 @@ pub struct Const {
 impl AstNode for Const {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Const Item", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             logger.log_indented_opt_node("Type", &self.ty);
             logger.set_last_at_indent();
             logger.log_indented_node("Value", &self.val);
@@ -1098,8 +1037,7 @@ impl AstNode for Static {
             Static::Static { attrs, vis, name, ty, val } => logger.log_ast_node("Static", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_indented_node("Type", ty);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Val", val);
@@ -1107,10 +1045,8 @@ impl AstNode for Static {
             Static::Tls { attrs, vis, is_mut, name, ty, val } => logger.log_ast_node("Tls Static", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.log_indented_node("Type", ty);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Val", val);
@@ -1118,12 +1054,9 @@ impl AstNode for Static {
             Static::Extern { attrs, vis, abi, is_mut, name, ty } => logger.log_ast_node("Extern Static", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("ABI: {}\n", logger.resolve_literal(*abi)));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("ABI: {}\n", logger.resolve_literal(*abi)));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
             }),
@@ -1165,10 +1098,8 @@ impl AstNode for Property {
         logger.log_ast_node(&header, |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             self.body.log(logger);
         });
     }
@@ -1219,14 +1150,10 @@ impl PropertyBody {
                 logger.log_indented_opt_node("Set", set);
             },
             PropertyBody::Trait { has_get, has_ref_get, has_mut_get, has_set } => {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Has Get: {has_get}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Has Ref Get: {has_ref_get}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Has Mut Get: {has_mut_get}\n"));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Has Set: {has_set}\n"));
+                logger.prefixed_log_fmt(format_args!("Has Get: {has_get}\n"));
+                logger.prefixed_log_fmt(format_args!("Has Ref Get: {has_ref_get}\n"));
+                logger.prefixed_log_fmt(format_args!("Has Mut Get: {has_mut_get}\n"));
+                logger.prefixed_log_fmt(format_args!("Has Set: {has_set}\n"));
             },
         }
     }
@@ -1248,12 +1175,9 @@ impl AstNode for Trait {
         logger.log_ast_node("Trait", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Sealed: {}\n", self.is_sealed));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));            
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Is Sealed: {}\n", self.is_sealed));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));            
 
             logger.set_last_at_indent_if(self.assoc_items.is_empty());
             logger.log_opt_node_ref(&self.bounds);
@@ -1279,8 +1203,7 @@ impl AstNode for Impl {
         logger.log_ast_node("Impl", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
 
             logger.set_last_at_indent_if(self.impl_trait.is_none() && self.where_clause.is_none() && self.assoc_items.is_empty());
             logger.log_indented_node("Type", &self.ty);
@@ -1309,8 +1232,7 @@ impl AstNode for ExternBlock {
         logger.log_ast_node("Extern Block", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
-            logger.write_prefix();
-            logger.log_fmt(format_args!("ABI: {}\n", logger.resolve_literal(self.abi)));
+            logger.prefixed_log_fmt(format_args!("ABI: {}\n", logger.resolve_literal(self.abi)));
 
             logger.set_last_at_indent();  
             logger.log_indented_node_slice("Extern Items", &self.items);
@@ -1397,23 +1319,19 @@ impl AstNode for Precedence {
             logger.log_opt_node_ref(&self.vis);
 
             logger.set_last_at_indent_if(self.higher_than.is_none() && self.lower_than.is_none() && self.associativity.is_none());
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             
             logger.set_last_at_indent_if(self.lower_than.is_none() && self.associativity.is_none());
             logger.log_opt(&self.higher_than, |logger, name| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Higher Than: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Higher Than: {}\n", logger.resolve_name(*name)));
             });
             logger.set_last_at_indent_if(self.associativity.is_none());
             logger.log_opt(&self.lower_than, |logger, name| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Lower Than: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Lower Than: {}\n", logger.resolve_name(*name)));
             });
             logger.set_last_at_indent();
             logger.log_opt(&self.associativity, |logger, assoc| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Associativity: {assoc}\n"));
+                logger.prefixed_log_fmt(format_args!("Associativity: {assoc}\n"));
             });
         });
     }
@@ -1434,8 +1352,7 @@ impl AstNode for Stmt {
     fn log(&self, logger: &mut AstLogger) {
         match self {
             Self::Empty             => {
-                logger.write_prefix();
-                logger.logln("Emtpy");
+                logger.prefixed_logln("Emtpy");
             },
             Self::Item(item)         => item.log(logger),
             Self::VarDecl(var_decl)  => logger.log_node_ref(*var_decl),
@@ -1468,10 +1385,8 @@ impl AstNode for VarDecl {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_indented_slice("Names", names, |logger, (is_mut, name)| {
                     logger.log_indented("Name", |logger| {
-                        logger.write_prefix();
-                        logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
-                        logger.write_prefix();
-                        logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                        logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                        logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                     });
                 });
 
@@ -1519,10 +1434,8 @@ impl AstNode for ErrDefer {
         logger.log_ast_node("Error Defer Statement", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_indented_opt("Receiver", &self.receiver, |logger, rec| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {}\n", rec.is_mut));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(rec.name)));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", rec.is_mut));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(rec.name)));
             });
             logger.set_last_at_indent();
             logger.log_indented_node("Expr", &self.expr);
@@ -1633,10 +1546,7 @@ impl AstNode for Expr {
             Self::Method(expr)      => logger.log_node_ref(*expr),
             Self::FieldAccess(expr) => logger.log_node_ref(*expr),
             Self::Closure(expr)     => logger.log_node_ref(*expr),
-            Self::FullRange         => {
-                logger.write_prefix();
-                logger.logln("Full Range Expression")
-            }
+            Self::FullRange         => logger.prefixed_logln("Full Range Expression"),
             Self::If(expr)          => logger.log_node_ref(*expr),
             Self::Let(expr)         => logger.log_node_ref(*expr),
             Self::Loop(expr)        => logger.log_node_ref(*expr),
@@ -1648,10 +1558,7 @@ impl AstNode for Expr {
             Self::Continue(expr)    => logger.log_node_ref(*expr),
             Self::Fallthrough(expr) => logger.log_node_ref(*expr),
             Self::Return(expr)      => logger.log_node_ref(*expr),
-            Self::Underscore        => {
-                logger.write_prefix();
-                logger.logln("Underscore Expression")
-            },
+            Self::Underscore        => logger.prefixed_logln("Underscore Expression"),
             Self::Throw(expr)       => logger.log_node_ref(*expr),
             Self::Comma(expr)       => logger.log_node_ref(*expr),
             Self::When(expr)        => logger.log_node_ref(*expr),
@@ -1673,10 +1580,9 @@ pub struct LiteralExpr {
 impl AstNode for LiteralExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Literal Expr", |logger| {
-            logger.write_prefix();
             match self.literal {
-                LiteralValue::Lit(lit) => logger.log_fmt(format_args!("Literal: {}\n", logger.resolve_literal(lit))),
-                LiteralValue::Bool(val) => logger.log_fmt(format_args!("Literal: {val}\n")),
+                LiteralValue::Lit(lit) => logger.prefixed_log_fmt(format_args!("Literal: {}\n", logger.resolve_literal(lit))),
+                LiteralValue::Bool(val) => logger.prefixed_log_fmt(format_args!("Literal: {val}\n")),
             }
 
             logger.set_last_at_indent();
@@ -1699,8 +1605,7 @@ impl LiteralOp {
             logger.set_last_at_indent();
             match self {
                 LiteralOp::Name(name) => {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Named: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Named: {}\n", logger.resolve_name(*name)));
                 },
                 LiteralOp::Primitive(ty) => ty.log(logger),
                 LiteralOp::StringSlice(ty) => ty.log(logger),
@@ -1759,8 +1664,7 @@ impl AstNode for BlockExpr {
 
         logger.log_ast_node(name, |logger| {
             if let BlockExprKind::Labeled{ label } = self.kind {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(label)));
             }
             logger.set_last_at_indent();
             logger.log_node_ref(self.block);
@@ -1776,8 +1680,7 @@ pub struct PrefixExpr {
 impl AstNode for PrefixExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Prefix expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
+            logger.prefixed_log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
@@ -1792,8 +1695,7 @@ pub struct PostfixExpr {
 impl AstNode for PostfixExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Postfix expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
+            logger.prefixed_log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
@@ -1809,11 +1711,10 @@ pub enum InfixOp {
 
 impl InfixOp {
     fn log(&self, logger: &mut AstLogger) {
-        logger.write_prefix();
         match self {
-            InfixOp::Punct(punct) => logger.log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(*punct))),
-            InfixOp::Contains     => logger.logln("Op: in"),
-            InfixOp::NotContains  => logger.logln("Op: !in"),
+            InfixOp::Punct(punct) => logger.prefixed_log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(*punct))),
+            InfixOp::Contains     => logger.prefixed_logln("Op: in"),
+            InfixOp::NotContains  => logger.prefixed_logln("Op: !in"),
         }
     }
 }
@@ -1901,8 +1802,7 @@ pub struct TypeCheckExpr {
 impl AstNode for TypeCheckExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Type Check Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Negate: {}\n", self.negate));
+            logger.prefixed_log_fmt(format_args!("Negate: {}\n", self.negate));
             logger.log_node(&self.expr);
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
@@ -1954,15 +1854,11 @@ impl StructArg {
     pub fn log(&self, logger: &mut AstLogger) {
         match self {
             StructArg::Expr(name, expr) => logger.log_indented("Named Argument", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent();
                 logger.log_node(expr);
             }),
-            StructArg::Name(name) => {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name-only: {}\n", logger.resolve_name(*name)));
-            },
+            StructArg::Name(name)     => logger.prefixed_log_fmt(format_args!("Name-only: {}\n", logger.resolve_name(*name))),
             StructArg::Complete(path) => logger.log_indented_node("Struct Completion", path),
         }
     }
@@ -1984,10 +1880,7 @@ impl AstNode for StructExpr {
             logger.set_last_at_indent_if(self.args.is_empty());
             match &self.path {
                 StructPath::Path { path } => logger.log_node_ref(*path),
-                StructPath::Inferred      => {
-                    logger.write_prefix();
-                    logger.logln("Inferred Structure Path");
-                },
+                StructPath::Inferred      => logger.prefixed_logln("Inferred Structure Path"),
             }
             logger.set_last_at_indent();
             logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
@@ -2004,8 +1897,7 @@ pub struct IndexExpr {
 impl AstNode for IndexExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Index Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Optional: {}\n", self.is_opt));
+            logger.prefixed_log_fmt(format_args!("Is Optional: {}\n", self.is_opt));
             logger.log_indented_node("Expression", &self.expr);
             logger.set_last_at_indent();
             let index_name = if let Expr::Comma(_) = &self.index { "Indices" } else { "Index" };
@@ -2022,8 +1914,7 @@ pub struct TupleIndexExpr {
 impl AstNode for TupleIndexExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Tuple Index Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Index: {}\n", logger.resolve_literal(self.index)));
+            logger.prefixed_log_fmt(format_args!("Index: {}\n", logger.resolve_literal(self.index)));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
@@ -2043,8 +1934,7 @@ impl FnArg {
         match self {
             FnArg::Expr(expr) => logger.log_indented_node("Argument", expr),
             FnArg::Labeled { label, expr } => logger.log_indented("Labeled Argument", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
                 logger.set_last_at_indent();
                 logger.log_indented_node("Expression", expr)
             }),
@@ -2092,8 +1982,7 @@ pub struct MethodCallExpr {
 impl AstNode for MethodCallExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Method Call Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Method Name: {}\n", logger.resolve_name(self.method)));
+            logger.prefixed_log_fmt(format_args!("Method Name: {}\n", logger.resolve_name(self.method)));
             logger.set_last_at_indent_if(self.args.is_empty());
             logger.log_indented_node("Receiver", &self.receiver);
             logger.set_last_at_indent();
@@ -2110,8 +1999,7 @@ pub struct FieldAccessExpr {
 impl AstNode for FieldAccessExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Field Access Expression", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Field Name: {}\n", logger.resolve_name(self.field)));
+            logger.prefixed_log_fmt(format_args!("Field Name: {}\n", logger.resolve_name(self.field)));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
@@ -2226,8 +2114,7 @@ impl AstNode for LoopExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Loop expression", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.set_last_at_indent();
             logger.log_node_ref(self.body);
@@ -2247,8 +2134,7 @@ impl AstNode for WhileExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("While Expression", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.log_indented_node("Condition", &self.cond);
             logger.log_indented_opt_node("Increment", &self.inc);
@@ -2270,8 +2156,7 @@ impl AstNode for DoWhileExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Do While Expression", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.log_indented_node_ref("Body", self.body);
             logger.set_last_at_indent();
@@ -2292,8 +2177,7 @@ impl AstNode for ForExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("For Expression", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.log_indented_node("Pattern", &self.pattern);
             logger.log_indented_node("Src", &self.src);
@@ -2315,8 +2199,7 @@ impl AstNode for MatchExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Match Expression", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.set_last_at_indent_if(self.branches.is_empty());
             logger.log_indented_node("Scrutinee", &self.scrutinee);
@@ -2337,8 +2220,7 @@ impl MatchBranch {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_indented("Branch", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.log_indented_node("Pattern", &self.pattern);
             logger.log_indented_opt_node("Guard", &self.guard);
@@ -2357,8 +2239,7 @@ impl AstNode for BreakExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Continue Expr", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.set_last_at_indent();
             logger.log_opt_node(&self.value);
@@ -2374,8 +2255,7 @@ impl AstNode for ContinueExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Continue Expr", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
         });
     }
@@ -2389,8 +2269,7 @@ impl AstNode for FallthroughExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Fallthrough Expr", |logger| {
             if let Some(label) = &self.label {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
+                logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
         });
     }
@@ -2477,14 +2356,8 @@ impl AstNode for Pattern {
             Pattern::Literal(pattern)     => logger.log_node_ref(*pattern),
             Pattern::Identifier(pattern)  => logger.log_node_ref(*pattern),
             Pattern::Path(pattern)        => logger.log_node_ref(*pattern),
-            Pattern::Wildcard             => {
-                logger.write_prefix();
-                logger.logln("Wildcard Pattern");
-            },
-            Pattern::Rest                 => {
-                logger.write_prefix();
-                logger.logln("Rest Pattern");
-            },
+            Pattern::Wildcard             => logger.prefixed_logln("Wildcard Pattern"),
+            Pattern::Rest                 => logger.prefixed_logln("Rest Pattern"),
             Pattern::Range(pattern)        => logger.log_node_ref(*pattern),
             Pattern::Reference(pattern)    => logger.log_node_ref(*pattern),
             Pattern::Tuple(pattern)        => logger.log_node_ref(*pattern),
@@ -2507,10 +2380,9 @@ pub struct LiteralPattern {
 impl AstNode for LiteralPattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Literal Pattern", |logger| {
-            logger.write_prefix();
             match self.literal {
-                LiteralValue::Lit(lit) => logger.log_fmt(format_args!("Literal: {}\n", logger.resolve_literal(lit))),
-                LiteralValue::Bool(val) => logger.log_fmt(format_args!("Literal: {val}\n")),
+                LiteralValue::Lit(lit)  => logger.prefixed_log_fmt(format_args!("Literal: {}\n", logger.resolve_literal(lit))),
+                LiteralValue::Bool(val) => logger.prefixed_log_fmt(format_args!("Literal: {val}\n")),
             }
             logger.set_last_at_indent();
             logger.log_opt(&self.lit_op, |logger, lit_op| lit_op.log(logger));
@@ -2528,12 +2400,9 @@ pub struct IdentifierPattern {
 impl AstNode for IdentifierPattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Identifier Pattern", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Ref: {}\n", self.is_ref));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Is Ref: {}\n", self.is_ref));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             logger.set_last_at_indent();
             logger.log_indented_opt_node("Bound", &self.bound);
         })
@@ -2598,8 +2467,7 @@ pub struct ReferencePattern {
 impl AstNode for ReferencePattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Reference Pattern", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
             logger.set_last_at_indent();
             logger.log_node(&self.pattern);
         })
@@ -2640,29 +2508,23 @@ impl StructPatternField {
     fn log(&self, logger: &mut AstLogger) {
         match self {
             StructPatternField::Named { name, pattern } => logger.log_indented("Named Struct Field", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent();
                 logger.log_node(pattern);
             }),
             StructPatternField::TupleIndex { idx, pattern } => logger.log_indented("Tuple Index Struct Field", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Index: {}\n", logger.resolve_literal(*idx)));
+                logger.prefixed_log_fmt(format_args!("Index: {}\n", logger.resolve_literal(*idx)));
                 logger.set_last_at_indent();
                 logger.log_node(pattern);
             }),
             StructPatternField::Iden { is_ref, is_mut, iden } => logger.log_indented("Iden Struct Field", |logger| {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Ref: {}\n", is_ref));
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {}\n", is_mut));
+                logger.prefixed_log_fmt(format_args!("Is Ref: {}\n", is_ref));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", is_mut));
                 logger.set_last_at_indent();
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*iden)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*iden)));
             }),
             StructPatternField::Rest => {
-                logger.write_prefix();
-                logger.logln("Rest Struct Field");
+                logger.prefixed_logln("Rest Struct Field");
             },
         }
     }
@@ -2727,8 +2589,7 @@ pub struct EnumMemberPattern {
 impl AstNode for EnumMemberPattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Enum Member Pattern", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Enum Member: {}\n", logger.resolve_name(self.name)));
+            logger.prefixed_log_fmt(format_args!("Enum Member: {}\n", logger.resolve_name(self.name)));
         });
     }
 }
@@ -2784,14 +2645,8 @@ impl AstNode for Type {
         match self {
             Type::Paren(ty)       => logger.log_node_ref(*ty),
             Type::Primitive(ty)   => logger.log_node_ref(*ty),
-            Type::Never           => {
-                logger.write_prefix();
-                logger.logln("Never Type");
-            },
-            Type::Unit            => {
-                logger.write_prefix();
-                logger.logln("Unit Type");
-            },
+            Type::Never           => logger.prefixed_logln("Never Type"),
+            Type::Unit            => logger.prefixed_logln("Unit Type"),
             Type::Path(ty)        => logger.log_node_ref(*ty),
             Type::Tuple(ty)       => logger.log_node_ref(*ty),
             Type::Array(ty)       => logger.log_node_ref(*ty),
@@ -2853,8 +2708,7 @@ impl AstNode for PrimitiveType {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Primitive Type", |logger| {
             logger.set_last_at_indent();
-            logger.write_prefix();
-            logger.log("Primitive: ");
+            logger.prefixed_log("Primitive: ");
             match self {
                 PrimitiveType::U8     => logger.logln("u8"),
                 PrimitiveType::U16    => logger.logln("u16"),
@@ -2979,10 +2833,8 @@ pub struct PointerType {
 impl AstNode for PointerType {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Pointer Type", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Multi-elem: {}\n", self.is_multi));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Is Multi-elem: {}\n", self.is_multi));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
             
             logger.set_last_at_indent_if(self.sentinel.is_none());
             logger.log_indented_node("Type", &self.ty);
@@ -3001,8 +2853,7 @@ pub struct ReferenceType {
 impl AstNode for ReferenceType {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Reference Type", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
+            logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", self.is_mut));
             
             logger.set_last_at_indent();
             logger.log_indented_node("Type", &self.ty);
@@ -3033,20 +2884,17 @@ pub struct FnType {
 impl AstNode for FnType {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Function Type", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", self.is_unsafe));
 
             logger.set_last_at_indent_if(self.params.is_empty() && self.return_ty.is_none());
             if let Some(abi) = self.abi {
-                logger.write_prefix();
-                logger.log_fmt(format_args!("ABI: {}\n", &logger.resolve_literal(abi)))
+                logger.prefixed_log_fmt(format_args!("ABI: {}\n", &logger.resolve_literal(abi)))
             }
 
             logger.set_last_at_indent_if(self.return_ty.is_none());
             logger.log_indented_slice("Params", &self.params, |logger, (names, ty)| {
                 logger.log_indented_slice("Names", &names, |logger, name| {
-                    logger.write_prefix();
-                    logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 });
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
@@ -3142,8 +2990,7 @@ pub enum Visibility {
 
 impl AstNode for Visibility {
     fn log(&self, logger: &mut AstLogger) {
-        logger.write_prefix();
-        logger.log("Visibility: ");
+        logger.prefixed_log("Visibility: ");
         match self {
             Visibility::Pub        => logger.logln("pub"),
             Visibility::Super      => logger.logln("pub(super)"),
@@ -3164,8 +3011,7 @@ pub struct Attribute {
 impl AstNode for Attribute {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Attribute", |logger| {
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Is Module Attribute: {}\n", self.is_mod));
+            logger.prefixed_log_fmt(format_args!("Is Module Attribute: {}\n", self.is_mod));
             logger.set_last_at_indent();
             logger.log_indented_slice("Meta", &self.metas, |logger, meta| meta.log(logger));
         })
@@ -3351,6 +3197,11 @@ impl AstLogger<'_> {
         self.log("+---")
     }
     
+    pub fn prefixed_log(&self, s: &str) {
+        self.write_prefix();
+        self.log(s);
+    }
+    
     pub fn log(&self, s: &str) {
         self.log_fmt(format_args!("{s}"));
     }
@@ -3359,9 +3210,19 @@ impl AstLogger<'_> {
         self.log_fmt(format_args!("{s}\n"));
     }
 
+    pub fn prefixed_logln(&self, s: &str) {
+        self.write_prefix();
+        self.logln(s);
+    }
+
     pub fn log_fmt(&self, args: fmt::Arguments) {
         let stdout = std::io::stdout();
         _ = stdout.lock().write_fmt(args);
+    }
+
+    pub fn prefixed_log_fmt(&self, args: fmt::Arguments) {
+        self.write_prefix();
+        self.log_fmt(args);
     }
 
     pub fn push_indent(&mut self) {
