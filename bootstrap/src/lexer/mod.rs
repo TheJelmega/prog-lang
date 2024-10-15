@@ -308,6 +308,8 @@ impl Lexer<'_> {
                 },
                 ('a', 6) => if sub_str == "assert" {
                     self.add_strong_keyword(StrongKeyword::Assert);
+                } else if sub_str == "assign" {
+                    self.add_weak_keyword(WeakKeyword::Assign);
                 } else {
                     self.add_name(sub_str);
                 },
@@ -530,6 +532,11 @@ impl Lexer<'_> {
                 }
                 ('o', 6) => if sub_str == "opaque" {
                     self.add_weak_keyword(WeakKeyword::Opaque);
+                } else {
+                    self.add_name(sub_str);
+                },
+                ('o', 2) => if sub_str == "op" {
+                    self.add_weak_keyword(WeakKeyword::Op);
                 } else {
                     self.add_name(sub_str);
                 },

@@ -195,6 +195,7 @@ impl StrongKeyword {
 // Weak keywords
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum WeakKeyword {
+    Assign,
     Associativity,
     Distinct,
     Flag,
@@ -204,6 +205,7 @@ pub enum WeakKeyword {
     Invar,
     Lib,
     LowerThan,
+    Op,
     Opaque,
     Override,
     Package,
@@ -225,7 +227,8 @@ impl WeakKeyword {
         &Self::WEAK_KEYWORD_NAMES[self as usize]
     }
 
-    pub const WEAK_KEYWORD_NAMES: [&'static str; 23] = [
+    pub const WEAK_KEYWORD_NAMES: [&'static str; 25] = [
+        "assign",
         "associativity",
         "distinct",
         "flag",
@@ -235,6 +238,7 @@ impl WeakKeyword {
         "invar",
         "lib",
         "lower_than",
+        "op",
         "opaque",
         "override",
         "package",

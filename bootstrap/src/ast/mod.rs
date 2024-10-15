@@ -197,7 +197,7 @@ pub enum Item {
     Trait(AstNodeRef<Trait>),
     Impl(AstNodeRef<Impl>),
     Extern(AstNodeRef<ExternBlock>),
-    CustomOp(AstNodeRef<CustomOperator>),
+    CustomOp(AstNodeRef<OpTrait>),
     Precedence(AstNodeRef<Precedence>),
 } 
 impl AstNode for Item {
@@ -1242,46 +1242,108 @@ impl AstNode for ExternBlock {
 
 // TODO: might be moved to different file
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CustomOperatorType {
+pub enum OpType {
     Prefix,
     Infix,
     Postfix,
+    Assign,
 }
 
-impl fmt::Display for CustomOperatorType {
+impl fmt::Display for OpType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CustomOperatorType::Prefix => write!(f, "prefix"),
-            CustomOperatorType::Infix => write!(f, "infix"),
-            CustomOperatorType::Postfix => write!(f, "postfix"),
+            OpType::Prefix    => write!(f, "prefix"),
+            OpType::Infix     => write!(f, "infix"),
+            OpType::Postfix   => write!(f, "postfix"),
+            OpType::Assign    => write!(f, "assign"),
         }
     }
 }
 
-pub struct CustomOperator {
-    pub attrs:      Vec<AstNodeRef<Attribute>>,
-    pub vis:        Option<AstNodeRef<Visibility>>,
-    pub op_ty:      CustomOperatorType,
-    pub name:       NameId,
-    pub op:         Punctuation,
-    pub precedence: NameId,
+pub enum OpTrait {
+    Base {
+        attrs:      Vec<AstNodeRef<Attribute>>,
+        vis:        Option<AstNodeRef<Visibility>>,
+        name:       NameId,
+        precedence: Option<AstNodeRef<SimplePath>>,
+        elems:      Vec<OpElem>,
+    },
+    Extended {
+        attrs:      Vec<AstNodeRef<Attribute>>,
+        vis:        Option<AstNodeRef<Visibility>>,
+        name:       NameId,
+        bases:      Vec<AstNodeRef<SimplePath>>,
+        elems:      Vec<OpElem>,
+    }
 }
 
-impl AstNode for CustomOperator {
+impl AstNode for OpTrait {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Custom Operator", |logger| {
-            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
-            logger.log_opt_node_ref(&self.vis);
+        match self {
+            OpTrait::Base { attrs, vis, name, precedence, elems } => logger.log_ast_node("Operator Trait", |logger| {   
+                logger.log_indented_node_ref_slice("Attributes", attrs);
+                logger.log_opt_node_ref(vis);
 
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op Type: {}\n", self.op_ty));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Op: {}\n", self.op.as_str(&logger.puncts)));
-            logger.write_prefix();
-            logger.log_fmt(format_args!("Precedence: {}\n", logger.resolve_name(self.precedence)));
-        });
+                logger.set_last_at_indent_if(precedence.is_none() && elems.is_empty());
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.set_last_at_indent_if(elems.is_empty());
+                logger.log_indented_opt_node_ref("Precedence", precedence);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
+            }),
+            OpTrait::Extended { attrs, vis, name, bases, elems } => logger.log_ast_node("Operator Extension", |logger| {
+                logger.log_indented_node_ref_slice("Attributes", attrs);
+                logger.log_opt_node_ref(vis);
+
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.set_last_at_indent_if(elems.is_empty());
+                logger.log_indented_node_ref_slice("Bases", bases);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
+            }),
+        }
+    }
+}
+
+pub enum OpElem {
+    Def {
+        op_type: OpType,
+        op:      Punctuation,
+        name:    NameId,
+        ret:     Option<Type>,
+        def:     Option<Expr>,
+    },
+    Extend {
+        op_type: OpType,
+        op:      Punctuation,
+        def:     Expr,
+    },
+    Contract {
+        expr:    AstNodeRef<BlockExpr>
+    }
+}
+
+impl OpElem {
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            OpElem::Def { op_type, op, name, ret, def } => logger.log_indented("Operator Definition", |logger| {
+                logger.prefixed_log_fmt(format_args!("Operator Type: {op_type}\n"));
+                logger.prefixed_log_fmt(format_args!("Operator: {}\n", logger.resolve_punctuation(*op)));
+                logger.set_last_at_indent_if(def.is_none());
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.set_last_at_indent_if(def.is_none());
+                logger.log_indented_opt_node("Return Type", ret);
+                logger.set_last_at_indent();
+                logger.log_indented_opt_node("Default Implementation", def);
+            }),
+            OpElem::Extend { op_type, op, def } => logger.log_indented("Operator Specialization", |logger| {
+                logger.prefixed_log_fmt(format_args!("Operator Type: {op_type}\n"));
+                logger.prefixed_log_fmt(format_args!("Operator: {}\n", logger.resolve_punctuation(*op)));
+                logger.set_last_at_indent();
+                logger.log_indented_node("Default Implementation", def);
+            }),
+            OpElem::Contract { expr } => logger.log_indented_node_ref("Contract", *expr),
+        }
     }
 }
 
@@ -2018,57 +2080,6 @@ impl AstNode for ClosureExpr {
         logger.log_ast_node("Closure Expression", |logger| {
 
         });
-    }
-}
-
-pub enum RangeExpr {
-    Exclusive {
-        begin: Expr,
-        end:   Expr,
-    },
-    From {
-        begin: Expr
-    },
-    To {
-        end:   Expr
-    },
-    Full,
-    Inclusive {
-        begin: Expr,
-        end:   Expr,
-    },
-    InclusiveTo {
-        end:   Expr,
-    }
-}
-
-impl AstNode for RangeExpr {
-    fn log(&self, logger: &mut AstLogger) {
-        match self {
-            Self::Exclusive { begin, end } => logger.log_ast_node("Exclusive Range Expression", |logger| {
-                logger.log_indented_node("Begin", begin);
-                logger.set_last_at_indent();
-                logger.log_indented_node("End", end);
-            }),
-            Self::From { begin } => logger.log_ast_node("From Range Expression", |logger| {
-                logger.set_last_at_indent();
-                logger.log_indented_node("Begin", begin);
-            }),
-            Self::To { end } => logger.log_ast_node("To Range Expression", |logger| {
-                logger.set_last_at_indent();
-                logger.log_indented_node("End", end);
-            }),
-            Self::Full => logger.log_ast_node("Full Range Expression", |logger| {}),
-            Self::Inclusive { begin, end } => logger.log_ast_node("Inclusive Range Expression", |logger| {
-                logger.log_indented_node("Begin", begin);
-                logger.set_last_at_indent();
-                logger.log_indented_node("End", end);
-            }),
-            Self::InclusiveTo { end } => logger.log_ast_node("Inclusive To Range Expression", |logger| {
-                logger.set_last_at_indent();
-                logger.log_indented_node("End", end);
-            }),
-        }
     }
 }
 

@@ -1,14 +1,24 @@
-use std::{env, fs::{self, File}, io::Read, path::{Path, PathBuf}, time};
+use std::{
+    env,
+    time,
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser as _;
-use ast::Parser;
+use ast::{Parser, Visitor};
 use cli::Cli;
-use lexer::{Lexer, NameTable, PuncutationTable};
+use common::NameTable;
 use literals::LiteralTable;
 
 mod error_warning;
 mod literals;
+
+mod common;
+
 mod cli;
+
 mod lexer;
 mod ast;
 

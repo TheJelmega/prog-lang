@@ -443,9 +443,7 @@ impl Parser<'_> {
             Token::WeakKw(WeakKeyword::Precedence)   => self.parse_precedence(attrs, vis),
             Token::StrongKw(StrongKeyword::Type)     |
             Token::WeakKw(WeakKeyword::Distinct)     => self.parse_type_alias(attrs, vis).map(|item| Item::TypeAlias(item)),
-            Token::WeakKw(WeakKeyword::Prefix)       |
-            Token::WeakKw(WeakKeyword::Infix)        |
-            Token::WeakKw(WeakKeyword::Postfix)      => self.parse_custom_operator(attrs, vis),
+            Token::WeakKw(WeakKeyword::Op)           => self.parse_op_trait(attrs, vis),
             Token::StrongKw(StrongKeyword::Const) => if self.check_peek(&[1, 2, 4, 5], Token::StrongKw(StrongKeyword::Fn)) {
                     self.parse_function(attrs, vis).map(|item| Item::Function(item))
                 } else {
@@ -1583,31 +1581,94 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_custom_operator(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
-        let op_ty = if self.try_consume(Token::WeakKw(WeakKeyword::Prefix)) {
-            CustomOperatorType::Prefix
-        } else if self.try_consume(Token::WeakKw(WeakKeyword::Infix)) {
-            CustomOperatorType::Infix
-        } else {
-            self.consume_weak_kw(WeakKeyword::Postfix);
-            CustomOperatorType::Postfix
-        };
+    fn parse_op_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        self.consume_weak_kw(WeakKeyword::Op)?;
         self.consume_strong_kw(StrongKeyword::Trait)?;
         let name = self.consume_name()?;
-        self.consume_punct(Punctuation::Equals)?;
-        let op = self.consume_any_punct()?;
-        self.consume_punct(Punctuation::Colon)?;
-        let precedence = self.consume_name()?;
-        self.consume_punct(Punctuation::Semicolon)?;
 
-        Ok(Item::CustomOp(self.add_node(CustomOperator {
-            attrs,
-            vis,
-            op_ty,
-            name,
-            op,
-            precedence,
-        })))
+        let (bases, precedence) = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            let mut bases = Vec::new();
+            loop {
+                bases.push(self.parse_simple_path(true)?);
+                if !self.try_consume(Token::Punctuation(Punctuation::Ampersand)) {
+                    break;
+                }
+            }
+
+            (bases, None)
+        } else if self.try_consume(Token::Punctuation(Punctuation::Or)) {
+            let precedence = self.parse_simple_path(true)?;
+            (Vec::new(), Some(precedence))
+        } else {
+            (Vec::new(), None)
+        };
+
+        let elems = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_op_elem)?;
+
+        if !bases.is_empty() {
+            Ok(Item::CustomOp(self.add_node(OpTrait::Extended {
+                attrs,
+                vis,
+                name,
+                bases,
+                elems,
+            })))
+        } else {
+            Ok(Item::CustomOp(self.add_node(OpTrait::Base {
+                attrs,
+                vis,
+                name,
+                precedence,
+                elems,
+            })))
+        }
+
+    }
+
+    fn parse_op_elem(&mut self) -> Result<OpElem, ParserErr> {
+        if self.try_consume(Token::WeakKw(WeakKeyword::Invar)) {
+            self.push_meta_frame();
+            let expr = self.parse_block_expr(None)?;
+            return Ok(OpElem::Contract{ expr });
+        }
+
+        let peek = self.consume_single();
+        let op_type = match peek {
+            Token::WeakKw(WeakKeyword::Prefix)    => OpType::Prefix,
+            Token::WeakKw(WeakKeyword::Postfix)   => OpType::Postfix,
+            Token::WeakKw(WeakKeyword::Infix)     => OpType::Infix,
+            Token::WeakKw(WeakKeyword::Assign)    => OpType::Assign,
+            _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "operator type" }))
+        };
+
+        self.consume_weak_kw(WeakKeyword::Op)?;
+        let op = self.consume_any_punct()?;
+
+        if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            let name = self.consume_name()?;
+            let ret = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+                Some(self.parse_expr(ExprParseMode::General)?)
+            } else {
+                None
+            };
+
+            Ok(OpElem::Def {
+                op_type,
+                op,
+                name,
+                ret,
+                def,
+            })
+        } else {
+            self.consume_punct(Punctuation::ColonEquals)?;
+            let def = self.parse_expr(ExprParseMode::General)?;
+            Ok(OpElem::Extend { op_type, op, def })
+        }
     }
 
     fn parse_precedence(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
@@ -1911,8 +1972,6 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Move)          |
             Token::Punctuation(Punctuation::Or)           => self.parse_closure_expr()?,
 
-            Token::Punctuation(Punctuation::DotDot)       => self.parse_to_range_expr()?,
-            Token::Punctuation(Punctuation::DotDotEquals) => self.parse_inclusive_to_range_expr()?,
             Token::Punctuation(Punctuation::Colon)        => {
                 let label = Some(self.parse_label()?);
                 let peek = self.peek()?;
@@ -1926,11 +1985,14 @@ impl Parser<'_> {
                     _ => return Err(self.gen_error(ErrorCode::ParseInvalidLabel)),
                 }
             },
+            Token::Punctuation(Punctuation::Comma)            |
+            Token::Punctuation(Punctuation::Semicolon)        => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "expression" })),
+
             Token::Punctuation(_)                             => self.parse_prefix_expr()?,
 
-            Token::OpenSymbol(OpenCloseSymbol::Brace)     => Expr::Block(self.parse_block_expr(None)?),
-            Token::OpenSymbol(OpenCloseSymbol::Bracket)   => self.parse_array_expr()?,
-            Token::OpenSymbol(OpenCloseSymbol::Paren)     => {
+            Token::OpenSymbol(OpenCloseSymbol::Brace)         => Expr::Block(self.parse_block_expr(None)?),
+            Token::OpenSymbol(OpenCloseSymbol::Bracket)       => self.parse_array_expr()?,
+            Token::OpenSymbol(OpenCloseSymbol::Paren)         => {
                 if self.check_peek(&[1], Token::CloseSymbol(OpenCloseSymbol::Paren)) {
                     self.consume_single();
                     self.consume_single();
@@ -1966,8 +2028,8 @@ impl Parser<'_> {
                 
 
                 Token::Punctuation(Punctuation::SingleArrowL) => break self.parse_inplace_expr(expr)?,
-                Token::Punctuation(Punctuation::DotDot)       => self.parse_exclusive_range_expr(expr)?,
-                Token::Punctuation(Punctuation::DotDotEquals) => self.parse_inclusive_range_expr(expr)?,
+                Token::Punctuation(Punctuation::AndAnd) if mode == ExprParseMode::Scrutinee => {
+                    self.pop_meta_frame();
                     break expr
                 },
                 Token::Punctuation(Punctuation::Comma)        => if mode == ExprParseMode::AllowComma {
@@ -1995,12 +2057,35 @@ impl Parser<'_> {
                             expr,
                         }))
                     } else {
-                        let right = self.parse_expr(mode)?;
-                        Expr::Infix(self.add_node(InfixExpr {
-                            op: InfixOp::Punct(op),
-                            left: expr,
-                            right,
-                        }))
+                        if let Token::Punctuation(_) = self.peek()? {
+                            // If we have 2 operators following each other, try to figure out which on in infix
+
+                            let has_prev_whitespace = !self.token_store.metadata[self.token_idx - 1].meta_elems.is_empty();
+                            let has_next_whitespace = !self.token_store.metadata[self.token_idx + 1].meta_elems.is_empty();
+
+                            if has_prev_whitespace == has_next_whitespace {
+                                return Err(self.gen_error(ErrorCode::ParseAmbiguousOperators));
+                            } else if has_prev_whitespace {
+                               let right = self.parse_expr(mode)?;
+                                Expr::Infix(self.add_node(InfixExpr {
+                                    op: InfixOp::Punct(op),
+                                    left: expr,
+                                    right,
+                                }))
+                            } else { // if has_next_whitepace
+                                Expr::Postfix(self.add_node(PostfixExpr {
+                                    op,
+                                    expr,
+                                }))
+                            }
+                        } else {    
+                            let right = self.parse_expr(mode)?;
+                            Expr::Infix(self.add_node(InfixExpr {
+                                op: InfixOp::Punct(op),
+                                left: expr,
+                                right,
+                            }))
+                        }
                     }
                 },
                 Token::StrongKw(StrongKeyword::In) |
@@ -2440,38 +2525,6 @@ impl Parser<'_> {
             ret,
             body,
         })))
-    }
-
-    fn parse_exclusive_range_expr(&mut self, begin: Expr) -> Result<Expr, ParserErr> {
-        self.consume_punct(Punctuation::DotDot)?;
-        if self.is_end_of_expr() {
-            Ok(Expr::Range(self.add_node(RangeExpr::From { begin })))
-        } else {   
-            let end = self.parse_expr(ExprParseMode::General)?;
-            Ok(Expr::Range(self.add_node(RangeExpr::Exclusive { begin, end })))
-        }
-    }
-
-    fn parse_to_range_expr(&mut self) -> Result<Expr, ParserErr> {
-        self.consume_punct(Punctuation::DotDot)?;
-        if self.is_end_of_expr() {
-            Ok(Expr::Range(self.add_node(RangeExpr::Full)))
-        } else {
-            let end = self.parse_expr(ExprParseMode::General)?;
-            Ok(Expr::Range(self.add_node(RangeExpr::To { end })))
-        }
-    }
-
-    fn parse_inclusive_range_expr(&mut self, begin: Expr) -> Result<Expr, ParserErr> {
-        self.consume_punct(Punctuation::DotDotEquals)?;
-        let end = self.parse_expr(ExprParseMode::General)?;
-        Ok(Expr::Range(self.add_node(RangeExpr::Inclusive { end, begin })))
-    }
-
-    fn parse_inclusive_to_range_expr(&mut self) -> Result<Expr, ParserErr> {
-        self.consume_punct(Punctuation::DotDotEquals)?;
-        let end = self.parse_expr(ExprParseMode::General)?;
-        Ok(Expr::Range(self.add_node(RangeExpr::InclusiveTo { end })))
     }
 
     fn parse_if_expr(&mut self) -> Result<Expr, ParserErr> {

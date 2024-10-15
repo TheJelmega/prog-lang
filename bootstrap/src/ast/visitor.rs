@@ -120,8 +120,8 @@ pub trait Visitor {
         helpers::visit_extern_block(self, ast, node_id);
     }
     
-    fn visit_custom_operator(&mut self, ast: &Ast, node_id: AstNodeRef<CustomOperator>) where Self: Sized {
-        helpers::visit_custom_operator(self, ast, node_id);
+    fn visit_op_trait(&mut self, ast: &Ast, node_id: AstNodeRef<OpTrait>) where Self: Sized {
+        helpers::visit_op_trait(self, ast, node_id);
     }
     
     fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
@@ -241,8 +241,7 @@ pub trait Visitor {
         helpers::visit_closure_expr(self, ast, node_id);
     }
 
-    fn visit_range_expr(&mut self, ast: &Ast, node_id: AstNodeRef<RangeExpr>) where Self: Sized {
-        helpers::visit_range_expr(self, ast, node_id);
+    fn visit_full_range_expr(&mut self, ast: &Ast) where Self: Sized {
     }
 
     fn visit_let_binding_expr(&mut self, ast: &Ast, node_id: AstNodeRef<LetBindingExpr>) where Self: Sized {
@@ -536,7 +535,7 @@ pub mod helpers {
             Item::Trait(node_id)      => visitor.visit_trait(ast, *node_id),
             Item::Impl(node_id)       => visitor.visit_impl(ast, *node_id),
             Item::Extern(node_id)     => visitor.visit_extern_block(ast, *node_id),
-            Item::CustomOp(node_id)   => visitor.visit_custom_operator(ast, *node_id),
+            Item::CustomOp(node_id)   => visitor.visit_op_trait(ast, *node_id),
             Item::Precedence(node_id) => visitor.visit_precedence(ast, *node_id),
         }
     }
@@ -1068,13 +1067,55 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_custom_operator<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<CustomOperator>) {
-        let node = &ast[node_id];
-        for attr in &node.attrs {
-            visitor.visit_attribute(ast, *attr);
+    pub fn visit_op_trait<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<OpTrait>) {
+        match &ast[node_id] {
+            OpTrait::Base { attrs, vis, name, precedence, elems } => {
+                for attr in attrs {
+                    visitor.visit_attribute(ast, *attr);
+                }
+                if let Some(vis) = vis {
+                    visitor.visit_visibility(ast, *vis);
+                }
+                if let Some(precedence) = precedence {
+                    visitor.visit_simple_path(ast, *precedence);
+                }
+                for elem in elems {
+                    visit_op_elem(visitor, ast, elem);
+                }
+            },
+            OpTrait::Extended { attrs, vis, name, bases, elems } => {
+                for attr in attrs {
+                    visitor.visit_attribute(ast, *attr);
+                }
+                if let Some(vis) = vis {
+                    visitor.visit_visibility(ast, *vis);
+                }
+                for base in bases {
+                    visitor.visit_simple_path(ast, *base);
+                }
+                for elem in elems {
+                    visit_op_elem(visitor, ast, elem);
+                }
+            },
         }
-        if let Some(vis) = &node.vis {
-            visitor.visit_visibility(ast, *vis);
+    }
+
+    pub fn visit_op_elem<T: Visitor>(visitor: &mut T, ast: &Ast, elem: &OpElem) {
+        match elem {
+            OpElem::Def { op_type, op, name, ret, def } => {
+                if let Some(ret) = ret {
+                    visitor.visit_type(ast, ret);
+                }
+                if let Some(def) = def {
+                    visitor.visit_expr(ast, def);
+                }
+            },
+            OpElem::Extend { op_type, op, def } => {
+                visitor.visit_expr(ast, def);
+            },
+            OpElem::Contract { expr } => {
+                visitor.visit_block_expr(ast, *expr);
+            },
         }
     }
 
@@ -1188,7 +1229,7 @@ pub mod helpers {
             Expr::Method(node_id)         => visitor.visit_method_call_expr(ast, *node_id),
             Expr::FieldAccess(node_id)    => visitor.visit_field_access_expr(ast, *node_id),
             Expr::Closure(node_id)        => visitor.visit_closure_expr(ast, *node_id),
-            Expr::Range(node_id)          => visitor.visit_range_expr(ast, *node_id),
+            Expr::FullRange               => visitor.visit_full_range_expr(ast),
             Expr::If(node_id)             => visitor.visit_if_expr(ast, *node_id),
             Expr::Let(node_id)            => visitor.visit_let_binding_expr(ast, *node_id),
             Expr::Loop(node_id)           => visitor.visit_loop_expr(ast, *node_id),
@@ -1351,29 +1392,6 @@ pub mod helpers {
         visitor.visit_expr(ast, &node.body);
     }
 
-    pub fn visit_range_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<RangeExpr>) {
-        match &ast[node_id] {
-            RangeExpr::Exclusive { begin, end } => {
-                visitor.visit_expr(ast, begin);
-                visitor.visit_expr(ast, end);
-            },
-            RangeExpr::From { begin }           => {
-                visitor.visit_expr(ast, begin);
-            },
-            RangeExpr::To { end }               => {
-                visitor.visit_expr(ast, end);
-            },
-            RangeExpr::Full                     => {},
-            RangeExpr::Inclusive { begin, end } => {
-                visitor.visit_expr(ast, begin);
-                visitor.visit_expr(ast, end);
-            },
-            RangeExpr::InclusiveTo { end }      => {
-                visitor.visit_expr(ast, end);
-            },
-        }
-    }
-    
     pub fn visit_let_binding_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<LetBindingExpr>) {
         let node = &ast[node_id];
         visitor.visit_pattern(ast, &node.pattern);

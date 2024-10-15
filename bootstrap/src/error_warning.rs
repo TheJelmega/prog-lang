@@ -90,10 +90,12 @@ pub enum ErrorCode {
 
     // Label unsupported in location
     ParseInvalidLabel = 2030,
-
+    // Expr is not allowed
     ParseExprNotSupported{ expr: &'static str, loc: &'static str } = 2031,
-
+    // Invalid precedence associativity
     ParseInvalidPrecedenceAssoc{ name: String } = 2032,
+    // Ambigouous operators
+    ParseAmbiguousOperators = 2033,
 }
 
 impl Display for ErrorCode {
@@ -135,6 +137,7 @@ impl Display for ErrorCode {
             Self::ParseInvalidLabel                         => write!(f, "A label is not supported in this location"),
             Self::ParseExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
             Self::ParseInvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
+            Self::ParseAmbiguousOperators                   => write!(f, "Ambigouos operators, cannot figure out which operators is infix"),
         }
     }
 }
