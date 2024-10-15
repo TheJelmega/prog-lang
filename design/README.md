@@ -291,26 +291,29 @@ Version: 0.0
     2. [Procedural macros](#132-procedural-macros-)
     3. [Macro Hygiene](#133-macro-hygiene-)
 14. [Operators](#14-operators-)
-    1. [Borrow operators](#141-borrow-operators-)
-        1. [Raw address-of operators](#1411-raw-address-of-operators-)
-    2. [Dereference operator](#142-derefence-operator-)
-    3. [Try operator](#143-try-operator-)
-        1. [Propagating try](#1431-propagating-try-)
-        2. [Unwrapping try](#1432-unwrapping-try-)
-    4. [Comparison](#144-comparison-operators-)
-    5. [Lazy boolean operators](#145-lazy-boolean-operators-)
-    6. [Contains operators](#146-range-operator-)
-    6. [Contains operators](#147-contains-operator-)
-    7. [Pipe operators](#148-pipe-operators-)
-    8. [Or-else operator](#149-or-else-operator-)
-    9. ['err'-coalescing operator](#1410-err-coalescing-operator-)
-    10. [Contract capture operator](#1411-contract-capture-operator-)
-    11. [Assignment operators](#1412-assginment-operators-)
-        1. [Basic assignment](#14121-basic-assignment-)
-        2. [Destructuring assignment](#14122-destructuring-assignment-)
-        3. [Compound assignment](#14123-compound-assignment-)
-    12. [Built-in operators](#1413-built-in-operators-)
-    13. [User defined operators](#1414-user-define-operators-)
+    1. [Operator Items](#141-operator-items)
+        1. [Implementing operators on types](#1411-implementing-operators-on-types)
+    2. [Special operators](#142-special-operators)
+        1. [Borrow operators](#1421-borrow-operators-)
+            - [Raw address-of operators](#raw-address-of-operators-)
+        2. [Dereference operator](#1422-derefence-operator-)
+        3. [Try operator](#1423-try-operator-)
+            - [Propagating try](#propagating-try-)
+            - [Unwrapping try](#unwrapping-try-)
+        4. [Contract capture operator](#1411-contract-capture-operator-)
+    3. [Core operators](#143-core-operators)
+        1. [Comparison](#1431-comparison-operators-)
+        2. [Lazy boolean operators](#1432-lazy-boolean-operators-)
+        3. [Range operators](#1433-range-operator-)
+        4. [Contains operators](#1434-contains-operator-)
+        5. [Pipe operators](#1435-pipe-operators-)
+        6. [Or-else operator](#1436-or-else-operator-)
+        7. ['err'-coalescing operator](#1437-err-coalescing-operator-)
+        8. [Other operators](#1438-other-operators-)
+    4. [Assignment operators](#144-assginment-operators-)
+        1. [Basic assignment](#1441-basic-assignment-)
+        2. [Destructuring assignment](#1442-destructuring-assignment-)
+        3. [Compound assignment](#1443-compound-assignment-)
 15. [Precedence](#15-precedence-)
     1. [Built-in precedences](#151-built-in-precedences-)
     2. [User defined precedence](#152-user-defined-precedence-)
@@ -597,6 +600,7 @@ yield
 A weak keyword is a keyword that is dependent on the surrounding context and can be used anywhere outside
 A list of weak keywords can be found below (in a close to alphabetic order):
 ```
+assign
 associativity
 distinct
 flag
@@ -2493,6 +2497,7 @@ Literal expressions also allow a special literal operator to be applied to them,
 ```
 <path-expr> := <expr-path>
              | '.' <ext-name>
+             | 'self'
 ```
 
 A path expression uses a path to refer to a local variable or item.
@@ -2500,6 +2505,8 @@ Path expressions referencing local or static variables are place expression, all
 
 A path may also refer to an inferred path, which is represented by a `.`, followed by a name.
 This is currently limited to enum members when the enum type can be inferred from the surrounding context.
+
+`self` is a special case of a path expr, as it represents the receiver of a method.
 
 
 ## 9.4. Unit expression  [↵](#9-expressions-)
@@ -4850,34 +4857,107 @@ _TODO_
 
 # 14. Operators [↵](#tables-of-contents)
 
+An operator is a set of non-alphanumeric symbols (with some exceptions) that can represent an operation to 1 or 2 expressions.
+They are generally split into 3 categories:
+- prefix unary operators, these come before a sub-expression
+- postfix unary operators, these come after a sub-expression
+- infix binary operators, these come betweeen 2 sub-expressions
+- circumfix operators, these surround a sub-expression
+
+Operators must be separated by non-operator symbols, otherwise they will be interpolated as 1 single operator, meaning that multiple prefix expression, operators must be separated by parentheses.
+In the future, an additional way of separating these might be decided.
+
+## 14.1. Operator items
+
+TODO: specify lazy evaluation + chaining operator
+
 ```
-<prefix-op> := <borrow-op>
-             | <deref-op>
-             | <builin-op>
-             | <user-op>
-<postfix-op> := <deref-op>
-              | <try-op>
-              | <builin-op>
-              | <user-op>
-<infix-op> := <cmp-op>
-            | <lazy-bool-op>
-            | <contains-op>
-            | <pipe-op>
-            | <or-else-op>
-            | <err-coalesce-op>
-            | <builin-op>
-            | <user-op>
+<op-item>      := <base-op-item> | <ext-op-item>
+<base-op-item> := { <attribute> }* [<vis>] 'op' 'trait' <name> [ '|' <name> ] '{' <op-elems> '}'
+<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <name> '{' <ext-op-elems> '}'
+<op-elems>     := <op-elem> { ',' <op-elem> } [',']
+<op-elem>      := <op-decl> | <op-contract>
+<op-decl>      := <op-kind> 'op' <operator> ':' <name> [ '=' <expr> ]
+<op-kind>      := 'prefix' | 'postfix' | 'infix' | 'assign'
+
+<ext-op-elems> := <ext-op-elem> { ',' <ext-op-elem> } [ ',' ]
+<ext-op-elem>  := <op-spec> | <op-contract>
+<op-spec>      := <op-kind> 'op' <operator> ':=' <expr>
+
+<op-contract> := 'invar' <block-expr>
 ```
 
- An opertor is a set of tokens that can be used to operate on its sub-expressions.
- They are generally split into 3 categories:
- - prefix unary operators, these come before a sub-expression
- - postfix unary operators, these come after a sub-expression
- - infix/binary operators, these come between 2 sub-expressions
+Operator items are used to declare new operators and their related properties.
+The majority of core operators are also implemented using this system.
 
- When written in code, operators needs to be be separated by spaces, unless they are separated by a symbol that cannot appear as part of an operator.
+Operator items are special traits with its own syntax, which is specified using the `op` keyword.
+If a trait does not extend another trait, it needs to have its precedence specified if it contains any infix operators, this will apply to all infix operators defined within the trait.
+Prefix, postfix, assign, and circumfix operands have a hardcoded precendence and cannot be explicitly defined.
 
-## 14.1. Borrow operators [↵](#14-operators-)
+If a trait does extend another trait, it may override the default implementation of operators, but cannot redefine the method or return type.
+Inside the operators are defined, in addition to a set of invariant contracts these operators must adhere to, for example: commutativity.
+
+Each operator is defined using its operator kind, these is one of the categories mentioned above.
+
+Then their token sequence is defined, these can be any of the following for prefix, postfix and infix operators:
+- All non-alphanumeric printable ASCII characters, expect for:
+    - `(` and `)`
+    - `{` and `}`
+    - `[` and `]`
+    - `,`
+    - `;`
+    - `#`
+    - `:`
+    - `@`
+    - `'`
+    - `"`
+    - `\``
+    - `_`
+    - `.` for prefix and postfix
+- unicode math symbols (category Sm), excluding
+    - [U+239B - U+23AD]
+- From uniocde other symbols:
+    - APL symbols [U+2336 - U+237A], excluding
+        - U+2374
+        - U+2375
+        - U+237A
+
+Afterwards, the syntax depends on whether this operator trait is being extended or not.
+
+If not extended, the following is used:
+
+The operator must then define the name of the function associate with the operand, this may then also have a optional return type, which requires any implementation to adhere to.
+If no explicit return type is specified, this will then be defined using the `Output` typealias within the implementation.
+
+This may then ultimately be followed an optional default implementation.
+
+
+
+TODO: disallow identical looking sets of characters
+
+### 14.1.1. Implementing operators on types
+
+Implementing operators on a type is done by implementing it's trait, like usual.
+
+It the operator includes an infix or assign type, they both take the same `Rhs` argument within the trait, so must be specified for anything other than the type being implemented.
+
+In case a return type is not defined on at least 1 operator (except for assign operators), the Output type for the operator needs to be defined as `type Output = ...;`
+
+Below is a table of operators and their respective method signature
+
+ Op Type | Signature
+---------|--------
+prefix   | `fn name(self) -> Self::Output`
+postfix  | `fn name(self) -> Self::Output`
+infix    | `fn name(self, other: Rhs) -> Self::Output`
+assign   | `fn name(&mut self, other: Rhs)`
+
+## 14.2. Special operators
+
+As said earlier, some operators have some specific syntax to them that cannot be directly implemented and need compiler support
+
+
+### 14.2.1. Borrow operators [↵](#14-operators-)
 
 ```
 <borrow-op> := '&' [ 'mut' ]
@@ -4898,11 +4978,7 @@ The associated for traits for these operators are
 
 This operator has the `BorrowDeref` precedence.
 
-### 14.1.1. Raw address-of operators [↵](#14-operators-)
-
-```
-<defer-op> := `^`
-```
+#### Raw address-of operators [↵](#14-operators-)
 
 Related tothe borrow operators, an address-of operation generally does not have it's own operator, but can be exposed via the relavant core library functionality: `addr_of` and `addr_of_mut` macros.
 
@@ -4911,7 +4987,7 @@ In those situations, the borrow operator would cause undefined bahavior by creat
 
 An exmaple of a usecase would be an unaligned value within a packed struct.
 
-## 14.2. Derefence operator [↵](#14-operators-)
+### 14.2.2. Derefence operator [↵](#14-operators-)
 
 The derefence operator is both a prefix and postfix operator, as it can be used on both sided.
 When applied to a pointer, in denotes a pointed-to locaton.
@@ -4924,7 +5000,7 @@ The associated traits for this operator are:
 
 This operator has the `BorrowDeref` precedence.
 
-## 14.3. Try operator [↵](#14-operators-)
+### 14.2.3. Try operator [↵](#14-operators-)
 
 ```
 <try-op> := '?' | '!'
@@ -4935,7 +5011,7 @@ Try operators are postfix operators.
 Try operator are used to affect the control flow of a function when an erronous value is produced.
 If a valid value will be generated, it will return this value.
 
-### 14.3.1. Propagating try [↵](#143-try-operator-)
+#### Propagating try [↵](#143-try-operator-)
 
 The propagating try operator (`?`) allows a function to shortcut an return an erronous value from the current function.
 It will cause also all in-scope [defer-on-error statements](#841-defer-on-error-statement-) to be evaluated.
@@ -4946,7 +5022,7 @@ The associated trait for the operator is `Try`
 
 The operator has the `Unary` precedence.
 
-### 14.3.2. Unwrapping try [↵](#tables-of-contents)
+#### Unwrapping try [↵](#tables-of-contents)
 
 The unwrapping try operator (`!`) will cause a program to panic if an erronous value is encountered.
 
@@ -4954,7 +5030,25 @@ The associated trait for the operator is `Unwrap`
 
 The operator has the `Unary` precedence.
 
-## 14.4. Comparison operators [↵](#14-operators-)
+## 14.2.4. Contract capture operator [↵](#14-operators-)
+
+```
+<contract-capture-op> := '$'
+```
+
+Contract capture operators are postfix expressions.
+
+Contract operators are only allowed inside of `post` contracts.
+They allow the value of an expression to be captures at the start of a function, to use it in the post contract at the end of the function.
+The value captures must be a a `Copy` type.
+
+The operator has the `Unary` precedence.
+
+## 14.3. Core operators
+
+Core operators have no special meaning, but are defined within the core library and have a use for builtin types
+
+## 14.3.1. Comparison operators [↵](#14-operators-)
 
 ```
 <comparison-op> := <eq-op> | <ord-op>
@@ -4999,7 +5093,7 @@ Operator | Meaning                  | Trait method
 
 The operator has the `Compare` precedence.
 
-## 14.5. Lazy boolean operators [↵](#14-operators-)
+## 14.3.2. Lazy boolean operators [↵](#14-operators-)
 
 ```
 <lazy-bool-op> := '&&' | '||'
@@ -5014,7 +5108,7 @@ On the other hand, the `&&` only evaluated the right-hand operand if the left-ha
 
 The `&&` operator has the `LazyAnd` precedence, and `||` has the `LazyOr` precedence.
 
-## 14.6. Range operators
+## 14.3.3. Range operators
 
 ```
 <range-op> := '..' | '..='
@@ -5034,7 +5128,7 @@ Prefix `..`  | `..end`       | `RangeTo::range_to`              | `RangeTo`     
 Infix `..=`  | `start..=end` | `RangeInclusive::range_inc`      | `RangeInclusive`   | start <= x <= end
 Prefix `..=` | `..=end`      | `RangeToInclusive::range_to_inc` | `RangeToInclusive` | x <= end
 
-## 14.7. Contains operator [↵](#14-operators-)
+## 14.3.4. Contains operator [↵](#14-operators-)
 
 ```
 <contains-op> := 'in' | '!in'
@@ -5057,7 +5151,7 @@ Operator | Meaning          | Trait method
 
 The operator has the `Contains` precedence.
 
-## 14.8. Pipe operators [↵](#14-operators-)
+## 14.3.5. Pipe operators [↵](#14-operators-)
 
 ```
 <pipe-op> := '|>' | '<|'
@@ -5089,7 +5183,7 @@ The associated traits for this operators are:
 
 The operator has the `Pipe` precedence.
 
-## 14.9. Or-else operator [↵](#14-operators-)
+## 14.3.6. Or-else operator [↵](#14-operators-)
 
 ```
 <or-else-op> := '?:'
@@ -5107,7 +5201,7 @@ The associated trait is `OrElse`
 
 The operator has the `Select` precedence.
 
-## 14.10. 'err'-coalescing operator [↵](#14-operators-)
+## 14.3.7. 'err'-coalescing operator [↵](#14-operators-)
 
 ```
 <err-coalesce-op> := '??'
@@ -5119,79 +5213,9 @@ This is similar to the or-else operator, but instead of being based on a 'thruth
 
 The operator has the `Select` precedence.
 
-## 14.11. Contract capture operator [↵](#14-operators-)
+## 14.3.8. Other operators [↵](#14-operators-)
 
-```
-<contract-capture-op> := '$'
-```
-
-Contract capture operators are postfix expressions.
-
-Contract operators are only allowed inside of `post` contracts.
-They allow the value of an expression to be captures at the start of a function, to use it in the post contract at the end of the function.
-The value captures must be a a `Copy` type.
-
-The operator has the `Unary` precedence.
-
-## 14.12. Assginment operators [↵](#14-operators-)
-
-```
-<assign-op> := <basic-assign-op> | <compound-assign-op>
-<basic-assign-op> := '='
-<compound-assign-op> := <infix-op> '='
-```
-
-Assignment operators are infix operators.
-
-Assignment operators moves a value into a specific place, or modifies a value.
-
-The left-hand operand of hte assignment operator must be an assignment expression, in the most simple case, the aasignee is a simple place expression and the below specificiation assumes this ito simplify the explenation.
-
-An assignment expression uses the following terms in its expression:
-```
-'assignee' = 'assigned value'
-```
-
-### 14.12.1. Basic assignment [↵](#14-operators-)
-
-Evaluating assignment expressions begins by evaluating its operands.
-This assigned value will be evaluated first, followed by the assginee expression.
-
-> _Note_: Unlike other expressions, the right-hand operand is evaluated before the left hand expression
-
-Before assignment, the assignment will first drop the current value of hte assigned place, unless the place is an uninitialized value.
-Next, it will either copy or move the assigned value in the location of hte assignee.
-
-### 14.12.2. Destructuring assignment [↵](#1411-assginment-operators-)
-
-Destructuring assingment is a counterpart ot destructuring patterns for variable declarations, permitting assignment of complex values such as tuples and structures.
-
-In contrast to destructuring declaraions using `let`, patterns may not appear on the left-hand side of an assignment due to syntactical ambiguities.
-Instead a  group of expressions are designated  to be assignee expressions, and permitted on the left-hand side of an assignment.
-Assignee expressions are then desugared to pattern matches followed by subsequent assignments.
-The desugared patterns must be irrifutable: in particulat, this means that only slice pattens whose lenght is known at compile time, and the trivial slice `[..]` are permitted during structuring assignment.
-
-Underscore experssions and empty range expressions may be used to ignore certain values, without binding them.
-
-### 14.12.3. Compound assignment [↵](#1411-assginment-operators-)
-
-Compound assignment expressions combine infix operators with assignment expressions.
-
-The operator used for a compound assignment always ends on a '=', which is used to indicate assignment expressions.
-
-Unlike other assginee operands, the assginee operand must be a place experession.
-
-If both types are primitives, the modifying operand will be evaluated first, followed by the assignee.
-It will then set the value of the assignee to the value of perfroming the operation of the operator on the values of hte assignee and modifying operand, and then assign it to the assignee.
-
-> _Note_: Unlike other experssion, the right-hand operand is evaluated before the left-hand operand
-
-Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
-A mutable borrow to the assignee is automatically taken
-
-## 14.13. Built-in operators [↵](#14-operators-)
-
-The following section contains a list of built-in prefix, postfix and infix operators that weren't mentioned in previous sections
+The following section contains a list of other prefix, postfix and infix operators that weren't mentioned in their own individual sections
 
 Prefix operators:
 
@@ -5208,16 +5232,20 @@ Infix/binary operators:
 Operator | type                  | Trait          | precedence  | meaning                                               | Example
 ---------|-----------------------|----------------|-------------|-------------------------------------------------------|----------------------------------------
 `+`      | numeric               | `Add`          | `AddSub`    | Addition, panics on overflow (in debug)               | `1 + 2 == 3`
-`+%`     | integer               | `WrapAdd`      | `AddSub`    | Addition, wraps on overflow                           | `u32::MAX +% 1 == 0`
-`+\|`    | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32::MAX +\| 1 == u8::MAX`
+`+%`     | integer               | `WrappedAdd`   | `AddSub`    | Addition, wraps on overflow                           | `u32.MAX +% 1 == 0`
+`+\|`    | integer               | `SaturateAdd`  | `AddSub`    | Addition, saturates on overflow                       | `u32.MAX +\| 1 == u8.MAX`
+`+?`     | integer               | `TryAdd`       | `AddSub`    | Addition, returns Some, or None on overflow           | `1 +? 2 == Some(3)` or `u32.MAX +? 1 == None`
 `-`      | numeric               | `Sub`          | `AddSub`    | Subtraction, panics on underflow (in debug)           | `3 - 2 == 1`
-`-%`     | integer               | `WrapSub`      | `AddSub`    | Subtraction, wraps on underflow                       | `0 -% 1 == u32::MAX`
+`-%`     | integer               | `WrappedSub`   | `AddSub`    | Subtraction, wraps on underflow                       | `0 -% 1 == u32.MAX`
 `-\|`    | integer               | `SaturateSub`  | `AddSub`    | Subtraction, saturates on underflow                   | `0 -\| 1 == 0`
+`-?`     | integer               | `TrySub`       | `AddSub`    | Subtraction, returns Some, or None on overflow        | `1 -? 2 == Some(3)` or `0:u32 -? 1 == None`
 `*`      | integer               | `Mul`          | `MulDivRem` | Multiplication, panics on overflow (in debug)         | `2 * 3 == 6`
-`*%`     | integer               | `WrapMul`      | `MulDivRem` | Multiplication, wraps on overflow                     | `128:u8 *% 3 == 128:u8`
+`*%`     | integer               | `WrappedMul`   | `MulDivRem` | Multiplication, wraps on overflow                     | `128:u8 *% 3 == 128:u8`
 `*\|`    | integer               | `SaturateMul`  | `MulDivRem` | Multiplication, saturates on overflow                 | `128:u8 *\| 3 == 255:u8`
+`*?`     | integer               | `TryMul`       | `MulDivRem `| Multiplication, returns Some, or None on overflow     | `64:u8 *? 2 == Some(128)` or `128:u8 *? 2 == None`
 `*`      | floating point        | `Mul`          | `MulDivRem` | Multiplication, according IEEE-754-2008               | `1.5 * 2.0 == 3.0`
 `/`      | integer               | `Div`          | `MulDivRem` | Division, panics on divide by 0 (traps in non-debug)  | `6 / 2 == 3`
+`/?`     | integer               | `TryDiv`       | `MulDivRem `| Multiplication, returns Some, or None on divide by 0  | `128:u8 /? 2 == Some(2)` or `128:u8 /? 0 == None`
 `/`      | floating point        | `Div`          | `MulDivRem` | Division, according IEEE-754-2008                     | `3.0 / 1.5 == 2.0`
 `%`      | numeric               | `Rem`          | `MulDivRem` | Remainder, panics on divide by 0 (traps in non-debug) | `5 % 2 == 2` or `7.0 % 1.5 == 1.0`
 `\|`     | integer               | `Or`           | `BitOr`     | Bitwise or                                            | `0x1010  \| 0x1100 == 0x1110`
@@ -5236,37 +5264,62 @@ Operator | type                  | Trait          | precedence  | meaning       
 `*<<`    | integer               | `Rotl`         | `ShiftRot`  | Bitwise rotate left                                   | `0x1010..1010 *<< 3 == 0x0..1010101`
 `>>*`    | integer               | `Rotr`         | `ShiftRot`  | Bitwise rotate right                                  | `0x1010..1010 >>* 3 == 0x0101010..1`
 
-Compound assignment operators have a similar trait name to the normal infix operators, but are followed by `Assign`, i.e. the compound assignment version of `Add` is `AddAssign`
-
-## 14.14. User define operators [↵](#14-operators-)
+## 14.4. Assginment operators [↵](#14-operators-)
 
 ```
-<user-defined-op-item> := { <attribute> }* [ <vis> ] <op-trait-type> 'trait' <name> '=' <user-defined-op> ':' <name> ';'
-<op-trait-type> := 'prefix' | 'infix' | 'postfix'
-<user-op> := { sequence of symbol characters except (see below) }
+<assign-op> := <basic-assign-op> | <compound-assign-op>
+<basic-assign-op> := '='
+<compound-assign-op> := <infix-op> '='
 ```
 
-Xenon also support user defined operators.
+Assignment operators are infix operators.
 
-User defined operators must be made up from symbol characters are not allowed to contain the following:
-- `@`
-- `#`
-- `$`
-- `:`
-- `;`
-- `(` or `)`
-- `[` or `]`
-- `{` or `}`
-- starting with `.`
+Assignment operators moves a value into a specific place, or modifies a value.
 
-Custom operators are defined using a special variation of a trait definition, which defined the type of operator and the token sequence it has.
-This automatically generates a trait, with a function name being the name of the trait in lowercase, with each capital letter being replaced with `_` followed by a lowercase version of the letter.
-The actual operator is defined behind the `=`, which itself is followed by a `:` and the precedence of the operator.
-Each trait will also have an implicit `Output` associated type.
+The left-hand operand of hte assignment operator must be an assignment expression, in the most simple case, the aasignee is a simple place expression and the below specificiation assumes this ito simplify the explenation.
 
-If an infix operator is defined, an implicit generic type paramter is added, which is defaulted to Self.
+An assignment expression uses the following terms in its expression:
+```
+'assignee' = 'assigned value'
+```
 
-It is currently undecided if user defined operators may be used as a name, e.g. `a merge b`.
+### 14.4.1. Basic assignment [↵](#14-operators-)
+
+Evaluating assignment expressions begins by evaluating its operands.
+This assigned value will be evaluated first, followed by the assginee expression.
+
+> _Note_: Unlike other expressions, the right-hand operand is evaluated before the left hand expression
+
+Before assignment, the assignment will first drop the current value of hte assigned place, unless the place is an uninitialized value.
+Next, it will either copy or move the assigned value in the location of hte assignee.
+
+### 14.4.2. Destructuring assignment [↵](#1411-assginment-operators-)
+
+Destructuring assingment is a counterpart ot destructuring patterns for variable declarations, permitting assignment of complex values such as tuples and structures.
+
+In contrast to destructuring declaraions using `let`, patterns may not appear on the left-hand side of an assignment due to syntactical ambiguities.
+Instead a  group of expressions are designated  to be assignee expressions, and permitted on the left-hand side of an assignment.
+Assignee expressions are then desugared to pattern matches followed by subsequent assignments.
+The desugared patterns must be irrifutable: in particulat, this means that only slice pattens whose lenght is known at compile time, and the trivial slice `[..]` are permitted during structuring assignment.
+
+Underscore experssions and empty range expressions may be used to ignore certain values, without binding them.
+
+### 14.4.3. Compound assignment [↵](#1411-assginment-operators-)
+
+Compound assignment expressions combine infix operators with assignment expressions.
+
+The operator used for a compound assignment always ends on a '=', which is used to indicate assignment expressions.
+
+Unlike other assginee operands, the assginee operand must be a place experession.
+
+If both types are primitives, the modifying operand will be evaluated first, followed by the assignee.
+It will then set the value of the assignee to the value of perfroming the operation of the operator on the values of hte assignee and modifying operand, and then assign it to the assignee.
+
+> _Note_: Unlike other experssion, the right-hand operand is evaluated before the left-hand operand
+
+Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
+A mutable borrow to the assignee is automatically taken
+
 
 # 15. Precedence [↵](#tables-of-contents)
 
