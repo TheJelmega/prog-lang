@@ -2552,12 +2552,18 @@ A `try` block, indicated by either `try` or `try!`, will implicitly apply the ei
 ```
 <op-expr> := <prefix-op> <expr>
            | <expr> <postfix-op>
-           | <expr> <binary-op> <expr>
+           | <expr> <infix-op> <expr>
 ```
 
 
 An operator expression applies operators on 1 or 2 sub-expressions.
 The resulting value of these expression will depend on the implementation of the operators.
+
+When calling a prefix of postfix operator, the operator needs to be directly next to the expression it applies to and may not be separated by space.
+When it comes to infix operators, they may be placed between sub-expressions without spaces, as this means there there is not pre- or postfix expression within the text
+Otherwise, if a post or prefix expression must be used, it must not be directly placed against the another expression, but must be separated with a space.
+
+Prefix and postfix operators can only chained when the by using parenthesized expression, meaning that chaining 2 `-`s requires the following to be written: `-(-val)`.
 
 For additional info on operators, check the [Operator section](#14-operators-).
 
@@ -4862,7 +4868,6 @@ They are generally split into 3 categories:
 - prefix unary operators, these come before a sub-expression
 - postfix unary operators, these come after a sub-expression
 - infix binary operators, these come betweeen 2 sub-expressions
-- circumfix operators, these surround a sub-expression
 
 Operators must be separated by non-operator symbols, otherwise they will be interpolated as 1 single operator, meaning that multiple prefix expression, operators must be separated by parentheses.
 In the future, an additional way of separating these might be decided.
@@ -4892,35 +4897,14 @@ The majority of core operators are also implemented using this system.
 
 Operator items are special traits with its own syntax, which is specified using the `op` keyword.
 If a trait does not extend another trait, it needs to have its precedence specified if it contains any infix operators, this will apply to all infix operators defined within the trait.
-Prefix, postfix, assign, and circumfix operands have a hardcoded precendence and cannot be explicitly defined.
+Prefix, postfix, and assign operators have a hardcoded precendence and cannot be explicitly defined.
 
 If a trait does extend another trait, it may override the default implementation of operators, but cannot redefine the method or return type.
 Inside the operators are defined, in addition to a set of invariant contracts these operators must adhere to, for example: commutativity.
 
 Each operator is defined using its operator kind, these is one of the categories mentioned above.
 
-Then their token sequence is defined, these can be any of the following for prefix, postfix and infix operators:
-- All non-alphanumeric printable ASCII characters, expect for:
-    - `(` and `)`
-    - `{` and `}`
-    - `[` and `]`
-    - `,`
-    - `;`
-    - `#`
-    - `:`
-    - `@`
-    - `'`
-    - `"`
-    - `\``
-    - `_`
-    - `.` for prefix and postfix
-- unicode math symbols (category Sm), excluding
-    - [U+239B - U+23AD]
-- From uniocde other symbols:
-    - APL symbols [U+2336 - U+237A], excluding
-        - U+2374
-        - U+2375
-        - U+237A
+The allowed characters in operators can be found in [allowed-symbols.md]
 
 Afterwards, the syntax depends on whether this operator trait is being extended or not.
 
@@ -5346,12 +5330,10 @@ Method call                    |               |               |
 Field access                   |               |               |
 Funtion calls                  |               |               |
 Indexing                       |               |               |
+Unary postfix operators        |               |               |
+Unary prefix operators         |               |               |
 Highest user-defined (no expr) |               | `Highest`     | n/a
-Try operators                  |               | `Try`         | `Highest`
-Borrowing & Dereferencing      |               | `BorrowDeref` | `Try`
-Unary postfix operators        |               | `Postfix`     | `BorrowDeref`
-Unary prefix operators         |               | `Prefix`      | `Postfix`
-Type cast/check                | left to right | `Typed`       | `Prefix`
+Type cast/check                | left to right | `Typed`       | `Highest`
 Multiply/divide/remainder      | left to right | `MulDivRem`   | `Typed`
 Addition/Subtraction           | left to right | `AddSub`      | `MulDivRem`
 Shift and rotate               | left to right | `ShiftRot`    | `AddSub`
