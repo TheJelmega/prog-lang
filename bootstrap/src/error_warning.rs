@@ -66,6 +66,9 @@ pub enum ErrorCode {
     // Mismatch when closing block, found ... expected ...
     LexMismatchCloseSym{ found: OpenCloseSymbol, expected: OpenCloseSymbol } = 1041,
 
+    LexInvalidCharInOp{ ch: char } = 1042,
+    LexInvalidOpSequence { name: String } = 1043,
+
     // Not enough tokens
     ParseNotEnoughTokens = 200,
     // Expected, found
@@ -122,8 +125,10 @@ impl Display for ErrorCode {
             Self::LexStringNoContinue                       => write!(f, "String cannot cross multiple lines without a string continuation sequence"),
             Self::LexNotEnoughRawString                     => write!(f, "Not enough characters left for a valid raw string"),
             Self::LexInvalidStartRawString                  => write!(f, "Missing '\"' after 'r' or '#' at start of raw string"),
-            Self::LexNoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_str(), sym.as_close_str(), sym.as_open_str()),
-            Self::LexMismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_str(), expected.as_close_str()),
+            Self::LexNoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_display_str(), sym.as_close_display_str(), sym.as_open_display_str()),
+            Self::LexMismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_display_str(), expected.as_close_display_str()),
+            Self::LexInvalidCharInOp { ch }                 => write!(f, "Unsupported character in operator: '{ch}'"),
+            Self::LexInvalidOpSequence { name }             => write!(f, "Unsupported character sequence in operator"),
 
             // Parser & ASTs
             Self::ParseNotEnoughTokens                      => write!(f, "not enough tokens to parse"),

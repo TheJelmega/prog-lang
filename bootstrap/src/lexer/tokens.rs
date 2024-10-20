@@ -325,22 +325,45 @@ pub enum OpenCloseSymbol {
     Paren,
     Brace,
     Bracket,
+    Custom(PunctuationId),
 }
 
 impl OpenCloseSymbol {
-    pub fn as_open_str(self) -> &'static str {
+    pub fn get_closing_char(ch: char) -> char {
+        match ch {
+            _ => '\0'
+        }
+    }
+
+    pub fn as_open_str<'a>(&'a self, punctuations: &'a PuncutationTable) -> &'a str {
+        match self {
+            Self::Custom(id) => &punctuations[*id],
+            _                => self.as_open_display_str(),
+        }
+    }
+
+    pub fn as_open_display_str(self) -> &'static str {
         match self {
             Self::Paren      => "(",
             Self::Brace      => "{",
             Self::Bracket    => "[",
+            Self::Custom(_)  => "custom_open",
         }
     }
 
-    pub fn as_close_str(self) -> &'static str {
+    pub fn as_close_str<'a>(&'a self, punctuations: &'a PuncutationTable) -> &'a str {
+        match self {
+            Self::Custom(id) => &punctuations[*id],
+            _                => self.as_close_display_str(),
+        }
+    }
+
+    pub fn as_close_display_str(self) -> &'static str {
         match self {
             Self::Paren      => ")",
             Self::Brace      => "}",
             Self::Bracket    => "]",
+            Self::Custom(_)  => "custom_close"
         }
     }
 }
@@ -364,8 +387,8 @@ impl Token {
             Self::WeakKw(kw) => write!(f, "{}", kw.as_str()),
             Self::Name(name_id) => write!(f, "{}", &names[*name_id]),
             Self::Punctuation(punct) => write!(f, "{}", punct.as_str(&punctuations)),
-            Self::OpenSymbol(sym) => write!(f, "{}", sym.as_open_str()),
-            Self::CloseSymbol(sym) => write!(f, "{}", sym.as_close_str()),
+            Self::OpenSymbol(sym) => write!(f, "{}", sym.as_open_display_str()),
+            Self::CloseSymbol(sym) => write!(f, "{}", sym.as_close_display_str()),
             Self::Literal(lit_id) => write!(f, "{}", &literals[*lit_id]),
             Self::Underscore => write!(f, "_"),
         }
@@ -377,8 +400,8 @@ impl Token {
             Self::WeakKw(kw) => kw.as_str(),
             Self::Name(_) => "name",
             Self::Punctuation(punct) => punct.as_display_str(),
-            Self::OpenSymbol(sym) => sym.as_open_str(),
-            Self::CloseSymbol(sym) => sym.as_close_str(),
+            Self::OpenSymbol(sym) => sym.as_open_display_str(),
+            Self::CloseSymbol(sym) => sym.as_close_display_str(),
             Self::Literal(_) => "literal",
             Self::Underscore => "_",
         }
@@ -491,10 +514,10 @@ impl TokenStore {
                 Token::Punctuation(punct) => write!(&mut print_buf, "Symbol: {}", punct.as_str(&punctuations)),
                 Token::OpenSymbol(sym) => {
                     depth += 1;
-                    write!(&mut print_buf, "OpenSymbol: {}", sym.as_open_str())
+                    write!(&mut print_buf, "OpenSymbol: {}", sym.as_open_display_str())
                 },
                 Token::CloseSymbol(sym) => {
-                    write!(&mut print_buf, "CloseSymbol: {}", sym.as_close_str())
+                    write!(&mut print_buf, "CloseSymbol: {}", sym.as_close_display_str())
                 },
                 Token::Literal(lit_id) => write!(&mut print_buf, "Literal({lit_id}): {}", &literals[*lit_id]),
                 Token::Underscore => write!(&mut print_buf, "Underscore"),
@@ -513,8 +536,8 @@ impl TokenStore {
                 Token::WeakKw(kw) => write!(writer, "weak keyword,{},", kw.as_str())?,
                 Token::Name(name_id) => write!(writer, "name,{},", &names[*name_id])?,
                 Token::Punctuation(punct) => write!(writer, "punctuation,\"{}\",", punct.as_str(&punctuations))?,
-                Token::OpenSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_open_str())?,
-                Token::CloseSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_close_str())?,
+                Token::OpenSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_open_display_str())?,
+                Token::CloseSymbol(sym) => write!(writer, "punctuation,\"{}\",", sym.as_close_display_str())?,
                 Token::Literal(lit_id) => {
                     let lit = &literals[*lit_id];
                     if let Literal::String(s) = lit {
