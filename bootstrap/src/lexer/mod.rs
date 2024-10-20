@@ -1421,8 +1421,8 @@ impl Lexer<'_> {
     }
 
     fn lex_punctuation(&mut self, ch: char) -> Result<(), LexerErr> {
-        const ALLOWED_CHARACTERS: [char; 490] = [
-            '!', '%', '*', '+', '.', '/', ':', '<', '=', '>', '?', '~', '|', 
+        const ALLOWED_CHARACTERS: [char; 492] = [
+            '!', '%', '*', '+', '.', '-', '/', ':', '<', '=', '>', '?', '^', '~', '|', 
 
             '¬', '±', '×', '÷', '⅋', '↑', '↓', '∀', '∂', '∃', '∄', '∅', '∆', '∇', '∈', '∉', 
             '∋', '∌', '∓', '∔', '∘', '∙', '√', '∛', '∜', '∝', '∟', '∠', '∡', '∢', '∧', '∨', 
@@ -1463,8 +1463,8 @@ impl Lexer<'_> {
         const SINGLE_SYMBOLS: &[char] = &[
             '#', '$', ';', '.', ',',
         ];
-        const INVALID_SYMBOLS: &[char] = &[
-            '{', '}', '(', ')', '[', ']',
+        const OPEN_CLOSE: &[char] = &[
+            '(', ')', '{', '}', '[', ']'
         ];
 
         if ch == '.' {
@@ -1484,27 +1484,19 @@ impl Lexer<'_> {
         } else {
             let mut seq = String::new();
             for ch in self.cursor.chars() {
-                if ch == '\\' {
+                if ch.is_alphanumeric() || ch.is_whitespace() || SINGLE_SYMBOLS.contains(&ch) || OPEN_CLOSE.contains(&ch) {
+                    break;
+                } if ch == '\\' {
                     let tmp = self.convert_punct_sequence()?;
                     seq.push(tmp);
-                } else if !ALLOWED_CHARACTERS.binary_search(&ch).is_err() {
+                } else if ALLOWED_CHARACTERS.binary_search(&ch).is_err() {
                     return Err(self.gen_err(ErrorCode::LexInvalidCharInOp { ch }, ch.len_utf8() as u32, 1));
                 } else {
                     seq.push(ch);
-                    self.consume(1, ch.len_utf8() as u32);
                 }
             }
 
-
-            let end = self.cursor.find(|ch: char| ch.is_alphanumeric() || ch.is_whitespace() || SINGLE_SYMBOLS.contains(&ch) || INVALID_SYMBOLS.contains(&ch)).unwrap_or(self.cursor.len());
-            let punct_str = &self.cursor[..end];
-            for ch in punct_str.chars() {
-                if !ALLOWED_CHARACTERS.binary_search(&ch).is_err() {
-
-                }
-            }     
-
-            self.add_punctuation(punct_str);
+            self.add_punctuation(&seq);
         }
         Ok(())
     }
@@ -1516,9 +1508,11 @@ impl Lexer<'_> {
             Some(ch) => *ch,
             None => return Err(self.gen_err(ErrorCode::LexInvalidOpSequence { name: name.to_string() }, name.len() as u32 + 1, name.chars().count() as u32 + 1)),
         };
-        
-        self.consume_str("\\");
-        self.consume_str(name);
+
+        // Consume with enough space for the character left, as it will be consumed in the caller
+        let num_chars = name.chars().count() as u32;
+        let num_bytes = (name.len() + 1 - ch.len_utf8()) as u32;
+        self.consume(num_chars, num_bytes);
         Ok(ch)
     }
 
