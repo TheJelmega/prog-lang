@@ -700,35 +700,7 @@ impl Lexer<'_> {
     }
 
     fn add_punctuation(&mut self, s: &str) {
-        let punct = match s {
-            "."   => Punctuation::Dot,
-            ".."  => Punctuation::DotDot,
-            "..." => Punctuation::DotDotDot,
-            "..=" => Punctuation::DotDotEquals,
-            ";"   => Punctuation::Semicolon,
-            "@"   => Punctuation::At,
-            "@!"  => Punctuation::AtExclaim,
-            ":"   => Punctuation::Colon,
-            ":="  => Punctuation::ColonEquals,
-            ","   => Punctuation::Comma,
-            "!"   => Punctuation::Exclaim,
-            "^"   => Punctuation::Caret,
-            "&"   => Punctuation::Ampersand,
-            "?"   => Punctuation::Question,
-            "|"   => Punctuation::Or,
-            "="   => Punctuation::Equals,
-            "&&"  => Punctuation::AndAnd,
-
-            "->"  => Punctuation::SingleArrowR,
-            "<-"  => Punctuation::SingleArrowL,
-            "=>"  => Punctuation::DoubleArrow,
-
-            _ => {
-                let id = self.punctuation.add(s);
-                Punctuation::Custom(id)
-            },
-        };
-
+        let punct = Punctuation::from_str(s, &mut self.punctuation);
         self.add_token(Token::Punctuation(punct), s.chars().count() as u32, s.len() as u32);
     }
 

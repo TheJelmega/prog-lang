@@ -2039,6 +2039,7 @@ impl Parser<'_> {
                     break expr;
                 },
                 
+                Token::Punctuation(Punctuation::QuestionDot) => self.parse_field_access_or_method_expr(expr)?,
                 Token::Punctuation(Punctuation::Dot) => {
                     let peek_1 = self.peek_at(1)?;
                     match peek_1 {
@@ -2237,6 +2238,7 @@ impl Parser<'_> {
                         method: method_iden.name,
                         gen_args: method_iden.gen_args,
                         args,
+                        is_propagating: false,
                     })))
                 } else {
                     let expr = Expr::Path(self.add_node(PathExpr::Path { path  }));
@@ -2485,7 +2487,13 @@ impl Parser<'_> {
     }
 
     fn parse_field_access_or_method_expr(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        self.consume_punct(Punctuation::Dot)?;
+        let is_propagating = if self.try_consume(Token::Punctuation(Punctuation::QuestionDot)) {
+            true
+        } else {
+            self.consume_punct(Punctuation::Dot)?;
+            false
+        };
+
         let field = self.consume_name()?;
 
         let gen_args = self.parse_generic_args(true)?;
@@ -2496,11 +2504,13 @@ impl Parser<'_> {
                 method: field,
                 gen_args,
                 args,
+                is_propagating,
             })))
         } else {
             Ok(Expr::FieldAccess(self.add_node(FieldAccessExpr {
                 expr,
                 field,
+                is_propagating,
             })))
         }
     }

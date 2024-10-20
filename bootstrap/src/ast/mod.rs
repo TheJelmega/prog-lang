@@ -2035,15 +2035,17 @@ impl AstNode for FnCallExpr {
 }
 
 pub struct MethodCallExpr {
-    pub receiver: Expr,
-    pub method:   NameId,
-    pub gen_args: Option<AstNodeRef<GenericArgs>>,
-    pub args:     Vec<FnArg>,
+    pub receiver:       Expr,
+    pub method:         NameId,
+    pub gen_args:       Option<AstNodeRef<GenericArgs>>,
+    pub args:           Vec<FnArg>,
+    pub is_propagating: bool,
 }
 
 impl AstNode for MethodCallExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Method Call Expression", |logger| {
+            logger.prefixed_log_fmt(format_args!("Is Propagating: {}\n", self.is_propagating));
             logger.prefixed_log_fmt(format_args!("Method Name: {}\n", logger.resolve_name(self.method)));
             logger.set_last_at_indent_if(self.args.is_empty());
             logger.log_indented_node("Receiver", &self.receiver);
@@ -2054,13 +2056,15 @@ impl AstNode for MethodCallExpr {
 }
 
 pub struct FieldAccessExpr {
-    pub expr:  Expr,
-    pub field: NameId,
+    pub expr:           Expr,
+    pub field:          NameId,
+    pub is_propagating: bool
 }
 
 impl AstNode for FieldAccessExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Field Access Expression", |logger| {
+            logger.prefixed_log_fmt(format_args!("Is Propagating: {}\n", self.is_propagating));
             logger.prefixed_log_fmt(format_args!("Field Name: {}\n", logger.resolve_name(self.field)));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);

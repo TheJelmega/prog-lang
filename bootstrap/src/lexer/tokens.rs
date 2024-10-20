@@ -272,6 +272,7 @@ pub enum Punctuation {
     Caret,
     Ampersand,
     Question,
+    QuestionDot,
     Or,
     Equals,
     AndAnd,
@@ -307,6 +308,7 @@ impl Punctuation {
             Self::Caret        => "^",
             Self::Ampersand    => "&",
             Self::Question     => "?",
+            Self::QuestionDot  => "?.",
             Self::Or           => "|",
             Self::Equals       => "=",
             Self::AndAnd       => "&&",
@@ -316,6 +318,38 @@ impl Punctuation {
             Self::DoubleArrow  => "=>",
          
             Self::Custom(_)    => "custom_punct",
+        }
+    }
+
+    pub fn from_str(s: &str, punctuations: &mut PuncutationTable) -> Self {
+        match s {
+            "."   => Punctuation::Dot,
+            ".."  => Punctuation::DotDot,
+            "..." => Punctuation::DotDotDot,
+            "..=" => Punctuation::DotDotEquals,
+            ";"   => Punctuation::Semicolon,
+            "@"   => Punctuation::At,
+            "@!"  => Punctuation::AtExclaim,
+            ":"   => Punctuation::Colon,
+            ":="  => Punctuation::ColonEquals,
+            ","   => Punctuation::Comma,
+            "!"   => Punctuation::Exclaim,
+            "^"   => Punctuation::Caret,
+            "&"   => Punctuation::Ampersand,
+            "?"   => Punctuation::Question,
+            "?."  => Punctuation::QuestionDot,
+            "|"   => Punctuation::Or,
+            "="   => Punctuation::Equals,
+            "&&"  => Punctuation::AndAnd,
+
+            "->"  => Punctuation::SingleArrowR,
+            "<-"  => Punctuation::SingleArrowL,
+            "=>"  => Punctuation::DoubleArrow,
+
+            _ => {
+                let id = punctuations.add(s);
+                Punctuation::Custom(id)
+            },
         }
     }
 }
