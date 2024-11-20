@@ -19,4 +19,7 @@ pub struct Cli {
 
     #[arg(long)]
     pub timings: bool,
+
+    #[arg(long)]
+    pub pass_timings: bool,
 }

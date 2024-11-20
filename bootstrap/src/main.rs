@@ -1,15 +1,13 @@
 use std::{
-    env,
-    time,
-    fs::{self, File},
-    io::Read,
-    path::{Path, PathBuf},
+    env, fs::{self, File}, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}, time
 };
 
+use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor};
 use cli::Cli;
-use common::NameTable;
+use common::{NameTable, SymbolTable};
+use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 
 mod error_warning;
@@ -21,6 +19,7 @@ mod cli;
 
 mod lexer;
 mod ast;
+mod ast_passes;
 
 fn main() {
     let cli = Cli::parse();
@@ -30,20 +29,30 @@ fn main() {
 
     let total_start = time::Instant::now();
 
+    let mut files_to_process = Vec::new();
     for input_file in &cli.input_files {
+        files_to_process.push((input_file.clone(), Vec::new()));
+    }
+    
+    let symbol_table = SymbolTable::new();
+    let symbol_table = Arc::new(RwLock::new(symbol_table));
+    let mut asts = Vec::new();
+
+    let mut literal_table = LiteralTable::new();
+    let mut name_table = NameTable::new();
+    let mut punct_table = PuncutationTable::new();
+
+    while let Some((input_file, base_scope)) = files_to_process.pop() {
+        println!("================================================================");
         println!("File path: {cwd}/{input_file}");
 
 
-        let mut file = File::open(input_file).unwrap();
+        let mut file = File::open(&input_file).unwrap();
 
         let mut buf = Vec::new();
         _ = file.read_to_end(&mut buf).unwrap();
     
         let file_content = unsafe { String::from_utf8_unchecked(buf) };
-    
-        let mut literal_table = LiteralTable::new();
-        let mut name_table = NameTable::new();
-        let mut punct_table = PuncutationTable::new();
     
         let lex_start = time::Instant::now();
     
@@ -57,10 +66,10 @@ fn main() {
             },
         };
         let tokens = lexer.tokens;
-    
+        
         if cli.timings {
             let lex_dur = time::Instant::now() - lex_start;
-            println!("Lexing {input_file} took {:.2} ms, generating {} tokens", lex_dur.as_secs_f32() * 1000.0, tokens.tokens.len()            );
+            println!("Lexing {input_file} took {:.2} ms, generating {} tokens", lex_dur.as_secs_f32() * 1000.0, tokens.tokens.len());
         }
     
         if cli.print_lex_output {
@@ -88,7 +97,7 @@ fn main() {
             continue;
         }
 
-        let parse_strart = time::Instant::now();
+        let parse_start = time::Instant::now();
 
         let mut parser = Parser::new(&tokens, &name_table);
         match parser.parse() {
@@ -101,10 +110,10 @@ fn main() {
         }
 
         let mut ast = parser.ast;
-        ast.file = input_file.into();
+        ast.file = input_file.clone().into();
 
         if cli.timings {
-            let parse_dur = time::Instant::now() - parse_strart;
+            let parse_dur = time::Instant::now() - parse_start;
             println!("Parsing {input_file} took {:.2} ms, generating {} nodes", parse_dur.as_secs_f32() * 1000.0, ast.nodes.len() );
         }
 
@@ -115,10 +124,95 @@ fn main() {
         if cli.parse_only {
             continue;
         }
+
+        let ast_start = time::Instant::now();
+    
+        let mut ast_ctx = ast_passes::Context::new(
+            symbol_table.clone(),
+            Vec::new(),
+            &ast,
+        );
+
+        do_ast_pass(&cli, &input_file, "Context Setup", || {
+            let mut pass = ast_passes::ContextSetup::new(&mut ast_ctx);
+            pass.visit(&ast);
+        });
+
+        do_ast_pass(&cli, &input_file, "Module Scoping", || {
+            let mut pass = ast_passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &name_table);
+            pass.visit(&ast);
+        });
+        
+        do_ast_pass(&cli, &input_file, "Module Attribute Resolve", || {
+            let mut pass = ast_passes::ModuleAttributeResolver::new(&mut ast_ctx, &name_table, &literal_table);
+            pass.visit(&ast);
+        });
+
+        let mut sub_paths = Vec::new();
+        do_ast_pass(&cli, &input_file, "Module Symbol Generation + Path Collection", || {
+            let mut input_path = PathBuf::from(input_file.clone());
+            input_path.pop();
+            let mut pass = ast_passes::ModulePathResolution::new(&mut ast_ctx, &name_table, input_path);
+            pass.visit(&ast);
+
+            sub_paths = pass.collected_paths;
+        });
+
+        for err in &ast_ctx.errors {
+            println!("{err}");
+        }
+
+        if cli.timings {
+            let parse_dur = time::Instant::now() - ast_start;
+            println!("Processing all AST passes for {input_file} took {:.2} ms", parse_dur.as_secs_f32() * 1000.0);
+        }
+
+        for (path, scope) in sub_paths {
+            println!("Found sub-module at '{}'", path.to_str().unwrap());
+            files_to_process.push((path.to_str().unwrap().to_string(), scope));
+        }
+
+        asts.push((ast, ast_ctx));
     }
+
+
+    println!("================================================================");
+    println!("Post-parse AST passes:");
+    
+    println!("================================================================");
+    println!("Symbol table:");
+    symbol_table.read().unwrap().log();
+
 
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;
         println!("Compiler took {:.2}s", total_dur.as_secs_f32());
     }
-} 
+}
+
+fn do_ast_pass<F>(cli: &Cli, input_file: &str, pass_name: &str, f: F) where 
+    F: FnOnce()
+{
+    let start = time::Instant::now();
+    f();
+    if cli.pass_timings {
+        let parse_dur = time::Instant::now() - start;
+        println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", parse_dur.as_secs_f32() * 1000.0);
+    }
+}
+
+fn do_ast_for_all_passes<F>(cli: &Cli, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, f: F) where
+    F: Fn(&ast::Ast, &mut ast_passes::Context)
+{
+    for (ast, ctx) in asts {
+        let start = time::Instant::now();
+
+        f(ast, ctx);
+        
+        if cli.pass_timings {
+            let parse_dur = time::Instant::now() - start;
+            let input_file = ast.file.to_str().unwrap();
+            println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", parse_dur.as_secs_f32() * 1000.0);
+        }
+    }
+}

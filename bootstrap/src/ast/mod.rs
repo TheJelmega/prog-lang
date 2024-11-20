@@ -199,7 +199,31 @@ pub enum Item {
     Extern(AstNodeRef<ExternBlock>),
     CustomOp(AstNodeRef<OpTrait>),
     Precedence(AstNodeRef<Precedence>),
-} 
+}
+
+impl Item {
+    pub fn node_id(&self) -> usize {
+        match self {
+            Item::Module(node_id)     => node_id.idx,
+            Item::Use(node_id)        => node_id.idx,
+            Item::Function(node_id)   => node_id.idx,
+            Item::TypeAlias(node_id)  => node_id.idx,
+            Item::Struct(node_id)     => node_id.idx,
+            Item::Union(node_id)      => node_id.idx,
+            Item::Enum(node_id)       => node_id.idx,
+            Item::Bitfield(node_id)   => node_id.idx,
+            Item::Const(node_id)      => node_id.idx,
+            Item::Static(node_id)     => node_id.idx,
+            Item::Property(node_id)   => node_id.idx,
+            Item::Trait(node_id)      => node_id.idx,
+            Item::Impl(node_id)       => node_id.idx,
+            Item::Extern(node_id)     => node_id.idx,
+            Item::CustomOp(node_id)   => node_id.idx,
+            Item::Precedence(node_id) => node_id.idx,
+        }
+    }
+}
+
 impl AstNode for Item {
     fn log(&self, logger: &mut AstLogger) {
         match self {
@@ -229,6 +253,18 @@ pub enum TraitItem {
     Const(AstNodeRef<Const>),
     Property(AstNodeRef<Property>),
 }
+
+impl TraitItem {
+    pub fn node_id(&self) -> usize {
+        match self {
+            TraitItem::Function(node_id)  => node_id.idx,
+            TraitItem::TypeAlias(node_id) => node_id.idx,
+            TraitItem::Const(node_id)     => node_id.idx,
+            TraitItem::Property(node_id)  => node_id.idx,
+        }
+    }
+}
+
 impl AstNode for TraitItem {
     fn log(&self, logger: &mut AstLogger) {
         match self {
@@ -248,6 +284,19 @@ pub enum AssocItem {
     Static(AstNodeRef<Static>),
     Property(AstNodeRef<Property>),
 }
+
+impl AssocItem {
+    pub fn node_id(&self) -> usize {
+        match self {
+            AssocItem::Function(node_id)  => node_id.idx,
+            AssocItem::TypeAlias(node_id) => node_id.idx,
+            AssocItem::Const(node_id)     => node_id.idx,
+            AssocItem::Static(node_id)    => node_id.idx,
+            AssocItem::Property(node_id)  => node_id.idx,
+        }
+    }
+}
+
 impl AstNode for AssocItem {
     fn log(&self, logger: &mut AstLogger) {
         match self {
@@ -264,6 +313,16 @@ pub enum ExternItem {
     Function(AstNodeRef<Function>),
     Static(AstNodeRef<Static>),
 }
+
+impl ExternItem {
+    pub fn node_id(&self) -> usize {
+        match self {
+            ExternItem::Function(node_id) => node_id.idx,
+            ExternItem::Static(node_id)   => node_id.idx,
+        }
+    }
+}
+
 impl AstNode for ExternItem {
     fn log(&self, logger: &mut AstLogger) {
         match self {

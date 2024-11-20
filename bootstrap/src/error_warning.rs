@@ -99,6 +99,11 @@ pub enum ErrorCode {
     ParseInvalidPrecedenceAssoc{ name: String } = 2032,
     // Ambigouous operators
     ParseAmbiguousOperators = 2033,
+
+    AstInvalidAttribute{ info: String } = 3000,
+    AstInvalidAttributeData{ info: String } = 3001,
+
+    AstInvalidModulePath { paths: Vec<String> } = 3002,
 }
 
 impl Display for ErrorCode {
@@ -128,9 +133,9 @@ impl Display for ErrorCode {
             Self::LexNoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_display_str(), sym.as_close_display_str(), sym.as_open_display_str()),
             Self::LexMismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_display_str(), expected.as_close_display_str()),
             Self::LexInvalidCharInOp { ch }                 => write!(f, "Unsupported character in operator: '{ch}'"),
-            Self::LexInvalidOpSequence { name }             => write!(f, "Unsupported character sequence in operator"),
+            Self::LexInvalidOpSequence { name }             => write!(f, "Unsupported character sequence in operator: {name}"),
 
-            // Parser & ASTs
+            // Parser
             Self::ParseNotEnoughTokens                      => write!(f, "not enough tokens to parse"),
             Self::ParseFoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
             Self::ParseUnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
@@ -143,6 +148,20 @@ impl Display for ErrorCode {
             Self::ParseExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
             Self::ParseInvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
             Self::ParseAmbiguousOperators                   => write!(f, "Ambigouos operators, cannot figure out which operators is infix"),
+
+            // AST
+            Self::AstInvalidAttribute { info }              => write!(f, "Invalid attribute: {info}"),
+            Self::AstInvalidAttributeData { info }          => write!(f, "Invalid attribute data: {info}"),
+            Self::AstInvalidModulePath { paths }                => {
+                write!(f, "Found invalid module, expected to find corresponding file at: ")?;
+                if !paths.is_empty() {
+                    write!(f, "'{}'", paths[0])?;
+                    for path in &paths[1..] {
+                        write!(f, ", or '{}'", path)?;
+                    }
+                }
+                Ok(())
+            },
         }
     }
 }
