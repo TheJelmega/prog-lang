@@ -6,7 +6,7 @@ use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor};
 use cli::Cli;
-use common::{NameTable, SymbolTable};
+use common::{NameTable, PrecedenceDAG, SymbolTable};
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 
@@ -24,6 +24,11 @@ mod ast_passes;
 fn main() {
     let cli = Cli::parse();
 
+    let library = match &cli.library {
+        Some(library) => library.clone(),
+        None => cli.package.clone(),
+    };
+
     let cwd = env::current_dir().unwrap().to_str().unwrap().to_string();
     println!("cwd: {cwd}");
 
@@ -36,6 +41,10 @@ fn main() {
     
     let symbol_table = SymbolTable::new();
     let symbol_table = Arc::new(RwLock::new(symbol_table));
+
+    let precedences = PrecedenceDAG::new();
+    let precedences = Arc::new(RwLock::new(precedences));
+
     let mut asts = Vec::new();
 
     let mut literal_table = LiteralTable::new();
@@ -129,8 +138,9 @@ fn main() {
     
         let mut ast_ctx = ast_passes::Context::new(
             symbol_table.clone(),
-            Vec::new(),
+            base_scope.clone(),
             &ast,
+            precedences.clone()
         );
 
         do_ast_pass(&cli, &input_file, "Context Setup", || {
@@ -158,7 +168,7 @@ fn main() {
             sub_paths = pass.collected_paths;
         });
 
-        for err in &ast_ctx.errors {
+        for err in &*ast_ctx.errors.lock().unwrap() {
             println!("{err}");
         }
 
@@ -178,11 +188,36 @@ fn main() {
 
     println!("================================================================");
     println!("Post-parse AST passes:");
+
+    do_ast_for_all_passes(&cli, "Precedence Collection", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::PrecedenceCollection::new(ast_ctx, &name_table);
+        pass.visit(ast);
+    });
+
+    let mut imported_precedences = Vec::new();
+    do_ast_for_all_passes(&cli, "Precedence Import", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::PrecedenceImportCollection::new(ast_ctx, &name_table, cli.package.clone());
+        pass.visit(ast);
+
+        if !pass.imports.is_empty() {
+            imported_precedences = pass.imports;
+        }
+    });
+
+    // TODO: External precedences importing happens here
+
+    do_ast_for_all_passes(&cli, "Precedence Connection", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::PrecedenceConnection::new(ast_ctx, &name_table);
+        pass.visit(ast);
+    });
+
     
     println!("================================================================");
     println!("Symbol table:");
     symbol_table.read().unwrap().log();
 
+    println!("Precedence DAG Unordered:");
+    precedences.read().unwrap().log_unordered();
 
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;
@@ -201,8 +236,8 @@ fn do_ast_pass<F>(cli: &Cli, input_file: &str, pass_name: &str, f: F) where
     }
 }
 
-fn do_ast_for_all_passes<F>(cli: &Cli, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, f: F) where
-    F: Fn(&ast::Ast, &mut ast_passes::Context)
+fn do_ast_for_all_passes<F>(cli: &Cli, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, mut f: F) where
+    F: FnMut(&ast::Ast, &mut ast_passes::Context)
 {
     for (ast, ctx) in asts {
         let start = time::Instant::now();

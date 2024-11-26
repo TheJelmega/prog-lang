@@ -5327,6 +5327,8 @@ For example, the expression `a + b + c` can be written as either `(a + b) + c` o
 While this doesn't always have an impact on the result generated, it should be assumed that the order can have an impact.
 Each order could not only result in an actual difference in value, but even in type the expression will result, or in worse cases, fail to compile the underlying code.
 
+For limitation on the naming, check the [precedence scoping and use](#153-precedence-scoping-and-use) section.
+
 ## 15.1. Built-in precedences [↵](#tables-of-contents)
 
 The built-in precendences can be found in the table below, with the strongest at the to, and the weakest as the botton:
@@ -5363,8 +5365,8 @@ Assingment expression          | right to left |
 ```
 <precedence-item> := 'precedence' <name> '{' { <precedence-member> }* '}'
 <precedence-member> := 'higher_than' ':' <name>
-                     | 'lower_than` ':' <name>
-                     | `associativity' ':' ( 'left' | 'right` | 'none' )
+                     | 'lower_than' ':' <name>
+                     | 'associativity' ':' ( 'left' | 'right` | 'none' )
 ```
 
 A precedence item can be used to define a custom precedence of user-defined operators.
@@ -5405,6 +5407,20 @@ For example, if `+` would have had `none` associativity, the expressions `(a + b
 
 Unary expression ignore associativity and go solely based on their precedence order.
 
+## 15.3. Precedence scoping and use
+
+```
+<precedence-use> := 'precedence' 'use' <use-root> [ '.' '{' <name> { ',' <name> }* [ <name> ] '}' ] ';'
+```
+
+Precedences have some special scoping rules, as they are not scoped relative to the module that contains them, but they are exclusivly at the top level of a library.
+This means that a library may not contain 2 precedences with the same name, no matter if they are in a nested module or not.
+
+Precedences also are not imported from other files using a standard use declaration, but are instead imported by a special 'precedence use'.
+Precedence uses declare a use root defining where the precedences are located, followed by an optional list of specific precedences to include.
+Unlike precedence items which can be defined within a nested module, precedence uses are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root.
+
+When a precedence is imported, its name may not conflict with those of any other precedence declared within the library or imported from an external library.
 
 # 16. Visibility
 

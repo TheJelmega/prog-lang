@@ -444,7 +444,11 @@ impl Parser<'_> {
             Token::WeakKw(WeakKeyword::Flag)         => self.parse_enum(attrs, vis),
             Token::WeakKw(WeakKeyword::Sealed)       => self.parse_trait(attrs, vis),
             Token::WeakKw(WeakKeyword::Tls)          => self.parse_static_item(attrs, vis).map(|item| Item::Static(item)),
-            Token::WeakKw(WeakKeyword::Precedence)   => self.parse_precedence(attrs, vis),
+            Token::WeakKw(WeakKeyword::Precedence)   => if self.try_peek() == Some(Token::StrongKw(StrongKeyword::Use)) {
+                self.parse_precedence_use(attrs, vis)
+            } else {
+                self.parse_precedence(attrs, vis)
+            },
             Token::StrongKw(StrongKeyword::Type)     |
             Token::WeakKw(WeakKeyword::Distinct)     => self.parse_type_alias(attrs, vis).map(|item| Item::TypeAlias(item)),
             Token::WeakKw(WeakKeyword::Op)           => self.parse_op_trait(attrs, vis),
@@ -1726,6 +1730,51 @@ impl Parser<'_> {
             higher_than,
             lower_than,
             associativity,
+        })))
+    }
+
+    fn parse_precedence_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        self.consume_weak_kw(WeakKeyword::Precedence)?;
+        self.consume_strong_kw(StrongKeyword::Use)?;
+
+        let peek = self.peek()?;
+        let (group, package) = match peek {
+            Token::Punctuation(Punctuation::Colon) => (None, None),
+            Token::Name(name_id) => {
+                self.consume_single();
+                if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+                    let package_name_id = self.consume_name()?;
+                    (Some(name_id), Some(package_name_id))
+                } else {
+                    (None, Some(name_id))
+                }
+            },
+            _ => return Err(self.gen_error(ErrorCode::ParseExpectPackageName{ found: peek })),
+        };
+        self.consume_punct(Punctuation::Colon)?;
+
+        let peek = self.peek()?;
+        let library = match peek {
+            Token::Punctuation(Punctuation::Dot) => None,
+            Token::Name(name_id) => {
+                self.consume_single();
+                Some(name_id)
+            },
+            _ => return Err(self.gen_error(ErrorCode::ParseExpectModuleName{ found: peek })),
+        };
+
+
+        let precedences =  if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_name)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Item::PrecedenceUse(self.add_node(PrecedenceUse {
+            group,
+            package,
+            library,
+            precedences,
         })))
     }
 

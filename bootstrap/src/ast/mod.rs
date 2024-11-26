@@ -199,27 +199,29 @@ pub enum Item {
     Extern(AstNodeRef<ExternBlock>),
     CustomOp(AstNodeRef<OpTrait>),
     Precedence(AstNodeRef<Precedence>),
+    PrecedenceUse(AstNodeRef<PrecedenceUse>),
 }
 
 impl Item {
     pub fn node_id(&self) -> usize {
         match self {
-            Item::Module(node_id)     => node_id.idx,
-            Item::Use(node_id)        => node_id.idx,
-            Item::Function(node_id)   => node_id.idx,
-            Item::TypeAlias(node_id)  => node_id.idx,
-            Item::Struct(node_id)     => node_id.idx,
-            Item::Union(node_id)      => node_id.idx,
-            Item::Enum(node_id)       => node_id.idx,
-            Item::Bitfield(node_id)   => node_id.idx,
-            Item::Const(node_id)      => node_id.idx,
-            Item::Static(node_id)     => node_id.idx,
-            Item::Property(node_id)   => node_id.idx,
-            Item::Trait(node_id)      => node_id.idx,
-            Item::Impl(node_id)       => node_id.idx,
-            Item::Extern(node_id)     => node_id.idx,
-            Item::CustomOp(node_id)   => node_id.idx,
-            Item::Precedence(node_id) => node_id.idx,
+            Item::Module(node_id)        => node_id.idx,
+            Item::Use(node_id)           => node_id.idx,
+            Item::Function(node_id)      => node_id.idx,
+            Item::TypeAlias(node_id)     => node_id.idx,
+            Item::Struct(node_id)        => node_id.idx,
+            Item::Union(node_id)         => node_id.idx,
+            Item::Enum(node_id)          => node_id.idx,
+            Item::Bitfield(node_id)      => node_id.idx,
+            Item::Const(node_id)         => node_id.idx,
+            Item::Static(node_id)        => node_id.idx,
+            Item::Property(node_id)      => node_id.idx,
+            Item::Trait(node_id)         => node_id.idx,
+            Item::Impl(node_id)          => node_id.idx,
+            Item::Extern(node_id)        => node_id.idx,
+            Item::CustomOp(node_id)      => node_id.idx,
+            Item::Precedence(node_id)    => node_id.idx,
+            Item::PrecedenceUse(node_id) => node_id.idx,
         }
     }
 }
@@ -227,22 +229,23 @@ impl Item {
 impl AstNode for Item {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Module(module)          => logger.log_node_ref(*module),
-            Self::Use(use_item)           => logger.log_node_ref(*use_item),
-            Self::Function(fn_item)       => logger.log_node_ref(*fn_item),
-            Self::TypeAlias(type_alias)   => logger.log_node_ref(*type_alias),
-            Self::Struct(struct_item)     => logger.log_node_ref(*struct_item),
-            Self::Union(union_item)       => logger.log_node_ref(*union_item),
-            Self::Enum(enum_item)         => logger.log_node_ref(*enum_item),
-            Self::Bitfield(bitfield_item) => logger.log_node_ref(*bitfield_item),
-            Self::Const(const_item)       => logger.log_node_ref(*const_item),
-            Self::Static(static_item)     => logger.log_node_ref(*static_item),
-            Self::Property(prop_item)     => logger.log_node_ref(*prop_item),
-            Self::Trait(trait_item)       => logger.log_node_ref(*trait_item),
-            Self::Impl(impl_item)         => logger.log_node_ref(*impl_item),
-            Self::Extern(impl_block)      => logger.log_node_ref(*impl_block),
-            Self::CustomOp(impl_block)    => logger.log_node_ref(*impl_block),
-            Self::Precedence(impl_block)  => logger.log_node_ref(*impl_block),
+            Self::Module(item)        => logger.log_node_ref(*item),
+            Self::Use(item)           => logger.log_node_ref(*item),
+            Self::Function(item)      => logger.log_node_ref(*item),
+            Self::TypeAlias(item)     => logger.log_node_ref(*item),
+            Self::Struct(item)        => logger.log_node_ref(*item),
+            Self::Union(item)         => logger.log_node_ref(*item),
+            Self::Enum(item)          => logger.log_node_ref(*item),
+            Self::Bitfield(item)      => logger.log_node_ref(*item),
+            Self::Const(item)         => logger.log_node_ref(*item),
+            Self::Static(item)        => logger.log_node_ref(*item),
+            Self::Property(item)      => logger.log_node_ref(*item),
+            Self::Trait(item)         => logger.log_node_ref(*item),
+            Self::Impl(item)          => logger.log_node_ref(*item),
+            Self::Extern(item)        => logger.log_node_ref(*item),
+            Self::CustomOp(item)      => logger.log_node_ref(*item),
+            Self::Precedence(item)    => logger.log_node_ref(*item),
+            Self::PrecedenceUse(item) => logger.log_node_ref(*item),
         }
     }
 }
@@ -1453,6 +1456,35 @@ impl AstNode for Precedence {
                 logger.prefixed_log_fmt(format_args!("Associativity: {assoc}\n"));
             });
         });
+    }
+}
+
+pub struct PrecedenceUse {
+    pub group:       Option<NameId>,
+    pub package:     Option<NameId>,
+    pub library:     Option<NameId>,
+    pub precedences: Vec<NameId>,
+}
+
+impl AstNode for PrecedenceUse {
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Precedence Use", |logger| {
+            logger.log_opt(&self.group, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Group: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent_if(self.library.is_none() && self.precedences.is_empty());
+            logger.log_opt(&self.package, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Package: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent_if(self.precedences.is_empty());
+            logger.log_opt(&self.library, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Library: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent();
+            logger.log_indented_slice("Precedences", &self.precedences, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("{}", logger.resolve_name(*name)))
+            })
+        })
     }
 }
 

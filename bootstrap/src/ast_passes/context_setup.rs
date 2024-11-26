@@ -23,7 +23,6 @@ impl Visitor for ContextSetup<'_> {
         node.data = ContextNodeData::Module(ModuleContextData { 
             path: None,
             sym_path: Vec::new(),
-            sym_idx: usize::MAX,
         })
     }
 }

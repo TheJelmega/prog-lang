@@ -1,7 +1,7 @@
-use std::{fmt, path::PathBuf, sync::{Arc, RwLock}};
+use std::{fmt, path::PathBuf, sync::{Arc, Mutex, RwLock}};
 use crate::{
     ast::{Ast, AstNode, AstNodeRef},
-    common::SymbolTable,
+    common::{PrecedenceDAG, SymbolTable},
     error_warning::ErrorCode
 };
 
@@ -17,6 +17,9 @@ pub use module_attrib_resolution::*;
 mod module_symbol_generation;
 pub use module_symbol_generation::*;
 
+mod precedence_passes;
+pub use precedence_passes::*;
+
 pub struct AstError {
     node_id: usize,
     err:     ErrorCode,
@@ -31,7 +34,6 @@ impl fmt::Display for AstError {
 pub struct ModuleContextData {
     path:     Option<PathBuf>,
     sym_path: Vec<String>,
-    sym_idx:  usize,
 }
 
 pub enum ContextNodeData {
@@ -41,6 +43,7 @@ pub enum ContextNodeData {
 
 pub struct ContextNode {
     pub scope: Vec<String>,
+    pub sym_idx:  usize,
     pub data: ContextNodeData,
 }
 
@@ -59,10 +62,11 @@ pub struct Context {
     ctxs:         Vec<ContextNode>,
     syms:         Arc<RwLock<SymbolTable>>,
     mod_root:     Vec<String>,
+    precedences:  Arc<RwLock<PrecedenceDAG>>,
 }
 
 impl Context {
-    pub fn new(syms: Arc<RwLock<SymbolTable>>, mod_root: Vec<String>, ast: &Ast) -> Self {
+    pub fn new(syms: Arc<RwLock<SymbolTable>>, mod_root: Vec<String>, ast: &Ast, precedences: Arc<RwLock<PrecedenceDAG>>) -> Self {
         let mut ctxs = Vec::with_capacity(ast.nodes.len());
         ctxs.resize_with(ast.nodes.len(), || ContextNode::new());
 
@@ -71,6 +75,7 @@ impl Context {
             ctxs,
             syms,
             mod_root,
+            precedences,
         }
     }
 

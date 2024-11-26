@@ -102,8 +102,8 @@ pub enum ErrorCode {
 
     AstInvalidAttribute{ info: String } = 3000,
     AstInvalidAttributeData{ info: String } = 3001,
-
     AstInvalidModulePath { paths: Vec<String> } = 3002,
+    AstNotTopLevel { path: String, info: String } = 3003,
 }
 
 impl Display for ErrorCode {
@@ -152,7 +152,7 @@ impl Display for ErrorCode {
             // AST
             Self::AstInvalidAttribute { info }              => write!(f, "Invalid attribute: {info}"),
             Self::AstInvalidAttributeData { info }          => write!(f, "Invalid attribute data: {info}"),
-            Self::AstInvalidModulePath { paths }                => {
+            Self::AstInvalidModulePath { paths }            => {
                 write!(f, "Found invalid module, expected to find corresponding file at: ")?;
                 if !paths.is_empty() {
                     write!(f, "'{}'", paths[0])?;
@@ -162,6 +162,7 @@ impl Display for ErrorCode {
                 }
                 Ok(())
             },
+            Self::AstNotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}")
         }
     }
 }

@@ -128,6 +128,9 @@ pub trait Visitor {
         helpers::visit_precedence(self, ast, node_id);
     }
     
+    fn visit_precedence_use(&mut self, ast: &Ast, node_id: AstNodeRef<PrecedenceUse>) where Self: Sized {
+    }
+    
 // =============================================================================================================================
 
     fn visit_block(&mut self, ast: &Ast, node_id: AstNodeRef<Block>) where Self: Sized {
@@ -521,22 +524,23 @@ pub mod helpers {
 
     pub fn visit_item<T: Visitor>(visitor: &mut T, ast: &Ast, item: &Item) {
         match item {
-            Item::Module(node_id)     => visitor.visit_module(ast, *node_id),
-            Item::Use(node_id)        => visitor.visit_use(ast, *node_id),
-            Item::Function(node_id)   => visitor.visit_function(ast, *node_id),
-            Item::TypeAlias(node_id)  => visitor.visit_type_alias(ast, *node_id),
-            Item::Struct(node_id)     => visitor.visit_struct(ast, *node_id),
-            Item::Union(node_id)      => visitor.visit_union(ast, *node_id),
-            Item::Enum(node_id)       => visitor.visit_enum(ast, *node_id),
-            Item::Bitfield(node_id)   => visitor.visit_bitfield(ast, *node_id),
-            Item::Const(node_id)      => visitor.visit_const(ast, *node_id),
-            Item::Static(node_id)     => visitor.visit_static(ast, *node_id),
-            Item::Property(node_id)   => visitor.visit_property(ast, *node_id),
-            Item::Trait(node_id)      => visitor.visit_trait(ast, *node_id),
-            Item::Impl(node_id)       => visitor.visit_impl(ast, *node_id),
-            Item::Extern(node_id)     => visitor.visit_extern_block(ast, *node_id),
-            Item::CustomOp(node_id)   => visitor.visit_op_trait(ast, *node_id),
-            Item::Precedence(node_id) => visitor.visit_precedence(ast, *node_id),
+            Item::Module(node_id)        => visitor.visit_module(ast, *node_id),
+            Item::Use(node_id)           => visitor.visit_use(ast, *node_id),
+            Item::Function(node_id)      => visitor.visit_function(ast, *node_id),
+            Item::TypeAlias(node_id)     => visitor.visit_type_alias(ast, *node_id),
+            Item::Struct(node_id)        => visitor.visit_struct(ast, *node_id),
+            Item::Union(node_id)         => visitor.visit_union(ast, *node_id),
+            Item::Enum(node_id)          => visitor.visit_enum(ast, *node_id),
+            Item::Bitfield(node_id)      => visitor.visit_bitfield(ast, *node_id),
+            Item::Const(node_id)         => visitor.visit_const(ast, *node_id),
+            Item::Static(node_id)        => visitor.visit_static(ast, *node_id),
+            Item::Property(node_id)      => visitor.visit_property(ast, *node_id),
+            Item::Trait(node_id)         => visitor.visit_trait(ast, *node_id),
+            Item::Impl(node_id)          => visitor.visit_impl(ast, *node_id),
+            Item::Extern(node_id)        => visitor.visit_extern_block(ast, *node_id),
+            Item::CustomOp(node_id)      => visitor.visit_op_trait(ast, *node_id),
+            Item::Precedence(node_id)    => visitor.visit_precedence(ast, *node_id),
+            Item::PrecedenceUse(node_id) => visitor.visit_precedence_use(ast, *node_id),
         }
     }
 

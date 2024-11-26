@@ -6,20 +6,28 @@ pub struct Cli {
     pub input_files: Vec<String>,
 
     #[arg(long)]
-    pub print_lex_output: bool,
+    pub group:              Option<String>,
     #[arg(long)]
-    pub output_lex_csv: bool,
+    pub package:            String,
+
     #[arg(long)]
-    pub lex_only: bool,
+    pub library:            Option<String>,
+
+    #[arg(long)]
+    pub print_lex_output:   bool,
+    #[arg(long)]
+    pub output_lex_csv:     bool,
+    #[arg(long)]
+    pub lex_only:           bool,
 
     #[arg(long)]
     pub print_parse_output: bool,
     #[arg(long)]
-    pub parse_only: bool,
+    pub parse_only:         bool,
 
     #[arg(long)]
-    pub timings: bool,
+    pub timings:            bool,
 
     #[arg(long)]
-    pub pass_timings: bool,
+    pub pass_timings:       bool,
 }
