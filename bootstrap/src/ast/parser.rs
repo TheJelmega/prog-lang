@@ -358,15 +358,19 @@ impl Parser<'_> {
         Ok(self.add_node(TypePath{ idens }))
     }
 
+    fn parse_identifier(&mut self, dot_generics: bool) -> Result<Identifier, ParserErr> {
+        let name = self.consume_name()?;
+        let gen_args = self.parse_generic_args(dot_generics)?;
+        Ok(Identifier { name, gen_args })
+    }
+
     fn parse_expr_path(&mut self) -> Result<AstNodeRef<ExprPath>, ParserErr> {
         self.push_meta_frame();
         let inferred = self.try_consume(Token::Punctuation(Punctuation::Dot));
 
         let mut idens = Vec::new();
         loop {
-            let name = self.consume_name()?;
-            let gen_args = self.parse_generic_args(true)?;
-            idens.push(Identifier{ name, gen_args });
+            idens.push(self.parse_identifier(true)?);
 
             if self.peek()? != Token::Punctuation(Punctuation::Dot) ||!matches!(self.peek_at(1)?, Token::Name(_)) {
                 break;
@@ -1943,11 +1947,7 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::False)         |
             Token::Literal(_)                             => self.parse_literal_expr()?,
             Token::Name(_)                                |
-            Token::Punctuation(Punctuation::Dot)          => if self.peek_at(1)? == Token::OpenSymbol(OpenCloseSymbol::Brace) {
-                self.parse_inferred_struct_expr(mode != ExprParseMode::NoStructLit)?
-            } else {
-                self.parse_path_like_expr(mode != ExprParseMode::NoStructLit)?
-            },
+            Token::Punctuation(Punctuation::Dot)          => self.parse_path_expr()?,
             Token::StrongKw(StrongKeyword::Unsafe)        => self.parse_unsafe_block_expr()?,
             Token::StrongKw(StrongKeyword::Const)         => self.parse_const_block_expr()?,
             Token::StrongKw(StrongKeyword::TryExclaim)    |
@@ -2105,6 +2105,7 @@ impl Parser<'_> {
                     }))
                 }
                 
+                Token::OpenSymbol(OpenCloseSymbol::Brace)   => self.parse_struct_expr(expr, mode != ExprParseMode::NoStructLit)?,
                 Token::OpenSymbol(OpenCloseSymbol::Bracket) => self.parse_index_expr(expr)?,
                 Token::OpenSymbol(OpenCloseSymbol::Paren)   => self.parse_call_expression(expr)?,
 
@@ -2215,38 +2216,13 @@ impl Parser<'_> {
         })
     }
 
-    
-    fn parse_path_like_expr(&mut self, allow_struct: bool) -> Result<Expr, ParserErr> {
-        let path = self.parse_expr_path()?;
-
-        let peek = self.peek()?;
-        match peek {
-            Token::OpenSymbol(OpenCloseSymbol::Brace) => self.parse_path_struct_expr(path, allow_struct),
-            Token::OpenSymbol(OpenCloseSymbol::Paren) => {
-                let path_node = &mut self.ast[path];
-                if path_node.idens.len() > 1 {
-                    let method_iden = path_node.idens.pop().unwrap();
-                    let receiver = Expr::Path(self.add_node(PathExpr::Path {
-                        path,
-                    }));
-
-                    self.push_meta_frame();
-                    let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
-
-                    Ok(Expr::Method(self.add_node(MethodCallExpr {
-                        receiver,
-                        method: method_iden.name,
-                        gen_args: method_iden.gen_args,
-                        args,
-                        is_propagating: false,
-                    })))
-                } else {
-                    let expr = Expr::Path(self.add_node(PathExpr::Path { path  }));
-                    self.push_meta_frame();
-                    self.parse_call_expression(expr)
-                }
-            }
-            _ => Ok(Expr::Path(self.add_node(PathExpr::Path { path })))
+    fn parse_path_expr(&mut self) -> Result<Expr, ParserErr> {
+        if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            let iden = self.parse_identifier(true)?;
+            Ok(Expr::Path(self.add_node(PathExpr::Inferred { iden })))
+        } else {
+            let iden = self.parse_identifier(true)?;
+            Ok(Expr::Path(self.add_node(PathExpr::Named { iden })))
         }
     }
 
@@ -2386,7 +2362,7 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_path_struct_expr(&mut self, path: AstNodeRef<ExprPath>, allow: bool) -> Result<Expr, ParserErr> {
+    fn parse_struct_expr(&mut self, path: Expr, allow: bool) -> Result<Expr, ParserErr> {
         if !allow {
             let peek_1 = self.peek_at(1)?;
             let peek_2 = self.peek_at(2)?;
@@ -2394,9 +2370,7 @@ impl Parser<'_> {
                 return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
             }
 
-            return Ok(Expr::Path(self.add_node(PathExpr::Path {
-                path,
-            })));
+            return Ok(path);
         }
 
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_arg)?;
@@ -2406,21 +2380,8 @@ impl Parser<'_> {
         }
 
         Ok(Expr::Struct(self.add_node(StructExpr {
-            path: StructPath::Path { path },
+            path,
             args,
-        })))
-    }
-
-    fn parse_inferred_struct_expr(&mut self, allow: bool) -> Result<Expr, ParserErr> {
-        let args = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_arg)?;
-
-        if !allow {
-            return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
-        }
-
-        Ok(Expr::Struct(self.add_node(StructExpr {
-            path: StructPath::Inferred,
-            args: todo!(),
         })))
     }
 
@@ -2497,7 +2458,7 @@ impl Parser<'_> {
         let field = self.consume_name()?;
 
         let gen_args = self.parse_generic_args(true)?;
-        if gen_args.is_some() || self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
+        if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
             let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
             Ok(Expr::Method(self.add_node(MethodCallExpr {
                 receiver: expr,
@@ -2509,6 +2470,7 @@ impl Parser<'_> {
         } else {
             Ok(Expr::FieldAccess(self.add_node(FieldAccessExpr {
                 expr,
+                gen_args,
                 field,
                 is_propagating,
             })))

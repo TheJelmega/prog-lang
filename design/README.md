@@ -822,7 +822,7 @@ They are used in various places in expressions and patterns.
 
 ### 5.3.4. Qualified paths [↵](#53-paths-)
 ```
-<qualified-path> '(:' <type> 'as' <identifier> ':)' { '.' <path-expr-segment> }
+<qualified-path> '(:' <type> 'as' <identifier> ':)' { '.' <path-expr-segment> }*
 ```
 
 Qualified path allow for disambuating the path for trait implementations.
@@ -1221,7 +1221,7 @@ Module path    | `inner`'s file location   | `inner`'s module path
 ```
 <use-item>     := `use` <use-root> [ '.' <use-tree> ] ';'
                 | `use` <use-tree> ';'
-<use-root>     := [ <name> ] ':' [ <name> ]
+<use-root>     := [ <name> [ '.' <name> ] ] ':' [ <name> ]
 <package|name> := [ <ext-name> '.' ] <name>
 <module-name>  := <ext-name>
 <use-tree>     := <simple-path> '.' '*'
@@ -2495,8 +2495,8 @@ Literal expressions also allow a special literal operator to be applied to them,
 ## 9.3. Path expression  [↵](#9-expressions-)
 
 ```
-<path-expr> := <expr-path>
-             | '.' <ext-name>
+<path-expr> := <expr-path-ident>
+             | '.' <expr-path-ident>
              | 'self'
 ```
 
@@ -2507,6 +2507,8 @@ A path may also refer to an inferred path, which is represented by a `.`, follow
 This is currently limited to enum members when the enum type can be inferred from the surrounding context.
 
 `self` is a special case of a path expr, as it represents the receiver of a method.
+
+Path expressions are different to expression paths, if a the elements after the path expression represent that of a expression path, then this is a chain of field accesses.
 
 
 ## 9.4. Unit expression  [↵](#9-expressions-)
@@ -2951,13 +2953,20 @@ Any default arguments do not need to be provided and will be evaluated after eva
 ## 9.16. Field access [↵](#9-expressions-)
 
 ```
-<field-access-expr> := <expr> '.' <ext-name>
+<field-access-expr> := <expr> ( '.' | '?.' ) <expr-path-ident>
 ```
 
 A field expression is a place expression that evaluates to the location of a field of a struct or union.
 When the operand is mutable, the field expression is also mutable.
 
+If the `?.` access is uses, the field will only be accessed if the value it is called on is a non 'err' value, otherwise it will propagate this value.
+
 Field expression cannot be followed by an opening parenthesis, as this would be a method call expression.
+
+A field access may also include a set of generic arguments, but these must adhere to the following rules:
+- are only allowed on expressions that represent an item
+- may not come as the last element in a chain of
+- may not come after a nullable access
 
 ### 9.16.1 Automatic dereferencing [↵](#916-field-access-)
 

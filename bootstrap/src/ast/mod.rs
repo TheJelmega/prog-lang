@@ -1736,8 +1736,11 @@ impl LiteralOp {
 }
 
 pub enum PathExpr {
-    Path {
-        path: AstNodeRef<ExprPath>,
+    Named {
+        iden: Identifier,
+    },
+    Inferred {
+        iden: Identifier,
     },
     SelfPath,
 }
@@ -1745,11 +1748,16 @@ pub enum PathExpr {
 impl AstNode for PathExpr {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            PathExpr::Path { path } => logger.log_ast_node("Path Expr", |logger| {
+            PathExpr::Named { iden } => logger.log_ast_node("Path Expr", |logger| {
                 logger.set_last_at_indent();
-                logger.log_node_ref(*path);
+                iden.log(logger);
+            }),
+            PathExpr::Inferred { iden } => logger.log_ast_node("Inferred Path Expr", |logger| {
+                logger.set_last_at_indent();
+                iden.log(logger);
             }),
             PathExpr::SelfPath => {
+                logger.set_last_at_indent();
                 logger.prefixed_logln("Self Path Expr");
             },
         }
@@ -1985,13 +1993,8 @@ impl StructArg {
     }
 }
 
-pub enum StructPath {
-    Path{ path: AstNodeRef<ExprPath> },
-    Inferred,
-}
-
 pub struct StructExpr {
-    pub path: StructPath,
+    pub path: Expr,
     pub args: Vec<StructArg>,
 }
 
@@ -1999,10 +2002,7 @@ impl AstNode for StructExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Struct Expression", |logger| {
             logger.set_last_at_indent_if(self.args.is_empty());
-            match &self.path {
-                StructPath::Path { path } => logger.log_node_ref(*path),
-                StructPath::Inferred      => logger.prefixed_logln("Inferred Structure Path"),
-            }
+            logger.log_indented_node("Path", &self.path);
             logger.set_last_at_indent();
             logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
         });
@@ -2117,6 +2117,7 @@ impl AstNode for MethodCallExpr {
 pub struct FieldAccessExpr {
     pub expr:           Expr,
     pub field:          NameId,
+    pub gen_args:       Option<AstNodeRef<GenericArgs>>,
     pub is_propagating: bool
 }
 
@@ -2125,6 +2126,7 @@ impl AstNode for FieldAccessExpr {
         logger.log_ast_node("Field Access Expression", |logger| {
             logger.prefixed_log_fmt(format_args!("Is Propagating: {}\n", self.is_propagating));
             logger.prefixed_log_fmt(format_args!("Field Name: {}\n", logger.resolve_name(self.field)));
+            logger.log_indented_opt_node_ref("Generics", &self.gen_args);
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });

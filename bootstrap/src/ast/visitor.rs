@@ -1249,11 +1249,6 @@ pub mod helpers {
     }
 
     pub fn visit_path_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<PathExpr>) {
-        let node = &ast[node_id];
-        match &ast[node_id] {
-            PathExpr::Path { path } => visitor.visit_expr_path(ast, *path),
-            PathExpr::SelfPath => {},
-        }
     }
 
     pub fn visit_block_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<BlockExpr>) {
@@ -1316,9 +1311,7 @@ pub mod helpers {
 
     pub fn visit_struct_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<StructExpr>) {
         let node = &ast[node_id];
-        if let StructPath::Path { path } = node.path {
-            visitor.visit_expr_path(ast, path);
-        }
+        visitor.visit_expr(ast, &node.path);
         for arg in &node.args {
             match arg {
                 StructArg::Expr(_, expr)  => visitor.visit_expr(ast, expr),
