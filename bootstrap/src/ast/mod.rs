@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    common::{NameId, NameTable},
+    common::{IndentLogger, NameId, NameTable},
     lexer::{Punctuation, PuncutationTable, StrongKeyword, WeakKeyword},
     literals::{LiteralId, LiteralTable},
 };
@@ -741,8 +741,7 @@ impl RegStructField {
             RegStructField::Use { attrs, vis, is_mut, path } => logger.log_indented("Use Field", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Is Mut: {is_mut}\n"));
+                logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 logger.set_last_at_indent();
                 logger.log_node_ref(*path);
             }),
@@ -865,8 +864,7 @@ impl AstNode for Enum {
             Enum::Flag { attrs, vis, name, variants } => logger.log_ast_node("Flag Enum", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
-                logger.write_prefix();
-                logger.log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Variants", variants, |logger, variant| variant.log(logger));
             }),
@@ -1646,10 +1644,7 @@ impl AstNode for Expr {
         match self {
             Self::Literal(lit)      => logger.log_node_ref(*lit),
             Self::Path(path)        => logger.log_node_ref(*path),
-            Self::Unit              => {
-                logger.write_prefix();
-                logger.logln("Unit Expression");
-            },
+            Self::Unit              => logger.prefixed_logln("Unit Expression"),
             Self::Block(block)      => logger.log_node_ref(*block),
             Self::Prefix(expr)      => logger.log_node_ref(*expr),
             Self::Postfix(expr)     => logger.log_node_ref(*expr),
@@ -2885,8 +2880,7 @@ pub enum StringSliceType {
 impl AstNode for StringSliceType {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("String Slice Type", |logger| {
-            logger.write_prefix();
-            logger.log("StringSlice: ");
+            logger.prefixed_log("StringSlice: ");
             match self {
                 StringSliceType::Str   => logger.logln("str"),
                 StringSliceType::Str7  => logger.logln("str7"),
@@ -3241,7 +3235,7 @@ pub struct AstLogger<'a> {
     literals:     &'a LiteralTable,
     puncts:       &'a PuncutationTable,
 
-    indent_count: u8,
+    logger:       IndentLogger,
     indent_kinds: Vec<bool>,
 
     node_id:      usize,
@@ -3254,7 +3248,7 @@ impl<'a> AstLogger<'a> {
             names,
             literals,
             puncts,
-            indent_count: 0,
+            logger: IndentLogger::new("    ", "|   ", "+---"),
             indent_kinds: vec![true],
             node_id: 0,
         }
@@ -3262,65 +3256,44 @@ impl<'a> AstLogger<'a> {
 }
 
 impl AstLogger<'_> {
-    pub fn write_prefix(&self) {
-        for bit in &self.indent_kinds[..self.indent_kinds.len() - 1]   {
-            if *bit {
-                self.log("|   ");
-            } else {
-                self.log("    ");
-            }
-        }
-        self.log("+---")
+    pub fn log(&self, s: &str) {
+        self.logger.log(s);
     }
     
     pub fn prefixed_log(&self, s: &str) {
-        self.write_prefix();
-        self.log(s);
-    }
-    
-    pub fn log(&self, s: &str) {
-        self.log_fmt(format_args!("{s}"));
+        self.logger.prefixed_log(s);
     }
     
     pub fn logln(&self, s: &str) {
-        self.log_fmt(format_args!("{s}\n"));
+        self.logger.logln(s);
     }
 
     pub fn prefixed_logln(&self, s: &str) {
-        self.write_prefix();
-        self.logln(s);
+        self.logger.prefixed_logln(s);
     }
 
     pub fn log_fmt(&self, args: fmt::Arguments) {
-        let stdout = std::io::stdout();
-        _ = stdout.lock().write_fmt(args);
+        self.logger.log_fmt(args);
     }
 
     pub fn prefixed_log_fmt(&self, args: fmt::Arguments) {
-        self.write_prefix();
-        self.log_fmt(args);
+        self.logger.prefixed_log_fmt(args);
     }
 
     pub fn push_indent(&mut self) {
-        self.indent_kinds.push(true);
+        self.logger.push_indent();
     }
 
     pub fn pop_indent(&mut self) {
-        self.indent_kinds.pop();
+        self.logger.pop_indent();
     }
 
     pub fn set_last_at_indent(&mut self) {
-        if let Some(val) = self.indent_kinds.last_mut() {
-            *val = false;
-        }
+        self.logger.set_last_at_indent();
     }
 
     pub fn set_last_at_indent_if(&mut self, cond: bool) {
-        if cond {
-            if let Some(val) = self.indent_kinds.last_mut() {
-                *val = false;
-            }
-        }
+        self.logger.set_last_at_indent_if(cond);
     }
 
     pub fn resolve_name(&self, id: NameId) -> &str {
@@ -3373,8 +3346,7 @@ impl AstLogger<'_> {
         };
 
 
-        self.write_prefix();
-        self.log_fmt(format_args!("[ {name} ] (node id: {}, tokens: [{first_tok}..{last_tok}])\n", self.node_id));
+        self.prefixed_log_fmt(format_args!("[ {name} ] (node id: {}, tokens: [{first_tok}..{last_tok}])\n", self.node_id));
         self.push_indent();
         f(self);
         self.pop_indent();
@@ -3383,8 +3355,7 @@ impl AstLogger<'_> {
     pub fn log_indented<F>(&mut self, name: &'static str, f: F) where
         F: Fn(&mut Self)
     {
-        self.write_prefix();
-        self.logln(name);
+        self.prefixed_logln(name);
         self.push_indent();
         f(self);
         self.pop_indent();
@@ -3412,8 +3383,7 @@ impl AstLogger<'_> {
     }
 
     pub fn log_indented_node<T: AstNode>(&mut self, name: &'static str, node: &T) {
-        self.write_prefix();
-        self.logln(name);
+        self.prefixed_logln(name);
         self.push_indent();
         self.set_last_at_indent();
         node.log(self);
