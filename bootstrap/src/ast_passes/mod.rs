@@ -48,13 +48,14 @@ impl ContextNode {
     fn new() -> Self {
         Self {
             scope: Vec::new(),
+            sym_idx: usize::MAX,
             data: ContextNodeData::None,
         }
     }
 }
 
 pub struct Context {
-    pub errors:   Vec<AstError>,
+    pub errors:   Mutex<Vec<AstError>>,
     ctxs:         Vec<ContextNode>,
     syms:         Arc<RwLock<SymbolTable>>,
     mod_root:     Vec<String>,
@@ -66,7 +67,7 @@ impl Context {
         ctxs.resize_with(ast.nodes.len(), || ContextNode::new());
 
         Self {
-            errors: Vec::new(),
+            errors: Mutex::new(Vec::new()),
             ctxs,
             syms,
             mod_root,
@@ -90,5 +91,9 @@ impl Context {
 
     pub fn get_node_for_mut<T>(&mut self, id: AstNodeRef<T>) -> &mut ContextNode {
         self.get_node_for_index_mut(id.index())
+    }
+
+    pub fn add_error(&self, err: AstError) {
+        self.errors.lock().unwrap().push(err);
     }
 }

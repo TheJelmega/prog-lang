@@ -59,11 +59,11 @@ impl Visitor for ModulePathResolution<'_> {
             Some(path) => {
                 for comp in path.components() {
                     match comp {
-                        std::path::Component::Prefix(_) => self.ctx.errors.push(AstError {
+                        std::path::Component::Prefix(_) => self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
-                        std::path::Component::RootDir => self.ctx.errors.push(AstError {
+                        std::path::Component::RootDir => self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
@@ -99,7 +99,7 @@ impl Visitor for ModulePathResolution<'_> {
                 let cur_name = ctx_node.scope.last().unwrap();
 
                 let Some(Symbol::Module(mod_sym)) = syms.get_symbol(base_scope, cur_name) else {
-                    self.ctx.errors.push(AstError {
+                    self.ctx.add_error(AstError {
                         node_id: node_id.index(),
                         err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                     });
@@ -127,7 +127,7 @@ impl Visitor for ModulePathResolution<'_> {
                     path.push("mod.xn");   
 
                     if !path.is_file() {
-                        self.ctx.errors.push(AstError {
+                        self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidModulePath { paths: err_paths },
                         });
@@ -143,7 +143,7 @@ impl Visitor for ModulePathResolution<'_> {
                     path.push("mod.xn");
                     if !path.is_file() {
                         err_paths.push(path.to_str().unwrap().to_string());
-                        self.ctx.errors.push(AstError {
+                        self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidModulePath { paths: err_paths },
                         });

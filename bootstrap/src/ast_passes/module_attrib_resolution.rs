@@ -36,13 +36,13 @@ impl Visitor for ModuleAttributeResolver<'_> {
             for meta in &ast[*attr].metas {
                 match meta {
                     AttribMeta::Simple { .. } => {
-                        self.ctx.errors.push(AstError {
+                        self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have simple attributes") },
                         })
                     },
                     AttribMeta::Expr { .. } => {
-                        self.ctx.errors.push(AstError {
+                        self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have expression-only attributes") },
                         })
@@ -52,7 +52,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                         
                         if path.names.len() == 1 || path.names[0] == self.path_name_id {
                             let Expr::Literal(lit_node_id) = expr else { 
-                                self.ctx.errors.push(AstError {
+                                self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
                                     err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                 });
@@ -60,7 +60,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                             };
 
                             let LiteralValue::Lit(lit_id) = ast[*lit_node_id].literal else { 
-                                self.ctx.errors.push(AstError {
+                                self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
                                     err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                 });
@@ -72,7 +72,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                                 match lit {
                                     Literal::String(path) => Some(path.into()),
                                     _ => {
-                                        self.ctx.errors.push(AstError {
+                                        self.ctx.add_error(AstError {
                                             node_id: node_id.index(),
                                             err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                         });
@@ -88,7 +88,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                         
                     },
                     AttribMeta::Meta { .. } => {
-                        self.ctx.errors.push(AstError {
+                        self.ctx.add_error(AstError {
                             node_id: node_id.index(),
                             err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have nested attributes") },
                         })
