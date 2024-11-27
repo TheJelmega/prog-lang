@@ -592,6 +592,10 @@ impl Lexer<'_> {
         ("apl_alpha",                        '⍺'),
     ];
 
+    pub fn stats(&self) -> (u64, u64, u64) {
+        (self.byte_offset, self.char_offset, self.line as u64)
+    }
+
     fn consume_bytes(&mut self, num_bytes: u32) {
         self.byte_offset += num_bytes as u64;
         self.cursor = &self.cursor[num_bytes as usize..];

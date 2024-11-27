@@ -6,7 +6,7 @@ use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor};
 use cli::Cli;
-use common::{NameTable, PrecedenceDAG, SymbolTable};
+use common::{CompilerStats, NameTable, PrecedenceDAG, SymbolTable};
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 
@@ -51,10 +51,13 @@ fn main() {
     let mut name_table = NameTable::new();
     let mut punct_table = PuncutationTable::new();
 
+    let mut stats = CompilerStats::new();
+
     while let Some((input_file, base_scope)) = files_to_process.pop() {
         println!("================================================================");
         println!("File path: {cwd}/{input_file}");
 
+        stats.add_file();
 
         let mut file = File::open(&input_file).unwrap();
 
@@ -74,11 +77,20 @@ fn main() {
                 return;
             },
         };
+        let (num_lexed_bytes, num_lexed_chars, num_lexed_lines) = lexer.stats();
         let tokens = lexer.tokens;
         
         if cli.timings {
             let lex_dur = time::Instant::now() - lex_start;
             println!("Lexing {input_file} took {:.2} ms, generating {} tokens", lex_dur.as_secs_f32() * 1000.0, tokens.tokens.len());
+
+            stats.add_lex(
+                lex_dur,
+                num_lexed_bytes,
+                num_lexed_chars,
+                num_lexed_lines,
+                tokens.tokens.len() as u64
+            );
         }
     
         if cli.print_lex_output {
@@ -123,6 +135,7 @@ fn main() {
 
         if cli.timings {
             let parse_dur = time::Instant::now() - parse_start;
+            stats.add_parse(parse_dur, ast.nodes.len() as u64);
             println!("Parsing {input_file} took {:.2} ms, generating {} nodes", parse_dur.as_secs_f32() * 1000.0, ast.nodes.len() );
         }
 
@@ -143,23 +156,23 @@ fn main() {
             precedences.clone()
         );
 
-        do_ast_pass(&cli, &input_file, "Context Setup", || {
+        do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {
             let mut pass = ast_passes::ContextSetup::new(&mut ast_ctx);
             pass.visit(&ast);
         });
 
-        do_ast_pass(&cli, &input_file, "Module Scoping", || {
+        do_ast_pass(&cli, &mut stats, &input_file, "Module Scoping", || {
             let mut pass = ast_passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &name_table);
             pass.visit(&ast);
         });
         
-        do_ast_pass(&cli, &input_file, "Module Attribute Resolve", || {
+        do_ast_pass(&cli, &mut stats, &input_file, "Module Attribute Resolve", || {
             let mut pass = ast_passes::ModuleAttributeResolver::new(&mut ast_ctx, &name_table, &literal_table);
             pass.visit(&ast);
         });
 
         let mut sub_paths = Vec::new();
-        do_ast_pass(&cli, &input_file, "Module Symbol Generation + Path Collection", || {
+        do_ast_pass(&cli, &mut stats, &input_file, "Module Symbol Generation + Path Collection", || {
             let mut input_path = PathBuf::from(input_file.clone());
             input_path.pop();
             let mut pass = ast_passes::ModulePathResolution::new(&mut ast_ctx, &name_table, input_path);
@@ -189,13 +202,13 @@ fn main() {
     println!("================================================================");
     println!("Post-parse AST passes:");
 
-    do_ast_for_all_passes(&cli, "Precedence Collection", &mut asts, |ast, ast_ctx| {
+    do_ast_for_all_passes(&cli, &mut stats, "Precedence Collection", &mut asts, |ast, ast_ctx| {
         let mut pass = ast_passes::PrecedenceCollection::new(ast_ctx, &name_table);
         pass.visit(ast);
     });
 
     let mut imported_precedences = Vec::new();
-    do_ast_for_all_passes(&cli, "Precedence Import", &mut asts, |ast, ast_ctx| {
+    do_ast_for_all_passes(&cli, &mut stats, "Precedence Import", &mut asts, |ast, ast_ctx| {
         let mut pass = ast_passes::PrecedenceImportCollection::new(ast_ctx, &name_table, cli.package.clone());
         pass.visit(ast);
 
@@ -206,7 +219,7 @@ fn main() {
 
     // TODO: External precedences importing happens here
 
-    do_ast_for_all_passes(&cli, "Precedence Connection", &mut asts, |ast, ast_ctx| {
+    do_ast_for_all_passes(&cli, &mut stats, "Precedence Connection", &mut asts, |ast, ast_ctx| {
         let mut pass = ast_passes::PrecedenceConnection::new(ast_ctx, &name_table);
         pass.visit(ast);
     });
@@ -221,22 +234,32 @@ fn main() {
 
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;
-        println!("Compiler took {:.2}s", total_dur.as_secs_f32());
+
+        println!("================================================================");
+        stats.log();
+
+        let mut total_time = total_dur.as_secs_f32();
+        let hours = (total_time / 3600.0).floor();
+        total_time -= hours * 3600.0;
+        let minutes = (total_time / 60.0).floor();
+        total_time -= minutes * 60.0;
+        println!("Compiler took {hours}:{minutes}:{total_time:.3}");
     }
 }
 
-fn do_ast_pass<F>(cli: &Cli, input_file: &str, pass_name: &str, f: F) where 
+fn do_ast_pass<F>(cli: &Cli, stats: &mut CompilerStats, input_file: &str, pass_name: &str, f: F) where 
     F: FnOnce()
 {
     let start = time::Instant::now();
     f();
     if cli.pass_timings {
-        let parse_dur = time::Instant::now() - start;
-        println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", parse_dur.as_secs_f32() * 1000.0);
+        let pass_dur = time::Instant::now() - start;
+        stats.add_ast_pass(pass_dur);
+        println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", pass_dur.as_secs_f32() * 1000.0);
     }
 }
 
-fn do_ast_for_all_passes<F>(cli: &Cli, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, mut f: F) where
+fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, mut f: F) where
     F: FnMut(&ast::Ast, &mut ast_passes::Context)
 {
     for (ast, ctx) in asts {
@@ -245,9 +268,10 @@ fn do_ast_for_all_passes<F>(cli: &Cli, pass_name: &str, asts: &mut Vec<(ast::Ast
         f(ast, ctx);
         
         if cli.pass_timings {
-            let parse_dur = time::Instant::now() - start;
+            let pass_dur = time::Instant::now() - start;
+            stats.add_ast_pass(pass_dur);
             let input_file = ast.file.to_str().unwrap();
-            println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", parse_dur.as_secs_f32() * 1000.0);
+            println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", pass_dur.as_secs_f32() * 1000.0);
         }
     }
 }
