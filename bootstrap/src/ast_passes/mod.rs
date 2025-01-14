@@ -20,6 +20,10 @@ pub use module_symbol_generation::*;
 mod precedence_passes;
 pub use precedence_passes::*;
 
+mod operator_passes;
+pub use operator_passes::*;
+
+
 pub struct AstError {
     node_id: usize,
     err:     ErrorCode,
