@@ -1,6 +1,6 @@
 
 mod logger;
-use std::time;
+use std::{fmt, time};
 
 pub use logger::*;
 
@@ -97,7 +97,7 @@ impl CompilerStats {
 
     pub fn log(&self) {
         let logger = Logger::new();
-        logger.log_fmt(format_args!("Files processed: \n"));
+        logger.log_fmt(format_args!("Files processed: {}\n", self.file_count));
 
         logger.logln("- Lexer:");
         logger.log_fmt(format_args!("    Time: {:.2}ms\n", self.lex_time.as_secs_f32() * 1000.0));
