@@ -124,6 +124,9 @@ pub trait Visitor {
         helpers::visit_op_trait(self, ast, node_id);
     }
     
+    fn visit_op_use(&mut self, ast: &Ast, node_id: AstNodeRef<OpUse>) where Self: Sized {
+    }
+
     fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
         helpers::visit_precedence(self, ast, node_id);
     }
@@ -468,8 +471,6 @@ pub trait Visitor {
 }
 
 pub mod helpers {
-    use std::backtrace;
-
     use super::*;
 
     pub fn visit<T: Visitor>(visitor: &mut T, ast: &Ast) {
@@ -538,7 +539,8 @@ pub mod helpers {
             Item::Trait(node_id)         => visitor.visit_trait(ast, *node_id),
             Item::Impl(node_id)          => visitor.visit_impl(ast, *node_id),
             Item::Extern(node_id)        => visitor.visit_extern_block(ast, *node_id),
-            Item::CustomOp(node_id)      => visitor.visit_op_trait(ast, *node_id),
+            Item::OpTrait(node_id)       => visitor.visit_op_trait(ast, *node_id),
+            Item::OpUse(node_id)         => visitor.visit_op_use(ast, *node_id),
             Item::Precedence(node_id)    => visitor.visit_precedence(ast, *node_id),
             Item::PrecedenceUse(node_id) => visitor.visit_precedence_use(ast, *node_id),
         }
@@ -1079,9 +1081,6 @@ pub mod helpers {
                 }
                 if let Some(vis) = vis {
                     visitor.visit_visibility(ast, *vis);
-                }
-                if let Some(precedence) = precedence {
-                    visitor.visit_simple_path(ast, *precedence);
                 }
                 for elem in elems {
                     visit_op_elem(visitor, ast, elem);

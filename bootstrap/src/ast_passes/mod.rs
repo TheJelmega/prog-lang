@@ -39,6 +39,10 @@ pub struct ModuleContextData {
 pub enum ContextNodeData {
     None,
     Module(ModuleContextData),
+    Precedence(u16),
+    Infix {
+        reorder: bool,
+    },
 }
 
 pub struct ContextNode {
@@ -56,29 +60,35 @@ impl ContextNode {
 }
 
 pub struct Context {
+    pub lib_path: LibraryPath,
     pub errors:   Mutex<Vec<AstError>>,
     ctxs:         Vec<ContextNode>,
     syms:         Arc<RwLock<SymbolTable>>,
     mod_root:     Scope,
     precedences:  Arc<RwLock<PrecedenceDAG>>,
+    operators:    Arc<RwLock<OperatorTable>>,
 }
 
 impl Context {
     pub fn new(
+        lib_path: LibraryPath,
         syms: Arc<RwLock<SymbolTable>>,
         mod_root: Scope,
         ast: &Ast,
         precedences: Arc<RwLock<PrecedenceDAG>>,
+        operators: Arc<RwLock<OperatorTable>>
     ) -> Self {
         let mut ctxs = Vec::with_capacity(ast.nodes.len());
         ctxs.resize_with(ast.nodes.len(), || ContextNode::new());
 
         Self {
+            lib_path,
             errors: Mutex::new(Vec::new()),
             ctxs,
             syms,
             mod_root,
             precedences,
+            operators,
         }
     }
 

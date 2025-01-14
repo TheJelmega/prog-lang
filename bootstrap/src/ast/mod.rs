@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::{
-    common::{IndentLogger, NameId, NameTable},
-    lexer::{Punctuation, PuncutationTable, StrongKeyword, WeakKeyword},
+    common::{IndentLogger, NameId, NameTable, OpType},
+    lexer::{Punctuation, PunctuationId, PuncutationTable, StrongKeyword, WeakKeyword},
     literals::{LiteralId, LiteralTable},
 };
 
@@ -197,7 +197,8 @@ pub enum Item {
     Trait(AstNodeRef<Trait>),
     Impl(AstNodeRef<Impl>),
     Extern(AstNodeRef<ExternBlock>),
-    CustomOp(AstNodeRef<OpTrait>),
+    OpTrait(AstNodeRef<OpTrait>),
+    OpUse(AstNodeRef<OpUse>),
     Precedence(AstNodeRef<Precedence>),
     PrecedenceUse(AstNodeRef<PrecedenceUse>),
 }
@@ -219,7 +220,8 @@ impl Item {
             Item::Trait(node_id)         => node_id.idx,
             Item::Impl(node_id)          => node_id.idx,
             Item::Extern(node_id)        => node_id.idx,
-            Item::CustomOp(node_id)      => node_id.idx,
+            Item::OpTrait(node_id)       => node_id.idx,
+            Item::OpUse(node_id)         => node_id.idx,
             Item::Precedence(node_id)    => node_id.idx,
             Item::PrecedenceUse(node_id) => node_id.idx,
         }
@@ -243,7 +245,8 @@ impl AstNode for Item {
             Self::Trait(item)         => logger.log_node_ref(*item),
             Self::Impl(item)          => logger.log_node_ref(*item),
             Self::Extern(item)        => logger.log_node_ref(*item),
-            Self::CustomOp(item)      => logger.log_node_ref(*item),
+            Self::OpTrait(item)       => logger.log_node_ref(*item),
+            Self::OpUse(item)         => logger.log_node_ref(*item),
             Self::Precedence(item)    => logger.log_node_ref(*item),
             Self::PrecedenceUse(item) => logger.log_node_ref(*item),
         }
@@ -1300,32 +1303,12 @@ impl AstNode for ExternBlock {
     }
 }
 
-// TODO: might be moved to different file
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OpType {
-    Prefix,
-    Infix,
-    Postfix,
-    Assign,
-}
-
-impl fmt::Display for OpType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OpType::Prefix    => write!(f, "prefix"),
-            OpType::Infix     => write!(f, "infix"),
-            OpType::Postfix   => write!(f, "postfix"),
-            OpType::Assign    => write!(f, "assign"),
-        }
-    }
-}
-
 pub enum OpTrait {
     Base {
         attrs:      Vec<AstNodeRef<Attribute>>,
         vis:        Option<AstNodeRef<Visibility>>,
         name:       NameId,
-        precedence: Option<AstNodeRef<SimplePath>>,
+        precedence: Option<NameId>,
         elems:      Vec<OpElem>,
     },
     Extended {
@@ -1347,7 +1330,9 @@ impl AstNode for OpTrait {
                 logger.set_last_at_indent_if(precedence.is_none() && elems.is_empty());
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent_if(elems.is_empty());
-                logger.log_indented_opt_node_ref("Precedence", precedence);
+                logger.log_opt(precedence, |logger, precedence| {
+                    logger.log_fmt(format_args!("Precedence: {}", logger.resolve_name(*precedence)))
+                });
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
             }),
@@ -1404,6 +1389,35 @@ impl OpElem {
             }),
             OpElem::Contract { expr } => logger.log_indented_node_ref("Contract", *expr),
         }
+    }
+}
+
+pub struct OpUse {
+    pub group:     Option<NameId>,
+    pub package:   Option<NameId>,
+    pub library:   Option<NameId>,
+    pub operators: Vec<Punctuation>,
+}
+
+impl AstNode for OpUse {
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Operator Use", |logger| {
+            logger.log_opt(&self.group, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Group: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent_if(self.library.is_none() && self.operators.is_empty());
+            logger.log_opt(&self.package, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Package: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent_if(self.operators.is_empty());
+            logger.log_opt(&self.library, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("Library: {}", logger.resolve_name(*name)))
+            });
+            logger.set_last_at_indent();
+            logger.log_indented_slice("Precedences", &self.operators, |logger, punct| {
+                logger.prefixed_log_fmt(format_args!("{}", logger.resolve_punctuation(*punct)))
+            })
+        })
     }
 }
 
@@ -1858,25 +1872,8 @@ impl AstNode for PostfixExpr {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum InfixOp {
-    Punct(Punctuation),
-    Contains,
-    NotContains,
-}
-
-impl InfixOp {
-    fn log(&self, logger: &mut AstLogger) {
-        match self {
-            InfixOp::Punct(punct) => logger.prefixed_log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(*punct))),
-            InfixOp::Contains     => logger.prefixed_logln("Op: in"),
-            InfixOp::NotContains  => logger.prefixed_logln("Op: !in"),
-        }
-    }
-}
-
 pub struct InfixExpr {
-    pub op:    InfixOp,
+    pub op:    Punctuation,
     pub left:  Expr,
     pub right: Expr,
 }
@@ -1884,7 +1881,7 @@ pub struct InfixExpr {
 impl AstNode for InfixExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Infix expression", |logger| {
-            self.op.log(logger);
+            logger.prefixed_log_fmt(format_args!("Op: {}\n", logger.resolve_punctuation(self.op)));
             logger.log_node(&self.left);
             logger.set_last_at_indent();
             logger.log_node(&self.right);

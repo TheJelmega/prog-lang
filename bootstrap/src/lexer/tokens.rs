@@ -256,7 +256,7 @@ impl WeakKeyword {
     ];
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Punctuation {
     Dot,
     DotDot,
@@ -280,6 +280,10 @@ pub enum Punctuation {
     SingleArrowR,
     SingleArrowL,
     DoubleArrow,
+
+    // Special cases
+    Contains,
+    NotContains,
 
     Custom(PunctuationId),
 }
@@ -316,6 +320,9 @@ impl Punctuation {
             Self::SingleArrowR => "->",
             Self::SingleArrowL => "<-",
             Self::DoubleArrow  => "=>",
+
+            Self::Contains     => "in",
+            Self::NotContains  => "!in",
          
             Self::Custom(_)    => "custom_punct",
         }

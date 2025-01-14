@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::common::NameId;
 
 use super::Logger;
@@ -21,10 +23,19 @@ impl PrecedenceImportPath {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PrecedenceOrder {
+    None,
+    Less,
+    Greater,
+}
+
 struct PrecedenceNode {
-    prev: Vec<u16>,
-    next: Vec<u16>,
-    name: String,
+    prev:         Vec<u16>,
+    next:         Vec<u16>,
+    name:         String,
+    precomp_prev: Vec<u16>,
+    is_precomped: bool,
 }
 
 pub struct PrecedenceDAG {
@@ -56,6 +67,8 @@ impl PrecedenceDAG {
             prev: Vec::new(),
             next: Vec::new(),
             name,
+            precomp_prev: Vec::new(),
+            is_precomped: false,
         });
         id
     }
@@ -82,6 +95,81 @@ impl PrecedenceDAG {
 
         self.nodes[lower as usize].next.push(higher);
         self.nodes[higher as usize].prev.push(lower);
+    }
+
+    pub fn precompute_order(&mut self) {
+        // Before precomputing the order, check and fixup (if needed) the following
+        // - lowest cannot have any predecessors
+        // - highest cannot have any successors
+        // - if not lowest and no predecessor exists, assign lowest as predecessor
+        // - if not hightest and no successor exists, assign highest as successor
+        let mut to_connect = Vec::new();
+        for (idx, node) in self.nodes.iter().enumerate() {
+            let id = idx as u16;
+            if id == self.lowest || id == self.highest {
+                continue;
+            }
+
+            if node.prev.is_empty() {
+                to_connect.push((self.lowest, id));
+            }
+            if node.next.is_empty() {
+                to_connect.push((id, self.highest));
+            }
+        }
+        for (lower, higher) in to_connect {
+            self.set_order(lower, higher);
+        }
+
+        // Now go over the nodes and collect the set of previous nodes, if it's not processed yet, skip them
+        let mut to_process = VecDeque::new();
+        for id in &self.nodes[self.lowest as usize].next {
+            to_process.push_back(*id);
+        }
+
+        while let Some(id) = to_process.pop_front() {
+            let node = &self.nodes[id as usize];
+            
+            // Check if we can already process it, if not, push it on the back
+            for prev in &node.prev {
+                if *prev != self.lowest && self.nodes[*prev as usize].precomp_prev.is_empty() {
+                    to_process.push_back(id);
+                    continue;
+                }
+            }
+
+            // Otherwise collect all lower nodes, dedup and sort them
+            let mut precomp_prev = Vec::new();
+            for prev in &node.prev {
+                let prev_node = &self.nodes[*prev as usize];
+                for tmp in &prev_node.precomp_prev {
+                    precomp_prev.push(*tmp);
+                }
+            }
+
+            precomp_prev.dedup();
+            precomp_prev.sort();
+
+            self.nodes[id as usize].precomp_prev = precomp_prev;
+        }
+    }
+
+    // returns `None` if there is no relation between the precedences
+    // otherwise `Some(x)` where `x` means `pred0` comes before `pred1`
+    pub fn get_order(&self, pred0: u16, pred1: u16) -> Option<bool> {
+        assert!((pred0 as usize) < self.nodes.len());
+        assert!((pred1 as usize) < self.nodes.len());
+        
+        // See if pred0 comes before pred1
+        if self.nodes[pred1 as usize].precomp_prev.contains(&pred0) {
+            Some(true)
+        } else if self.nodes[pred0 as usize].precomp_prev.contains(&pred1) {
+            // See if pred1 comes after pred0
+            Some(false)
+        } else {
+            // otherwise there is no precedence relation
+            None
+        }
     }
 
     pub fn log_unordered(&self) {

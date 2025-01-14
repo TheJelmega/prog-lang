@@ -1,12 +1,12 @@
-use crate::{ast::*, common::{NameTable, PrecedenceImportPath, Symbol}, error_warning::ErrorCode};
+use crate::{ast::*, common::{NameId, NameTable, PrecedenceImportPath, Symbol}, error_warning::ErrorCode, literals::{Literal, LiteralTable}};
 
-use super::{AstError, Context};
+use super::{AstError, Context, ContextNodeData};
 
 
 
 
 pub struct PrecedenceCollection<'a> {
-    ctx:     &'a Context,
+    ctx:     &'a mut Context,
     names:   &'a NameTable,
 }
 
@@ -32,26 +32,130 @@ impl Visitor for PrecedenceCollection<'_> {
             precedences.add_precedence(name.to_string())
         };
 
-        let mut syms = self.ctx.syms.write().unwrap();
-        syms.add_precedence(&scope, name, id);
+        {
+            let mut syms = self.ctx.syms.write().unwrap();
+            syms.add_precedence(&scope, name, id);
+        }
+
+        let ctx_node = self.ctx.get_node_for_mut(node_id);
+        let ContextNodeData::Precedence(prec_id) = &mut ctx_node.data else { unreachable!() };
+        *prec_id = id;
+    }
+}
+
+pub struct PrecedenceAttribute<'a> {
+    ctx:             &'a Context,
+    lit_table:       &'a LiteralTable,
+    builtin_name_id: NameId,
+}
+
+impl<'a> PrecedenceAttribute<'a> {
+    pub fn new(ctx: &'a Context, names: &'a NameTable, literals: &'a LiteralTable) -> Self {
+        let builtin_name_id = names.get_id_for_str("builtin");
+        Self {
+            ctx,
+            lit_table: literals,
+            builtin_name_id,
+        }
+    }
+}
+
+impl Visitor for PrecedenceAttribute<'_> {
+    fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
+        let node = &ast[node_id];
+
+        let ContextNodeData::Precedence(id) = &self.ctx.get_node_for(node_id).data else { unreachable!() };
+
+        for attr_id in &node.attrs {
+            let attr = &ast[*attr_id];
+            for meta in &attr.metas {
+                match meta {
+                    AttribMeta::Simple { .. } => self.ctx.add_error(AstError {
+                            node_id: node_id.index(),
+                            err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                        }),
+                    AttribMeta::Expr { .. } => self.ctx.add_error(AstError {
+                        node_id: node_id.index(),
+                        err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                    }),
+                    AttribMeta::Assign { path, expr } => {
+                        let path = &ast[*path];
+                        
+                        if path.names.len() == 1 || path.names[0] == self.builtin_name_id {
+                            let Expr::Literal(lit_node_id) = expr else { 
+                                self.ctx.add_error(AstError {
+                                    node_id: node_id.index(),
+                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                });
+                                continue;
+                            };
+
+                            let LiteralValue::Lit(lit_id) = ast[*lit_node_id].literal else { 
+                                self.ctx.add_error(AstError {
+                                    node_id: node_id.index(),
+                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                });
+                                continue;
+                            };
+
+                            let name = {
+                                let lit = &self.lit_table[lit_id];
+                                match lit {
+                                    Literal::String(path) => path.to_string(),
+                                    _ => {
+                                        self.ctx.add_error(AstError {
+                                            node_id: node_id.index(),
+                                            err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                        });
+                                        continue;
+                                    },
+                                }
+                            };
+
+                            match name.as_str() {
+                                "lowest_precedence" => {
+                                    let mut precedences = self.ctx.precedences.write().unwrap();
+                                    precedences.set_lowest(*id);
+                                },
+                                "highest_precedence" => {
+                                    let mut precedences = self.ctx.precedences.write().unwrap();
+                                    precedences.set_highest(*id);
+                                },
+                                _ => {
+                                    self.ctx.add_error(AstError {
+                                        node_id: node_id.index(),
+                                        err: ErrorCode::AstInvalidAttributeData { info: format!("Only 'highest_precedence' and 'lowest_precedence' are allowed builtin attributes on precedences") },
+                                    });
+                                    continue;
+                                },
+                            }
+                            
+                            
+                        }
+                    },
+                    AttribMeta::Meta { .. } => self.ctx.add_error(AstError {
+                        node_id: node_id.index(),
+                        err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                    }),
+                }
+            }
+        }
     }
 }
 
 pub struct PrecedenceImportCollection<'a> {
     ctx:         &'a Context,
     names:       &'a NameTable,
-    package:     String,
     top_level:   bool,
     pub imports: Vec<PrecedenceImportPath>
 }
 
 impl<'a> PrecedenceImportCollection<'a> {
-    pub fn new(ctx: &'a Context, names: &'a NameTable, package: String) -> Self {
+    pub fn new(ctx: &'a Context, names: &'a NameTable) -> Self {
         let top_level = ctx.mod_root.is_empty();
         Self {
             ctx,
             names,
-            package,
             top_level,
             imports: Vec::new(),
         }
@@ -68,13 +172,7 @@ impl Visitor for PrecedenceImportCollection<'_> {
         if !self.top_level {
             let scope = &self.ctx.get_node_for(node_id).scope;
 
-            let mut path = String::new();
-            for (idx, segment) in scope.iter().enumerate() {
-                if idx != 0 {
-                    path.push('.');
-                }
-                path.push_str(segment);
-            }
+            let path = scope.to_string();
 
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),
@@ -91,7 +189,7 @@ impl Visitor for PrecedenceImportCollection<'_> {
         let group = node.group.map(|group| self.names[group].to_string());
         let package = match node.package {
             Some(package) => self.names[package].to_string(),
-            None          => self.package.clone(),
+            None          => self.ctx.lib_path.package.clone(),
         };
         let library = match node.library {
             Some(library) => self.names[library].to_string(),
@@ -103,7 +201,6 @@ impl Visitor for PrecedenceImportCollection<'_> {
 
             let import_path = PrecedenceImportPath::new(group.clone(), package.clone(), library.clone(), name.clone());
             self.imports.push(import_path);
-            self.ctx.precedences.write().unwrap().add_precedence(name);
         }
     }
 }

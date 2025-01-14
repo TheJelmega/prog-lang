@@ -7,6 +7,9 @@ pub use logger::*;
 mod precedence;
 pub use precedence::*;
 
+mod operators;
+pub use operators::*;
+
 mod names;
 pub use names::*;
 
@@ -17,6 +20,23 @@ mod scope;
 pub use scope::*;
 
 
+
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct LibraryPath {
+    pub group:  Option<String>,
+    pub package: String,
+    pub library: String,
+}
+
+impl fmt::Display for LibraryPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(group) = &self.group {
+            write!(f, "{}.", group)?;
+        }
+        write!(f, "{}:{}", &self.package, &self.library)
+    }
+}
 
 
 

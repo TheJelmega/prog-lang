@@ -104,6 +104,12 @@ pub enum ErrorCode {
     AstInvalidAttributeData{ info: String } = 3001,
     AstInvalidModulePath { paths: Vec<String> } = 3002,
     AstNotTopLevel { path: String, info: String } = 3003,
+
+    AstPrecedenceDoesNotExist{ precedence: String } = 3010,
+
+    AstOperatorDoesNotExist { op: String } = 3020,
+    AstOperatorNoPrecedence { op: String } = 3021,
+    AstOperatorNoOrder { op0: String, op1: String } = 3022,
 }
 
 impl Display for ErrorCode {
@@ -162,7 +168,11 @@ impl Display for ErrorCode {
                 }
                 Ok(())
             },
-            Self::AstNotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}")
+            Self::AstNotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}"),
+            Self::AstPrecedenceDoesNotExist { precedence }  => write!(f, "Precedence does not exist: {precedence}"),
+            Self::AstOperatorDoesNotExist { op }            => write!(f, "Operator does not exist: {op}"),
+            Self::AstOperatorNoPrecedence { op }            => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
+            Self::AstOperatorNoOrder { op0, op1 }           => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
         }
     }
 }

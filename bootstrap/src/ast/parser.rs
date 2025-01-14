@@ -451,7 +451,11 @@ impl Parser<'_> {
             },
             Token::StrongKw(StrongKeyword::Type)     |
             Token::WeakKw(WeakKeyword::Distinct)     => self.parse_type_alias(attrs, vis).map(|item| Item::TypeAlias(item)),
-            Token::WeakKw(WeakKeyword::Op)           => self.parse_op_trait(attrs, vis),
+            Token::WeakKw(WeakKeyword::Op)           => if self.try_peek() == Some(Token::StrongKw(StrongKeyword::Use)) {
+                self.parse_op_use(attrs, vis)
+            } else {
+                self.parse_op_trait(attrs, vis)
+            },
             Token::StrongKw(StrongKeyword::Const) => if self.check_peek(&[1, 2, 4, 5], Token::StrongKw(StrongKeyword::Fn)) {
                     self.parse_function(attrs, vis).map(|item| Item::Function(item))
                 } else {
@@ -1605,7 +1609,7 @@ impl Parser<'_> {
 
             (bases, None)
         } else if self.try_consume(Token::Punctuation(Punctuation::Or)) {
-            let precedence = self.parse_simple_path(true)?;
+            let precedence = self.consume_name()?;
             (Vec::new(), Some(precedence))
         } else {
             (Vec::new(), None)
@@ -1614,7 +1618,7 @@ impl Parser<'_> {
         let elems = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_op_elem)?;
 
         if !bases.is_empty() {
-            Ok(Item::CustomOp(self.add_node(OpTrait::Extended {
+            Ok(Item::OpTrait(self.add_node(OpTrait::Extended {
                 attrs,
                 vis,
                 name,
@@ -1622,7 +1626,7 @@ impl Parser<'_> {
                 elems,
             })))
         } else {
-            Ok(Item::CustomOp(self.add_node(OpTrait::Base {
+            Ok(Item::OpTrait(self.add_node(OpTrait::Base {
                 attrs,
                 vis,
                 name,
@@ -1677,6 +1681,51 @@ impl Parser<'_> {
             let def = self.parse_expr(ExprParseMode::General)?;
             Ok(OpElem::Extend { op_type, op, def })
         }
+    }
+
+    fn parse_op_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        self.consume_weak_kw(WeakKeyword::Op)?;
+        self.consume_strong_kw(StrongKeyword::Use)?;
+
+        let peek = self.peek()?;
+        let (group, package) = match peek {
+            Token::Punctuation(Punctuation::Colon) => (None, None),
+            Token::Name(name_id) => {
+                self.consume_single();
+                if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+                    let package_name_id = self.consume_name()?;
+                    (Some(name_id), Some(package_name_id))
+                } else {
+                    (None, Some(name_id))
+                }
+            },
+            _ => return Err(self.gen_error(ErrorCode::ParseExpectPackageName{ found: peek })),
+        };
+        self.consume_punct(Punctuation::Colon)?;
+
+        let peek = self.peek()?;
+        let library = match peek {
+            Token::Punctuation(Punctuation::Dot) => None,
+            Token::Name(name_id) => {
+                self.consume_single();
+                Some(name_id)
+            },
+            _ => return Err(self.gen_error(ErrorCode::ParseExpectModuleName{ found: peek })),
+        };
+
+
+        let operators = if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_any_punct)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Item::OpUse(self.add_node(OpUse {
+            group,
+            package,
+            library,
+            operators,
+        })))
     }
 
     fn parse_precedence(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
@@ -2118,7 +2167,7 @@ impl Parser<'_> {
                             } else if has_prev_whitespace {
                                let right = self.parse_expr(mode)?;
                                 Expr::Infix(self.add_node(InfixExpr {
-                                    op: InfixOp::Punct(op),
+                                    op,
                                     left: expr,
                                     right,
                                 }))
@@ -2131,7 +2180,7 @@ impl Parser<'_> {
                         } else {    
                             let right = self.parse_expr(mode)?;
                             Expr::Infix(self.add_node(InfixExpr {
-                                op: InfixOp::Punct(op),
+                                op,
                                 left: expr,
                                 right,
                             }))
@@ -2141,10 +2190,10 @@ impl Parser<'_> {
                 Token::StrongKw(StrongKeyword::In) |
                 Token::StrongKw(StrongKeyword::ExclaimIn) => {
                     let op = if self.try_consume(Token::StrongKw(StrongKeyword::ExclaimIn)) {
-                        InfixOp::NotContains
+                        Punctuation::NotContains
                     } else {
                         self.consume_strong_kw(StrongKeyword::In)?;
-                        InfixOp::Contains
+                        Punctuation::Contains
                     };
                     let right = self.parse_expr(mode)?;
                     Expr::Infix(self.add_node(InfixExpr {
