@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::{ast::*, common::Scope};
 
 use super::{Context, ContextNodeData, ModuleContextData};
 
@@ -22,7 +22,19 @@ impl Visitor for ContextSetup<'_> {
         let node = self.ctx.get_node_for_mut(node_id);
         node.data = ContextNodeData::Module(ModuleContextData { 
             path: None,
-            sym_path: Vec::new(),
+            sym_path: Scope::new(),
         })
+    }
+
+    fn visit_precedence(&mut self, _ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
+        let node = self.ctx.get_node_for_mut(node_id);
+        node.data = ContextNodeData::Precedence(u16::MAX);
+    }
+
+    fn visit_binary_expr(&mut self, ast: &Ast, node_id: AstNodeRef<InfixExpr>) where Self: Sized {
+        let node = self.ctx.get_node_for_mut(node_id);
+        node.data = ContextNodeData::Infix { reorder: false };
+
+        helpers::visit_binary_expr(self, ast, node_id);
     }
 }

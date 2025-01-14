@@ -106,4 +106,13 @@ impl IndentLogger {
             }
         }
     }
+
+    pub fn log_indented<F>(&mut self, name: &str, f: F) where
+        F: Fn(&mut Self)
+    {
+        self.prefixed_logln(name);
+        self.push_indent();
+        f(self);
+        self.pop_indent();
+    }
 }

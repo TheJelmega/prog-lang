@@ -1,10 +1,11 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
+    fmt::Write,
     fmt,
 };
 
-use super::IndentLogger;
+use super::{IndentLogger, Scope, ScopeSegment};
 
 
 
@@ -26,7 +27,7 @@ pub struct PrecedenceSymbol {
 
 
 pub struct SymbolTable {
-    nodes: HashMap<String, Symbol>,
+    nodes: HashMap<String, Vec<(Vec<String>, Symbol)>>,
 }
 
 impl SymbolTable {
@@ -36,52 +37,96 @@ impl SymbolTable {
         }
     }
 
-    pub fn add_module(&mut self, scope: &[String], name: String, file_path: PathBuf) {
+    pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) {
+        let sym = Symbol::Module(ModuleSymbol{
+            name: name.clone(),
+            path: file_path,
+            sub_table: SymbolTable::new(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_precedence(&mut self, scope: &Scope, name: String, id: u16) {
+        let sym = Symbol::Precedence(PrecedenceSymbol {
+            name: name.clone(),
+            id,
+        }); 
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) {
         if !scope.is_empty() {
-            let sub_table = self.find_subtable_mut(&scope[0]).unwrap();
-            sub_table.add_module(&scope[1..], name, file_path);
+            let sub_table = self.find_subtable_mut(&scope.root().unwrap()).unwrap();
+            sub_table.add_symbol(&scope.sub_path(), name, params, sym);
         } else {
-            let sym = Symbol::Module(ModuleSymbol{
-                name: name.clone(),
-                path: file_path,
-                sub_table: SymbolTable::new(),
-            });
-            self.nodes.insert(name, sym);
+            let params = Vec::from(params);
+            let sub_syms = if let Some(syms) = self.nodes.get_mut(name) {
+                syms
+            } else {
+                self.nodes.insert(name.to_string(), Vec::new());
+                self.nodes.get_mut(name).unwrap()
+            };
+            sub_syms.push((Vec::from(params), sym));
         }
     }
 
-    pub fn add_precedence(&mut self, scope: &[String], name: String, id: u16) {
+    pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<&Symbol> {
         if !scope.is_empty() {
-            let sub_table = self.find_subtable_mut(&scope[0]).unwrap();
-            sub_table.add_precedence(&scope[1..], name, id);
+            let sub_table = self.find_subtable(scope.root().unwrap())?;
+            sub_table.get_symbol(&scope.sub_path(), name)
         } else {
-            let sym = Symbol::Precedence(PrecedenceSymbol {
-                name: name.clone(),
-                id,
-            }); 
-            self.nodes.insert(name, sym);
-        }   
-    }
-
-    pub fn get_symbol(&self, scope: &[String], name: &str) -> Option<&Symbol> {
-        if !scope.is_empty() {
-            let sub_table = self.find_subtable(&scope[0])?;
-            sub_table.get_symbol(&scope[1..], name)
-        } else {
-            self.nodes.get(name)
+            let sub_syms = self.nodes.get(name)?;
+            if sub_syms.len() == 1 {
+                Some(&sub_syms[0].1)
+            } else {
+                let mut tmp = None;
+                for (params, sym) in sub_syms {
+                    if params.is_empty() {
+                        tmp = Some(sym);
+                        break;
+                    }
+                }
+                tmp
+            }
         }
     }
 
-    fn find_subtable(&self, name: &str) -> Option<&SymbolTable> {
-        let symbol = self.nodes.get(name)?;
+    fn find_subtable(&self, segment: &ScopeSegment) -> Option<&SymbolTable> {
+        let sub_syms = self.nodes.get(&segment.name)?;
+        let symbol = if sub_syms.len() == 1 {
+            &sub_syms[0].1
+        } else {
+            let mut tmp = None;
+            for (params, sym) in sub_syms {
+                if &segment.params == params {
+                    tmp = Some(sym);
+                    break;
+                }
+            }
+            tmp?
+        };
+
         match symbol {
             Symbol::Module(sym) => Some(&sym.sub_table),
             _ => None,
         }
     }
 
-    fn find_subtable_mut(&mut self, name: &str) -> Option<&mut SymbolTable> {
-        let symbol = self.nodes.get_mut(name)?;
+    fn find_subtable_mut(&mut self, segment: &ScopeSegment) -> Option<&mut SymbolTable> {
+        let sub_syms = self.nodes.get_mut(&segment.name)?;
+        let symbol = if sub_syms.len() == 1 {
+            &mut sub_syms[0].1
+        } else {
+            let mut tmp = None;
+            for (params, sym) in sub_syms {
+                if &segment.params == params {
+                    tmp = Some(sym);
+                    break;
+                }
+            }
+            tmp?
+        };
+
         match symbol {
             Symbol::Module(sym) => Some(&mut sym.sub_table),
             _ => None,
@@ -92,8 +137,8 @@ impl SymbolTable {
 
 
     pub fn log(&self) {
-        let mut logger = SymbolTableLogger::new();
-        logger.log_table(self);
+        let mut logger = IndentLogger::new("    ", "|   ", "+---");
+        SymbolTableLogger::log_table(&mut logger, self);
     }
 }
 
@@ -103,81 +148,46 @@ struct SymbolTableLogger {
 
 #[allow(unused)]
 impl SymbolTableLogger {
-    fn new() -> Self {
-        Self {
-            logger: IndentLogger::new("    ", "|   ", "+---"),
-        }
-    }
-
-    pub fn log(&self, s: &str) {
-        self.logger.log(s);
-    }
-    
-    pub fn prefixed_log(&self, s: &str) {
-        self.logger.prefixed_log(s);
-    }
-    
-    pub fn logln(&self, s: &str) {
-        self.logger.logln(s);
-    }
-
-    pub fn prefixed_logln(&self, s: &str) {
-        self.logger.prefixed_logln(s);
-    }
-
-    pub fn log_fmt(&self, args: fmt::Arguments) {
-        self.logger.log_fmt(args);
-    }
-
-    pub fn prefixed_log_fmt(&self, args: fmt::Arguments) {
-        self.logger.prefixed_log_fmt(args);
-    }
-
-    pub fn push_indent(&mut self) {
-        self.logger.push_indent();
-    }
-
-    pub fn pop_indent(&mut self) {
-        self.logger.pop_indent();
-    }
-
-    pub fn set_last_at_indent(&mut self) {
-        self.logger.set_last_at_indent();
-    }
-
-    pub fn set_last_at_indent_if(&mut self, cond: bool) {
-        self.logger.set_last_at_indent_if(cond);
-    }
-
-    pub fn log_indented<F>(&mut self, name: &'static str, f: F) where
-        F: Fn(&mut Self)
-    {
-        self.prefixed_logln(name);
-        self.push_indent();
-        f(self);
-        self.pop_indent();
-    }
-
-    fn log_table(&mut self, table: &SymbolTable) {
-        for (idx, (_, symbol)) in table.nodes.iter().enumerate() {
+    fn log_table(logger: &mut IndentLogger, table: &SymbolTable) {
+        for (idx, (_, symbols)) in table.nodes.iter().enumerate() {
             if idx == table.nodes.len() - 1 {
-                self.set_last_at_indent();
+                logger.set_last_at_indent();
             }
-            self.log_symbol(symbol);
+
+            if symbols.len() == 1 && symbols[0].0.is_empty() {
+                Self::log_symbol(logger, &symbols[0].1);
+            } else { 
+                for (params, sym) in symbols {
+                    let mut params_s = String::new();
+                    if !params.is_empty() {
+                        write!(&mut params_s, "(");
+                        for (idx, param) in params.iter().enumerate() {
+                            if idx != 0 {
+                                write!(&mut params_s, ", ");
+                            }
+                            write!(&mut params_s, "{}", param);
+                        }
+                        write!(&mut params_s, ")");
+                    }
+
+                    logger.log_indented(&params_s, |logger| Self::log_symbol(logger, sym))
+                }
+            }
+
         }
     }
 
-    fn log_symbol(&mut self, sym: &Symbol) {
+    fn log_symbol(logger: &mut IndentLogger, sym: &Symbol) {
         match sym {
-            Symbol::Module(sym) => self.log_indented("Module", |logger| {
+            Symbol::Module(sym) => logger.log_indented("Module", |logger| {
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path.to_str().unwrap()));
                 logger.set_last_at_indent();
                 logger.log_indented("Sub Table", |logger| {
-                    logger.log_table(&sym.sub_table);
+                    Self::log_table(logger, &sym.sub_table);
                 })
             }),
-            Symbol::Precedence(sym) => self.log_indented("Precedence", |logger| {
+            Symbol::Precedence(sym) => logger.log_indented("Precedence", |logger| {
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
                 logger.prefixed_log_fmt(format_args!("Id: {}\n", sym.id));
             }),

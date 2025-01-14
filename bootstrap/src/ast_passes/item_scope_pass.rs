@@ -1,16 +1,16 @@
 use super::Context;
-use crate::{ast::*, common::NameTable};
+use crate::{ast::*, common::{NameTable, Scope}};
 
 
 
 pub struct ModuleScopePass<'a> {
     ctx: &'a mut Context,
-    scope: Vec<String>,
+    scope: Scope,
     names: &'a NameTable,
 }
 
 impl<'a> ModuleScopePass<'a> {
-    pub fn new(ctx: &'a mut Context, base_scope: Vec<String>, names: &'a NameTable) -> Self {
+    pub fn new(ctx: &'a mut Context, base_scope: Scope, names: &'a NameTable) -> Self {
         Self {
             ctx,
             scope: base_scope,
@@ -52,24 +52,29 @@ impl Visitor for ModuleScopePass<'_> {
         self.scope.pop();
     }
 
+    // Only item that can have nested items
+    fn visit_function(&mut self, ast: &Ast, node_id: AstNodeRef<Function>) where Self: Sized {
+        let node = &ast[node_id];
+        let name = self.names[node.name].to_string();
 
+        let mut param_names = Vec::new();
+        let mut anon_idx = 0;
+        for param in &node.params {
+            for name in &param.names {
+                if let Some(label) = name.label {
+                    param_names.push(self.names[label].to_string())
+                } else if let Pattern::Identifier(pattern_id) = name.pattern {
+                    let pattern = &ast[pattern_id];
+                    param_names.push(self.names[pattern.name].to_string());
+                } else {
+                    param_names.push(format!("__anon_{anon_idx}"));
+                    anon_idx += 1;
+                }
+            }
+        }
 
-
-
-
-    fn visit_stmt(&mut self, _ast: &Ast, _node: &Stmt) where Self: Sized {
-        // Ignore
-    }
-
-    fn visit_expr(&mut self, _ast: &Ast, _node: &Expr) where Self: Sized {
-        // Ignore
-    }
-
-    fn visit_pattern(&mut self, ast: &Ast, node: &Pattern) where Self: Sized {
-        // Ignore
-    }
-
-    fn visit_type(&mut self, ast: &Ast, node: &Type) where Self: Sized {
-        // Ignore
+        self.scope.push_with_params(name, param_names);
+        helpers::visit_function(self, ast, node_id);
+        self.scope.pop();
     }
 }

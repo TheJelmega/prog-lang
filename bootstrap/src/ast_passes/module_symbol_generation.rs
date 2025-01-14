@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::{ast::*, common::{NameTable, Symbol}, error_warning::ErrorCode};
+use crate::{ast::*, common::{NameTable, Scope, Symbol}, error_warning::ErrorCode};
 
 use super::{AstError, Context, ContextNodeData};
 
@@ -13,7 +13,7 @@ pub struct ModulePathResolution<'a> {
     names:           &'a NameTable,
     base_path:       PathBuf,
     path_stack:      Vec<PathBuf>,
-    pub collected_paths: Vec<(PathBuf, Vec<String>)>,
+    pub collected_paths: Vec<(PathBuf, Scope)>,
 }
 
 impl<'a> ModulePathResolution<'a> {
@@ -95,8 +95,8 @@ impl Visitor for ModulePathResolution<'_> {
                 true
             } else {
                 let syms = self.ctx.syms.read().unwrap();
-                let base_scope = &ctx_node.scope[..ctx_node.scope.len() - 1];
-                let cur_name = ctx_node.scope.last().unwrap();
+                let base_scope = &ctx_node.scope.parent();
+                let cur_name = &ctx_node.scope.last().unwrap().name;
 
                 let Some(Symbol::Module(mod_sym)) = syms.get_symbol(base_scope, cur_name) else {
                     self.ctx.add_error(AstError {
