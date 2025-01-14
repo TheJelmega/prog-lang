@@ -1336,25 +1336,13 @@ pub mod helpers {
     }
 
     pub fn visit_fn_call_expr<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<FnCallExpr>) {
-        match &ast[node_id] {
-            FnCallExpr::Expr { expr, args } => {
-                visitor.visit_expr(ast, expr);
-                for arg in args {
-                    match arg {
-                        FnArg::Expr(expr)              => visitor.visit_expr(ast, expr),
-                        FnArg::Labeled { label, expr } => visitor.visit_expr(ast, expr),
-                    }
-                }
-            },
-            FnCallExpr::Qual { path, args } => {
-                visitor.visit_qualified_path(ast, *path);
-                for arg in args {
-                    match arg {
-                        FnArg::Expr(expr)              => visitor.visit_expr(ast, expr),
-                        FnArg::Labeled { label, expr } => visitor.visit_expr(ast, expr),
-                    }
-                }
-            },
+        let node = &ast[node_id];
+        visitor.visit_expr(ast, &node.expr);
+        for arg in &node.args {
+            match arg {
+                FnArg::Expr(expr)              => visitor.visit_expr(ast, expr),
+                FnArg::Labeled { label, expr } => visitor.visit_expr(ast, expr),
+            }
         }
     }
 
@@ -1547,20 +1535,41 @@ pub mod helpers {
 
     pub fn visit_struct_pattern<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<StructPattern>) {
         let node = &ast[node_id];
-        for field in &node.fields {
-            match field {
-                StructPatternField::Named { name, pattern }       => visitor.visit_pattern(ast, pattern),
-                StructPatternField::TupleIndex { idx, pattern }   => visitor.visit_pattern(ast, pattern),
-                StructPatternField::Iden { is_ref, is_mut, iden } => {},
-                StructPatternField::Rest                          => {},
-            }
+        match node {
+            StructPattern::Inferred { fields } => for field in fields {
+                match field {
+                    StructPatternField::Named { name, pattern }       => visitor.visit_pattern(ast, pattern),
+                    StructPatternField::TupleIndex { idx, pattern }   => visitor.visit_pattern(ast, pattern),
+                    StructPatternField::Iden { is_ref, is_mut, iden } => {},
+                    StructPatternField::Rest                          => {},
+                }
+            },
+            StructPattern::Path { path, fields } => {
+                visitor.visit_expr_path(ast, *path);
+                for field in fields {
+                    match field {
+                        StructPatternField::Named { name, pattern }       => visitor.visit_pattern(ast, pattern),
+                        StructPatternField::TupleIndex { idx, pattern }   => visitor.visit_pattern(ast, pattern),
+                        StructPatternField::Iden { is_ref, is_mut, iden } => {},
+                        StructPatternField::Rest                          => {},
+                    }
+                }
+            },
         }
     }
 
     pub fn visit_tuple_struct_pattern<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TupleStructPattern>) {
         let node = &ast[node_id];
-        for pattern in &node.patterns {
-            visitor.visit_pattern(ast, pattern);
+        match node {
+            TupleStructPattern::Named { path, patterns } => {
+                visitor.visit_expr_path(ast, *path);
+                for pattern in patterns {
+                    visitor.visit_pattern(ast, pattern);
+                }
+            },
+            TupleStructPattern::Inferred { patterns } => for pattern in patterns {
+                visitor.visit_pattern(ast, pattern);
+            },
         }
     }
 

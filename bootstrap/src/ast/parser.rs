@@ -2326,17 +2326,7 @@ impl Parser<'_> {
 
     fn parse_qualified_path_expr(&mut self) -> Result<Expr, ParserErr> {
         let path = self.parse_qualified_path()?;
-
-        let peek = self.peek()?;
-        if peek == Token::OpenSymbol(OpenCloseSymbol::Paren) {
-            let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
-            Ok(Expr::FnCall(self.add_node(FnCallExpr::Qual {
-                path,
-                args
-            })))
-        } else {
-            Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "qualified path expression" }))
-        }
+        Ok(Expr::Path(self.add_node(PathExpr::Qualified { path })))
     }
 
     fn parse_block_expr(&mut self, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
@@ -2527,7 +2517,7 @@ impl Parser<'_> {
 
     fn parse_call_expression(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
-        Ok(Expr::FnCall(self.add_node(FnCallExpr::Expr {
+        Ok(Expr::FnCall(self.add_node(FnCallExpr{
             expr,
             args
         })))
@@ -2904,7 +2894,11 @@ impl Parser<'_> {
             Token::Punctuation(Punctuation::Ampersand)    => self.parse_reference_pattern()?,
             Token::OpenSymbol(OpenCloseSymbol::Paren)     => self.parse_tuple_like_pattern()?,
             Token::OpenSymbol(OpenCloseSymbol::Bracket)   => self.parse_slice_pattern()?,
-            Token::Punctuation(Punctuation::Dot)          => self.parse_enum_member_pattern()?,
+            Token::Punctuation(Punctuation::Dot)          => if self.try_peek_at(1) == Some(Token::OpenSymbol(OpenCloseSymbol::Brace)) {
+                self.parse_inferred_struct_pattern()?
+            } else {
+                self.parse_enum_member_pattern()?
+            },
             Token::StrongKw(StrongKeyword::Is)            => self.parse_type_check_pattern()?,
             _                                             => self.parse_path_like_pattern()?,
         };
@@ -3006,7 +3000,7 @@ impl Parser<'_> {
                 },
                 OpenCloseSymbol::Brace => {
                     let fields = self.parse_comma_separated_closed(sym, Self::parse_struct_pattern_field)?;
-                    Ok(Pattern::Struct(self.add_node(StructPattern{ fields })))
+                    Ok(Pattern::Struct(self.add_node(StructPattern::Path{ path, fields })))
                 },
                 _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
             }
@@ -3051,6 +3045,12 @@ impl Parser<'_> {
             }
             _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "struct pattern field" }))
         }
+    }
+
+    fn parse_inferred_struct_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        self.consume_punct(Punctuation::Dot)?;
+        let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_pattern_field)?;
+        Ok(Pattern::Struct(self.add_node(StructPattern::Inferred { fields })))
     }
 
     fn parse_enum_member_pattern(&mut self) -> Result<Pattern, ParserErr> {

@@ -811,7 +811,7 @@ Simple path are used for visitility, attributes, macros and use items.
 ```
 
 Paths in experessions allow for paths with generic arguments specified.
-They are used in various places in expressions and patterns.
+They are used in various places in expressions and patterns, but cannot appear on their own, as they are different from path expressions.
 
 ### 5.3.3. Paths in types [↵](#53-paths-)
 
@@ -2498,6 +2498,7 @@ Literal expressions also allow a special literal operator to be applied to them,
 <path-expr> := <expr-path-ident>
              | '.' <expr-path-ident>
              | 'self'
+             | <qualified-path>
 ```
 
 A path expression uses a path to refer to a local variable or item.
@@ -2880,7 +2881,7 @@ This expressions is a place expression, so it evaluates to the location of tuple
 ## 9.14. Call expression [↵](#9-expressions-)
 
 ```
-<func-call> := ( <expr> | <qualified-path> ) '(' [ <function-args> ] ')'
+<func-call> := <expr> '(' [ <function-args> ] ')'
 <func-args> := <func-arg> { ',' <func-arg> }* [ ',' ]
 <func-args> := [ <name> ':' ] <expr>
 ```
@@ -3413,7 +3414,7 @@ Similar to identifier patterns, 'mut' can be added to make the resulting variabl
 ## 10.7. Struct pattern [↵](#10-patterns-)
 
 ```
-<struct-pattern> := <path> '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ] '}'
+<struct-pattern> := ( <path> | '.' ) '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ] '}'
 <struct-pattern-elem> := ( <attribute> )* ( <struct-pattern-elem-tuple> | <struct-pattern-elem-member> | <struct-pattern-elem-iden> )
 <struct-pattern-elem-tuple> := <tuple-index> ':' <pattern>
 <struct-pattern-elem-member> := <ext-name> ':' pattern
@@ -3423,6 +3424,8 @@ Similar to identifier patterns, 'mut' can be added to make the resulting variabl
 A struct pattern can match struct, enum, and union values that match the defined criteria in the subpatterns.
 The also allow for the value to be deconstructed to its members.
 
+Struct pattern can also have an inferred path by starting it with a '.'
+
 There are 3 ways of matching elements:
 - Using a tuple element in case of tuple-like types
 - Using a values name, followed by a pattern
@@ -3431,10 +3434,12 @@ There are 3 ways of matching elements:
 ## 10.8. Tuple struct pattern [↵](#10-patterns-)
 
 ```
-<tuple-struct-pattern> := <path> '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-pattern> ] ] ) ) | <rest-pattern> ')'
+<tuple-struct-pattern> := ( <path> | '.' ) '(' ( ( <pattern> ( ',' <pattern> ) [ ',' [ <rest-pattern> ] ] ) ) | <rest-pattern> ')'
 ```
 
 A tuple struct pattern can match tuple structs that match the defined criteria in the subpatterns.
+
+Tuple struct pattern can also have an inferred path by starting it with a '.'
 
 ## 10.9. Tuple pattern [↵](#10-patterns-)
 
@@ -5313,6 +5318,21 @@ It will then set the value of the assignee to the value of perfroming the operat
 Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
 A mutable borrow to the assignee is automatically taken
 
+## 14.5. Precedence scoping and use
+
+```
+<operator-use> := 'op' 'use' <use-root> [ '.' '{' <operator> { ',' <operator> }* [ ',' ] '}' ]
+```
+
+Operators have some special scoping rules, as they are not scoped relative to the module that contains them, but they are exclusibly at the global.
+Note that this only counts for operators and not their associated traits, as an `op trait` is a combined declaration of both operators in the global scope and their associated traits at the module scope.
+
+If a type implements multiple traits, which in their turn define the same operator, this will cause an ambiguous operator overload and will cause an error.
+In these cases, the relevant function associated with the wanted implementation of the operator needs to be called.
+
+If multiple libraries are imported using an `op use`, this will cause a compiler error, only 1 version of each operator should be imported within the current scope, unless the operator is defined within the current library, as this will take priority over imported operators.
+
+Unlike importing their associated traits, `op use`s are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root, and must not be nested within a module in that file.
 
 # 15. Precedence [↵](#tables-of-contents)
 
@@ -5418,7 +5438,7 @@ This means that a library may not contain 2 precedences with the same name, no m
 
 Precedences also are not imported from other files using a standard use declaration, but are instead imported by a special 'precedence use'.
 Precedence uses declare a use root defining where the precedences are located, followed by an optional list of specific precedences to include.
-Unlike precedence items which can be defined within a nested module, precedence uses are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root.
+Unlike precedence items which can be defined within a nested module, precedence uses are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root, and must not be nested within a module in tht file.
 
 When a precedence is imported, its name may not conflict with those of any other precedence declared within the library or imported from an external library.
 

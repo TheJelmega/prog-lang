@@ -1630,7 +1630,7 @@ impl AstNode for ExprStmt {
 
 // =============================================================================================================================
 
-
+#[derive(Clone, Copy)]
 pub enum Expr {
     Literal(AstNodeRef<LiteralExpr>),
     // Can include a sequence of field accesses
@@ -1784,6 +1784,9 @@ pub enum PathExpr {
         iden: Identifier,
     },
     SelfPath,
+    Qualified {
+        path: AstNodeRef<QualifiedPath>,
+    }
 }
 
 impl AstNode for PathExpr {
@@ -1801,6 +1804,10 @@ impl AstNode for PathExpr {
                 logger.set_last_at_indent();
                 logger.prefixed_logln("Self Path Expr");
             },
+            PathExpr::Qualified { path } => logger.log_ast_node("Qualified Path Expr", |logger| {
+                logger.set_last_at_indent();
+                logger.log_node_ref(*path);
+            })
         }
     }
 }
@@ -2087,33 +2094,19 @@ impl FnArg {
     }
 }
 
-pub enum FnCallExpr {
-    Expr {
-        expr: Expr,
-        args: Vec<FnArg>,
-    },
-    Qual {
-        path: AstNodeRef<QualifiedPath>,
-        args: Vec<FnArg>,
-    },
+pub struct FnCallExpr {
+    expr: Expr,
+    args: Vec<FnArg>,
 }
 
 impl AstNode for FnCallExpr {
     fn log(&self, logger: &mut AstLogger) {
-        match self {
-            Self::Expr { expr, args } => logger.log_ast_node("Expression Function Call", |logger| {
-                logger.set_last_at_indent_if(args.is_empty());
-                logger.log_indented_node("Function", expr);
-                logger.set_last_at_indent();
-                logger.log_indented_slice("Arguments", args, |logger, arg| arg.log(logger));
-            }),
-            Self::Qual { path, args } => logger.log_ast_node("Qualified Function Call", |logger| {
-                logger.set_last_at_indent_if(args.is_empty());
-                logger.log_indented_node_ref("Qualified path", *path);
-                logger.set_last_at_indent();
-                logger.log_indented_slice("Arguments", args, |logger, arg| arg.log(logger));
-            }),
-        }
+        logger.log_ast_node("Expression Function Call", |logger| {
+            logger.set_last_at_indent_if(self.args.is_empty());
+            logger.log_indented_node("Function", &self.expr);
+            logger.set_last_at_indent();
+            logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
+        });
     }
 }
 
@@ -2574,15 +2567,29 @@ impl AstNode for ReferencePattern {
     }
 }
 
-pub struct StructPattern {
-    pub fields: Vec<StructPatternField>,
+pub enum StructPattern {
+    Inferred {
+        fields: Vec<StructPatternField>,
+    },
+    Path {
+        path:   AstNodeRef<ExprPath>,
+        fields: Vec<StructPatternField>,
+    }
 }
 
 impl AstNode for StructPattern {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Struct Pattern", |logger| {
-            logger.set_last_at_indent();
-            logger.log_indented_slice("Fields", &self.fields, |logger, field| field.log(logger));
+        logger.log_ast_node("Struct Pattern", |logger| match self {
+            StructPattern::Inferred { fields } => {
+                logger.prefixed_logln("Inferred Path");
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
+            },
+            StructPattern::Path { path, fields } => {
+                logger.log_indented_node_ref("Path", *path);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
+            },
         });
     }
 }
@@ -2630,15 +2637,30 @@ impl StructPatternField {
     }
 }
 
-pub struct TupleStructPattern {
-    pub patterns: Vec<Pattern>,
+pub enum TupleStructPattern {
+    Named {
+        path:     AstNodeRef<ExprPath>,
+        patterns: Vec<Pattern>,
+    },
+    Inferred {
+        patterns: Vec<Pattern>,
+    }
 }
 
 impl AstNode for TupleStructPattern {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Tuple Struct Pattern", |logger| {
-            logger.set_last_at_indent();
-            logger.log_indented_node_slice("Patterns", &self.patterns);
+            match self {
+                TupleStructPattern::Named { path, patterns } => {
+                    logger.prefixed_logln("Inferred Path");
+                    logger.set_last_at_indent();
+                    logger.log_indented_node_slice("Patterns", patterns);
+                },
+                TupleStructPattern::Inferred { patterns } => {
+                    logger.set_last_at_indent();
+                    logger.log_indented_node_slice("Patterns", patterns);
+                },
+            }
         });
     }
 }
