@@ -6,7 +6,7 @@ use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor};
 use cli::Cli;
-use common::{CompilerStats, NameTable, PrecedenceDAG, SymbolTable};
+use common::{CompilerStats, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, Scope, SymbolTable};
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 
@@ -17,11 +17,18 @@ mod common;
 
 mod cli;
 
+mod type_system;
+
 mod lexer;
 mod ast;
 mod ast_passes;
 
+mod hir;
+
 fn main() {
+    let cwd = env::current_dir().unwrap().to_str().unwrap().to_string();
+    println!("cwd: {cwd}");
+
     let cli = Cli::parse();
 
     let library = match &cli.library {
@@ -29,14 +36,17 @@ fn main() {
         None => cli.package.clone(),
     };
 
-    let cwd = env::current_dir().unwrap().to_str().unwrap().to_string();
-    println!("cwd: {cwd}");
+    let library_path = LibraryPath {
+        group: cli.group.clone(),
+        package: cli.package.clone(),
+        library,
+    };
 
     let total_start = time::Instant::now();
 
     let mut files_to_process = Vec::new();
     for input_file in &cli.input_files {
-        files_to_process.push((input_file.clone(), Vec::new()));
+        files_to_process.push((input_file.clone(), Scope::new()));
     }
     
     let symbol_table = SymbolTable::new();
@@ -44,6 +54,9 @@ fn main() {
 
     let precedences = PrecedenceDAG::new();
     let precedences = Arc::new(RwLock::new(precedences));
+
+    let operators = OperatorTable::new();
+    let operators = Arc::new(RwLock::new(operators));
 
     let mut asts = Vec::new();
 
@@ -150,10 +163,12 @@ fn main() {
         let ast_start = time::Instant::now();
     
         let mut ast_ctx = ast_passes::Context::new(
+            library_path.clone(),
             symbol_table.clone(),
             base_scope.clone(),
             &ast,
-            precedences.clone()
+            precedences.clone(),
+            operators.clone(),
         );
 
         do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {
@@ -202,6 +217,8 @@ fn main() {
     println!("================================================================");
     println!("Post-parse AST passes:");
 
+    // Precedence
+
     do_ast_for_all_passes(&cli, &mut stats, "Precedence Collection", &mut asts, |ast, ast_ctx| {
         let mut pass = ast_passes::PrecedenceCollection::new(ast_ctx, &name_table);
         pass.visit(ast);
@@ -209,7 +226,7 @@ fn main() {
 
     let mut imported_precedences = Vec::new();
     do_ast_for_all_passes(&cli, &mut stats, "Precedence Import", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::PrecedenceImportCollection::new(ast_ctx, &name_table, cli.package.clone());
+        let mut pass = ast_passes::PrecedenceImportCollection::new(ast_ctx, &name_table);
         pass.visit(ast);
 
         if !pass.imports.is_empty() {
@@ -224,13 +241,49 @@ fn main() {
         pass.visit(ast);
     });
 
+    do_ast_for_all_passes(&cli, &mut stats, "Precedence Connection", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::PrecedenceAttribute::new(ast_ctx, &name_table, &literal_table);
+        pass.visit(ast);
+    });
+
+    precedences.write().unwrap().precompute_order();
+
+    // Operators
+
+    do_ast_for_all_passes(&cli, &mut stats, "Operator Collection", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::OperatorCollection::new(ast_ctx, &name_table, &punct_table);
+        pass.visit(ast);
+    });
+
+    let mut imported_operators = Vec::new();
+    do_ast_for_all_passes(&cli, &mut stats, "Operator Import", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::OperatorImport::new(ast_ctx, &name_table);
+        pass.visit(ast);
+
+        if !pass.imports.is_empty() {
+            imported_operators = pass.imports;
+        }
+    });
+
+    // TODO: External operator importing happens here
+
+    do_ast_for_all_passes(&cli, &mut stats, "Operator Node Reordering", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::OperatorReorder::new(ast_ctx, &punct_table);
+        pass.visit(ast);
+    });
+
     
     println!("================================================================");
     println!("Symbol table:");
     symbol_table.read().unwrap().log();
 
+    println!("--------------------------------");
     println!("Precedence DAG Unordered:");
     precedences.read().unwrap().log_unordered();
+
+    println!("--------------------------------");
+    println!("Operator table");
+    operators.read().unwrap().log(&punct_table);
 
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;
