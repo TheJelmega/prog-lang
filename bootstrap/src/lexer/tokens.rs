@@ -515,6 +515,17 @@ impl TokenStore {
         }
     }
 
+    pub fn new_dummy() -> Self {
+        Self {
+            has_bom: false,
+            shebang: None,
+            tokens: Vec::new(),
+            metadata: Vec::new(),
+            tail_meta_elems: Vec::new(),
+            weak_kw_name_map: Vec::new(),
+        }
+    }
+
     pub fn push(&mut self, token: Token, meta: TokenMetadata) {
         self.tokens.push(token);
         self.metadata.push(meta);

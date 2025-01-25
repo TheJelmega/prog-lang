@@ -24,6 +24,9 @@ mod operator_passes;
 pub use operator_passes::*;
 
 
+mod hir_lower;
+pub use hir_lower::*;
+
 pub struct AstError {
     node_id: usize,
     err:     ErrorCode,

@@ -47,6 +47,10 @@ impl Scope {
         self.segments.pop();
     }
 
+    pub fn segments(&self) -> &Vec<ScopeSegment> {
+        &self.segments
+    }
+
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }

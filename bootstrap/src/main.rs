@@ -144,6 +144,7 @@ fn main() {
         }
 
         let mut ast = parser.ast;
+        ast.tokens = tokens;
         ast.file = input_file.clone().into();
 
         if cli.timings {
@@ -272,6 +273,12 @@ fn main() {
         pass.visit(ast);
     });
 
+    let mut hir = hir::Hir::new();
+    do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
+        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &mut hir);
+        pass.visit(ast);
+    });
+    stats.add_ast_hir_lower(&hir);
     
     println!("================================================================");
     println!("Symbol table:");

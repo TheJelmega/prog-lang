@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     common::{IndentLogger, NameId, NameTable, OpType},
-    lexer::{Punctuation, PunctuationId, PuncutationTable, StrongKeyword, WeakKeyword},
+    lexer::{Punctuation, PunctuationId, PuncutationTable, StrongKeyword, TokenStore, WeakKeyword},
     literals::{LiteralId, LiteralTable},
 };
 
@@ -96,7 +96,7 @@ pub enum TypePathIdentifier {
         gen_args: AstNodeRef<GenericArgs>,
     },
     Fn {
-        name: NameId,
+        name:   NameId,
         params: Vec<Type>,
         ret:    Option<Type>
     },
@@ -147,8 +147,8 @@ impl AstNode for TypePath {
 
 pub struct QualifiedPath {
     pub ty:       Type,
-    pub bound:    Option<Identifier>,
-    pub sub_path: Vec<Identifier>,
+    pub bound:    Option<AstNodeRef<TypePath>>,
+    pub sub_path: Identifier,
 }
 
 impl AstNode for QualifiedPath {
@@ -156,11 +156,11 @@ impl AstNode for QualifiedPath {
         logger.log_indented("Qualified Path", |logger| {
             logger.log_indented_node("Type", &self.ty);
             if let Some(bound) = &self.bound {
-                logger.log_indented("Bound", |logger| bound.log(logger));
+                logger.log_indented_node_ref("Bound", *bound);
             }
             
             logger.set_last_at_indent();
-            logger.log_indented_slice("Sub Path", &self.sub_path, |logger, iden| iden.log(logger));
+            logger.log_indented("Sub Path", |logger| self.sub_path.log(logger));
         })
     }
 }
@@ -465,7 +465,7 @@ pub struct Function {
     pub returns:      Option<FnReturn>,
     pub where_clause: Option<AstNodeRef<WhereClause>>,
     pub contracts:    Vec<AstNodeRef<Contract>>,
-    pub body:         AstNodeRef<Block>,
+    pub body:         Option<AstNodeRef<Block>>,
 }
 
 impl AstNode for Function {
@@ -480,15 +480,22 @@ impl AstNode for Function {
             if let Some(abi) = self.abi {
                 logger.prefixed_log_fmt(format_args!("ABI: {}\n", logger.resolve_name(self.name)));
             }
+            logger.set_last_at_indent_if(self.generics.is_none() && self.generics.is_none() && self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             
            
+            logger.set_last_at_indent_if(self.generics.is_none() && self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
             logger.log_opt_node_ref(&self.generics);
+            logger.set_last_at_indent_if(self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
             logger.log_opt(&self.receiver, |logger, rec| rec.log(logger));
+            logger.set_last_at_indent_if(self.params.is_empty() && self.body.is_none());
             logger.log_indented_slice("Params", &self.params, |logger, param| param.log(logger));
+            logger.set_last_at_indent_if(self.body.is_none());
             logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
             logger.set_last_at_indent();
-            logger.log_node_ref(self.body);
+            if let Some(body) = &self.body {
+                logger.log_node_ref(*body);
+            }
         })
     }
 }
@@ -1073,7 +1080,7 @@ pub enum Static {
         attrs:  Vec<AstNodeRef<Attribute>>,
         vis:    Option<AstNodeRef<Visibility>>,
         name:   NameId,
-        ty:     Type,
+        ty:     Option<Type>,
         val:    Expr,
     },
     Tls {
@@ -1081,7 +1088,7 @@ pub enum Static {
         vis:    Option<AstNodeRef<Visibility>>,
         is_mut: bool,
         name:   NameId,
-        ty:     Type,
+        ty:     Option<Type>,
         val:    Expr,
     },
     Extern {
@@ -1101,7 +1108,7 @@ impl AstNode for Static {
                 logger.log_indented_node_ref_slice("Attributes", &attrs);
                 logger.log_opt_node_ref(vis);
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.log_indented_node("Type", ty);
+                logger.log_indented_opt_node("Type", ty);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Val", val);
             }),
@@ -1110,7 +1117,7 @@ impl AstNode for Static {
                 logger.log_opt_node_ref(vis);
                 logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.log_indented_node("Type", ty);
+                logger.log_indented_opt_node("Type", ty);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Val", val);
             }),
@@ -1128,11 +1135,11 @@ impl AstNode for Static {
 }
 
 pub struct Property {
-    attrs:     Vec<AstNodeRef<Attribute>>,
-    vis:       Option<AstNodeRef<Visibility>>,
-    is_unsafe: bool,
-    name:      NameId,
-    body:      PropertyBody,
+    pub attrs:     Vec<AstNodeRef<Attribute>>,
+    pub vis:       Option<AstNodeRef<Visibility>>,
+    pub is_unsafe: bool,
+    pub name:      NameId,
+    pub body:      PropertyBody,
 }
 
 
@@ -2095,8 +2102,8 @@ impl FnArg {
 }
 
 pub struct FnCallExpr {
-    expr: Expr,
-    args: Vec<FnArg>,
+    pub expr: Expr,
+    pub args: Vec<FnArg>,
 }
 
 impl AstNode for FnCallExpr {
@@ -3210,11 +3217,13 @@ impl<T> AstNodeRef<T> {
 
 
 pub struct Ast {
-    pub file:  PathBuf,
-    pub nodes: Vec<Box<dyn AstNode>>,
-    pub meta:  Vec<AstNodeMeta>,
+    pub file:   PathBuf,
+    pub nodes:  Vec<Box<dyn AstNode>>,
+    pub meta:   Vec<AstNodeMeta>,
 
-    pub items: Vec<Item>,
+    pub items:  Vec<Item>,
+
+    pub tokens: TokenStore,
 }
 
 impl Ast {
@@ -3224,6 +3233,7 @@ impl Ast {
             nodes: Vec::new(),
             meta:  Vec::new(),
             items: Vec::new(),
+            tokens: TokenStore::new_dummy(),
         }
     }
 

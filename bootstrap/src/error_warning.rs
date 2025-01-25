@@ -1,14 +1,14 @@
 use core::fmt::Display;
 use std::{fmt::write, mem::discriminant};
 
-use crate::lexer::{OpenCloseSymbol, Token};
+use crate::lexer::{OpenCloseSymbol, Punctuation, Token};
 
 
 // Error ranges
 // E0000-E0999: Internal errors
 // E1000-E1999: Lexer error
 // E2000-E2999: Parser error
-// E3000-E3999:
+// E3000-E3999: AST errors
 // E4000-E4999:
 // E5000-E5999:
 // E6000-E6999:
@@ -88,8 +88,10 @@ pub enum ErrorCode {
     // Invalid use of "extern"
     ParseInvalidExternUse = 2020,
 
+    ParseMissingExternFuncNoBlock = 2021,
+
     // Duplicate property getter/setter
-    ParseDuplicateProp{ get_set: &'static str } = 2021,
+    ParseDuplicateProp{ get_set: &'static str } = 2022,
 
     // Label unsupported in location
     ParseInvalidLabel = 2030,
@@ -110,6 +112,11 @@ pub enum ErrorCode {
     AstOperatorDoesNotExist { op: String } = 3020,
     AstOperatorNoPrecedence { op: String } = 3021,
     AstOperatorNoOrder { op0: String, op1: String } = 3022,
+    AstInvalidAbiLiteral { lit: String, info: String } = 3023,
+    AstInvalidLiteral { lit: String, info: String } = 3024,
+
+    AstMultipleStructComplete = 3025,
+    AstInvalidUninitVarDecl { info: String } = 3026,
 }
 
 impl Display for ErrorCode {
@@ -149,6 +156,7 @@ impl Display for ErrorCode {
             Self::ParseExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
             Self::ParseExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
             Self::ParseInvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
+            Self::ParseMissingExternFuncNoBlock             => write!(f, "An empty block is only allowed on functions that are explicitly defined as extern (when not in a trait)"),
             Self::ParseDuplicateProp { get_set }            => write!(f, "Duplicate {get_set} in property item"),
             Self::ParseInvalidLabel                         => write!(f, "A label is not supported in this location"),
             Self::ParseExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
@@ -173,6 +181,10 @@ impl Display for ErrorCode {
             Self::AstOperatorDoesNotExist { op }            => write!(f, "Operator does not exist: {op}"),
             Self::AstOperatorNoPrecedence { op }            => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
             Self::AstOperatorNoOrder { op0, op1 }           => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+            Self::AstInvalidAbiLiteral { lit, info }        => write!(f, "Invalid ABI literal '{lit}': {info}"),
+            Self::AstInvalidLiteral { lit, info }           => write!(f, "Invalid literal '{lit}': {info}"),
+            Self::AstMultipleStructComplete                 => write!(f, "Structure expression may only contain 1 completion expression"),
+            Self::AstInvalidUninitVarDecl { info }          => write!(f, "Invalid unitialized variable declaration: {info}"),
         }
     }
 }

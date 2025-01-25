@@ -389,9 +389,7 @@ impl Parser<'_> {
 
         let ty = self.parse_type()?;
         let bound = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
-            let name = self.consume_name()?;
-            let gen_args = self.parse_generic_args(true)?;
-            Some(Identifier{ name, gen_args })
+            Some(self.parse_type_path()?)
         } else {
             None
         };
@@ -410,6 +408,10 @@ impl Parser<'_> {
             }
             self.consume_punct(Punctuation::Dot)?;
         }
+
+        let name = self.consume_name()?;
+        let gen_args = self.parse_generic_args(true)?;
+        let sub_path = Identifier{ name, gen_args };
 
         Ok(self.add_node(QualifiedPath {
             ty,
@@ -432,7 +434,7 @@ impl Parser<'_> {
         let peek = self.peek()?;
         match peek {
             Token::StrongKw(StrongKeyword::Bitfield) => self.parse_bitfield(attrs, vis),
-            Token::StrongKw(StrongKeyword::Fn)       => self.parse_function(attrs, vis).map(|item| Item::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)       => self.parse_function(attrs, vis, false, false).map(|item| Item::Function(item)),
             Token::StrongKw(StrongKeyword::Enum)     => self.parse_enum(attrs, vis),
             Token::StrongKw(StrongKeyword::Impl)     => self.parse_impl(attrs, vis),
             Token::StrongKw(StrongKeyword::Mod)      => self.parse_module(attrs, vis),
@@ -457,7 +459,7 @@ impl Parser<'_> {
                 self.parse_op_trait(attrs, vis)
             },
             Token::StrongKw(StrongKeyword::Const) => if self.check_peek(&[1, 2, 4, 5], Token::StrongKw(StrongKeyword::Fn)) {
-                    self.parse_function(attrs, vis).map(|item| Item::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| Item::Function(item))
                 } else {
                     self.parse_const_item(attrs, vis).map(|item| Item::Const(item))
                 },
@@ -467,10 +469,10 @@ impl Parser<'_> {
                 } else if self.check_peek(&[1], Token::StrongKw(StrongKeyword::Impl)) {
                     self.parse_impl(attrs, vis)
                 } else {
-                    self.parse_function(attrs, vis).map(|item| Item::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| Item::Function(item))
                 },
             Token::StrongKw(StrongKeyword::Extern) => if self.check_peek(&[2], Token::StrongKw(StrongKeyword::Fn)) {
-                    self.parse_function(attrs, vis).map(|item| Item::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| Item::Function(item))
                 } else if self.check_peek(&[2, 3], Token::StrongKw(StrongKeyword::Static)) {
                     self.parse_static_item(attrs, vis).map(|item| Item::Static(item))
                 } else if self.check_peek(&[2], Token::OpenSymbol(OpenCloseSymbol::Brace)) {
@@ -516,7 +518,7 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis).map(|item| TraitItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item)),
             Token::StrongKw(StrongKeyword::Const) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -527,7 +529,7 @@ impl Parser<'_> {
                     peek_4 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const extern "abi" fn.. (invalid)
                     peek_5 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe extenr "abi" fn... (invalid)
                 {
-                    self.parse_function(attrs, vis).map(|item| TraitItem::Function(item))
+                    self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item))
                 } else {
                     self.parse_const_item(attrs, vis).map(|item| TraitItem::Const(item))
                 }
@@ -537,7 +539,7 @@ impl Parser<'_> {
                 if peek == Token::WeakKw(WeakKeyword::Property) {
                     self.parse_property(attrs, vis, true).map(|item| TraitItem::Property(item))
                 } else {
-                    self.parse_function(attrs, vis).map(|item| TraitItem::Function(item))
+                    self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item))
                 }
             },
             Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| TraitItem::TypeAlias(item)),
@@ -554,7 +556,7 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis).map(|item| AssocItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item)),
             Token::StrongKw(StrongKeyword::Const) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -565,7 +567,7 @@ impl Parser<'_> {
                     peek_4 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const extern "abi" fn.. (invalid)
                     peek_5 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe extenr "abi" fn... (invalid)
                 {
-                    self.parse_function(attrs, vis).map(|item| AssocItem::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item))
                 } else {
                     self.parse_const_item(attrs, vis).map(|item| AssocItem::Const(item))
                 }
@@ -575,7 +577,7 @@ impl Parser<'_> {
                 if peek_1 == Token::WeakKw(WeakKeyword::Property) {
                     self.parse_property(attrs, vis, false).map(|item| AssocItem::Property(item))
                 } else {
-                    self.parse_function(attrs, vis).map(|item| AssocItem::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item))
                 }
             },
             Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| AssocItem::TypeAlias(item)),
@@ -606,8 +608,8 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis).map(|item| ExternItem::Function(item)),
-            Token::StrongKw(StrongKeyword::Unsafe) => self.parse_function(attrs, vis).map(|item| ExternItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, true, false).map(|item| ExternItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Unsafe) => self.parse_function(attrs, vis, true, false).map(|item| ExternItem::Function(item)),
             Token::StrongKw(StrongKeyword::Mut) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -739,7 +741,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<Function>, ParserErr> {
+    fn parse_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>, in_extern: bool, in_trait: bool) -> Result<AstNodeRef<Function>, ParserErr> {
         let is_override = self.try_consume(Token::WeakKw(WeakKeyword::Override));
         let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
@@ -805,7 +807,18 @@ impl Parser<'_> {
             Vec::new()
         };
 
-        let body = self.parse_block()?;
+        let body = if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
+            if abi.is_none() && !in_extern && !in_trait {
+                return Err(ParserErr {
+                    err: ErrorCode::ParseMissingExternFuncNoBlock,
+                    tok_idx: self.token_idx,
+                })
+            }
+
+            None
+        } else {
+            Some(self.parse_block()?)
+        };
 
         Ok(self.add_node(Function {
             attrs,
@@ -1345,8 +1358,11 @@ impl Parser<'_> {
 
             self.consume_strong_kw(StrongKeyword::Static)?;
             let name = self.consume_name()?;
-            self.consume_punct(Punctuation::Colon)?;
-            let ty = self.parse_type()?;
+            let ty = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
             self.consume_punct(Punctuation::Equals);
             let val = self.parse_expr(ExprParseMode::General)?;
             self.consume_punct(Punctuation::Semicolon)?;

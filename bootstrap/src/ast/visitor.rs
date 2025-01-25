@@ -57,7 +57,7 @@ pub trait Visitor {
     }
 
     fn visit_function(&mut self, ast: &Ast, node_id: AstNodeRef<Function>) where Self: Sized {
-        helpers::visit_function(self, ast, node_id);
+        helpers::visit_function(self, ast, node_id, true);
     }
 
     fn visit_type_alias(&mut self, ast: &Ast, node_id: AstNodeRef<TypeAlias>) where Self: Sized {
@@ -510,14 +510,11 @@ pub mod helpers {
         let node = &ast[node_id];
         visitor.visit_type(ast, &node.ty);
         if let Some(bound) = &node.bound {
-            if let Some(gen_args) = bound.gen_args {
-                visitor.visit_generic_args(ast, gen_args);
-            }
+            visitor.visit_type_path(ast, *bound);
         }
-        for iden in &node.sub_path {
-            if let Some(gen_args) = iden.gen_args {
-                visitor.visit_generic_args(ast, gen_args)
-            }
+
+        if let Some(gen_args) = node.sub_path.gen_args {
+            visitor.visit_generic_args(ast, gen_args)
         }
     }
 
@@ -608,7 +605,7 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_function<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Function>) {
+    pub fn visit_function<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Function>, do_body: bool) {
         let node = &ast[node_id];
         for attr in &node.attrs {
             visitor.visit_attribute(ast, *attr);
@@ -638,7 +635,12 @@ pub mod helpers {
         for contract in &node.contracts {
             visitor.visit_contract(ast,  *contract);
         }
-        visitor.visit_block(ast, node.body);
+
+        if do_body {
+            if let Some(body) = node.body {
+                visitor.visit_block(ast, body);
+            }
+        }
     }
 
     pub fn visit_fn_param<T: Visitor>(visitor: &mut T, ast: &Ast, param: &FnParam) {
@@ -969,7 +971,9 @@ pub mod helpers {
                 if let Some(vis) = vis {
                     visitor.visit_visibility(ast, *vis);
                 }
-                visitor.visit_type(ast, ty);
+                if let Some(ty) = ty {
+                    visitor.visit_type(ast, ty);
+                }
                 visitor.visit_expr(ast, val);
             },
             Static::Tls { attrs, vis, is_mut, name, ty, val } => {
@@ -979,7 +983,9 @@ pub mod helpers {
                 if let Some(vis) = vis {
                     visitor.visit_visibility(ast, *vis);
                 }
-                visitor.visit_type(ast, ty);
+                if let Some(ty) = ty {
+                    visitor.visit_type(ast, ty);
+                }
                 visitor.visit_expr(ast, val);
             },
             Static::Extern { attrs, vis, abi, is_mut, name, ty } => {
@@ -1607,7 +1613,23 @@ pub mod helpers {
 // =============================================================================================================================
 
     pub fn visit_type<T: Visitor>(visitor: &mut T, ast: &Ast, node: &Type) {
-
+        match node {
+            Type::Paren(ty)       => visitor.visit_paren_type(ast, *ty),
+            Type::Primitive(ty)   => visitor.visit_primitive_type(ast, *ty),
+            Type::Unit            => visitor.visit_unit_type(ast),
+            Type::Never           => visitor.visit_never_type(ast),
+            Type::Path(ty)        => visitor.visit_path_type(ast, *ty),
+            Type::Tuple(ty)       => visitor.visit_tuple_type(ast, *ty),
+            Type::Array(ty)       => visitor.visit_array_type(ast, *ty),
+            Type::Slice(ty)       => visitor.visit_slice_type(ast, *ty),
+            Type::StringSlice(ty) => visitor.visit_string_slice_type(ast, *ty),
+            Type::Pointer(ty)     => visitor.visit_pointer_type(ast, *ty),
+            Type::Ref(ty)         => visitor.visit_reference_type(ast, *ty),
+            Type::Optional(ty)    => visitor.visit_optional_type(ast, *ty),
+            Type::Fn(ty)          => visitor.visit_fn_type(ast, *ty),
+            Type::Record(ty)      => visitor.visit_record_type(ast, *ty),
+            Type::EnumRecord(ty)  => visitor.visit_enum_record_type(ast, *ty),
+        }
     }
 
     pub fn visit_paren_type<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<ParenthesizedType>) {
