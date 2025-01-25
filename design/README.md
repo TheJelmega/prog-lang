@@ -2245,7 +2245,7 @@ For more info, see the section about function at [7.3. Function](#73-function-)
 ## 7.15. External block [↵](#7-items-)
 
 ```
-<external-block> := 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
+<external-block> := { <attribute> }* 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
 ```
 
 An external block provides declarations of items that are not defined in the current library and are used for the foreign function interface.
@@ -2255,12 +2255,15 @@ Calling functions or static items that are declared in external blocks are only 
 
 More info about [external functions](#736-external-function-qualifier-) and [statics](#7103-external-statics-) can be found in their respecitive sections.
 
+Any attributes applied on an external block will be directly passed onto the contained items.
+
 # 8. Statements [↵](#tables-of-contents)
 
 ```
 <stmt> := <var-decl>
         | <expr-stmt>
         | <defer-stmt>
+        | <errdefer-stmt>
 ```
 
 A statement is a component of a block, which is in turn part of an outer expression or a functions.
@@ -2288,11 +2291,20 @@ They may implicitly capture generics from an outer scope, unless they are shadow
 ```
 
 A variable declaration introduces (a) new variable(s) withing a scope.
-By default, variables are immuatable and need to explicitly be defined as `mut` to be able to be mutated.
+By default, variables are immutable and need to explicitly be defined as `mut` to be able to be mutated.
 
 If no type is given, the compiler will infer the type from the surrounding context, or will return an error if insuffient information can be retreived from code.
 
 Any variable introduced will be visible until the end of the scope, unless they are shadowed by another declaration.
+
+When using a 'name' variable declaration with more than 1 name, the expression must be one of the following:
+- An comma separated list of expression (i.e. a comma expression)
+- A tuple expression
+- An expression returning a tuple
+
+When using a `let` variable declaration, a variable may only have an explicit type if:
+- an identifier pattern is being used
+- a tuple pattern is uses where all patterns are identifier patterns, the type will refer to all identifier patterns
 
 When using a `let` variable declaration, a variable may also be declared as being unitialized, this requires:
 - An explicit type to be given
@@ -2339,7 +2351,7 @@ Defer-on-error will only be evaluated if the error defer is in the current scope
 
 Evaluating error defers can be avoided by explicitly returning an erronous value.
 
-A defer-on-error statement can also capture a reference of mutable reference of the resulting error to be used inside of the error defer's body.
+A defer-on-error statement can also capture a reference or mutable reference of the resulting error to be used inside of the error defer's body.
 
 # 9. Expressions [↵](#tables-of-contents)
 
@@ -4893,7 +4905,7 @@ TODO: specify lazy evaluation + chaining operator
 ```
 <op-item>      := <base-op-item> | <ext-op-item>
 <base-op-item> := { <attribute> }* [<vis>] 'op' 'trait' <name> [ '|' <name> ] '{' <op-elems> '}'
-<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <name> '{' <ext-op-elems> '}'
+<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <simple-path> { '+' <simple-path> }* '{' <ext-op-elems> '}'
 <op-elems>     := <op-elem> { ',' <op-elem> } [',']
 <op-elem>      := <op-decl> | <op-contract>
 <op-decl>      := <op-kind> 'op' <operator> ':' <name> [ '=' <expr> ]
