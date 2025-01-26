@@ -26,6 +26,9 @@ pub struct Cli {
     pub parse_only:         bool,
 
     #[arg(long)]
+    pub print_hir_nodes:    bool,
+
+    #[arg(long)]
     pub timings:            bool,
 
     #[arg(long)]

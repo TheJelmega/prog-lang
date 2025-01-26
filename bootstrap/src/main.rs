@@ -279,6 +279,12 @@ fn main() {
         pass.visit(ast);
     });
     stats.add_ast_hir_lower(&hir);
+
+    if cli.print_hir_nodes {
+        println!("HIR:");
+        let mut hir_logger = hir::NodeLogger::new(&name_table, &literal_table, &punct_table);
+        hir_logger.visit(&mut hir, hir::VisitFlags::all());
+    }
     
     println!("================================================================");
     println!("Symbol table:");
