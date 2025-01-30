@@ -48,6 +48,9 @@ impl IndentLogger {
     }
     
     pub fn write_prefix(&self) {
+        if self.indents.is_empty() {
+            return;
+        }
         for bit in &self.indents[..self.indents.len() - 1]   {
             if *bit {
                 self.log(self.full_indent);

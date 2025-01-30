@@ -4,9 +4,10 @@ use std::{
 
 use ast_passes::Context;
 use clap::Parser as _;
-use ast::{Parser, Visitor};
+use ast::{Parser, Visitor as _};
 use cli::Cli;
 use common::{CompilerStats, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, Scope, SymbolTable};
+use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 
@@ -286,6 +287,11 @@ fn main() {
         hir_logger.visit(&mut hir, hir::VisitFlags::all());
     }
     
+    if cli.print_hir_code {
+        println!("HIR pseudo-code:");
+        let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
+        hir_printer.visit(&mut hir, hir::VisitFlags::all());
+    }
     println!("================================================================");
     println!("Symbol table:");
     symbol_table.read().unwrap().log();

@@ -413,15 +413,59 @@ impl Visitor for NodeLogger<'_> {
     // =============================================================
 
     fn visit_type_path(&mut self, path: &mut TypePath) {
-        // TODO
+        self.log_node("Type path", path.node_id, |this| {
+            this.log_slice(&mut path.segments, |this, segment| {
+                match segment {
+                    TypePathSegment::Plain { name } => this.logger.prefixed_log_fmt(format_args!("Segment: {}\n", &this.names[*name])),
+                    TypePathSegment::GenArg { name, gen_args } => {
+                        this.logger.prefixed_log_fmt(format_args!("Segment: {}", &this.names[*name]));
+                        this.logger.set_last_at_indent();
+                        this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
+                    },
+                    TypePathSegment::Fn { name, params, ret } => this.log_indented("Function segment", |this| {
+                        this.logger.prefixed_log_fmt(format_args!("Name: {}", &this.names[*name]));
+                        this.logger.set_last_at_indent_if(ret.is_none());
+                        this.log_slice_indented("Params", params, |this, param| this.visit_type(param));
+                        this.logger.set_last_at_indent();
+                        this.log_opt_indented("Return type", ret, |this, ret| this.visit_type(ret));
+                    }),
+                }
+            })
+        })
     }
 
     fn visit_path(&mut self, path: &mut Path) {
-        // TODO
+        self.log_node("Path", path.node_id, |this| {
+            this.logger.prefixed_log_fmt(format_args!("Is inferred: {}\n", path.is_inferred));
+            this.log_slice_indented("Identifiers", &mut path.idens, |this, iden| {
+                this.logger.prefixed_log_fmt(format_args!("Identifier: {}", &this.names[iden.name]));
+                if let Some(gen_args) = &mut iden.gen_args {
+                    this.logger.push_indent();
+                    this.logger.set_last_at_indent();
+                    this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
+                    this.logger.pop_indent();
+                }
+            });
+            
+        });
     }
 
     fn visit_qual_path(&mut self, path: &mut QualifiedPath) {
-        // TODO
+        self.log_node("Qualified path", path.node_id, |this| {
+            this.log_single_indented("Type", |this| this.visit_type(&mut path.ty));
+            this.log_opt_indented("Bound", &mut path.bound, |this, bound| this.visit_type_path(bound));
+            
+            this.logger.set_last_at_indent();
+            this.log_slice_indented("Sub-path", &mut path.sub_path, |this, iden| {
+                this.logger.prefixed_log_fmt(format_args!("Identifier: {}", &this.names[iden.name]));
+                if let Some(gen_args) = &mut iden.gen_args {
+                    this.logger.push_indent();
+                    this.logger.set_last_at_indent();
+                    this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
+                    this.logger.pop_indent();
+                }
+            });
+        });
     }
 
     // =============================================================

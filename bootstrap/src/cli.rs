@@ -27,6 +27,8 @@ pub struct Cli {
 
     #[arg(long)]
     pub print_hir_nodes:    bool,
+    #[arg(long)]
+    pub print_hir_code:     bool,
 
     #[arg(long)]
     pub timings:            bool,
