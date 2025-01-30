@@ -286,23 +286,30 @@ fn main() {
         let mut hir_logger = hir::NodeLogger::new(&name_table, &literal_table, &punct_table);
         hir_logger.visit(&mut hir, hir::VisitFlags::all());
     }
-    
+
     if cli.print_hir_code {
         println!("HIR pseudo-code:");
         let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
         hir_printer.visit(&mut hir, hir::VisitFlags::all());
     }
+    
     println!("================================================================");
-    println!("Symbol table:");
-    symbol_table.read().unwrap().log();
+    if cli.print_sym_table {
+        println!("Symbol table:");
+        symbol_table.read().unwrap().log();
+    }
 
     println!("--------------------------------");
-    println!("Precedence DAG Unordered:");
-    precedences.read().unwrap().log_unordered();
+    if cli.print_precedence {
+        println!("Precedence DAG Unordered:");
+        precedences.read().unwrap().log_unordered();
+    }
 
     println!("--------------------------------");
-    println!("Operator table");
-    operators.read().unwrap().log(&punct_table);
+    if cli.print_op_table {
+        println!("Operator table");
+        operators.read().unwrap().log(&punct_table);
+    }
 
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;

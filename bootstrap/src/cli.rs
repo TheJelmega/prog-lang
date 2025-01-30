@@ -31,6 +31,13 @@ pub struct Cli {
     pub print_hir_code:     bool,
 
     #[arg(long)]
+    pub print_sym_table:    bool,
+    #[arg(long)]
+    pub print_precedence:   bool,
+    #[arg(long)]
+    pub print_op_table:     bool,
+
+    #[arg(long)]
     pub timings:            bool,
 
     #[arg(long)]
