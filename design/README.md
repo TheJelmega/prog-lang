@@ -3430,7 +3430,7 @@ Similar to identifier patterns, 'mut' can be added to make the resulting variabl
 <struct-pattern-elem> := ( <attribute> )* ( <struct-pattern-elem-tuple> | <struct-pattern-elem-member> | <struct-pattern-elem-iden> )
 <struct-pattern-elem-tuple> := <tuple-index> ':' <pattern>
 <struct-pattern-elem-member> := <ext-name> ':' pattern
-<struct-pattern-elem-iden> := [ 'ref' ] [ 'mut' ] <ext-name>
+<struct-pattern-elem-iden> := [ 'ref' ] [ 'mut' ] <ext-name> [ '@' <pattern> ]
 ```
 
 A struct pattern can match struct, enum, and union values that match the defined criteria in the subpatterns.
@@ -3441,7 +3441,7 @@ Struct pattern can also have an inferred path by starting it with a '.'
 There are 3 ways of matching elements:
 - Using a tuple element in case of tuple-like types
 - Using a values name, followed by a pattern
-- Using a value directly with a matching name (this requires a normal name and not an extended name).
+- Using a value directly with a matching name (this requires a normal name and not an extended name), which may also include a bound pattern.
 
 ## 10.8. Tuple struct pattern [↵](#10-patterns-)
 
