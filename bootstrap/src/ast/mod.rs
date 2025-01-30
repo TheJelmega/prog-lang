@@ -2614,6 +2614,7 @@ pub enum StructPatternField {
         is_ref: bool,
         is_mut: bool,
         iden:   NameId,
+        bound:  Option<Pattern>
     },
     Rest,
 }
@@ -2631,11 +2632,12 @@ impl StructPatternField {
                 logger.set_last_at_indent();
                 logger.log_node(pattern);
             }),
-            StructPatternField::Iden { is_ref, is_mut, iden } => logger.log_indented("Iden Struct Field", |logger| {
+            StructPatternField::Iden { is_ref, is_mut, iden, bound } => logger.log_indented("Iden Struct Field", |logger| {
                 logger.prefixed_log_fmt(format_args!("Is Ref: {}\n", is_ref));
                 logger.prefixed_log_fmt(format_args!("Is Mut: {}\n", is_mut));
                 logger.set_last_at_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*iden)));
+                logger.log_indented_opt_node("Bound", bound);
             }),
             StructPatternField::Rest => {
                 logger.prefixed_logln("Rest Struct Field");

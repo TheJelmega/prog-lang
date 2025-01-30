@@ -46,6 +46,12 @@ pub struct TypePath {
 }
 
 #[derive(Clone)]
+pub struct SimplePath {
+    pub node_id: u32,
+    pub names:   Vec<NameId>,
+}
+
+#[derive(Clone)]
 pub struct Identifier {
     pub name:     NameId,
     pub gen_args: Option<Box<GenericArgs>>,
@@ -58,17 +64,12 @@ pub struct Path {
     pub idens:       Vec<Identifier>,
 }
 
-pub struct SimplePath {
-    pub node_id: u32,
-    pub names:   Vec<NameId>,
-}
-
 #[derive(Clone)]
 pub struct QualifiedPath {
     pub node_id:  u32,
     pub ty:       Box<Type>,
     pub bound:    Option<TypePath>,
-    pub sub_path: Identifier,
+    pub sub_path: Vec<Identifier>,
 }
 
 // =============================================================================================================================
@@ -406,7 +407,7 @@ pub struct Property {
     pub name:        NameId,
     pub get:         Option<Box<Expr>>,
     pub ref_get:     Option<Box<Expr>>,
-    pub mut_get: Option<Box<Expr>>,
+    pub mut_get:     Option<Box<Expr>>,
     pub set:         Option<Box<Expr>>,
 }
 
@@ -896,6 +897,7 @@ pub enum StructPatternField {
         is_ref:  bool,
         is_mut:  bool,
         iden:    NameId,
+        bound:   Option<Box<Pattern>>,
     },
     Rest,
 }
@@ -1071,7 +1073,7 @@ pub enum Visibility {
     Lib,
     Package,
     Super,
-    Path(Vec<NameId>),
+    Path(SimplePath),
 }
 
 // =============================================================================================================================

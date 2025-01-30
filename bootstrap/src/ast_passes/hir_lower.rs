@@ -524,10 +524,10 @@ impl Visitor for AstToHirLowering<'_> {
         let node = &ast[node_id];
 
         let sub_gen_args = node.sub_path.gen_args.map(|_| self.gen_args_stack.pop().unwrap());
-        let sub_path = hir::Identifier {
+        let sub_path = vec![hir::Identifier {
             name: node.sub_path.name,
             gen_args: sub_gen_args,
-        };
+        }];
 
         let bound = node.bound.map(|_| self.type_path_stack.pop().unwrap());
         let ty = self.type_stack.pop().unwrap();
@@ -2384,10 +2384,20 @@ impl Visitor for AstToHirLowering<'_> {
         }
         let body = Box::new(hir::Expr::Block(body));
 
+        let label = if let Some(label) = node.label {
+            label
+        } else {
+            let tok_idx = ast.meta[node_id.index()].first_tok;
+            let tok_meta = &ast.tokens.metadata[tok_idx as usize];
+
+            let label_name = format!("__label_{}_{}", tok_meta.line, tok_meta.column);
+            self.names.add(&label_name)
+        };
+
         // (5)
         let loop_break = hir::BreakExpr {
             node_id: node_id.index() as u32,
-            label: node.label,
+            label: Some(label),
             value: None,
         };
 
@@ -2440,7 +2450,7 @@ impl Visitor for AstToHirLowering<'_> {
         // (2)
         let loop_expr = hir::Expr::Loop(hir::LoopExpr {
             node_id: node_id.index() as u32,
-            label: node.label,
+            label: Some(label),
             body: Box::new(loop_body),
         });
         let loop_expr = Box::new(loop_expr);
@@ -2515,10 +2525,20 @@ impl Visitor for AstToHirLowering<'_> {
         }
         let body = Box::new(hir::Expr::Block(body));
 
+        let label = if let Some(label) = node.label {
+            label
+        } else {
+            let tok_idx = ast.meta[node_id.index()].first_tok;
+            let tok_meta = &ast.tokens.metadata[tok_idx as usize];
+
+            let label_name = format!("__label_{}_{}", tok_meta.line, tok_meta.column);
+            self.names.add(&label_name)
+        };
+
         // (4)
         let loop_break = hir::BreakExpr {
             node_id: node_id.index() as u32,
-            label: node.label,
+            label: Some(label),
             value: None,
         };
 
@@ -2562,7 +2582,7 @@ impl Visitor for AstToHirLowering<'_> {
         // (1)
         self.push_expr(hir::Expr::Loop(hir::LoopExpr {
             node_id: node_id.index() as u32,
-            label: node.label,
+            label: Some(label),
             body: Box::new(loop_body),
         }));
     }
@@ -2898,12 +2918,15 @@ impl Visitor for AstToHirLowering<'_> {
                         pattern,
                     })
                 },
-                StructPatternField::Iden { is_ref, is_mut, iden } => {
+                StructPatternField::Iden { is_ref, is_mut, iden, bound } => {
+                    let bound = bound.as_ref().map(|_| self.pattern_stack.pop().unwrap());
+
                     fields.push(hir::StructPatternField::Iden {
                         node_id: node_id.index() as u32,
                         is_ref: *is_ref,
                         is_mut: *is_mut,
                         iden: *iden,
+                        bound
                     })
                 },
                 StructPatternField::Rest => fields.push(hir::StructPatternField::Rest),
@@ -2922,8 +2945,8 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_tuple_struct_pattern(self, ast, node_id);
 
         let (path, ast_patterns) = match &ast[node_id] {
-            TupleStructPattern::Named { path, patterns } => (None, patterns),
-            TupleStructPattern::Inferred { patterns } => {
+            TupleStructPattern::Inferred { patterns } => (None, patterns),
+            TupleStructPattern::Named { path, patterns } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), patterns)
             },
@@ -3306,8 +3329,8 @@ impl Visitor for AstToHirLowering<'_> {
             Visibility::Lib     => hir::Visibility::Lib,
             Visibility::Package => hir::Visibility::Package,
             Visibility::Path(path) => {
-                let path = &ast[*path];
-                hir::Visibility::Path(path.names.clone())
+                let path = self.simple_path_stack.pop().unwrap();
+                hir::Visibility::Path(path)
             },
         };
         self.vis_stack.push(vis);

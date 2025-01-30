@@ -39,7 +39,7 @@ impl Visitor for PatternIdenCollection {
     fn visit_struct_pattern(&mut self, node: &mut StructPattern) {
         for field in &node.fields {
             match field {
-                StructPatternField::Iden { node_id, is_ref, is_mut, iden } => {
+                StructPatternField::Iden { node_id, is_ref, is_mut, iden, bound } => {
                     self.is_mut_and_names.push(CollectedPatternIden {
                         name: *iden,
                         is_mut: *is_mut,

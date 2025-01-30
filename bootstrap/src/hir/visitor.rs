@@ -759,8 +759,10 @@ pub(crate) mod helpers {
         if let Some(bound) = &mut path.bound {
             visitor.visit_type_path(bound)
         }
-        if let Some(gen_args) = &mut path.sub_path.gen_args {
-            visitor.visit_gen_args(gen_args);
+        for iden in &mut path.sub_path {
+            if let Some(gen_args) = &mut iden.gen_args {
+                visitor.visit_gen_args(gen_args);
+            }
         }
     }
 
@@ -1534,7 +1536,9 @@ pub(crate) mod helpers {
                 StructPatternField::TupleIndex { node_id, index, pattern } => {
                     visitor.visit_pattern(pattern);
                 },
-                StructPatternField::Iden { node_id, is_ref, is_mut, iden } => {},
+                StructPatternField::Iden { node_id, is_ref, is_mut, iden, bound } => if let Some(bound) = bound {
+                    visitor.visit_pattern(bound);
+                },
                 StructPatternField::Rest => {},
             }
         }

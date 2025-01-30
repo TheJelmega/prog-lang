@@ -98,9 +98,8 @@ impl NodeLogger<'_> {
             Visibility::Lib => self.logger.prefixed_logln("Visibility: library"),
             Visibility::Package => self.logger.prefixed_logln("Visibility: package"),
             Visibility::Super => self.logger.prefixed_logln("Visibility: super"),
-            Visibility::Path(names) => {
-                self.logger.prefixed_logln("Visibility: library");
-                self.log_slice_indented("Visibility: Path", names, |this, name|
+            Visibility::Path(path) => {
+                self.log_slice_indented("Visibility: Path", &mut path.names, |this, name|
                     this.logger.prefixed_logln(&this.names[*name])
                 );
             },
@@ -1486,10 +1485,11 @@ impl Visitor for NodeLogger<'_> {
                         this.logger.set_last_at_indent();
                         this.visit_pattern(pattern);
                     }),
-                    StructPatternField::Iden { node_id, is_ref, is_mut, iden } => this.log_node("Iden field", *node_id, |this| {
+                    StructPatternField::Iden { node_id, is_ref, is_mut, iden, bound } => this.log_node("Iden field", *node_id, |this| {
                         this.logger.log_fmt(format_args!("Is ref: {}\n", is_ref));
                         this.logger.log_fmt(format_args!("Is mut: {}\n", is_mut));
                         this.logger.log_fmt(format_args!("Name: {}\n", &this.names[*iden]));
+                        this.log_opt_indented("Bound", bound, |this, bound| this.visit_pattern(bound));
                     }),
                     StructPatternField::Rest => this.logger.prefixed_logln("Rest field"),
                 }

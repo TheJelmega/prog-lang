@@ -3035,7 +3035,12 @@ impl Parser<'_> {
                     let pattern = self.parse_pattern()?;
                     Ok(StructPatternField::Named { name, pattern })
                 } else {
-                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden: name })
+                    let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                        Some(self.parse_pattern()?)
+                    } else {
+                        None
+                    };
+                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden: name, bound })
                 }
             },
             Token::Literal(lit_id) => {
@@ -3047,13 +3052,23 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Mut) => {
                 self.consume_single();
                 let iden = self.consume_name()?;
-                Ok(StructPatternField::Iden { is_ref: false, is_mut: true, iden })
+                let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                    Some(self.parse_pattern()?)
+                } else {
+                    None
+                };
+                Ok(StructPatternField::Iden { is_ref: false, is_mut: true, iden, bound })
             },
             Token::Punctuation(Punctuation::Ampersand) => {
                 self.consume_single();
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 let iden = self.consume_name()?;
-                Ok(StructPatternField::Iden { is_ref: true, is_mut, iden })
+                let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                    Some(self.parse_pattern()?)
+                } else {
+                    None
+                };
+                Ok(StructPatternField::Iden { is_ref: true, is_mut, iden, bound })
             },
             Token::Punctuation(Punctuation::DotDot) => {
                 self.consume_single();
@@ -3087,7 +3102,12 @@ impl Parser<'_> {
                 let is_ref = self.try_consume(Token::StrongKw(StrongKeyword::Ref));
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 let iden = self.consume_name()?;
-                Ok(StructPatternField::Iden { is_ref, is_mut, iden })
+                let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                    Some(self.parse_pattern()?)
+                } else {
+                    None
+                };
+                Ok(StructPatternField::Iden { is_ref, is_mut, iden, bound })
             }
             Token::Literal(lit_id) => {
                 self.consume_single();
@@ -3099,7 +3119,12 @@ impl Parser<'_> {
             Token::Name(iden) => {
                 self.consume_single();
                 if !self.try_consume(Token::Punctuation(Punctuation::Colon)) {
-                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden })
+                    let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
+                        Some(self.parse_pattern()?)
+                    } else {
+                        None
+                    };
+                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden, bound })
                 } else {
                     let pattern = self.parse_pattern()?;
                     Ok(StructPatternField::Named { name: iden, pattern })

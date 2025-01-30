@@ -1544,20 +1544,24 @@ pub mod helpers {
         match node {
             StructPattern::Inferred { fields } => for field in fields {
                 match field {
-                    StructPatternField::Named { name, pattern }       => visitor.visit_pattern(ast, pattern),
-                    StructPatternField::TupleIndex { idx, pattern }   => visitor.visit_pattern(ast, pattern),
-                    StructPatternField::Iden { is_ref, is_mut, iden } => {},
-                    StructPatternField::Rest                          => {},
+                    StructPatternField::Named { name, pattern }              => visitor.visit_pattern(ast, pattern),
+                    StructPatternField::TupleIndex { idx, pattern }          => visitor.visit_pattern(ast, pattern),
+                    StructPatternField::Iden { is_ref, is_mut, iden, bound } => if let Some(bound) = bound {
+                        visitor.visit_pattern(ast, bound);
+                    },
+                    StructPatternField::Rest                                 => {},
                 }
             },
             StructPattern::Path { path, fields } => {
                 visitor.visit_expr_path(ast, *path);
                 for field in fields {
                     match field {
-                        StructPatternField::Named { name, pattern }       => visitor.visit_pattern(ast, pattern),
-                        StructPatternField::TupleIndex { idx, pattern }   => visitor.visit_pattern(ast, pattern),
-                        StructPatternField::Iden { is_ref, is_mut, iden } => {},
-                        StructPatternField::Rest                          => {},
+                        StructPatternField::Named { name, pattern }              => visitor.visit_pattern(ast, pattern),
+                        StructPatternField::TupleIndex { idx, pattern }          => visitor.visit_pattern(ast, pattern),
+                        StructPatternField::Iden { is_ref, is_mut, iden, bound } => if let Some(bound) = bound {
+                            visitor.visit_pattern(ast, bound);
+                        },
+                        StructPatternField::Rest                                 => {},
                     }
                 }
             },
