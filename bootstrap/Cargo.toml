@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 clap_derive = "=4.5.13"
 clap = { version = "4.5.16", features = ["derive"]}
+parking_lot = "0.12.3"
 
 bootstrap-macros = { path = "crates/bootstrap-macros"}
 

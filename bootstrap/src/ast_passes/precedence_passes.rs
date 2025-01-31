@@ -228,7 +228,7 @@ impl Visitor for PrecedenceConnection<'_> {
 
         let syms = self.ctx.syms.read().unwrap();
         let sym = syms.get_symbol(&ctx_node.scope, name).unwrap();
-        let Symbol::Precedence(sym) = sym else {
+        let Symbol::Precedence(sym) = &*sym.read() else {
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),
                 err: ErrorCode::InternalError("Expected Precedence symbol when accessing symbol associated to a precedencenode ")

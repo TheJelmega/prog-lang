@@ -98,7 +98,15 @@ impl Visitor for ModulePathResolution<'_> {
                 let base_scope = &ctx_node.scope.parent();
                 let cur_name = &ctx_node.scope.last().unwrap().name;
 
-                let Some(Symbol::Module(mod_sym)) = syms.get_symbol(base_scope, cur_name) else {
+                let Some(sym) = syms.get_symbol(base_scope, cur_name) else {
+                    self.ctx.add_error(AstError {
+                        node_id: node_id.index(),
+                        err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
+                    });
+                    return
+                };
+
+                let Symbol::Module(mod_sym) = &*sym.read() else {
                     self.ctx.add_error(AstError {
                         node_id: node_id.index(),
                         err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
