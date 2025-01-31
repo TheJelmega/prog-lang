@@ -1,6 +1,7 @@
 use std::{
-    env, fs::{self, File}, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}, time
+    env, fs::{self, File}, io::Read, path::{Path, PathBuf}, sync::{Arc}, time
 };
+use parking_lot::RwLock;
 
 use ast_passes::Context;
 use clap::Parser as _;
@@ -198,7 +199,7 @@ fn main() {
             sub_paths = pass.collected_paths;
         });
 
-        for err in &*ast_ctx.errors.lock().unwrap() {
+        for err in &*ast_ctx.errors.lock() {
             println!("{err}");
         }
 
@@ -248,7 +249,7 @@ fn main() {
         pass.visit(ast);
     });
 
-    precedences.write().unwrap().precompute_order();
+    precedences.write().precompute_order();
 
     // Operators
 
@@ -282,13 +283,13 @@ fn main() {
     stats.add_ast_hir_lower(&hir);
 
     if cli.print_hir_nodes {
-        println!("HIR:");
+        println!("Lowered HIR:");
         let mut hir_logger = hir::NodeLogger::new(&name_table, &literal_table, &punct_table);
         hir_logger.visit(&mut hir, hir::VisitFlags::all());
     }
 
     if cli.print_hir_code {
-        println!("HIR pseudo-code:");
+        println!("Lowered HIR pseudo-code:");
         let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
         hir_printer.visit(&mut hir, hir::VisitFlags::all());
     }
@@ -296,19 +297,19 @@ fn main() {
     println!("================================================================");
     if cli.print_sym_table {
         println!("Symbol table:");
-        symbol_table.read().unwrap().log();
+        symbol_table.read().log();
     }
 
     println!("--------------------------------");
     if cli.print_precedence {
         println!("Precedence DAG Unordered:");
-        precedences.read().unwrap().log_unordered();
+        precedences.read().log_unordered();
     }
 
     println!("--------------------------------");
     if cli.print_op_table {
         println!("Operator table");
-        operators.read().unwrap().log(&punct_table);
+        operators.read().log(&punct_table);
     }
 
     if cli.timings {

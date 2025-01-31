@@ -3,7 +3,8 @@
 // Represented as nodes with internal tree structures per module-level item
 #![allow(unused)]
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use parking_lot::RwLock;
 
 use crate::{
     common::{Abi, NameId, OpType, Scope},

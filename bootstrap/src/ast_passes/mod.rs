@@ -1,9 +1,10 @@
-use std::{fmt, path::PathBuf, sync::{Arc, Mutex, RwLock}};
+use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
     ast::{Ast, AstNode, AstNodeRef},
     common::{LibraryPath, OperatorTable, PrecedenceDAG, Scope, SymbolTable},
     error_warning::ErrorCode
 };
+use parking_lot::{Mutex, RwLock};
 
 mod context_setup;
 pub use context_setup::*;
@@ -119,6 +120,6 @@ impl Context {
     }
 
     pub fn add_error(&self, err: AstError) {
-        self.errors.lock().unwrap().push(err);
+        self.errors.lock().push(err);
     }
 }

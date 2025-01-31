@@ -47,7 +47,7 @@ impl Visitor for OperatorCollection<'_> {
                                 trait_path: trait_path.clone(),
                                 func_name: self.names[*name].to_string(),
                             };
-                            self.ctx.operators.write().unwrap().add_operator(op_info);
+                            self.ctx.operators.write().add_operator(op_info);
                         },
                         _ => {},
                     }
@@ -67,7 +67,7 @@ impl Visitor for OperatorCollection<'_> {
                                 trait_path: trait_path.clone(),
                                 func_name: self.names[*name].to_string(),
                             };
-                            self.ctx.operators.write().unwrap().add_operator(op_info);
+                            self.ctx.operators.write().add_operator(op_info);
                         },
                         _ => {},
                     }
@@ -173,7 +173,7 @@ impl<'a> OperatorReorder<'a> {
         };
         let right = &ast[right_node_id];
 
-        let operators = self.ctx.operators.read().unwrap();
+        let operators = self.ctx.operators.read();
         let Some(right_info) = operators.get(OpType::Infix, right.op) else {
             let op = right.op.as_str(&self.puncts).to_string();
             self.ctx.add_error(AstError {
@@ -212,7 +212,7 @@ impl<'a> OperatorReorder<'a> {
             return Err(());
         }
 
-        let precedences = self.ctx.precedences.read().unwrap();
+        let precedences = self.ctx.precedences.read();
     
         let left_pred = match &op_info.precedence {
             Some(pred) => match precedences.get(&pred) {

@@ -579,8 +579,8 @@ pub(crate) mod helpers {
 
         if flags.contains(VisitFlags::Trait) {
             for (node, ctx) in &mut hir.traits {
-                let mut node = node.write().unwrap();
-                let mut ctx = ctx.write().unwrap();
+                let mut node = node.write();
+                let mut ctx = ctx.write();
                 visitor.visit_trait(&mut node, &mut ctx);
             }
         }
@@ -615,8 +615,8 @@ pub(crate) mod helpers {
 
         if flags.contains(VisitFlags::Impl) {
             for (node, ctx) in &mut hir.impls {
-                let mut node = node.write().unwrap();
-                let mut ctx = ctx.write().unwrap();
+                let mut node = node.write();
+                let mut ctx = ctx.write();
                 visitor.visit_impl(&mut node, &mut ctx);
             }
         }
@@ -672,8 +672,8 @@ pub(crate) mod helpers {
 
         if flags.contains(VisitFlags::OpTrait) {
             for (node, ctx) in &mut hir.op_traits {
-                let mut node = node.write().unwrap();
-                let mut ctx = ctx.write().unwrap();
+                let mut node = node.write();
+                let mut ctx = ctx.write();
                 visitor.visit_op_trait(&mut node, &mut ctx);
             }
         }

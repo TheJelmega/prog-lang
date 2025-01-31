@@ -94,7 +94,7 @@ impl Visitor for ModulePathResolution<'_> {
             let is_mod_path = if ctx_node.scope.is_empty() {
                 true
             } else {
-                let syms = self.ctx.syms.read().unwrap();
+                let syms = self.ctx.syms.read();
                 let base_scope = &ctx_node.scope.parent();
                 let cur_name = &ctx_node.scope.last().unwrap().name;
 
@@ -173,7 +173,7 @@ impl Visitor for ModulePathResolution<'_> {
         let mut base_scope = ctx_node.scope.clone();
         base_scope.push(mod_name.clone());
         
-        self.ctx.syms.write().unwrap().add_module(&ctx_node.scope, mod_name.to_string(), path.clone());
+        self.ctx.syms.write().add_module(&ctx_node.scope, mod_name.to_string(), path.clone());
         self.collected_paths.push((path.clone(), base_scope));
     }
 }

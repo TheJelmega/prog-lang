@@ -146,7 +146,7 @@ impl NodeLogger<'_> {
     pub fn log_trait(&mut self, hir: &mut Hir, idx: usize) {
         let (trait_ref, trait_ctx) = &hir.traits[idx];
         let node_id = {
-            let node = trait_ref.write().unwrap();
+            let node = trait_ref.write();
             node.node_id
         };
 
@@ -158,7 +158,7 @@ impl NodeLogger<'_> {
             let props_count = hir.trait_properties.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
             {
-                let mut node = trait_ref.write().unwrap();
+                let mut node = trait_ref.write();
 
                 let has_items = type_aliases_count == 0 && consts_count == 0 && funcs_count == 0 && props_count == 0;
 
@@ -215,7 +215,7 @@ impl NodeLogger<'_> {
     pub fn log_impl(&mut self, hir: &mut Hir, idx: usize) {
         let (impl_ref, impl_ctx) = &hir.impls[idx];
         let node_id = {
-            let node = impl_ref.write().unwrap();
+            let node = impl_ref.write();
             node.node_id
         };
 
@@ -230,7 +230,7 @@ impl NodeLogger<'_> {
             let props_count = hir.properties.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
             {
-                let mut node = impl_ref.write().unwrap();
+                let mut node = impl_ref.write();
 
                 let has_items = funcs_count == 0 && method_count == 0 && type_aliases_count == 0 && consts_count == 0 && static_count == 0 && tls_static_count == 0 && props_count == 0;
 
@@ -314,7 +314,7 @@ impl NodeLogger<'_> {
     pub fn log_op_trait(&mut self, hir: &mut Hir, idx: usize) {
         let (trait_ref, trait_ctx) = &hir.op_traits[idx];
         let node_id = {
-            let node = trait_ref.write().unwrap();
+            let node = trait_ref.write();
             node.node_id
         };
 
@@ -325,7 +325,7 @@ impl NodeLogger<'_> {
             let contract_count = hir.op_contracts.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
             {
-                let mut node = trait_ref.write().unwrap();
+                let mut node = trait_ref.write();
 
                 let has_items = spec_count == 0 && contract_count == 0 && funcs_count == 0;
 

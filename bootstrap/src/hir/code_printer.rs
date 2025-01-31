@@ -100,7 +100,7 @@ impl<'a> CodePrinter<'a> {
     pub fn log_trait(&mut self, hir: &mut Hir, idx: usize) {
         let (trait_ref, trait_ctx) = &hir.traits[idx];
 
-        let mut node = trait_ref.write().unwrap();
+        let mut node = trait_ref.write();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
@@ -163,7 +163,7 @@ impl<'a> CodePrinter<'a> {
     pub fn log_impl(&mut self, hir: &mut Hir, idx: usize) {
         let (impl_ref, impl_ctx) = &hir.impls[idx];
 
-        let mut node = impl_ref.write().unwrap();
+        let mut node = impl_ref.write();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
@@ -256,7 +256,7 @@ impl<'a> CodePrinter<'a> {
     pub fn log_op_trait(&mut self, hir: &mut Hir, idx: usize) {
         let (trait_ref, trait_ctx) = &hir.op_traits[idx];
 
-        let mut node = trait_ref.write().unwrap();
+        let mut node = trait_ref.write();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }

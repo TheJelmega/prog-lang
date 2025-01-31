@@ -28,12 +28,12 @@ impl Visitor for PrecedenceCollection<'_> {
         let name = self.names[node.name].to_string();
 
         let id = {
-            let mut precedences = self.ctx.precedences.write().unwrap();
+            let mut precedences = self.ctx.precedences.write();
             precedences.add_precedence(name.to_string())
         };
 
         {
-            let mut syms = self.ctx.syms.write().unwrap();
+            let mut syms = self.ctx.syms.write();
             syms.add_precedence(&scope, name, id);
         }
 
@@ -114,11 +114,11 @@ impl Visitor for PrecedenceAttribute<'_> {
 
                             match name.as_str() {
                                 "lowest_precedence" => {
-                                    let mut precedences = self.ctx.precedences.write().unwrap();
+                                    let mut precedences = self.ctx.precedences.write();
                                     precedences.set_lowest(*id);
                                 },
                                 "highest_precedence" => {
-                                    let mut precedences = self.ctx.precedences.write().unwrap();
+                                    let mut precedences = self.ctx.precedences.write();
                                     precedences.set_highest(*id);
                                 },
                                 _ => {
@@ -226,7 +226,7 @@ impl Visitor for PrecedenceConnection<'_> {
 
         let ctx_node = self.ctx.get_node_for(node_id);
 
-        let syms = self.ctx.syms.read().unwrap();
+        let syms = self.ctx.syms.read();
         let sym = syms.get_symbol(&ctx_node.scope, name).unwrap();
         let Symbol::Precedence(sym) = &*sym.read() else {
             self.ctx.add_error(AstError {
@@ -236,7 +236,7 @@ impl Visitor for PrecedenceConnection<'_> {
             return;
         };
 
-        let mut precedence_dag = self.ctx.precedences.write().unwrap();
+        let mut precedence_dag = self.ctx.precedences.write();
 
         if let Some(lower) = &node.lower_than {
             let lower_id = precedence_dag.get_id(&self.names[*lower]);
