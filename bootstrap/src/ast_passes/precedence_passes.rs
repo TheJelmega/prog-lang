@@ -238,14 +238,14 @@ impl Visitor for PrecedenceConnection<'_> {
 
         let mut precedence_dag = self.ctx.precedences.write();
 
-        if let Some(lower) = &node.lower_than {
-            let lower_id = precedence_dag.get_id(&self.names[*lower]);
-            precedence_dag.set_order(lower_id, sym.id);
+        if let Some(lower_than) = &node.lower_than {
+            let higher = precedence_dag.get_id(&self.names[*lower_than]);
+            precedence_dag.set_order(sym.id, higher);
         }
 
-        if let Some(higher) = &node.higher_than {
-            let higher_id = precedence_dag.get_id(&self.names[*higher]);
-            precedence_dag.set_order(sym.id, higher_id);
+        if let Some(higher_than) = &node.higher_than {
+            let lower = precedence_dag.get_id(&self.names[*higher_than]);
+            precedence_dag.set_order(lower, sym.id);
         }
     }
 }

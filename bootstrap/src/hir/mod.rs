@@ -3,14 +3,11 @@
 // Represented as nodes with internal tree structures per module-level item
 #![allow(unused)]
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    common::{Abi, NameId, OpType, Scope},
-    lexer::Punctuation,
-    literals::LiteralId,
-    type_system,
+    common::{Abi, NameId, OpType, Scope, SymbolRef}, error_warning::ErrorCode, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -23,6 +20,22 @@ pub use node_logger::*;
 
 mod code_printer;
 pub use code_printer::*;
+
+pub mod passes;
+pub use passes::Pass;
+
+// =============================================================================================================================
+
+pub struct HirError {
+    pub node_id: u32,
+    pub err:     ErrorCode
+}
+
+impl fmt::Display for HirError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.node_id, self.err)
+    }
+}
 
 // =============================================================================================================================
 
@@ -448,11 +461,12 @@ pub struct Impl {
 }
 
 pub struct OpTrait {
-    pub node_id: u32,
-    pub attrs:   Vec<Box<Attribute>>,
-    pub vis:     Visibility,
-    pub name:    NameId,
-    pub bases:   Vec<SimplePath>,
+    pub node_id:    u32,
+    pub attrs:      Vec<Box<Attribute>>,
+    pub vis:        Visibility,
+    pub name:       NameId,
+    pub bases:      Vec<SimplePath>,
+    pub precedence: Option<NameId>,
 }
 
 pub struct OpFunction {
@@ -648,10 +662,11 @@ pub struct PostfixExpr {
 
 #[derive(Clone)]
 pub struct InfixExpr {
-    pub node_id: u32,
-    pub left:    Box<Expr>,
-    pub op:      Punctuation,
-    pub right:   Box<Expr>,
+    pub node_id:     u32,
+    pub left:        Box<Expr>,
+    pub op:          Punctuation,
+    pub right:       Box<Expr>,
+    pub can_reorder: bool,
 }
 
 #[derive(Clone)]
@@ -748,6 +763,7 @@ pub struct FieldAccessExpr {
     pub is_propagating: bool,
 }
 
+// TODO: This is not correct yet
 #[derive(Clone)]
 pub struct ClosureExpr {
     pub node_id:  u32,
@@ -1102,48 +1118,56 @@ pub enum AttrMeta {
 
 pub struct FunctionContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl FunctionContext {
     fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct TypeAliasContext {
-    pub scope: Scope
+    pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl TypeAliasContext {
     fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct StructContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl StructContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct UnionContext {
-    pub scope: Scope
+    pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl UnionContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
@@ -1151,144 +1175,168 @@ impl UnionContext {
 
 pub struct AdtEnumContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl AdtEnumContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct FlagEnumContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl FlagEnumContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct BitfieldContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl BitfieldContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct ConstContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl ConstContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct StaticContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl StaticContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct PropertyContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl PropertyContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct TraitContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl TraitContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct ImplContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl ImplContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct OpTraitContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl OpTraitContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct OpFunctionContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl OpFunctionContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct OpSpecializationContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl OpSpecializationContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }
 
 pub struct OpContractContext {
     pub scope: Scope,
+    pub sym:   Option<SymbolRef>,
 }
 
 impl OpContractContext {
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
+            sym: None,
         }
     }
 }

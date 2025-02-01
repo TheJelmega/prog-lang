@@ -1339,7 +1339,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut scope = ast_ctx.scope.clone();
 
         match &ast[node_id] {
-            OpTrait::Base { attrs, vis, name, precedence: _, elems } => {
+            OpTrait::Base { attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     self.visit_attribute(ast, *attr);
                 }
@@ -1356,6 +1356,7 @@ impl Visitor for AstToHirLowering<'_> {
                     vis,
                     name: *name,
                     bases: Vec::new(),
+                    precedence: *precedence,
                 });
 
                 scope.push(self.names[*name].to_string());
@@ -1387,6 +1388,7 @@ impl Visitor for AstToHirLowering<'_> {
                     vis,
                     name: *name,
                     bases: hir_bases,
+                    precedence: None,
                 });
 
                 scope.push(self.names[*name].to_string());
@@ -1945,34 +1947,15 @@ impl Visitor for AstToHirLowering<'_> {
         let node = &ast[node_id];
         let right = self.expr_stack.pop().unwrap();
         let left = self.expr_stack.pop().unwrap();
+        let can_reorder = matches!(node.right, Expr::Infix(_));
 
-        let ast_ctx = self.ctx.get_node_for(node_id);
-        let ContextNodeData::Infix { reorder } = &ast_ctx.data else { unreachable!() };
-
-        if *reorder {
-            let hir::Expr::Infix(infix) = *right else { unreachable!() };
-
-            let left = Box::new(hir::Expr::Infix(hir::InfixExpr {
-                node_id: node_id.index() as u32,
-                left,
-                op: node.op,
-                right: infix.left,
-            }));
-
-            self.push_expr(hir::Expr::Infix(hir::InfixExpr {
-                node_id: infix.node_id,
-                left,
-                op: infix.op,
-                right: infix.right,
-            }));
-        } else {
-            self.push_expr(hir::Expr::Infix(hir::InfixExpr {
-                node_id: node_id.index() as u32,
-                left,
-                op: node.op,
-                right,
-            }));
-        }
+        self.push_expr(hir::Expr::Infix(hir::InfixExpr {
+            node_id: node_id.index() as u32,
+            left,
+            op: node.op,
+            right,
+            can_reorder,
+        }));
     }
 
     fn visit_paren_expr(&mut self, ast: &Ast, node_id: AstNodeRef<ParenExpr>) where Self: Sized {

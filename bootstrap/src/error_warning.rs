@@ -4,15 +4,16 @@ use std::{fmt::write, mem::discriminant};
 use crate::lexer::{OpenCloseSymbol, Punctuation, Token};
 
 
+// TODO: Split into distinct error subsets
 // Error ranges
 // E0000-E0999: Internal errors
 // E1000-E1999: Lexer error
 // E2000-E2999: Parser error
 // E3000-E3999: AST errors
-// E4000-E4999:
-// E5000-E5999:
-// E6000-E6999:
-// E7000-E7999:
+// E4000-E4999: HIR errors
+// E5000-E5999: MIR errors
+// E6000-E6999: LIR errors
+// E7000-E7999: ASM errors
 // E8000-E8999:
 // E9000-E9999:
 #[derive(Debug)]
@@ -117,6 +118,10 @@ pub enum ErrorCode {
 
     AstMultipleStructComplete = 3025,
     AstInvalidUninitVarDecl { info: String } = 3026,
+
+    HirOperatorDoesNotExist { op: String } = 4000,
+    HirOperatorNoPrecedence { op: String } = 4001,
+    HirOperatorNoOrder { op0: String, op1: String } = 4002,
 }
 
 impl Display for ErrorCode {
@@ -185,6 +190,11 @@ impl Display for ErrorCode {
             Self::AstInvalidLiteral { lit, info }           => write!(f, "Invalid literal '{lit}': {info}"),
             Self::AstMultipleStructComplete                 => write!(f, "Structure expression may only contain 1 completion expression"),
             Self::AstInvalidUninitVarDecl { info }          => write!(f, "Invalid unitialized variable declaration: {info}"),
+
+            // HIR
+            Self::HirOperatorDoesNotExist { op }            => write!(f, "Operator does not exist: {op}"),
+            Self::HirOperatorNoPrecedence { op }            => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
+            Self::HirOperatorNoOrder { op0, op1 }           => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
         }
     }
 }

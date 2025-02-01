@@ -64,16 +64,16 @@ impl fmt::Display for Abi {
 
 pub struct CompilerStats {
     // Lexer
-    pub file_count:                          u64,
-    pub lex_time:                            time::Duration,
-    pub bytes_parsed:                        u64,
-    pub chars_parsed:                        u64,
-    pub lines_parsed:                        u64,
-    pub tokens_generated:                    u64,
+    pub file_count:                           u64,
+    pub lex_time:                             time::Duration,
+    pub bytes_parsed:                         u64,
+    pub chars_parsed:                         u64,
+    pub lines_parsed:                         u64,
+    pub tokens_generated:                     u64,
 
     // Parser
-    pub parse_time:                          time::Duration,
-    pub ast_nodes_generated:                 u64,
+    pub parse_time:                           time::Duration,
+    pub ast_nodes_generated:                  u64,
 
     // Ast
     pub ast_pass_time:                        time::Duration,
@@ -114,6 +114,8 @@ pub struct CompilerStats {
     pub ast_op_contracts_lowered:             u64,
 
     // HIR
+    pub num_hir_passes:                       u64,
+    pub hir_pass_time:                        time::Duration,
     
 }
 
@@ -165,6 +167,9 @@ impl CompilerStats {
             ast_op_functions_lowered:             0,
             ast_op_specializations_lowered:       0,
             ast_op_contracts_lowered:             0,
+
+            num_hir_passes:                       0,
+            hir_pass_time:                        time::Duration::default(),
         }
     }
     
@@ -223,6 +228,11 @@ impl CompilerStats {
         self.ast_op_functions_lowered = hir.op_functions.len() as u64;
         self.ast_op_specializations_lowered = hir.op_specializations.len() as u64;
         self.ast_op_contracts_lowered = hir.op_contracts.len() as u64;
+    }
+
+    pub fn add_hir_pass(&mut self, time: time::Duration) {
+        self.hir_pass_time += time;
+        self.num_hir_passes += 1;
     }
 
 
@@ -295,5 +305,9 @@ impl CompilerStats {
         logger.log_fmt(format_args!("    Op functions lowered:               {}\n", self.ast_op_functions_lowered));
         logger.log_fmt(format_args!("    Op specialization lowered:          {}\n", self.ast_op_specializations_lowered));
         logger.log_fmt(format_args!("    Op contract lowered:                {}\n", self.ast_op_contracts_lowered));
+        
+        logger.logln("- HIR passes:");
+        logger.log_fmt(format_args!("    Num passes: {}\n", self.num_hir_passes));
+        logger.log_fmt(format_args!("    Time:       {:.2}ms\n", self.hir_pass_time.as_secs_f32() * 1000.0));
     }
 }

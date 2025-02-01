@@ -26,16 +26,16 @@ impl PrecedenceImportPath {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrecedenceOrder {
     None,
-    Less,
-    Greater,
+    Higher,
+    Same,
+    Lower,
 }
 
 struct PrecedenceNode {
-    prev:         Vec<u16>,
-    next:         Vec<u16>,
+    higher:         Vec<u16>,
+    lower:         Vec<u16>,
     name:         String,
-    precomp_prev: Vec<u16>,
-    is_precomped: bool,
+    precomp_higher: Vec<u16>,
 }
 
 pub struct PrecedenceDAG {
@@ -64,11 +64,10 @@ impl PrecedenceDAG {
     pub fn add_precedence(&mut self, name: String) -> u16 {
         let id = self.nodes.len() as u16;
         self.nodes.push(PrecedenceNode {
-            prev: Vec::new(),
-            next: Vec::new(),
+            higher: Vec::new(),
+            lower: Vec::new(),
             name,
-            precomp_prev: Vec::new(),
-            is_precomped: false,
+            precomp_higher: Vec::new(),
         });
         id
     }
@@ -93,8 +92,8 @@ impl PrecedenceDAG {
         assert!((lower as usize) < self.nodes.len());
         assert!((higher as usize) < self.nodes.len());
 
-        self.nodes[lower as usize].next.push(higher);
-        self.nodes[higher as usize].prev.push(lower);
+        self.nodes[lower as usize].higher.push(higher);
+        self.nodes[higher as usize].lower.push(lower);
     }
 
     pub fn precompute_order(&mut self) {
@@ -110,65 +109,80 @@ impl PrecedenceDAG {
                 continue;
             }
 
-            if node.prev.is_empty() {
-                to_connect.push((self.lowest, id));
-            }
-            if node.next.is_empty() {
+            if node.higher.is_empty() {
                 to_connect.push((id, self.highest));
+            }
+            if node.lower.is_empty() {
+                to_connect.push((self.lowest, id));
             }
         }
         for (lower, higher) in to_connect {
             self.set_order(lower, higher);
         }
 
-        // Now go over the nodes and collect the set of previous nodes, if it's not processed yet, skip them
+        // Now go over the nodes and collect the set of higher nodes, if it's not processed yet, skip them
         let mut to_process = VecDeque::new();
-        for id in &self.nodes[self.lowest as usize].next {
+        for id in &self.nodes[self.highest as usize].lower {
             to_process.push_back(*id);
-        }
+        }  
 
-        while let Some(id) = to_process.pop_front() {
+         while let Some(id) = to_process.pop_front() {
             let node = &self.nodes[id as usize];
+            // Skip if we already processed this (happens when node have multiple sources)
+            if !node.precomp_higher.is_empty() {
+                continue;
+            }
             
             // Check if we can already process it, if not, push it on the back
-            for prev in &node.prev {
-                if *prev != self.lowest && self.nodes[*prev as usize].precomp_prev.is_empty() {
+            for higher in &node.higher {
+                if *higher != self.highest && self.nodes[*higher as usize].precomp_higher.is_empty() {
                     to_process.push_back(id);
                     continue;
                 }
             }
 
-            // Otherwise collect all lower nodes, dedup and sort them
-            let mut precomp_prev = Vec::new();
-            for prev in &node.prev {
-                let prev_node = &self.nodes[*prev as usize];
-                for tmp in &prev_node.precomp_prev {
-                    precomp_prev.push(*tmp);
+            // Otherwise collect all higher nodes, dedup and sort them
+            let mut precomp_higher = Vec::new();
+            for higher in &node.higher {
+                let node = &self.nodes[*higher as usize];
+                for tmp in &node.precomp_higher {
+                    precomp_higher.push(*tmp);
                 }
+                precomp_higher.push(*higher);
             }
 
-            precomp_prev.dedup();
-            precomp_prev.sort();
+            precomp_higher.dedup();
+            precomp_higher.sort();
+            
+            // add lower nodes to process
+            for id in &node.lower {
+                to_process.push_back(*id);
+            }
 
-            self.nodes[id as usize].precomp_prev = precomp_prev;
+            self.nodes[id as usize].precomp_higher = precomp_higher;
         }
     }
 
-    // returns `None` if there is no relation between the precedences
-    // otherwise `Some(x)` where `x` means `pred0` comes before `pred1`
-    pub fn get_order(&self, pred0: u16, pred1: u16) -> Option<bool> {
+    pub fn get_order(&self, pred0: u16, pred1: u16) -> PrecedenceOrder {
+        // Either node has no precedence, so there is no order
+        if pred0 == u16::MAX || pred1 == u16::MAX {
+            return PrecedenceOrder::None;
+        }
+
         assert!((pred0 as usize) < self.nodes.len());
         assert!((pred1 as usize) < self.nodes.len());
-        
-        // See if pred0 comes before pred1
-        if self.nodes[pred1 as usize].precomp_prev.contains(&pred0) {
-            Some(true)
-        } else if self.nodes[pred0 as usize].precomp_prev.contains(&pred1) {
+
+        if pred0 == pred1 {
+            PrecedenceOrder::Same
+        } else if self.nodes[pred1 as usize].precomp_higher.contains(&pred0) {
+            // See if pred0 comes before pred1
+            PrecedenceOrder::Higher
+        } else if self.nodes[pred0 as usize].precomp_higher.contains(&pred1) {
             // See if pred1 comes after pred0
-            Some(false)
+            PrecedenceOrder::Lower
         } else {
             // otherwise there is no precedence relation
-            None
+            PrecedenceOrder::None
         }
     }
 
@@ -176,27 +190,38 @@ impl PrecedenceDAG {
         let mut logger = Logger::new();
 
         for (id, node) in self.nodes.iter().enumerate() {
-            logger.log_fmt(format_args!("Precedence {id}, path: {}", &node.name));
-            if !node.prev.is_empty() {
-                logger.log(", prev: ");
-                for (idx, id) in node.prev.iter().enumerate() {
+            logger.log_fmt(format_args!("Precedence {id}, path: {}\n", &node.name));
+            if !node.higher.is_empty() {
+                logger.log("    - lower than: ");
+                for (idx, id) in node.higher.iter().enumerate() {
                     if idx != 0 {
                         logger.log(", ");
                     }
                     logger.log_fmt(format_args!("{id}"))
                 }
+                logger.logln("");
             }
-            if !node.next.is_empty() {
-                logger.log(", next: ");
-                for (idx, id) in node.next.iter().enumerate() {
+            if !node.lower.is_empty() {
+                logger.log("    - higher than: ");
+                for (idx, id) in node.lower.iter().enumerate() {
                     if idx != 0 {
                         logger.log(", ");
                     }
                     logger.log_fmt(format_args!("{id}"))
                 }
+                logger.logln("");
+            }
+            if !node.precomp_higher.is_empty() {
+                logger.log("    - precomputed lower than: ");
+                for (idx, id) in node.precomp_higher.iter().enumerate() {
+                    if idx != 0 {
+                        logger.log(", ");
+                    }
+                    logger.log_fmt(format_args!("{id}"))
+                }
+                logger.logln("");
             }
 
-            logger.logln("");
         }
     }
 }

@@ -13,7 +13,7 @@ pub struct OperatorImportPath {
     pub op:      Punctuation,
 }
 
-
+// TODO: Assign is infix, but special, so make sure we also look at it when looking for infix ops
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OpType {
     Prefix,
@@ -39,16 +39,19 @@ impl fmt::Display for OpType {
 
 
 pub struct OperatorInfo {
-    pub op_type:      OpType,
-    pub op:           Punctuation,
-    pub precedence:   Option<String>,
-    pub library_path: LibraryPath,
-    pub trait_path:   Scope, //< Not really a scope, but good enough for now
-    pub func_name:    String,
+    pub op_type:         OpType,
+    pub op:              Punctuation,
+    // TODO: name + id
+    pub precedence_name: String,
+    pub precedence_id:   u16,
+    pub library_path:    LibraryPath,
+    pub trait_path:      Scope, //< Not really a scope, but good enough for now
+    pub func_name:       String,
 }
 
 pub struct OperatorTable {
     pub tables: [HashMap<Punctuation, OperatorInfo>; OpType::COUNT],
+    pub trait_precedences: HashMap<Scope, (String, u16)>,
 }
 
 impl OperatorTable {
@@ -60,6 +63,7 @@ impl OperatorTable {
                 HashMap::new(),
                 HashMap::new(),
             ],
+            trait_precedences: HashMap::new(),
         }
     }
 
@@ -68,15 +72,37 @@ impl OperatorTable {
         table.insert(info.op, info);
     }
 
-    pub fn get(&self, op_type: OpType, op: Punctuation) -> Option<&OperatorInfo> {
-        let table = &self.tables[op_type as usize];
-        table.get(&op)
+    pub fn add_trait_precedence(&mut self, scope: Scope, name: String, id: u16) {
+        self.trait_precedences.insert(scope, (name, id));
     }
 
+    pub fn get(&self, op_type: OpType, op: Punctuation) -> Option<&OperatorInfo> {
+        if op_type == OpType::Infix {
+            let table = &self.tables[op_type as usize];
+            if let Some(op) = table.get(&op) {
+                return Some(op);
+            }
+            
+            // Assign is infix, but special, so make sure we also look at it when looking for infix ops
+            let table = &self.tables[OpType::Assign as usize];
+            table.get(&op)
+        } else {
+            let table = &self.tables[op_type as usize];
+            table.get(&op)
+        }
+    }
 
+    pub fn get_trait_precedence(&mut self, scope: &Scope) -> Option<(&str, u16)> {
+        self.trait_precedences.get(scope).map(|(s, id)| (s.as_str(), *id))
+    }
 
     pub fn log(&self, puncts: &PuncutationTable) {
         let logger = Logger::new();
+
+        logger.log("Trait Precedences:\n");
+        for (path, (pred, id)) in &self.trait_precedences {
+            logger.log_fmt(format_args!("    - {}: {} ({})\n", path, pred, id));
+        }
 
         let op_types = [
             OpType::Prefix,
@@ -99,9 +125,7 @@ impl OperatorTable {
                 logger.log_fmt(format_args!("    - Library:    {}\n", op.library_path));
                 logger.log_fmt(format_args!("    - Trait:      {trait_path}\n"));
                 logger.log_fmt(format_args!("    - Func:       {}\n", op.func_name));
-                if let Some(precedence) = &op.precedence {
-                    logger.log_fmt(format_args!("    - Precedence: {precedence}\n"));
-                }
+                logger.log_fmt(format_args!("    - Precedence: {} ({})\n", &op.precedence_name, op.precedence_id));
             }
         }
     }

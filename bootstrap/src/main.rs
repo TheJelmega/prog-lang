@@ -253,27 +253,18 @@ fn main() {
 
     // Operators
 
-    do_ast_for_all_passes(&cli, &mut stats, "Operator Collection", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::OperatorCollection::new(ast_ctx, &name_table);
-        pass.visit(ast);
-    });
+    // let mut imported_operators = Vec::new();
+    // do_ast_for_all_passes(&cli, &mut stats, "Operator Import", &mut asts, |ast, ast_ctx| {
+    //     let mut pass = ast_passes::OperatorImport::new(ast_ctx, &name_table);
+    //     pass.visit(ast);
 
-    let mut imported_operators = Vec::new();
-    do_ast_for_all_passes(&cli, &mut stats, "Operator Import", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::OperatorImport::new(ast_ctx, &name_table);
-        pass.visit(ast);
-
-        if !pass.imports.is_empty() {
-            imported_operators = pass.imports;
-        }
-    });
+    //     if !pass.imports.is_empty() {
+    //         imported_operators = pass.imports;
+    //     }
+    // });
 
     // TODO: External operator importing happens here
 
-    do_ast_for_all_passes(&cli, &mut stats, "Operator Node Reordering", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::OperatorReorder::new(ast_ctx, &punct_table);
-        pass.visit(ast);
-    });
 
     let mut hir = hir::Hir::new();
     do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
@@ -292,6 +283,30 @@ fn main() {
         println!("Lowered HIR pseudo-code:");
         let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
         hir_printer.visit(&mut hir, hir::VisitFlags::all());
+    }
+
+    {
+        let mut sym_table = symbol_table.write();
+        let precedence_dag = precedences.read();
+        let mut op_table = operators.write();
+        let ctx = HirProcessCtx {
+            names: &name_table,
+            puncts: &punct_table,
+            sym_table: &mut sym_table,
+            precedence_dag: &precedence_dag,
+            op_table: &mut op_table,
+
+            lib_path: library_path.clone(),
+
+            errors: Vec::new(),
+        };
+        process_hir(&mut hir, &cli, &mut stats, ctx);
+
+        if cli.print_hir_code {
+            println!("Processed HIR pseudo-code:");
+            let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
+            hir_printer.visit(&mut hir, hir::VisitFlags::all());
+        }
     }
     
     println!("================================================================");
@@ -353,5 +368,47 @@ fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &st
             let input_file = ast.file.to_str().unwrap();
             println!("Processing AST Pass '{pass_name:32}' for '{input_file}' took {:.2} ms", pass_dur.as_secs_f32() * 1000.0);
         }
+    }
+}
+
+pub struct HirProcessCtx<'a> {
+    names:          &'a NameTable,
+    puncts:         &'a PuncutationTable,
+
+    sym_table:      &'a mut SymbolTable,
+    precedence_dag: &'a PrecedenceDAG,
+    op_table:       &'a mut OperatorTable,
+
+    lib_path:       LibraryPath,
+    
+    errors:         Vec<hir::HirError>,
+}
+
+fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut ctx: HirProcessCtx) -> bool {
+    //do_hir_pass(hir, cli, stats, hir::passes::);
+    
+    // base passes
+    do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx.sym_table, ctx.names));
+    
+    // Precedence and operators
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table));
+    do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx.names, ctx.op_table, ctx.lib_path.clone()));
+    do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx.puncts, ctx.op_table, ctx.precedence_dag, &mut ctx.errors));
+
+
+
+    for err in &ctx.errors {
+        println!("{err}");
+    }
+    !ctx.errors.is_empty()
+}
+
+fn do_hir_pass<T: hir::Pass>(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut pass: T) {
+    let start = time::Instant::now();
+    pass.process(hir);
+    if cli.pass_timings {
+        let pass_dur = time::Instant::now() - start;
+        stats.add_hir_pass(pass_dur);
+        println!("Processing HIR pass '{:32}', took {:.2} ms", T::NAME, pass_dur.as_secs_f32() * 1000.0);
     }
 }

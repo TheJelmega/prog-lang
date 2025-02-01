@@ -1,7 +1,10 @@
-use std::fmt;
+use std::{
+    hash::Hash,
+    fmt,
+};
 
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ScopeSegment {
     pub name:   String,
     pub params: Vec<String>
@@ -23,7 +26,7 @@ impl ScopeSegment {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Scope {
     segments: Vec<ScopeSegment>,
 }

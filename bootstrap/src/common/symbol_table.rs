@@ -8,6 +8,21 @@ use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockR
 
 use super::{IndentLogger, Scope, ScopeSegment};
 
+pub struct SymbolPathIden {
+    name:   String,
+    params: Vec<String>,
+}
+
+pub struct SymbolPath {
+    idens: Vec<SymbolPathIden>
+}
+
+impl SymbolPath {
+    
+}
+
+
+// =============================================================
 
 
 pub enum Symbol {
@@ -30,34 +45,40 @@ pub enum Symbol {
 }
 
 pub struct ModuleSymbol {
+    pub scope:     Scope,
     pub name:      String,
     pub path:      PathBuf,
     pub sub_table: SymbolTable
 }
 
 pub struct PrecedenceSymbol {
-    pub name: String,
-    pub id:   u16,
+    pub scope: Scope,
+    pub name:  String,
+    pub id:    u16,
 }
 
 pub struct FunctionSymbol {
-    pub name: String,
+    pub scope:     Scope,
+    pub name:      String,
 
     pub sub_table: SymbolTable,
 }
 
 pub struct TypeAliasSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
 pub struct DistinctTypeSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
     
 }
 
 pub struct OpaqueTypeSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
     
 }
 
@@ -79,32 +100,38 @@ impl fmt::Display for StructKind {
 }
 
 pub struct StructSymbol {
-    pub name: String,
-    pub kind: StructKind,
+    pub scope: Scope,
+    pub name:  String,
+    pub kind:  StructKind,
 }
 
 pub struct UnionSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
 pub struct AdtEnumSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
 pub struct FlagEnumSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
 pub struct BitfieldSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
 pub struct ConstSymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 
 }
 
@@ -126,23 +153,26 @@ impl fmt::Display for StaticKind {
 }
 
 pub struct StaticSymbol {
-    pub name: String,
-    pub kind: StaticKind,
+    pub scope: Scope,
+    pub name:  String,
+    pub kind:  StaticKind,
 }
 
 pub struct PropertySymbol {
-    pub name: String,
+    pub scope: Scope,
+    pub name:  String,
 }
 
 pub struct TraitSymbol {
-    pub name: String,
+    pub scope:     Scope,
+    pub name:      String,
 
     pub sub_table: SymbolTable,
 }
 
 pub struct ImplSymbol {
-    
-    pub name: String,
+    pub scope:     Scope,
+    pub name:      String,
 
     pub sub_table: SymbolTable,
 }
@@ -162,6 +192,7 @@ impl SymbolTable {
 
     pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) -> SymbolRef {
         let sym = Symbol::Module(ModuleSymbol{
+            scope: scope.clone(),
             name: name.clone(),
             path: file_path,
             sub_table: SymbolTable::new(),
@@ -171,6 +202,7 @@ impl SymbolTable {
 
     pub fn add_precedence(&mut self, scope: &Scope, name: String, id: u16) -> SymbolRef {
         let sym = Symbol::Precedence(PrecedenceSymbol {
+            scope: scope.clone(),
             name: name.clone(),
             id,
         }); 
@@ -179,6 +211,7 @@ impl SymbolTable {
 
     pub fn add_function(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Function(FunctionSymbol {
+            scope: scope.clone(),
             name: name.clone(),
 
             sub_table: SymbolTable::new(),
@@ -188,6 +221,7 @@ impl SymbolTable {
 
     pub fn add_type_alias(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::TypeAlias(TypeAliasSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -195,6 +229,7 @@ impl SymbolTable {
 
     pub fn add_distinct_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::DistinctType(DistinctTypeSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -202,6 +237,7 @@ impl SymbolTable {
 
     pub fn add_opaque_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -209,6 +245,7 @@ impl SymbolTable {
 
     pub fn add_struct(&mut self, scope: &Scope, name: String, kind: StructKind) -> SymbolRef {
         let sym = Symbol::Struct(StructSymbol {
+            scope: scope.clone(),
             name: name.clone(),
             kind,
         });
@@ -217,6 +254,7 @@ impl SymbolTable {
 
     pub fn add_union(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Union(UnionSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -224,6 +262,7 @@ impl SymbolTable {
 
     pub fn add_adt_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::AdtEnum(AdtEnumSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -231,6 +270,7 @@ impl SymbolTable {
 
     pub fn add_flag_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::FlagEnum(FlagEnumSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -238,6 +278,7 @@ impl SymbolTable {
 
     pub fn add_bitfield(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Bitfield(BitfieldSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -245,6 +286,7 @@ impl SymbolTable {
 
     pub fn add_const(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Const(ConstSymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -252,6 +294,7 @@ impl SymbolTable {
 
     pub fn add_static(&mut self, scope: &Scope, name: String, kind: StaticKind) -> SymbolRef {
         let sym = Symbol::Static(StaticSymbol {
+            scope: scope.clone(),
             name: name.clone(),
             kind,
         });
@@ -260,6 +303,7 @@ impl SymbolTable {
 
     pub fn add_property(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Property(PropertySymbol {
+            scope: scope.clone(),
             name: name.clone(),
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -267,6 +311,7 @@ impl SymbolTable {
 
     pub fn add_trait(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Trait(TraitSymbol {
+            scope: scope.clone(),
             name: name.clone(),
 
             sub_table: SymbolTable::new(),
@@ -276,6 +321,7 @@ impl SymbolTable {
 
     pub fn add_impl(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Impl(ImplSymbol {
+            scope: scope.clone(),
             name: name.clone(),
 
             sub_table: SymbolTable::new(),
