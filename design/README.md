@@ -5111,7 +5111,7 @@ The operator has the `Compare` precedence.
 
 Lazy boolean operators are infix operators.
 Lazy boolean operators can only be applied to boolean values and cannot be overloaded.
-`||` represents a logical or, and `&&` represents a logical and, they differ from tier single character counterparts `|` and `&`, in that the right hand operand is only evaluated if the left-hand operand does not already determine the result of the expresion.
+`||` represents a logical or, and `&&` represents a logical and, they differ from tier single character counterparts `|` and `&`, in that the right hand operand is only evaluated if the left-hand operand does not already determine the result of the expression.
 
 That is, `||` only evaluates the right-hand operand if the left-hand operand evaluates to `false`.
 On the other hand, the `&&` only evaluated the right-hand operand if the left-hand operand evaluates to `true`.
@@ -5428,7 +5428,9 @@ The associativity can also be defined, and can be set to `left`, `right`, or `no
 This defines the resulting order of the expressions using these.
 By default the value is set to `none`.
 
-If the associativity is `left`, the expresion will have a left-to-right order of evaluation.
+Associativity only comes into play when both operators have the same precedence, if they differ, they follow the rules defined above.
+
+If the associativity is `left`, the expression will have a left-to-right order of evaluation.
 For example, the expression `a + b + c` is represented as `(a + b) + c`.
 
 If the associativity is `right`, the expression will have a right-to-left order of evaluation.
