@@ -5405,8 +5405,8 @@ A precedence item can be used to define a custom precedence of user-defined oper
 
 ### 15.2.1. Precendence order [↵](#152-user-defined-precedence-)
 
-The item can decide which precedences must come before and after the new precedence, this can be defined by the `higher_than` and `lower_then` fields and refer the the name of the precendences.
-The value given to `higher_tan` must have a lower precedence than the item given to `lower_then`, and may not be the same.
+The item can decide which precedences must come before and after the new precedence, this can be defined by the `higher_than` and `lower_than` fields and refer to the name of other precendences.
+The value given to `higher_than` must have a lower precedence than the item given to `lower_than`, and may not be the same.
 
 It is allowed to have precedences form a non-linear precedence relation, but if 2 operators of different precendences that don't have a linear relation are used, they must be explicitly parenthesized, or this will result in a compilation error.
 
@@ -5420,7 +5420,7 @@ C   |
  \ /
   E
 ```
-operators of precendence `B` or `C` may not be used together with those of `D` without explicit parentheses, meaning that `v0 B v1 C v2` and `v0 B (v1 D v2)` are allowed, but not `v0 B v1 D v2` (if `B`, `C`, and `D` represent operators with those precendeces).
+operators of precendence `B` or `C` may not be used together with those of `D` without explicit parentheses, meaning that `v0 B v1 C v2` and `v0 B (v1 D v2)` are allowed, but not `v0 B v1 D v2` (where `B`, `C`, and `D` represent operators with those precendeces).
 
 ### 15.2.2. Associativity [↵](#152-user-defined-precedence-)
 
