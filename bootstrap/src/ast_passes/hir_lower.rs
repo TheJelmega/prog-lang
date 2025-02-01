@@ -1,9 +1,11 @@
-use std::{boxed, fmt::format, mem};
-
-use clap::value_parser;
+use std::mem;
 
 use crate::{
-    ast::*, common::{Abi, NameId, NameTable, OpType, Scope}, error_warning::ErrorCode, hir::{self, Identifier, Visitor as _}, lexer::Punctuation, literals::{LiteralId, LiteralTable}, type_system
+    ast::*, common::{Abi, NameTable, Scope},
+    error_warning::ErrorCode,
+    hir::{self, Identifier, Visitor as _},
+    literals::{LiteralId, LiteralTable},
+    type_system
 };
 
 use super::{AstError, Context, ContextNodeData};
@@ -37,6 +39,7 @@ pub struct AstToHirLowering<'a> {
     gen_where_stack:    Vec<Box<hir::WhereClause>>,
     trait_bounds_stack: Vec<Box<hir::TraitBounds>>,
 
+    #[allow(unused)]
     contract_stack:     Vec<Box<hir::Contract>>,
 
     path_stack:         Vec<hir::Path>,
@@ -392,7 +395,7 @@ impl AstToHirLowering<'_> {
                     def,
                 });
             },
-            OpElem::Contract { expr } => {
+            OpElem::Contract { expr: _ } => {
                 let expr = self.expr_stack.pop().unwrap();
                 
                 self.hir.add_op_contract(scope, hir::OpContract {
@@ -2261,7 +2264,7 @@ impl Visitor for AstToHirLowering<'_> {
         }))
     }
 
-    fn visit_full_range_expr(&mut self, ast: &Ast) where Self: Sized {
+    fn visit_full_range_expr(&mut self, _ast: &Ast) where Self: Sized {
         self.push_expr(hir::Expr::FullRange)
     }
 
@@ -2696,7 +2699,7 @@ impl Visitor for AstToHirLowering<'_> {
         }));
     }
 
-    fn visit_underscore_expr(&mut self, ast: &Ast) where Self: Sized {
+    fn visit_underscore_expr(&mut self, _ast: &Ast) where Self: Sized {
         self.push_expr(hir::Expr::Underscore);
     }
 
@@ -2946,7 +2949,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let (path, ast_patterns) = match &ast[node_id] {
             TupleStructPattern::Inferred { patterns } => (None, patterns),
-            TupleStructPattern::Named { path, patterns } => {
+            TupleStructPattern::Named { path: _, patterns } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), patterns)
             },
@@ -3328,7 +3331,7 @@ impl Visitor for AstToHirLowering<'_> {
             Visibility::Super   => hir::Visibility::Super,
             Visibility::Lib     => hir::Visibility::Lib,
             Visibility::Package => hir::Visibility::Package,
-            Visibility::Path(path) => {
+            Visibility::Path(_) => {
                 let path = self.simple_path_stack.pop().unwrap();
                 hir::Visibility::Path(path)
             },
@@ -3402,24 +3405,6 @@ fn convert_string_slice_type(ty: &StringSliceType) -> type_system::StringSliceTy
         StringSliceType::CStr  => type_system::StringSliceType::CStr,
     }
 }
-
-fn base_path_from_scope(scope: &Scope, names: &mut NameTable, node_id: u32) -> hir::Path {
-    let mut idens = Vec::new();
-    for segment in scope.segments() {
-        let name = names.add(&segment.name);
-        idens.push(hir::Identifier {
-            name,
-            gen_args: None,
-        });
-    }
-
-    hir::Path {
-        node_id,
-        is_inferred: false,
-        idens,
-    }
-}
-
 
 fn base_type_path_from_scope(scope: &Scope, names: &mut NameTable, node_id: u32) -> hir::TypePath {
     let mut segments = Vec::new();

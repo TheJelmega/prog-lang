@@ -254,7 +254,7 @@ fn main() {
     // Operators
 
     do_ast_for_all_passes(&cli, &mut stats, "Operator Collection", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::OperatorCollection::new(ast_ctx, &name_table, &punct_table);
+        let mut pass = ast_passes::OperatorCollection::new(ast_ctx, &name_table);
         pass.visit(ast);
     });
 

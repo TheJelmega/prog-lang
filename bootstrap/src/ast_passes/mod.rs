@@ -1,6 +1,6 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
-    ast::{Ast, AstNode, AstNodeRef},
+    ast::{Ast, AstNodeRef},
     common::{LibraryPath, OperatorTable, PrecedenceDAG, Scope, SymbolTable},
     error_warning::ErrorCode
 };
@@ -109,7 +109,7 @@ impl Context {
         self.get_node_for_index(id.index())
     }
 
-    
+     
     pub fn get_node_for_index_mut(&mut self, id: usize) -> &mut ContextNode {
         assert!(id < self.ctxs.len());
         &mut self.ctxs[id]

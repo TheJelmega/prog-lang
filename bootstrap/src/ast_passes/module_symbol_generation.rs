@@ -1,12 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::{ast::*, common::{NameTable, Scope, Symbol}, error_warning::ErrorCode};
 
 use super::{AstError, Context, ContextNodeData};
-
-
-
-
 
 pub struct ModulePathResolution<'a> {
     ctx:             &'a mut Context,

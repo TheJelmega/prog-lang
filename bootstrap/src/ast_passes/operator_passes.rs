@@ -11,15 +11,13 @@ use super::{AstError, Context, ContextNodeData};
 pub struct OperatorCollection<'a> {
     ctx:    &'a Context,
     names:  &'a NameTable,
-    puncts: &'a PuncutationTable,
 }
 
 impl<'a> OperatorCollection<'a> {
-    pub fn new(ctx: &'a Context, names: &'a NameTable, puncts: &'a PuncutationTable) -> Self {
+    pub fn new(ctx: &'a Context, names: &'a NameTable) -> Self {
         Self {
             ctx,
             names,
-            puncts
         }
     }
 }
