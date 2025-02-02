@@ -80,7 +80,7 @@ impl Display for LexErrorCode {
         let code: u16 = 1000 + unsafe { *((self as *const Self).cast::<u16>()) };
         write!(f, "E{code:04}: ")?;
         match self {
-            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
+            Self::InternalError(err)                     => write!(f, "Internal compiler error: {err}"),
             // Lexer
             Self::InvalidBOM(bom)                        => write!(f, "Found unsupported Byte Order Marker (BOM): {bom}, expected either no BOM or a utf-8 BOM."),
             Self::InvalidBinInLit                        => write!(f, "Found invalid character in binary literal"),
@@ -178,6 +178,7 @@ impl Display for ParseErrorCode {
 //==============================================================================================================================
 
 // Range: E3000 - E3999
+// TODO: Better description of "param name"
 #[derive(Debug)]
 pub enum AstErrorCode {
     InternalError(&'static str),
@@ -191,6 +192,13 @@ pub enum AstErrorCode {
 
     MultipleStructComplete,
     InvalidUninitVarDecl { info: String },
+    
+    VariadicMultiple,
+    VariadicMultipleNames,
+    VariadicInvalidPattern { info: String },
+    
+    ParamMultipleNamesWithDefVal,
+    ParamReqAfterOpt,
 }
 
 impl Display for AstErrorCode {
@@ -198,10 +206,10 @@ impl Display for AstErrorCode {
         let code: u16 = 3000 + unsafe { *((self as *const Self).cast::<u16>()) };
         write!(f, "E{code:04}: ")?;
         match self {
-            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
-            Self::InvalidAttribute { info }              => write!(f, "Invalid attribute: {info}"),
-            Self::InvalidAttributeData { info }          => write!(f, "Invalid attribute data: {info}"),
-            Self::InvalidModulePath { paths }            => {
+            Self::InternalError(err)               => write!(f, "Internal compiler error: {err}"),
+            Self::InvalidAttribute { info }        => write!(f, "Invalid attribute: {info}"),
+            Self::InvalidAttributeData { info }    => write!(f, "Invalid attribute data: {info}"),
+            Self::InvalidModulePath { paths }      => {
                 write!(f, "Found invalid module, expected to find corresponding file at: ")?;
                 if !paths.is_empty() {
                     write!(f, "'{}'", paths[0])?;
@@ -211,14 +219,21 @@ impl Display for AstErrorCode {
                 }
                 Ok(())
             },
-            Self::NotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}"),
-            Self::InvalidAbiLiteral { lit, info }        => write!(f, "Invalid ABI literal '{lit}': {info}"),
-            Self::InvalidLiteral { lit, info }           => write!(f, "Invalid literal '{lit}': {info}"),
-            Self::MultipleStructComplete                 => write!(f, "Structure expression may only contain 1 completion expression"),
-            Self::InvalidUninitVarDecl { info }          => write!(f, "Invalid unitialized variable declaration: {info}"),
+            Self::NotTopLevel { path, info }       => write!(f, "Found top-level element in a nested module in path '{path}': {info}"),
+            Self::InvalidAbiLiteral { lit, info }  => write!(f, "Invalid ABI literal '{lit}': {info}"),
+            Self::InvalidLiteral { lit, info }     => write!(f, "Invalid literal '{lit}': {info}"),
+            Self::MultipleStructComplete           => write!(f, "Structure expression may only contain 1 completion expression"),
+            Self::InvalidUninitVarDecl { info }    => write!(f, "Invalid unitialized variable declaration: {info}"),
+            
+            Self::VariadicMultiple                => write!(f, "A function cannot have multiple variadic paramters"),
+            Self::VariadicMultipleNames           => write!(f, "Variadic parameters may only have a single 'name'"),
+            Self::VariadicInvalidPattern { info } => write!(f, "Invalid pattern in variadic parameter: {info}"),
+            
+            Self::ParamMultipleNamesWithDefVal    => write!(f, "When assigning a default value, a paramter may only have 1 'name'"),
+            Self::ParamReqAfterOpt                => write!(f, "Required paramters need to be defined before all optional paramters"),
 
             #[allow(unreachable_patterns)]
-            _                                            => write!(f, "Unknown AST error"),
+            _                                     => write!(f, "Unknown AST error"),
         }
     }
 }

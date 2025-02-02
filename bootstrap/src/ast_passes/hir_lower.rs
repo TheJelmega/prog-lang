@@ -127,19 +127,27 @@ impl AstToHirLowering<'_> {
         self.num_nodes_gen += 1;
     }
 
-    fn convert_fn_params(&mut self, ast: &Ast, ast_params: &[FnParam]) -> Vec<hir::FnParam> {
+    fn convert_fn_params(&mut self, ast: &Ast, ast_params: &[FnParam], node_id: usize) -> Vec<hir::FnParam> {
         
         let mut has_opt = false;
         let mut has_variadic = false;
         let mut params = Vec::new();
         for param in ast_params {
             if has_variadic {
-                todo!("Error");
+                self.ctx.add_error(AstError {
+                    node_id,
+                    err: AstErrorCode::VariadicMultiple,
+                });
+                continue;
             }
 
             if let Some(_) = param.def_val {
                 if param.names.len() != 1 {
-                    todo!("Error");
+                    self.ctx.add_error(AstError {
+                        node_id,
+                        err: AstErrorCode::ParamMultipleNamesWithDefVal,
+                    });
+                    continue;
                 }
 
                 let def = self.expr_stack.pop().unwrap();
@@ -157,25 +165,45 @@ impl AstToHirLowering<'_> {
                 has_opt = true;
             } else if param.is_variadic {
                 if param.names.len() != 1 {
-                    todo!("Error");
+                    self.ctx.add_error(AstError {
+                        node_id,
+                        err: AstErrorCode::VariadicMultipleNames,
+                    });
+                    continue;
                 }
                 let ty = self.type_stack.pop().unwrap();
                 let pattern = self.pattern_stack.pop().unwrap();
                 
                 let name = if let hir::Pattern::Iden(hir::IdenPattern { node_id: _, is_ref, is_mut, name, bound }) = *pattern {
                     if is_ref {
-                        todo!("Error");
+                        self.ctx.add_error(AstError {
+                            node_id,
+                            err: AstErrorCode::VariadicInvalidPattern { info: "Variadic Identifier parameters may not have the `ref` modifier".to_string() },
+                        });
+                        continue;
                     }
                     if is_mut {
-                        todo!("Error");
+                        self.ctx.add_error(AstError {
+                            node_id,
+                            err: AstErrorCode::VariadicInvalidPattern { info: "Variadic Identifier parameters may not have the `mut` modifier".to_string() },
+                        });
+                        continue;
                     }
                     if bound.is_some() {
-                        todo!("Error");
+                        self.ctx.add_error(AstError {
+                            node_id,
+                            err: AstErrorCode::VariadicInvalidPattern { info: "Variadic Identifier parameters may not have a bound".to_string() },
+                        });
+                        continue;
                     }
 
                     name
                 } else {
-                    todo!("Error")
+                    self.ctx.add_error(AstError {
+                        node_id,
+                        err: AstErrorCode::VariadicInvalidPattern { info: "Only identifier patterns are alloowed".to_string() },
+                    });
+                    continue;
                 };
                 let attrs = self.get_attribs(ast, &param.names[0].attrs);
 
@@ -188,7 +216,11 @@ impl AstToHirLowering<'_> {
 
             } else {
                 if has_opt {
-                    todo!("Error");
+                    self.ctx.add_error(AstError {
+                        node_id,
+                        err: AstErrorCode::ParamReqAfterOpt,
+                    });
+                    continue;
                 }
 
                 let ty = self.type_stack.pop().unwrap();
@@ -663,7 +695,7 @@ impl Visitor for AstToHirLowering<'_> {
             },
         });
 
-        let params = self.convert_fn_params(ast, &node.params);
+        let params = self.convert_fn_params(ast, &node.params, node_id.index());
 
         let receiver = node.receiver.as_ref().map_or(hir::FnReceiver::None, |rec| match rec {
             FnReceiver::SelfReceiver { is_ref, is_mut } => {
@@ -1693,17 +1725,21 @@ impl Visitor for AstToHirLowering<'_> {
                                         }))
                                     },
                                     _ => {
-                                        todo!("Error");
-                                        
+                                        self.ctx.add_error(AstError {
+                                            node_id: node_id.index(),
+                                            err: AstErrorCode::InvalidUninitVarDecl { info: "Only identifiers within tuple patterns are allowed".to_string() },
+                                        });
                                     }
                                 }
                             }
                         },
                         _ => {
-                            todo!("Error");
+                            self.ctx.add_error(AstError {
+                                node_id: node_id.index(),
+                                err: AstErrorCode::InvalidUninitVarDecl { info: "Only identifiers are allowed".to_string() },
+                            });
                         }
                     }
-
                     return;
                 };
 
