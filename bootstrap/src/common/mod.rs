@@ -16,6 +16,9 @@ pub use names::*;
 mod symbol_table;
 pub use symbol_table::*;
 
+pub mod uses;
+pub use uses::*;
+
 mod scope;
 pub use scope::*;
 

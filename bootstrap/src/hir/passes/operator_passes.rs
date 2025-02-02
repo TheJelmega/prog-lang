@@ -2,7 +2,7 @@ use core::prelude;
 use std::{collections::VecDeque, mem};
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, Symbol, SymbolTable},
+    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, Symbol, SymbolTable, UseTable},
     hir::*, lexer::PuncutationTable
 };
 
@@ -11,15 +11,17 @@ pub struct PrecedenceProcessing<'a> {
     precedence_dag: &'a PrecedenceDAG,
     sym_table:      &'a SymbolTable,
     op_table:       &'a mut OperatorTable,
+    use_table:      &'a UseTable,
 }
 
 impl<'a> PrecedenceProcessing<'a> {
-    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a SymbolTable, op_table: &'a mut OperatorTable) -> Self {
+    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a SymbolTable, op_table: &'a mut OperatorTable, use_table: &'a UseTable) -> Self {
         Self {
             names,
             precedence_dag,
             sym_table,
             op_table,
+            use_table,
         }
     }
 }
@@ -63,20 +65,13 @@ impl Visitor for PrecedenceProcessing<'_> {
             for base in &op_trait_ref.bases {
 
                 // TODO: Store this is some node context
-                let mut base_scope = Scope::new();
-                let mut base_name = String::new();
+                let mut search_sym_path = Scope::new();
                 for name in &base.names {
-                    if !base_scope.is_empty() {
-                        base_scope.push(base_name);
-                    }
-                    base_name = self.names[*name].to_string();
+                    search_sym_path.push(self.names[*name].to_string());
                 }
 
-                // TODO(temp): until we got the use stuff done
-                base_scope = ctx_ref.scope.clone();
-
-
-                let Some(sym) = self.sym_table.get_symbol(&base_scope, &base_name) else {
+                let sub_scope = Scope::new();
+                let Some(sym) = self.sym_table.get_symbol_with_uses(self.use_table, &ctx_ref.scope, &sub_scope, &search_sym_path) else {
                     todo!("Error");
                 };
                 let Symbol::Trait(sym) = &*sym.read() else { 
@@ -85,7 +80,6 @@ impl Visitor for PrecedenceProcessing<'_> {
 
                 let mut base_sym_path = sym.scope.clone();
                 base_sym_path.push(sym.name.clone());
-                
 
                 let trait_precedence = self.op_table.get_trait_precedence(&base_sym_path).map(|(name, id)| (name.to_string(), id));
                 match trait_precedence {
@@ -127,7 +121,6 @@ impl Pass for OperatorCollection<'_> {
 impl Visitor for OperatorCollection<'_> {
     fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
         let op_trait_path = ctx.scope.clone();
-
         let (prec_name, prec_id) = self.op_table.get_trait_precedence(&op_trait_path).unwrap();
 
         let op_info = OperatorInfo {

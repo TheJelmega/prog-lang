@@ -46,6 +46,16 @@ impl Scope {
         self.segments.push(ScopeSegment::new_with_params(name, params));
     }
 
+    pub fn push_segment(&mut self, segment: ScopeSegment) {
+        self.segments.push(segment);
+    }
+
+    pub fn extend(&mut self, extension: &Scope) {
+        for segment in &extension.segments {
+            self.push_segment(segment.clone());
+        }
+    }
+
     pub fn pop(&mut self) {
         self.segments.pop();
     }
@@ -74,6 +84,7 @@ impl Scope {
         parent
     }
 
+    // Get the path without it's root
     pub fn sub_path(&self) -> Scope {
         if self.segments.len() <= 1 {
             return Scope::new();
@@ -95,6 +106,12 @@ impl Scope {
     }
 }
 
+impl fmt::Debug for Scope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <Self as fmt::Display>::fmt(self, f)
+    }
+}
+
 impl fmt::Display for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, segment) in self.segments.iter().enumerate() {
@@ -102,7 +119,7 @@ impl fmt::Display for Scope {
                 write!(f, ".")?;
             }
 
-            write!(f, "{}", &segment.name);
+            write!(f, "{}", &segment.name)?;
             if !segment.params.is_empty() {
                 write!(f, "(")?;
 
@@ -110,7 +127,7 @@ impl fmt::Display for Scope {
                     if idx != 0 {
                         write!(f, ",")?;
                     }
-                    write!(f, "{}", param);
+                    write!(f, "{}", param)?;
                 }
 
                 write!(f, ")")?;

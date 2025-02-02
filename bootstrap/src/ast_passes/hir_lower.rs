@@ -1,11 +1,12 @@
 use std::mem;
 
 use crate::{
-    ast::*, common::{Abi, NameTable, Scope},
+    ast::*,
+    common::{uses, Abi, LibraryPath, NameTable, Scope, UseTable},
     error_warning::ErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
-    type_system
+    type_system,
 };
 
 use super::{AstError, Context, ContextNodeData};
@@ -48,10 +49,13 @@ pub struct AstToHirLowering<'a> {
     qual_path_stack:    Vec<hir::QualifiedPath>,
 
     hir:                &'a mut hir::Hir,
+    use_table:          &'a mut UseTable,
+
+    lib_path:           LibraryPath,
 }
 
 impl<'a> AstToHirLowering<'a> {
-    pub fn new(ctx: &'a mut Context, names: &'a mut NameTable, literals: &'a LiteralTable, hir: &'a mut hir::Hir) -> Self {
+    pub fn new(ctx: &'a mut Context, names: &'a mut NameTable, literals: &'a LiteralTable, hir: &'a mut hir::Hir, use_table: &'a mut UseTable, lib_path: LibraryPath) -> Self {
 
         let comp_gen_name = names.add("compiler_generated");
 
@@ -96,6 +100,8 @@ impl<'a> AstToHirLowering<'a> {
             qual_path_stack:    Vec::new(),
 
             hir,
+            use_table,
+            lib_path,
         }
     }
 }
@@ -442,7 +448,44 @@ impl AstToHirLowering<'_> {
     fn get_vis(&mut self, vis: Option<AstNodeRef<Visibility>>) -> hir::Visibility {
         vis.map_or(self.default_vis.clone(), |_| self.vis_stack.pop().unwrap())
     }
+
+    fn get_use_subpaths(&mut self, ast: &Ast, use_path: AstNodeRef<UsePath>, lib_path: LibraryPath, base_scope: Scope, paths: &mut Vec<uses::UsePath>) {
+        match &ast[use_path] {
+            UsePath::SelfPath { alias } => {
+                paths.push(uses::UsePath {
+                    lib_path: lib_path.clone(),
+                    path: base_scope.clone(),
+                    wildcard: true,
+                    alias: alias.map(|name| self.names[name].to_string()),
+                });
+            },
+            UsePath::SubPaths { segments, sub_paths } => {
+                let mut path = base_scope.clone();
+                for segment in segments {
+                    path.push(self.names[*segment].to_string());
+                }
+                for sub_path in sub_paths {
+                    self.get_use_subpaths(ast, *sub_path, lib_path.clone(), path.clone(), paths);
+                }
+
+            },
+            UsePath::Alias { segments, alias } => {
+                let mut path = base_scope.clone();
+                for segment in segments {
+                    path.push(self.names[*segment].to_string());
+                }
+                paths.push(uses::UsePath {
+                    lib_path: lib_path.clone(),
+                    path,
+                    wildcard: false,
+                    alias: alias.map(|name| self.names[name].to_string()),
+                });
+            },
+        }
+    }
 }
+
+// =============================================================================================================================
 
 impl Visitor for AstToHirLowering<'_> {
     fn visit(&mut self, ast: &Ast) where Self: Sized {
@@ -543,6 +586,8 @@ impl Visitor for AstToHirLowering<'_> {
         })
     }
 
+    // =============================================================
+
     fn visit_item(&mut self, ast: &Ast, item: &Item) where Self: Sized {
         helpers::visit_item(self, ast, item);
 
@@ -576,7 +621,17 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_use(&mut self, ast: &Ast, node_id: AstNodeRef<UseItem>) where Self: Sized {
         helpers::visit_use(self, ast, node_id);
 
-        // Don't have to do anything here
+        let ast_ctx = self.ctx.get_node_for(node_id);
+        let scope = ast_ctx.scope.clone();
+
+        let node = &ast[node_id];
+
+        let mut paths = Vec::new();
+        self.get_use_subpaths(ast, node.path.clone(), self.lib_path.clone(), Scope::new(), &mut paths);
+
+        for path in paths {
+            self.use_table.add_use(&scope, path);
+        }
     }
 
     fn visit_use_path(&mut self, ast: &Ast, node_id: AstNodeRef<UsePath>) where Self: Sized {
@@ -1412,6 +1467,12 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_precedence_use(&mut self, _ast: &Ast, _node_id: AstNodeRef<PrecedenceUse>) where Self: Sized {
     }
 
+    // =============================================================
+
+    
+
+    // =============================================================
+
     fn visit_block(&mut self, ast: &Ast, node_id: AstNodeRef<Block>) where Self: Sized {
         let pre_stmt_count = self.stmt_stack.len();
         helpers::visit_block(self, ast, node_id);
@@ -1430,6 +1491,8 @@ impl Visitor for AstToHirLowering<'_> {
             expr,
         });
     }
+
+    // =============================================================
 
     fn visit_stmt(&mut self, ast: &Ast, node: &Stmt) where Self: Sized {
         helpers::visit_stmt(self, ast, node);
@@ -1827,6 +1890,8 @@ impl Visitor for AstToHirLowering<'_> {
             expr,
         }));
     }
+
+    // =============================================================
 
     fn visit_expr(&mut self, ast: &Ast, node: &Expr) where Self: Sized {
         helpers::visit_expr(self, ast, node);
@@ -2738,6 +2803,8 @@ impl Visitor for AstToHirLowering<'_> {
         }))
     }
 
+    // =============================================================
+
     fn visit_pattern(&mut self, ast: &Ast, node: &Pattern) where Self: Sized {
         helpers::visit_pattern(self, ast, node);
 
@@ -3027,6 +3094,8 @@ impl Visitor for AstToHirLowering<'_> {
         }));
     }
 
+    // =============================================================
+
     fn visit_type(&mut self, ast: &Ast, node: &Type) where Self: Sized {
         helpers::visit_type(self, ast, node);
 
@@ -3304,6 +3373,8 @@ impl Visitor for AstToHirLowering<'_> {
             path,
         }))
     }
+
+    // =============================================================
 
     fn visit_visibility(&mut self, ast: &Ast, node_id: AstNodeRef<Visibility>) where Self: Sized {
         helpers::visit_visibility(self, ast, node_id);

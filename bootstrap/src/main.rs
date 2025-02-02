@@ -7,7 +7,7 @@ use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, Scope, SymbolTable};
+use common::{CompilerStats, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, Scope, SymbolTable, UseTable};
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -244,7 +244,7 @@ fn main() {
         pass.visit(ast);
     });
 
-    do_ast_for_all_passes(&cli, &mut stats, "Precedence Connection", &mut asts, |ast, ast_ctx| {
+    do_ast_for_all_passes(&cli, &mut stats, "Precedence Attribute", &mut asts, |ast, ast_ctx| {
         let mut pass = ast_passes::PrecedenceAttribute::new(ast_ctx, &name_table, &literal_table);
         pass.visit(ast);
     });
@@ -265,24 +265,44 @@ fn main() {
 
     // TODO: External operator importing happens here
 
+    let mut use_table = UseTable::new();
+
 
     let mut hir = hir::Hir::new();
     do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &mut hir);
+        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &mut hir, &mut use_table, library_path.clone());
         pass.visit(ast);
     });
     stats.add_ast_hir_lower(&hir);
+
+    // TODO: implicit prelude
 
     if cli.print_hir_nodes {
         println!("Lowered HIR:");
         let mut hir_logger = hir::NodeLogger::new(&name_table, &literal_table, &punct_table);
         hir_logger.visit(&mut hir, hir::VisitFlags::all());
+        println!("--------------------------------")
     }
 
     if cli.print_hir_code {
         println!("Lowered HIR pseudo-code:");
         let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
         hir_printer.visit(&mut hir, hir::VisitFlags::all());
+        println!("--------------------------------")
+    }
+
+    if cli.print_hir_use_table {
+        println!("HIR use table");
+        use_table.log();
+        println!("--------------------------------")
+    }
+
+    let use_ambiguities = use_table.check_non_wildcard_ambiguity();
+    if !use_ambiguities.is_empty() {
+        println!("Use table ambiguities:");
+        for (scope, name) in use_ambiguities {
+            println!("- {scope}: {name}");
+        }
     }
 
     {
@@ -295,6 +315,7 @@ fn main() {
             sym_table: &mut sym_table,
             precedence_dag: &precedence_dag,
             op_table: &mut op_table,
+            uses: &mut use_table,
 
             lib_path: library_path.clone(),
 
@@ -313,15 +334,15 @@ fn main() {
     if cli.print_sym_table {
         println!("Symbol table:");
         symbol_table.read().log();
+        println!("--------------------------------");
     }
 
-    println!("--------------------------------");
     if cli.print_precedence {
         println!("Precedence DAG Unordered:");
         precedences.read().log_unordered();
+        println!("--------------------------------");
     }
 
-    println!("--------------------------------");
     if cli.print_op_table {
         println!("Operator table");
         operators.read().log(&punct_table);
@@ -378,6 +399,7 @@ pub struct HirProcessCtx<'a> {
     sym_table:      &'a mut SymbolTable,
     precedence_dag: &'a PrecedenceDAG,
     op_table:       &'a mut OperatorTable,
+    uses:           &'a UseTable,
 
     lib_path:       LibraryPath,
     
@@ -391,7 +413,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut ctx
     do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx.sym_table, ctx.names));
     
     // Precedence and operators
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table));
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table, ctx.uses));
     do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx.names, ctx.op_table, ctx.lib_path.clone()));
     do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx.puncts, ctx.op_table, ctx.precedence_dag, &mut ctx.errors));
 

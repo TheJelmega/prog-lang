@@ -6,7 +6,7 @@ use std::{
 };
 use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use super::{IndentLogger, Scope, ScopeSegment};
+use super::{IndentLogger, Scope, ScopeSegment, UseTable};
 
 pub struct SymbolPathIden {
     name:   String,
@@ -42,6 +42,17 @@ pub enum Symbol {
     Property(PropertySymbol),
     Trait(TraitSymbol),
     Impl(ImplSymbol),
+}
+
+impl Symbol {
+    fn get_sub_table(sym: &Symbol) -> Option<&SymbolTable> {
+        match sym {
+            Self::Module(sym) => Some(&sym.sub_table),
+            Self::Trait(sym)  => Some(&sym.sub_table),
+            Self::Impl(sym)   => Some(&sym.sub_table),
+            _ => None,
+        }
+    }
 }
 
 pub struct ModuleSymbol {
@@ -180,13 +191,15 @@ pub struct ImplSymbol {
 pub type SymbolRef = Arc<RwLock<Symbol>>;
 
 pub struct SymbolTable {
-    nodes: HashMap<String, Vec<(Vec<String>, SymbolRef)>>,
+    symbols:    HashMap<String, Vec<(Vec<String>, SymbolRef)>>,
+    sub_tables: HashMap<ScopeSegment, SymbolTable>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
-            nodes: HashMap::new(),
+            symbols: HashMap::new(),
+            sub_tables: HashMap::new(),
         }
     }
 
@@ -336,89 +349,102 @@ impl SymbolTable {
     }
 
     fn add_symbol_(&mut self, scope: &Scope, name: &str, params: &[String], sym: SymbolRef) {
-        if !scope.is_empty() {
-            let mut sub_table = self.find_subtable_mut(&scope.root().unwrap()).unwrap();
-            sub_table.add_symbol_(&scope.sub_path(), name, params, sym);
-        } else {
-            let params = Vec::from(params);
-            let sub_syms = if let Some(syms) = self.nodes.get_mut(name) {
-                syms
-            } else {
-                self.nodes.insert(name.to_string(), Vec::new());
-                self.nodes.get_mut(name).unwrap()
-            };
-            sub_syms.push((Vec::from(params), sym));
-        }
+        let sub_table = self.get_or_insert_sub_table(scope.segments());
+        let entry = sub_table.symbols.entry(name.to_string());
+        let syms = entry.or_insert(Vec::new());
+        syms.push((Vec::from(params), sym));
     }
 
     pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
-        if !scope.is_empty() {
-            let sub_table = self.find_subtable(scope.root().unwrap())?;
-            sub_table.get_symbol(&scope.sub_path(), name)
-        } else {
-            let sub_syms = self.nodes.get(name)?;
-            if sub_syms.len() == 1 {
-                Some(sub_syms[0].1.clone())
-            } else {
-                let mut tmp = None;
-                for (params, sym) in sub_syms {
-                    if params.is_empty() {
-                        tmp = Some(sym.clone());
-                        break;
-                    }
-                }
-                tmp
+        let sub_table = self.get_sub_table(scope.segments())?;
+        sub_table.get_symbol_from_name(name)
+    }
+
+    /// Get a symbol, while also searching all available scopes
+    /// 
+    /// * `cur_scope` - Scope of the symbol being processed
+    /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
+    /// * `sym_path` - Path of the symbol as it occurs within code
+    // TODO: lib path
+    pub fn get_symbol_with_uses(&self, use_table: &UseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
+        assert!(!sym_path.is_empty());
+
+        let sym_name = &sym_path.last().unwrap().name;
+        let sym_scope = sym_path.parent();
+
+        // Look into the current scope first
+        if let Some(local_sub_table) = self.get_sub_table(cur_scope.segments()) {
+            if let Some(sym) = local_sub_table.get_symbol(&sym_scope, &sym_name) {
+                return Some(sym);
             }
         }
-    }
 
-    fn find_subtable(&self, segment: &ScopeSegment) -> Option<MappedRwLockReadGuard<SymbolTable>> {
-        let sub_syms = self.nodes.get(&segment.name)?;
-        let symbol = if sub_syms.len() == 1 {
-            &sub_syms[0].1
-        } else {
-            let mut tmp = None;
-            for (params, sym) in sub_syms {
-                if &segment.params == params {
-                    tmp = Some(sym);
-                    break;
+        // Then look into the use table
+        let mut use_loc_path = cur_scope.clone();
+        use_loc_path.extend(cur_sub_scope);
+        let mut found_sym = None;
+        use_table.with_uses(&use_loc_path, |use_path| {
+            let root = sym_path.root().unwrap();
+            let mut act_sym_path = use_path.path.clone();
+            if let Some(alias) = &use_path.alias {
+                if !root.params.is_empty() || root.name != *alias {
+                    return true;
                 }
-            }
-            tmp?
-        };
+                act_sym_path.extend(&sym_path.sub_path());
+            } else {
+                act_sym_path.extend(sym_path);
+            };
 
-        RwLockReadGuard::try_map(symbol.read(), |sym| match sym {
-            Symbol::Module(sym) => Some(&sym.sub_table),
-            Symbol::Trait(sym)  => Some(&sym.sub_table),
-            Symbol::Impl(sym)   => Some(&sym.sub_table),
-            _ => None,
-        }).ok()
-    }
-
-    fn find_subtable_mut(&mut self, segment: &ScopeSegment) -> Option<MappedRwLockWriteGuard<SymbolTable>> {
-        let sub_syms = self.nodes.get_mut(&segment.name)?;
-        let symbol = if sub_syms.len() == 1 {
-            &mut sub_syms[0].1
-        } else {
-            let mut tmp = None;
-            for (params, sym) in sub_syms {
-                if &segment.params == params {
-                    tmp = Some(sym);
-                    break;
+            if let Some(sym) = self.get_symbol(&act_sym_path.parent(), sym_name) {
+                if found_sym.is_some() {
+                    todo!("Error, ambiguous symbol");
                 }
+                found_sym = Some(sym);
+                return true;
             }
-            tmp?
-        };
+            false
+        });
 
-        RwLockWriteGuard::try_map(symbol.write(), |sym| match sym {
-            Symbol::Module(sym) => Some(&mut sym.sub_table),
-            Symbol::Trait(sym)  => Some(&mut sym.sub_table),
-            Symbol::Impl(sym)   => Some(&mut sym.sub_table),
-            _ => None,
-        }).ok()
+        found_sym
     }
 
+    fn get_sub_table(&self, segments: &[ScopeSegment]) -> Option<&SymbolTable> {
+        if segments.is_empty() {
+            return Some(self);
+        }
 
+        let sub_table = self.sub_tables.get(&segments[0])?;
+        sub_table.get_sub_table(&segments[1..])
+    }
+
+    fn get_direct_sub_table_from_name(&self, name: &str) -> Option<&SymbolTable> {
+        for (segment, table) in &self.sub_tables {
+            if segment.name == name {
+                return Some(table);
+            }
+        }
+        None
+    }
+
+    fn get_or_insert_sub_table(&mut self, segments: &[ScopeSegment]) -> &mut SymbolTable {
+        if segments.is_empty() {
+            return self;
+        }
+        
+        let entry = self.sub_tables.entry(segments[0].clone());
+        let sub_table = entry.or_insert(SymbolTable::new());
+        sub_table.get_or_insert_sub_table(&segments[1..])
+    }
+
+    // Get symbol from name alone, will only return reference if only 1 symbol with the name exists, regardless of func parameters
+    fn get_symbol_from_name(&self, name: &str) -> Option<SymbolRef> {
+        let possible_syms = self.symbols.get(name)?;
+        if possible_syms.len() == 1 {
+            Some(possible_syms[0].1.clone())
+        } else {
+            None
+        }
+    }
 
 
     pub fn log(&self) {
@@ -428,19 +454,19 @@ impl SymbolTable {
 }
 
 struct SymbolTableLogger {
-    logger: IndentLogger
 }
 
 #[allow(unused)]
 impl SymbolTableLogger {
     fn log_table(logger: &mut IndentLogger, table: &SymbolTable) {
-        for (idx, (_, symbols)) in table.nodes.iter().enumerate() {
-            if idx == table.nodes.len() - 1 {
+        for (idx, (name, symbols)) in table.symbols.iter().enumerate() {
+            if idx == table.symbols.len() - 1 {
                 logger.set_last_at_indent();
             }
 
             if symbols.len() == 1 && symbols[0].0.is_empty() {
-                Self::log_symbol(logger, &symbols[0].1.read());
+                let sub_table = table.get_direct_sub_table_from_name(name);
+                Self::log_symbol(logger, &symbols[0].1.read(), sub_table);
             } else { 
                 for (params, sym) in symbols {
                     let mut params_s = String::new();
@@ -455,90 +481,126 @@ impl SymbolTableLogger {
                         write!(&mut params_s, ")");
                     }
 
-                    logger.log_indented(&params_s, |logger| Self::log_symbol(logger, &sym.read()))
+                    let segment = ScopeSegment {
+                        name: name.clone(),
+                        params: params.clone(),
+                    };
+                    let sub_table = table.get_sub_table(&[segment]);
+                    logger.log_indented(&params_s, |logger| Self::log_symbol(logger, &sym.read(), sub_table));
                 }
             }
 
         }
     }
 
-    fn log_symbol(logger: &mut IndentLogger, sym: &Symbol) {
+    fn log_symbol(logger: &mut IndentLogger, sym: &Symbol, sub_table: Option<&SymbolTable>) {
         match sym {
-            Symbol::Module(sym) => logger.log_indented("Module", |logger| {
+            Symbol::Module(sym) =>
+            {
+                logger.prefixed_logln("Module");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path.to_str().unwrap()));
-                logger.set_last_at_indent();
-                logger.log_indented("Sub Table", |logger| {
-                    Self::log_table(logger, &sym.sub_table);
-                });
-            }),
-            Symbol::Precedence(sym) => logger.log_indented("Precedence", |logger| {
+            },
+            Symbol::Precedence(sym) =>
+            {
+                logger.prefixed_logln("Precedence");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
                 logger.prefixed_log_fmt(format_args!("Id: {}\n", sym.id));
-            }),
-            Symbol::Function(sym) => logger.log_indented("Function", |logger| {
+            },
+            Symbol::Function(sym) =>
+            {
+                logger.prefixed_logln("Function");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-
-
-                logger.set_last_at_indent();
-                logger.log_indented("Sub Table", |logger| {
-                    Self::log_table(logger, &sym.sub_table);
-                });
-            }),
-            Symbol::TypeAlias(sym) => logger.log_indented("Type Alias", |logger| {
+            },
+            Symbol::TypeAlias(sym) =>
+            {
+                logger.prefixed_logln("Type Alias");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::DistinctType(sym) => logger.log_indented("Distinct Type", |logger| {
+            },
+            Symbol::DistinctType(sym) =>
+            {
+                logger.prefixed_logln("Distinct Type");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::OpaqueType(sym) => logger.log_indented("Opaque Type", |logger| {
+            },
+            Symbol::OpaqueType(sym) =>
+            {
+                logger.prefixed_logln("Opaque Type");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::Struct(sym) => logger.log_indented("Struct", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-                logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
-            }), 
-            Symbol::Union(sym) => logger.log_indented("Union", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::AdtEnum(sym) => logger.log_indented("ADT enum", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::FlagEnum(sym) => logger.log_indented("Flag", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::Bitfield(sym) => logger.log_indented("Bitfield", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::Const(sym) => logger.log_indented("Const", |logger| {
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::Static(sym) => logger.log_indented("Static", |logger| {
+            },
+            Symbol::Struct(sym) =>
+            {
+                logger.prefixed_logln("Struct");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
-            }),
-            Symbol::Property(sym) => logger.log_indented("Property", |logger| {
+            }, 
+            Symbol::Union(sym) =>
+            {   
+                logger.prefixed_logln("Union");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-            }),
-            Symbol::Trait(sym) => logger.log_indented("Trait", |logger| {
+            },
+            Symbol::AdtEnum(sym) =>
+            {
+                logger.prefixed_logln("ADT enum");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-
-
-                logger.set_last_at_indent();
-                logger.log_indented("Sub Table", |logger| {
-                    Self::log_table(logger, &sym.sub_table);
-                });
-            }),
-            Symbol::Impl(sym) => logger.log_indented("Impl", |logger| {
+            },
+            Symbol::FlagEnum(sym) =>
+            {
+                logger.prefixed_logln("Flag");
+                logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-
-
-                logger.set_last_at_indent();
-                logger.log_indented("Sub Table", |logger| {
-                    Self::log_table(logger, &sym.sub_table);
-                });
-            }),
-            
+            },
+            Symbol::Bitfield(sym) =>
+            {
+                logger.prefixed_logln("Bitfield");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+            },
+            Symbol::Const(sym) =>
+            {
+                logger.prefixed_logln("Const");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+            },
+            Symbol::Static(sym) =>
+            {
+                logger.prefixed_logln("Static");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
+            },
+            Symbol::Property(sym) =>
+            {
+                logger.prefixed_logln("Property");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+            },
+            Symbol::Trait(sym) =>
+            {
+                logger.prefixed_logln("Trait");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+            },
+            Symbol::Impl(sym) =>
+            {
+                logger.prefixed_logln("Impl");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+            },
         }
+
+        if let Some(sub_table) = sub_table {
+            Self::log_table(logger, sub_table);
+        }
+
+        logger.pop_indent();
     }
 }
