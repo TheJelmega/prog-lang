@@ -1,5 +1,5 @@
 use crate::{
-    ast::*, common::{NameId, NameTable}, error_warning::ErrorCode, literals::{Literal, LiteralTable}
+    ast::*, common::{NameId, NameTable}, error_warning::{AstErrorCode, LexErrorCode}, literals::{Literal, LiteralTable}
 };
 
 use super::{AstError, Context, ContextNodeData};
@@ -38,13 +38,13 @@ impl Visitor for ModuleAttributeResolver<'_> {
                     AttribMeta::Simple { .. } => {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have simple attributes") },
+                            err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have simple attributes") },
                         })
                     },
                     AttribMeta::Expr { .. } => {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have expression-only attributes") },
+                            err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have expression-only attributes") },
                         })
                     },
                     AttribMeta::Assign { path, expr } => {
@@ -54,7 +54,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                             let Expr::Literal(lit_node_id) = expr else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
+                                    err: AstErrorCode::InvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                 });
                                 continue;
                             };
@@ -62,7 +62,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                             let LiteralValue::Lit(lit_id) = ast[*lit_node_id].literal else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
+                                    err: AstErrorCode::InvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                 });
                                 continue;
                             };
@@ -74,7 +74,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                                     _ => {
                                         self.ctx.add_error(AstError {
                                             node_id: node_id.index(),
-                                            err: ErrorCode::AstInvalidAttributeData { info: format!("Path attribute only accepts string literals") },
+                                            err: AstErrorCode::InvalidAttributeData { info: format!("Path attribute only accepts string literals") },
                                         });
                                         None
                                     },
@@ -90,7 +90,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                     AttribMeta::Meta { .. } => {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttribute { info: format!("Modules may not have nested attributes") },
+                            err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have nested attributes") },
                         })
                     },
                 }

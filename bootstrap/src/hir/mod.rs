@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    common::{Abi, NameId, OpType, Scope, SymbolRef}, error_warning::ErrorCode, lexer::Punctuation, literals::LiteralId, type_system
+    common::{Abi, NameId, OpType, Scope, SymbolRef}, error_warning::{LexErrorCode, HirErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -28,7 +28,7 @@ pub use passes::Pass;
 
 pub struct HirError {
     pub node_id: u32,
-    pub err:     ErrorCode
+    pub err:     HirErrorCode
 }
 
 impl fmt::Display for HirError {

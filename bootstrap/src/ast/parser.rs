@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     ast::*,
-    error_warning::ErrorCode,
+    error_warning::ParseErrorCode,
     lexer::{OpenCloseSymbol, Punctuation, PunctuationId, StrongKeyword, Token, TokenMetadata, TokenStore, WeakKeyword},
     literals::LiteralId,
     common::{NameTable, NameId}
@@ -18,7 +18,7 @@ use crate::{
 use super::*;
 
 pub struct ParserErr {
-    pub err:     ErrorCode,
+    pub err:     ParseErrorCode,
     pub tok_idx: usize,
 }
 
@@ -104,7 +104,7 @@ impl Parser<'_> {
         if self.token_idx < self.token_store.tokens.len() {
             Ok(self.token_store.tokens[self.token_idx])
         } else {
-            Err(self.gen_error(ErrorCode::ParseNotEnoughTokens))
+            Err(self.gen_error(ParseErrorCode::NotEnoughTokens))
         }
     }
 
@@ -112,7 +112,7 @@ impl Parser<'_> {
         if self.token_idx + offset < self.token_store.tokens.len() {
             Ok(self.token_store.tokens[self.token_idx + offset])
         } else {
-            Err(self.gen_error(ErrorCode::ParseNotEnoughTokens))
+            Err(self.gen_error(ParseErrorCode::NotEnoughTokens))
         }
     }
 
@@ -137,7 +137,7 @@ impl Parser<'_> {
             self.consume_single();
             Ok(())
         } else {
-            Err(self.gen_error(ErrorCode::ParseFoundButExpected{ found: peek, expected }))
+            Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected }))
         }
     }
 
@@ -172,7 +172,7 @@ impl Parser<'_> {
                 let id = self.token_store.get_name_from_weak_keyword(kw);;
                 Ok(id)
             }
-            _ => Err(self.gen_error(ErrorCode::ParseFoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) }))
+            _ => Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) }))
         }
     }
 
@@ -182,7 +182,7 @@ impl Parser<'_> {
             self.consume_single();
             Ok(lit_id)
         } else {
-            Err(self.gen_error(ErrorCode::ParseFoundButExpected{ found: peek, expected: Token::Literal(LiteralId::INVALID) }))
+            Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Literal(LiteralId::INVALID) }))
         }
     }
 
@@ -192,7 +192,7 @@ impl Parser<'_> {
             self.consume_single();
             Ok(punct)
         } else {
-            Err(self.gen_error(ErrorCode::ParseFoundButExpected{ found: peek, expected: Token::Punctuation(Punctuation::Custom(PunctuationId::INVALID)) }))
+            Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Punctuation(Punctuation::Custom(PunctuationId::INVALID)) }))
         }
     }
 
@@ -248,7 +248,7 @@ impl Parser<'_> {
         }
     }
 
-    fn gen_error(&self, err: ErrorCode) -> ParserErr {
+    fn gen_error(&self, err: ParseErrorCode) -> ParserErr {
         ParserErr {
             err,
             tok_idx: self.token_idx,
@@ -306,24 +306,24 @@ impl Parser<'_> {
                 Ok(SimplePathStart::None)
             },
             Token::Punctuation(Punctuation::Dot)     => if only_allow_none_start {
-                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "inferred simple paths are not allowed" }))
+                Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "inferred simple paths are not allowed" }))
             } else {
                 self.consume_single();
                 Ok(SimplePathStart::Inferred)
             },
             Token::WeakKw(WeakKeyword::Super)        => if only_allow_none_start {
-                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "'super' relative paths are not allowed" }))
+                Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "'super' relative paths are not allowed" }))
             } else {
                 self.consume_single();
                 Ok(SimplePathStart::Super)
             },
             Token::StrongKw(StrongKeyword::SelfName) => if only_allow_none_start {
-                Err(self.gen_error(ErrorCode::ParseInvalidPathStart { found: tok, reason: "'self' relative paths are not allowed" }))
+                Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "'self' relative paths are not allowed" }))
             } else {
                 self.consume_single();
                 Ok(SimplePathStart::SelfPath)
             },
-            _                                        => Err(self.gen_error(ErrorCode::ParseInvalidPathStart{ found: tok, reason: "" }))
+            _                                        => Err(self.gen_error(ParseErrorCode::InvalidPathStart{ found: tok, reason: "" }))
         }
     }
 
@@ -478,7 +478,7 @@ impl Parser<'_> {
                 } else if self.check_peek(&[2], Token::OpenSymbol(OpenCloseSymbol::Brace)) {
                     self.parse_extern_block(attrs, vis)
                 } else {
-                    Err(self.gen_error(ErrorCode::ParseInvalidExternUse))
+                    Err(self.gen_error(ParseErrorCode::InvalidExternUse))
                 },
             Token::WeakKw(WeakKeyword::Record) => {
                 if self.check_peek(&[1], Token::StrongKw(StrongKeyword::Struct)) {
@@ -488,7 +488,7 @@ impl Parser<'_> {
                 } else if self.check_peek(&[1], Token::StrongKw(StrongKeyword::Bitfield)) {
                     self.parse_bitfield(attrs, vis)
                 } else {
-                    Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "item" }))
+                    Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "item" }))
                 }
             },
             Token::StrongKw(StrongKeyword::Mut) => {
@@ -503,10 +503,10 @@ impl Parser<'_> {
                 } else if self.check_peek(&[1, 2, 3], Token::StrongKw(StrongKeyword::Static)) {
                     self.parse_static_item(attrs, vis).map(|item| Item::Static(item))
                 } else {
-                    Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+                    Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
                 }
             },
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
         }
     }
 
@@ -544,7 +544,7 @@ impl Parser<'_> {
             },
             Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| TraitItem::TypeAlias(item)),
             Token::WeakKw(WeakKeyword::Property) => self.parse_property(attrs, vis, true).map(|item| TraitItem::Property(item)),
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
         }
     }
 
@@ -591,14 +591,14 @@ impl Parser<'_> {
                 {
                     self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item))
                 } else {
-                    Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+                    Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
                 }
             },
             Token::StrongKw(StrongKeyword::Static) => self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item)),
             Token::WeakKw(WeakKeyword::Tls) => self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item)),
             Token::WeakKw(WeakKeyword::Property) => self.parse_property(attrs, vis, false).map(|item| AssocItem::Property(item)),
 
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
         }
     }
 
@@ -620,12 +620,12 @@ impl Parser<'_> {
                 {
                     self.parse_static_item(attrs, vis).map(|item| ExternItem::Static(item))
                 } else {
-                    Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+                    Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
                 }
             },
             Token::StrongKw(StrongKeyword::Static) => self.parse_static_item(attrs, vis).map(|item| ExternItem::Static(item)),
 
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "Item" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
         }
     }
 
@@ -662,7 +662,7 @@ impl Parser<'_> {
                     (None, Some(name_id))
                 }
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectPackageName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectPackageName{ found: peek })),
         };
         self.consume_punct(Punctuation::Colon)?;
 
@@ -673,7 +673,7 @@ impl Parser<'_> {
                 self.consume_single();
                 Some(name_id)
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectModuleName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectModuleName{ found: peek })),
         };
         self.consume_punct(Punctuation::Dot)?;
 
@@ -810,7 +810,7 @@ impl Parser<'_> {
         let body = if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
             if abi.is_none() && !in_extern && !in_trait {
                 return Err(ParserErr {
-                    err: ErrorCode::ParseMissingExternFuncNoBlock,
+                    err: ParseErrorCode::MissingExternFuncNoBlock,
                     tok_idx: self.token_idx,
                 })
             }
@@ -1028,7 +1028,7 @@ impl Parser<'_> {
                 self.consume_punct(Punctuation::Semicolon)?;
                 Ok(Item::Struct(self.add_node(Struct::Unit { attrs, vis, name })))
             }
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "struct" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "struct" }))
         }
     }
 
@@ -1407,7 +1407,7 @@ impl Parser<'_> {
                         self.consume_single();
                         self.consume_punct(Punctuation::Semicolon)?;
                         if has_get {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
                         }
                         
                         has_get = true;
@@ -1417,7 +1417,7 @@ impl Parser<'_> {
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         self.consume_punct(Punctuation::Semicolon)?;
                         if has_ref_get {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "ref get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
                         }
                         
                         has_ref_get = true;
@@ -1427,7 +1427,7 @@ impl Parser<'_> {
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         self.consume_punct(Punctuation::Semicolon)?;
                         if has_mut_get {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "mut get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
                         }
                         
                         has_mut_get = true;
@@ -1436,12 +1436,12 @@ impl Parser<'_> {
                         self.consume_single();
                         self.consume_punct(Punctuation::Semicolon)?;
                         if has_set {
-                           return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "set" }));
+                           return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
                         }
                     
                         has_set = true;
                     },
-                    _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
+                    _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
                 }
             }
 
@@ -1468,7 +1468,7 @@ impl Parser<'_> {
                             self.consume_punct(Punctuation::Semicolon)?;
                         }
                         if get.is_some() {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
                         }
                         
                         get = Some(expr)
@@ -1481,7 +1481,7 @@ impl Parser<'_> {
                             self.consume_punct(Punctuation::Semicolon)?;
                         }
                         if ref_get.is_some() {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "ref get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
                         }
 
                         ref_get = Some(expr)
@@ -1494,7 +1494,7 @@ impl Parser<'_> {
                             self.consume_punct(Punctuation::Semicolon)?;
                         }
                         if mut_get.is_some() {
-                            return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "mut get" }));
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
                         }
                         
                         mut_get = Some(expr)
@@ -1506,12 +1506,12 @@ impl Parser<'_> {
                         self.consume_punct(Punctuation::Semicolon)?;
                     }
                     if set.is_some() {
-                        return Err(self.gen_error(ErrorCode::ParseDuplicateProp{ get_set: "set" }));
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
                     }
                     
                     set = Some(expr)
                 },
-                _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
+                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
                 }
             }
 
@@ -1666,7 +1666,7 @@ impl Parser<'_> {
             Token::WeakKw(WeakKeyword::Postfix)   => OpType::Postfix,
             Token::WeakKw(WeakKeyword::Infix)     => OpType::Infix,
             Token::WeakKw(WeakKeyword::Assign)    => OpType::Assign,
-            _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "operator type" }))
+            _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "operator type" }))
         };
 
         self.consume_weak_kw(WeakKeyword::Op)?;
@@ -1715,7 +1715,7 @@ impl Parser<'_> {
                     (None, Some(name_id))
                 }
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectPackageName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectPackageName{ found: peek })),
         };
         self.consume_punct(Punctuation::Colon)?;
 
@@ -1726,7 +1726,7 @@ impl Parser<'_> {
                 self.consume_single();
                 Some(name_id)
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectModuleName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectModuleName{ found: peek })),
         };
 
 
@@ -1775,7 +1775,7 @@ impl Parser<'_> {
                         "none" => PrecedenceAssociativity::None,
                         "left" => PrecedenceAssociativity::Left,
                         "right" => PrecedenceAssociativity::Right,
-                        _ => return Err(parser.gen_error(ErrorCode::ParseInvalidPrecedenceAssoc{ name: parser.names[name_id].to_string() }))
+                        _ => return Err(parser.gen_error(ParseErrorCode::InvalidPrecedenceAssoc{ name: parser.names[name_id].to_string() }))
                     };
                     associativity = Some(assoc);
                     Ok(())
@@ -1784,7 +1784,7 @@ impl Parser<'_> {
                     parser.consume_single();
                     Ok(())
                 },
-                _ => Err(parser.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "precedence" })),
+                _ => Err(parser.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "precedence" })),
             }
         })?;
 
@@ -1814,7 +1814,7 @@ impl Parser<'_> {
                     (None, Some(name_id))
                 }
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectPackageName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectPackageName{ found: peek })),
         };
         self.consume_punct(Punctuation::Colon)?;
 
@@ -1825,7 +1825,7 @@ impl Parser<'_> {
                 self.consume_single();
                 Some(name_id)
             },
-            _ => return Err(self.gen_error(ErrorCode::ParseExpectModuleName{ found: peek })),
+            _ => return Err(self.gen_error(ParseErrorCode::ExpectModuleName{ found: peek })),
         };
 
 
@@ -1856,7 +1856,7 @@ impl Parser<'_> {
 
         let final_expr = if let Some(Stmt::Expr(stmt)) = stmts.last() {
             if self.ast[*stmt].has_semi {
-                let Some(Stmt::Expr(stmt)) = stmts.pop() else { return Err(self.gen_error(ErrorCode::InternalError("Final expr in block stopped existing when removing it"))) };
+                let Some(Stmt::Expr(stmt)) = stmts.pop() else { return Err(self.gen_error(ParseErrorCode::InternalError("Final expr in block stopped existing when removing it"))) };
                 Some(stmt)
             } else {
                 None
@@ -2096,11 +2096,11 @@ impl Parser<'_> {
                     Token::StrongKw(StrongKeyword::For)       => self.parse_for_expr(label)?,
                     Token::StrongKw(StrongKeyword::Match)     => self.parse_match_expr(label)?,
                     Token::OpenSymbol(OpenCloseSymbol::Brace) => Expr::Block(self.parse_block_expr(label)?),
-                    _ => return Err(self.gen_error(ErrorCode::ParseInvalidLabel)),
+                    _ => return Err(self.gen_error(ParseErrorCode::InvalidLabel)),
                 }
             },
             Token::Punctuation(Punctuation::Comma)            |
-            Token::Punctuation(Punctuation::Semicolon)        => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "expression" })),
+            Token::Punctuation(Punctuation::Semicolon)        => return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "expression" })),
 
             Token::Punctuation(_)                             => self.parse_prefix_expr()?,
 
@@ -2123,7 +2123,7 @@ impl Parser<'_> {
                 Expr::Underscore
             },
 
-            _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "expression" })),
+            _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "expression" })),
         };
 
         if mode == ExprParseMode::Prefix {
@@ -2160,7 +2160,7 @@ impl Parser<'_> {
                         Token::Literal(_) => self.parse_tuple_index(expr)?,
                         Token::Name(_) => self.parse_field_access_or_method_expr(expr)?,
                         
-                        _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek_1, for_reason: "expression" })),
+                        _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek_1, for_reason: "expression" })),
                     }
                 },
                 
@@ -2179,7 +2179,7 @@ impl Parser<'_> {
                             let has_next_whitespace = !self.token_store.metadata[self.token_idx + 1].meta_elems.is_empty();
 
                             if has_prev_whitespace == has_next_whitespace {
-                                return Err(self.gen_error(ErrorCode::ParseAmbiguousOperators));
+                                return Err(self.gen_error(ParseErrorCode::AmbiguousOperators));
                             } else if has_prev_whitespace {
                                let right = self.parse_expr(mode)?;
                                 Expr::Infix(self.add_node(InfixExpr {
@@ -2232,7 +2232,7 @@ impl Parser<'_> {
 
 
                 Token::Name(_) |
-                Token::Literal(_) => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "expression" })),
+                Token::Literal(_) => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "expression" })),
                 
                 _ => {
                     self.pop_meta_frame();
@@ -2281,7 +2281,7 @@ impl Parser<'_> {
                 })
             }
 
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "literal" })),
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "literal" })),
         }
     }
 
@@ -2321,9 +2321,9 @@ impl Parser<'_> {
                     StrongKeyword::Str16  => LiteralOp::StringSlice(StringSliceType::Str16),
                     StrongKeyword::Str32  => LiteralOp::StringSlice(StringSliceType::Str32),
                     StrongKeyword::CStr   => LiteralOp::StringSlice(StringSliceType::CStr),
-                    _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason:  "literal operator" })),
+                    _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason:  "literal operator" })),
                 }
-                _ => return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "literal operator" })),
+                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "literal operator" })),
             })
         } else {
             None
@@ -2471,7 +2471,7 @@ impl Parser<'_> {
             let peek_1 = self.peek_at(1)?;
             let peek_2 = self.peek_at(2)?;
             if matches!(peek_1, Token::Name(_)) && peek_2 == Token::Punctuation(Punctuation::Colon) {
-                return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
+                return Err(self.gen_error(ParseErrorCode::ExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
             }
 
             return Ok(path);
@@ -2480,7 +2480,7 @@ impl Parser<'_> {
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_arg)?;
 
         if !allow {
-            return Err(self.gen_error(ErrorCode::ParseExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
+            return Err(self.gen_error(ParseErrorCode::ExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
         }
 
         Ok(Expr::Struct(self.add_node(StructExpr {
@@ -2506,7 +2506,7 @@ impl Parser<'_> {
                 let expr = self.parse_expr(ExprParseMode::General)?;
                 Ok(StructArg::Complete(expr))
             },
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "struct argument" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "struct argument" }))
         }
     }
 
@@ -3018,7 +3018,7 @@ impl Parser<'_> {
                     let fields = self.parse_comma_separated_closed(sym, Self::parse_struct_pattern_field)?;
                     Ok(Pattern::Struct(self.add_node(StructPattern::Path{ path, fields })))
                 },
-                _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
+                _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
             }
 
         } else {
@@ -3074,7 +3074,7 @@ impl Parser<'_> {
                 self.consume_single();
                 Ok(StructPatternField::Rest)
             }
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor { found: peek, for_reason: "struct pattern field" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "struct pattern field" }))
         }
     }
 
@@ -3130,7 +3130,7 @@ impl Parser<'_> {
                     Ok(StructPatternField::Named { name: iden, pattern })
                 }
             }
-            _ => Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: self.peek()?, for_reason: "struct pattern element" }))
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: self.peek()?, for_reason: "struct pattern element" }))
         }
     }
 
@@ -3272,7 +3272,7 @@ impl Parser<'_> {
             StrongKeyword::CStr   => Type::StringSlice(self.add_node(StringSliceType::CStr)),
             _ => {
                 let peek = self.peek()?;
-                return Err(self.gen_error(ErrorCode::ParseUnexpectedFor{ found: peek, for_reason: "type" }))
+                return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "type" }))
             },
         };
 

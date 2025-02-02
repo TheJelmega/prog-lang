@@ -1,7 +1,7 @@
 use crate::{
     ast::*,
     common::{NameTable, OperatorImportPath},
-    error_warning::ErrorCode,
+    error_warning::{AstErrorCode, LexErrorCode},
     lexer::PuncutationTable
 };
 
@@ -39,7 +39,7 @@ impl Visitor for OperatorImport<'_> {
 
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),
-                err: ErrorCode::AstNotTopLevel { 
+                err: AstErrorCode::NotTopLevel { 
                     path,
                     info: "Operator use".to_string(),
                  }

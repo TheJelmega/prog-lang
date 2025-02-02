@@ -3,7 +3,7 @@ use std::mem;
 use crate::{
     ast::*,
     common::{uses, Abi, LibraryPath, NameTable, Scope, UseTable},
-    error_warning::ErrorCode,
+    error_warning::{AstErrorCode, LexErrorCode},
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
     type_system,
@@ -356,7 +356,7 @@ impl AstToHirLowering<'_> {
                     _ => {
                         self.ctx.add_error(AstError{
                             node_id: node_id,
-                            err: ErrorCode::AstInvalidAbiLiteral { lit: s.clone(), info: "Unknown ABI".to_string() },
+                            err: AstErrorCode::InvalidAbiLiteral { lit: s.clone(), info: "Unknown ABI".to_string() },
                         });
                         Abi::Xenon
                     },
@@ -365,7 +365,7 @@ impl AstToHirLowering<'_> {
                     let lit = self.literals[lit_id].to_string();
                     self.ctx.add_error(AstError{
                         node_id: node_id,
-                        err: ErrorCode::AstInvalidAbiLiteral { lit, info: "ABI need to be a string literal".to_string() },
+                        err: AstErrorCode::InvalidAbiLiteral { lit, info: "ABI need to be a string literal".to_string() },
                     });
                     Abi::Xenon
                 }
@@ -1619,7 +1619,7 @@ impl Visitor for AstToHirLowering<'_> {
                         None => {
                             self.ctx.add_error(AstError {
                                 node_id: node_id.index(),
-                                err: ErrorCode::AstInvalidUninitVarDecl { info: "Missing type".to_string() },
+                                err: AstErrorCode::InvalidUninitVarDecl { info: "Missing type".to_string() },
                             });
                             return;
                         },
@@ -1631,14 +1631,14 @@ impl Visitor for AstToHirLowering<'_> {
                             if is_ref {
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
+                                    err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                                 });
                                 return;
                             }
                             if bound.is_some() {
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
+                                    err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                                 });
                                 return;
                             }
@@ -1660,7 +1660,7 @@ impl Visitor for AstToHirLowering<'_> {
                                 _ => {
                                     self.ctx.add_error(AstError {
                                         node_id: node_id.index(),
-                                        err: ErrorCode::AstInvalidUninitVarDecl { info: "Expected a tuple type".to_string() },
+                                        err: AstErrorCode::InvalidUninitVarDecl { info: "Expected a tuple type".to_string() },
                                     });
                                     return;
                                 }
@@ -1672,14 +1672,14 @@ impl Visitor for AstToHirLowering<'_> {
                                         if is_ref {
                                             self.ctx.add_error(AstError {
                                                 node_id: node_id.index(),
-                                                err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
+                                                err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                                             });
                                             return;
                                         }
                                         if bound.is_some() {
                                             self.ctx.add_error(AstError {
                                                 node_id: node_id.index(),
-                                                err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
+                                                err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                                             });
                                             return;
                                         }
@@ -1713,14 +1713,14 @@ impl Visitor for AstToHirLowering<'_> {
                     if is_ref {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
+                            err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                         });
                         return;
                     }
                     if bound.is_some() {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
+                            err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                         });
                         return;
                     }
@@ -2135,7 +2135,7 @@ impl Visitor for AstToHirLowering<'_> {
                 } else {
                     self.ctx.add_error(AstError {
                         node_id: node_id.index(),
-                        err: ErrorCode::AstMultipleStructComplete,
+                        err: AstErrorCode::MultipleStructComplete,
                     })
                 },
             };
@@ -2179,7 +2179,7 @@ impl Visitor for AstToHirLowering<'_> {
                 if !frac_digits.is_empty() {
                     self.ctx.add_error(AstError{
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidLiteral{ lit: self.literals[node.index].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
+                        err: AstErrorCode::InvalidLiteral{ lit: self.literals[node.index].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
                     });
                 }
 
@@ -2193,7 +2193,7 @@ impl Visitor for AstToHirLowering<'_> {
             _ => {
                 self.ctx.add_error(AstError{
                     node_id: node_id.index(),
-                    err: ErrorCode::AstInvalidLiteral{ lit: self.literals[node.index].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
+                    err: AstErrorCode::InvalidLiteral{ lit: self.literals[node.index].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
                 });
                 0
             },
@@ -2945,7 +2945,7 @@ impl Visitor for AstToHirLowering<'_> {
                             if !frac_digits.is_empty() {
                                 self.ctx.add_error(AstError{
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidLiteral{ lit: self.literals[*idx].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
+                                    err: AstErrorCode::InvalidLiteral{ lit: self.literals[*idx].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
                                 });
                             }
 
@@ -2959,7 +2959,7 @@ impl Visitor for AstToHirLowering<'_> {
                         _ => {
                             self.ctx.add_error(AstError{
                                 node_id: node_id.index(),
-                                err: ErrorCode::AstInvalidLiteral{ lit: self.literals[*idx].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
+                                err: AstErrorCode::InvalidLiteral{ lit: self.literals[*idx].to_string(), info: "Only interger literals are allowed for a tuple index".to_string() },
                             });
                             0
                         },
@@ -3255,7 +3255,7 @@ impl Visitor for AstToHirLowering<'_> {
                     _ => {
                         self.ctx.add_error(AstError{
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAbiLiteral { lit: s.clone(), info: "Unknown ABI".to_string() },
+                            err: AstErrorCode::InvalidAbiLiteral { lit: s.clone(), info: "Unknown ABI".to_string() },
                         });
                         Abi::Xenon
                     },
@@ -3264,7 +3264,7 @@ impl Visitor for AstToHirLowering<'_> {
                     let lit = self.literals[lit_id].to_string();
                     self.ctx.add_error(AstError{
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidAbiLiteral { lit, info: "ABI need to be a string literal".to_string() },
+                        err: AstErrorCode::InvalidAbiLiteral { lit, info: "ABI need to be a string literal".to_string() },
                     });
                     Abi::Xenon
                 }

@@ -8,7 +8,7 @@ pub use tokens::*;
 pub use tables::*;
 
 use crate::{
-    error_warning::ErrorCode,
+    error_warning::LexErrorCode,
     literals::{self, Literal, LiteralTable},
     common::*
 };
@@ -17,7 +17,7 @@ use crate::{
 #[allow(unused)]
 pub struct LexerErr {
     file:        String,
-    err:         ErrorCode,
+    err:         LexErrorCode,
     byte_offset: u64,
     char_offset: u64,
     line:        u32,
@@ -713,7 +713,7 @@ impl Lexer<'_> {
         self.add_token(Token::Literal(id), char_len, byte_len);
     }
 
-    fn gen_err(&self, err: ErrorCode, byte_len: u32, char_len: u32) -> LexerErr {
+    fn gen_err(&self, err: LexErrorCode, byte_len: u32, char_len: u32) -> LexerErr {
         LexerErr {
             file: String::new(),
             err,
@@ -1264,10 +1264,10 @@ impl Lexer<'_> {
 
                     if let Some(prev) = open_close_stack.pop() {
                         if prev != sym {
-                            return Err(self.gen_err(ErrorCode::LexMismatchCloseSym{ found: sym, expected: prev }, 1, 1));
+                            return Err(self.gen_err(LexErrorCode::MismatchCloseSym{ found: sym, expected: prev }, 1, 1));
                         }
                     } else {
-                        return Err(self.gen_err(ErrorCode::LexNoOpeningSym{ sym }, 1, 1));
+                        return Err(self.gen_err(LexErrorCode::NoOpeningSym{ sym }, 1, 1));
                     }
                     self.add_token(Token::CloseSymbol(sym), 1, 1);
                 },
@@ -1292,7 +1292,7 @@ impl Lexer<'_> {
         Ok(())
     }
 
-    fn lex_bom(&mut self) -> Result<(), (ErrorCode, u32)> {
+    fn lex_bom(&mut self) -> Result<(), (LexErrorCode, u32)> {
         let bytes = self.cursor.as_bytes();
         match bytes[0] {
             0xEF => if bytes[0..=2] == [0xEF, 0xBB, 0xBF] {
@@ -1303,36 +1303,36 @@ impl Lexer<'_> {
                 self.source = self.cursor;
             },
             0xFE => if bytes[0..=1] == [0xFE, 0xFF] {
-                return Err((ErrorCode::LexInvalidBOM("utf16 (be)"), 2));
+                return Err((LexErrorCode::InvalidBOM("utf16 (be)"), 2));
             }
             0xFF => 
             if bytes[0..=1] == [0xFF, 0xFE] {
                 if bytes[2..=3] == [0x00, 0x00] {
-                    return Err((ErrorCode::LexInvalidBOM("utf32 (le)"), 4));
+                    return Err((LexErrorCode::InvalidBOM("utf32 (le)"), 4));
                 } else {
-                    return Err((ErrorCode::LexInvalidBOM("utf16 (le)"), 2));
+                    return Err((LexErrorCode::InvalidBOM("utf16 (le)"), 2));
                 }
             },
             0x00 => if bytes[0..=3] == [0x00, 0x00, 0xFE, 0xFF] {
-                return Err((ErrorCode::LexInvalidBOM("utf32 (be)"), 4));
+                return Err((LexErrorCode::InvalidBOM("utf32 (be)"), 4));
             },
             0x2B => if bytes[0..=2] == [0x2B, 0x2F, 0x76] {
-                return Err((ErrorCode::LexInvalidBOM("utf-7"), 3));
+                return Err((LexErrorCode::InvalidBOM("utf-7"), 3));
             },
             0xF7 => if bytes[0..=2] == [0xF7, 0x64, 0x4C] {
-                return Err((ErrorCode::LexInvalidBOM("utf-1"), 3));
+                return Err((LexErrorCode::InvalidBOM("utf-1"), 3));
             },
             0xDD => if bytes[0..=3] == [0xDD, 0x73, 0x66, 0x73] {
-                return Err((ErrorCode::LexInvalidBOM("utf-ecbdic"), 4));
+                return Err((LexErrorCode::InvalidBOM("utf-ecbdic"), 4));
             },
             0x0E => if bytes[0..=2] == [0x0E, 0xFE, 0xFF] {
-                return Err((ErrorCode::LexInvalidBOM("scsu"), 3));
+                return Err((LexErrorCode::InvalidBOM("scsu"), 3));
             },
             0xFB => if bytes[0..=2] ==[0xFB, 0xEE, 0x28] {
-                return Err((ErrorCode::LexInvalidBOM("bocu-1"), 3));
+                return Err((LexErrorCode::InvalidBOM("bocu-1"), 3));
             },
             0x84 => if bytes[0..=3] == [0x84, 0x31, 0x95, 0x33] {
-                return Err((ErrorCode::LexInvalidBOM("gb18030"), 4));
+                return Err((LexErrorCode::InvalidBOM("gb18030"), 4));
             },
             _ => {},
         }
@@ -1358,7 +1358,7 @@ impl Lexer<'_> {
         self.tokens.shebang = Some(shebang_str);
     }
 
-    fn lex_binary_lit(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
+    fn lex_binary_lit(&mut self, sub_str: &str) -> Result<(), LexErrorCode> {
         let mut bytes = Vec::with_capacity((sub_str.len() - 2 + 7) / 8);
 
         let mut acc = 0;
@@ -1367,7 +1367,7 @@ impl Lexer<'_> {
             if ch == b'_' {
                 continue;
             } else if ch != b'0' && ch != b'1' {
-                return Err(ErrorCode::LexInvalidBinInLit);
+                return Err(LexErrorCode::InvalidBinInLit);
             }
 
             let shift = idx & 7;
@@ -1466,7 +1466,7 @@ impl Lexer<'_> {
                     let tmp = self.convert_punct_sequence()?;
                     seq.push(tmp);
                 } else if ALLOWED_CHARACTERS.binary_search(&ch).is_err() {
-                    return Err(self.gen_err(ErrorCode::LexInvalidCharInOp { ch }, ch.len_utf8() as u32, 1));
+                    return Err(self.gen_err(LexErrorCode::InvalidCharInOp { ch }, ch.len_utf8() as u32, 1));
                 } else {
                     seq.push(ch);
                 }
@@ -1482,7 +1482,7 @@ impl Lexer<'_> {
         let name = &self.cursor[..non_alphanum_idx];
         let ch = match self.op_seq_map.get(name) {
             Some(ch) => *ch,
-            None => return Err(self.gen_err(ErrorCode::LexInvalidOpSequence { name: name.to_string() }, name.len() as u32 + 1, name.chars().count() as u32 + 1)),
+            None => return Err(self.gen_err(LexErrorCode::InvalidOpSequence { name: name.to_string() }, name.len() as u32 + 1, name.chars().count() as u32 + 1)),
         };
 
         // Consume with enough space for the character left, as it will be consumed in the caller
@@ -1492,8 +1492,8 @@ impl Lexer<'_> {
         Ok(ch)
     }
 
-    fn lex_octal_lit(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
-        let digits = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Oct, false).map_err(|_| ErrorCode::LexInvalidOctInLit)?;
+    fn lex_octal_lit(&mut self, sub_str: &str) -> Result<(), LexErrorCode> {
+        let digits = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Oct, false).map_err(|_| LexErrorCode::InvalidOctInLit)?;
 
         let len = sub_str.len() as u32;
         self.add_literal(literals::Literal::Octal { digits }, len, len);
@@ -1501,7 +1501,7 @@ impl Lexer<'_> {
         Ok(())
     }
 
-    fn lex_hex_lit(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
+    fn lex_hex_lit(&mut self, sub_str: &str) -> Result<(), LexErrorCode> {
         if self.cursor.len() >= 4 && self.cursor.as_bytes()[3] == b'.' {
             // Hex floating point
 
@@ -1511,14 +1511,14 @@ impl Lexer<'_> {
             } else if bytes[2] == b'1' {
                 true
             } else {
-                return Err(ErrorCode::LexInvalidLeadHexFp);
+                return Err(LexErrorCode::InvalidLeadHexFp);
             };
             
             let Some(exp_p_offset) = self.cursor.find('p') else {
-                return Err(ErrorCode::LexMissHexFpInd);
+                return Err(LexErrorCode::MissHexFpInd);
             };
 
-            let mantissa = Self::lex_lit_digits(&self.cursor[4..exp_p_offset], DigitLexMode::Hex, true).map_err(|_| ErrorCode::LexInvalidHexInLit)?;
+            let mantissa = Self::lex_lit_digits(&self.cursor[4..exp_p_offset], DigitLexMode::Hex, true).map_err(|_| LexErrorCode::InvalidHexInLit)?;
 
             let sub_str = &self.cursor[exp_p_offset + 1..];
             let (exp_sign, has_sign, offset) = if sub_str.starts_with('+') {
@@ -1528,13 +1528,13 @@ impl Lexer<'_> {
             } else if sub_str.starts_with(|ch: char| (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') || ch == '_' ) {
                 (true, false, 0)
             } else {
-                return Err(ErrorCode::LexInvalidHexInLit);
+                return Err(LexErrorCode::InvalidHexInLit);
             };
             let sub_str = &sub_str[offset..];
 
             let end = sub_str.find(|ch: char| !ch.is_alphanumeric() && ch != '_').unwrap_or(sub_str.len());
             let exp_str = &sub_str[..end];
-            let exponent = Self::lex_lit_digits(exp_str, DigitLexMode::Hex, false).map_err(|_| ErrorCode::LexInvalidHexInLit)?;         
+            let exponent = Self::lex_lit_digits(exp_str, DigitLexMode::Hex, false).map_err(|_| LexErrorCode::InvalidHexInLit)?;         
 
             let len = exp_p_offset as u32 + end as u32 + has_sign as u32 + 1;
 
@@ -1548,7 +1548,7 @@ impl Lexer<'_> {
 
         } else {
             // Hex integer
-            let nibbles = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Hex, false).map_err(|_| ErrorCode::LexInvalidHexInLit)?;
+            let nibbles = Self::lex_lit_digits(&sub_str[2..], DigitLexMode::Hex, false).map_err(|_| LexErrorCode::InvalidHexInLit)?;
             let len = sub_str.len() as u32;
             self.add_literal(Literal::HexInt { nibbles }, len, len);
         }
@@ -1556,8 +1556,8 @@ impl Lexer<'_> {
         Ok(())
     }
 
-    fn lex_decimal(&mut self, sub_str: &str) -> Result<(), ErrorCode> {
-        let int_digits = Self::lex_lit_digits(sub_str, DigitLexMode::Dec, false).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
+    fn lex_decimal(&mut self, sub_str: &str) -> Result<(), LexErrorCode> {
+        let int_digits = Self::lex_lit_digits(sub_str, DigitLexMode::Dec, false).map_err(|_| LexErrorCode::InvalidDecInLit)?;
 
         let mut end = sub_str.len();
         let (frac_digits, exp_sign, exp_digits) = if self.cursor.len() > sub_str.len() && self.cursor.as_bytes()[sub_str.len()] == b'.' {
@@ -1571,7 +1571,7 @@ impl Lexer<'_> {
             } else {
                 end = offset + frac_end;
                 let frac_str = &self.cursor[offset..end];
-                let frac_digits = Self::lex_lit_digits(frac_str, DigitLexMode::Dec, true).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
+                let frac_digits = Self::lex_lit_digits(frac_str, DigitLexMode::Dec, true).map_err(|_| LexErrorCode::InvalidDecInLit)?;
 
                 let (exp_sign, expr_digits) = if bytes.len() > end + 1 && bytes[end] == b'e' {
                     let (exp_sign, offset) = if bytes[end + 1] == b'-' {
@@ -1584,7 +1584,7 @@ impl Lexer<'_> {
 
                     end = offset + self.cursor[offset..].find(|ch: char| (ch < '0' || ch > '9') && ch != '_').unwrap_or(self.cursor.len() - offset);
                     let exp_string = &self.cursor[offset..end];
-                    let exp_digits = Self::lex_lit_digits(exp_string, DigitLexMode::Dec, false).map_err(|_| ErrorCode::LexInvalidDecInLit)?;
+                    let exp_digits = Self::lex_lit_digits(exp_string, DigitLexMode::Dec, false).map_err(|_| LexErrorCode::InvalidDecInLit)?;
 
                     (exp_sign, exp_digits)
                 } else {
@@ -1658,7 +1658,7 @@ impl Lexer<'_> {
     }
 
     // TODO: nested comment as sub-elems for tools  (probably post-process step)
-    fn lex_comment(&mut self) -> Result<bool, (ErrorCode, u32, u32)> {
+    fn lex_comment(&mut self) -> Result<bool, (LexErrorCode, u32, u32)> {
         let comment_kind_indicator = self.cursor.as_bytes()[1];
         if comment_kind_indicator == b'/' {
             
@@ -1705,10 +1705,10 @@ impl Lexer<'_> {
             let mut comment_len = start;
             loop {
                 let Some(next) = cursor.find(|ch: char| ch == '*' || ch == '/') else {
-                    return Err((ErrorCode::LexUnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((LexErrorCode::UnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 };
                 if next + 1 >= cursor.len() {
-                    return Err((ErrorCode::LexUnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((LexErrorCode::UnclosedBlockComment, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 }
 
                 if cursor.as_bytes()[next] == b'*' {
@@ -1735,10 +1735,10 @@ impl Lexer<'_> {
         Ok(false)
     }
 
-    fn lex_character(&mut self) -> Result<(), (ErrorCode, u32, u32)> {
+    fn lex_character(&mut self) -> Result<(), (LexErrorCode, u32, u32)> {
         let bytes = self.cursor.as_bytes();
         if bytes.len() <= 3 {
-            return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((LexErrorCode::NotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         if bytes[1] == b'\\' {
@@ -1752,46 +1752,46 @@ impl Lexer<'_> {
                 b'\\' => ('\\', 4),
                 b'x' => {
                     if bytes.len() <= 6 {
-                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((LexErrorCode::NotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     }
 
-                    let hi = Self::lex_digit(bytes[3], DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidHexInChar, 6, 6))?;
-                    let low = Self::lex_digit(bytes[4], DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidHexInChar, 6, 6))?;
+                    let hi = Self::lex_digit(bytes[3], DigitLexMode::Hex).map_err(|_| (LexErrorCode::InvalidHexInChar, 6, 6))?;
+                    let low = Self::lex_digit(bytes[4], DigitLexMode::Hex).map_err(|_| (LexErrorCode::InvalidHexInChar, 6, 6))?;
 
                     let val = (hi << 4) | low;
                     (val as char, 6)
                 },
                 b'u' => {
                     if bytes.len() <= 7 {
-                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((LexErrorCode::NotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     }
                     if bytes[3] != b'{' {
-                        return Err((ErrorCode::LexInvalidUnicodeInLit, 4, 4));
+                        return Err((LexErrorCode::InvalidUnicodeInLit, 4, 4));
                     }
                     let Some(end) = self.cursor[4..].find('\'').map(|val| val + 4) else {
-                        return Err((ErrorCode::LexNotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                        return Err((LexErrorCode::NotEnoughCharInLit, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                     };
                     if bytes[end - 1] != b'}' || end > 11 {
-                        return Err((ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32));
+                        return Err((LexErrorCode::InvalidUnicodeInLit, end as u32, end as u32));
                     }
 
                     let mut code: u32 = 0;
                     for ch in self.cursor[4..end - 1].chars() {
                         if ch.len_utf8() > 1 {
-                            return Err((ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32));
+                            return Err((LexErrorCode::InvalidUnicodeInLit, end as u32, end as u32));
                         }
 
                         code <<= 4;
-                        code |= Self::lex_digit(ch as u8, DigitLexMode::Hex).map_err(|_| (ErrorCode::LexInvalidUnicodeInLit, end as u32, end as u32))? as u32;
+                        code |= Self::lex_digit(ch as u8, DigitLexMode::Hex).map_err(|_| (LexErrorCode::InvalidUnicodeInLit, end as u32, end as u32))? as u32;
                     }
 
                     if code > 0x10FFFF {
-                        return Err((ErrorCode::LexInvalidUnicode, end as u32, end as u32));
+                        return Err((LexErrorCode::InvalidUnicode, end as u32, end as u32));
                     }
 
                     (unsafe { char::from_u32_unchecked(code) }, end as u32 + 1)
                 },
-                _ => return Err((ErrorCode::LexInvalidEscape, 4, 4)),
+                _ => return Err((LexErrorCode::InvalidEscape, 4, 4)),
             };
 
             self.add_literal(Literal::Char(ch), len, len);
@@ -1803,9 +1803,9 @@ impl Lexer<'_> {
         Ok(())
     }
 
-    fn lex_string(&mut self) -> Result<(), (ErrorCode, u32, u32)> {
+    fn lex_string(&mut self) -> Result<(), (LexErrorCode, u32, u32)> {
         if self.source.len() <= 2 {
-            return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((LexErrorCode::NotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         let mut cursor = &self.cursor[1..];
@@ -1813,13 +1813,13 @@ impl Lexer<'_> {
         let mut string_content = String::new();
         loop {
             let Some(mut next) = cursor.find(|ch: char| ch == '"' || ch == '\n') else {
-                return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                return Err((LexErrorCode::NotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
             };
             end += next + 1;
 
             if !string_content.is_empty() {
                 let Some(start) = cursor.find(|ch: char| !HORIZONTAL_WHITESPACE.contains(&ch)) else {
-                    return Err((ErrorCode::LexNotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((LexErrorCode::NotEnoughString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 };
                 cursor = &cursor[start..];
                 next -= start;
@@ -1828,7 +1828,7 @@ impl Lexer<'_> {
             let bytes = cursor.as_bytes();
             if bytes[next] == b'\n' {
                 if next > 2 && bytes[next - 1] != b'\\' {
-                    return Err((ErrorCode::LexStringNoContinue, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+                    return Err((LexErrorCode::StringNoContinue, self.cursor.len() as u32, self.cursor.chars().count() as u32));
                 }
                 string_content += &cursor[..next - 1];
 
@@ -1847,15 +1847,15 @@ impl Lexer<'_> {
         Ok(())
     }
 
-    fn lex_raw_string(&mut self) -> Result<(), (ErrorCode, u32, u32)> {
+    fn lex_raw_string(&mut self) -> Result<(), (LexErrorCode, u32, u32)> {
         // Function only called when it starts with 'r#', so no panic can happen
         let num_hashes = self.cursor[1..].find(|ch: char| ch != '#').unwrap();
 
         if self.cursor.as_bytes().len() < 2 * num_hashes + 2 {
-            return Err((ErrorCode::LexNotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((LexErrorCode::NotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
         if self.cursor.as_bytes()[num_hashes + 1] != b'"' {
-            return Err((ErrorCode::LexInvalidStartRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((LexErrorCode::InvalidStartRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         }
 
         let start = num_hashes + 2;
@@ -1867,7 +1867,7 @@ impl Lexer<'_> {
             ending.push('#');
         }
         let Some(end) = cursor.find(&ending) else {
-            return Err((ErrorCode::LexNotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
+            return Err((LexErrorCode::NotEnoughRawString, self.cursor.len() as u32, self.cursor.chars().count() as u32));
         };
 
         let end = start + end;

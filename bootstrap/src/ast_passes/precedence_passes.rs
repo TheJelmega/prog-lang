@@ -1,4 +1,4 @@
-use crate::{ast::*, common::{NameId, NameTable, PrecedenceImportPath, Symbol}, error_warning::ErrorCode, literals::{Literal, LiteralTable}};
+use crate::{ast::*, common::{NameId, NameTable, PrecedenceImportPath, Symbol}, error_warning::{AstErrorCode, LexErrorCode}, literals::{Literal, LiteralTable}};
 
 use super::{AstError, Context, ContextNodeData};
 
@@ -72,11 +72,11 @@ impl Visitor for PrecedenceAttribute<'_> {
                 match meta {
                     AttribMeta::Simple { .. } => self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                            err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                         }),
                     AttribMeta::Expr { .. } => self.ctx.add_error(AstError {
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                        err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
                     AttribMeta::Assign { path, expr } => {
                         let path = &ast[*path];
@@ -85,7 +85,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                             let Expr::Literal(lit_node_id) = expr else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                    err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                 });
                                 continue;
                             };
@@ -93,7 +93,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                             let LiteralValue::Lit(lit_id) = ast[*lit_node_id].literal else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
-                                    err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                    err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                 });
                                 continue;
                             };
@@ -105,7 +105,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                                     _ => {
                                         self.ctx.add_error(AstError {
                                             node_id: node_id.index(),
-                                            err: ErrorCode::AstInvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
+                                            err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                         });
                                         continue;
                                     },
@@ -124,7 +124,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                                 _ => {
                                     self.ctx.add_error(AstError {
                                         node_id: node_id.index(),
-                                        err: ErrorCode::AstInvalidAttributeData { info: format!("Only 'highest_precedence' and 'lowest_precedence' are allowed builtin attributes on precedences") },
+                                        err: AstErrorCode::InvalidAttributeData { info: format!("Only 'highest_precedence' and 'lowest_precedence' are allowed builtin attributes on precedences") },
                                     });
                                     continue;
                                 },
@@ -135,7 +135,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                     },
                     AttribMeta::Meta { .. } => self.ctx.add_error(AstError {
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
+                        err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
                 }
             }
@@ -176,7 +176,7 @@ impl Visitor for PrecedenceImportCollection<'_> {
 
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),
-                err: ErrorCode::AstNotTopLevel { 
+                err: AstErrorCode::NotTopLevel { 
                     path,
                     info: "Precedence use".to_string(),
                  }
@@ -231,7 +231,7 @@ impl Visitor for PrecedenceConnection<'_> {
         let Symbol::Precedence(sym) = &*sym.read() else {
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),
-                err: ErrorCode::InternalError("Expected Precedence symbol when accessing symbol associated to a precedencenode ")
+                err: AstErrorCode::InternalError("Expected Precedence symbol when accessing symbol associated to a precedence node ")
             });
             return;
         };

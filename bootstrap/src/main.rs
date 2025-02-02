@@ -324,6 +324,7 @@ fn main() {
         process_hir(&mut hir, &cli, &mut stats, ctx);
 
         if cli.print_hir_code {
+            println!("--------------------------------");
             println!("Processed HIR pseudo-code:");
             let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
             hir_printer.visit(&mut hir, hir::VisitFlags::all());
@@ -431,6 +432,6 @@ fn do_hir_pass<T: hir::Pass>(hir: &mut hir::Hir, cli: &Cli, stats: &mut Compiler
     if cli.pass_timings {
         let pass_dur = time::Instant::now() - start;
         stats.add_hir_pass(pass_dur);
-        println!("Processing HIR pass '{:32}', took {:.2} ms", T::NAME, pass_dur.as_secs_f32() * 1000.0);
+        println!("HIR pass '{:40}' took {:.2} ms", T::NAME, pass_dur.as_secs_f32() * 1000.0);
     }
 }

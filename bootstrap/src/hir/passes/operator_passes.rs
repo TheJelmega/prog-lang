@@ -182,7 +182,7 @@ impl Visitor for InfixReorder<'_> {
             None => {
                 self.errors.push(HirError {
                     node_id: node.node_id,
-                    err: ErrorCode::HirOperatorDoesNotExist { op: node.op.as_str(self.puncts).to_string() },
+                    err: HirErrorCode::OperatorDoesNotExist { op: node.op.as_str(self.puncts).to_string() },
                 });
                 return;
             }
@@ -190,7 +190,7 @@ impl Visitor for InfixReorder<'_> {
         if op.precedence_id == u16::MAX {
             self.errors.push(HirError {
                 node_id: node.node_id,
-                err: ErrorCode::HirOperatorNoPrecedence { op: node.op.as_str(self.puncts).to_string() },
+                err: HirErrorCode::OperatorNoPrecedence { op: node.op.as_str(self.puncts).to_string() },
             });
         }
 
@@ -199,7 +199,7 @@ impl Visitor for InfixReorder<'_> {
             None => {
                 self.errors.push(HirError {
                     node_id: right.node_id,
-                    err: ErrorCode::HirOperatorDoesNotExist { op: right.op.as_str(self.puncts).to_string() },
+                    err: HirErrorCode::OperatorDoesNotExist { op: right.op.as_str(self.puncts).to_string() },
                 });
                 return;
             }
@@ -207,7 +207,7 @@ impl Visitor for InfixReorder<'_> {
         if right_op.precedence_id == u16::MAX {
             self.errors.push(HirError {
                 node_id: node.node_id,
-                err: ErrorCode::HirOperatorNoPrecedence { op: right.op.as_str(self.puncts).to_string() },
+                err: HirErrorCode::OperatorNoPrecedence { op: right.op.as_str(self.puncts).to_string() },
             });
         }
 
@@ -217,7 +217,7 @@ impl Visitor for InfixReorder<'_> {
                 let op1 = right.op.as_str(self.puncts).to_string();
                 self.errors.push(HirError {
                     node_id: node.node_id,
-                    err: ErrorCode::HirOperatorNoOrder { op0, op1 },
+                    err: HirErrorCode::OperatorNoOrder { op0, op1 },
                 });
             },
             PrecedenceOrder::Higher => { // the current precedence is higher, so re-order (higher is inner)

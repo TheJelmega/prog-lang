@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{ast::*, common::{NameTable, Scope, Symbol}, error_warning::ErrorCode};
+use crate::{ast::*, common::{NameTable, Scope, Symbol}, error_warning::{AstErrorCode, LexErrorCode}};
 
 use super::{AstError, Context, ContextNodeData};
 
@@ -57,11 +57,11 @@ impl Visitor for ModulePathResolution<'_> {
                     match comp {
                         std::path::Component::Prefix(_) => self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
+                            err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
                         std::path::Component::RootDir => self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
+                            err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
                         std::path::Component::CurDir => {},
                         std::path::Component::ParentDir => { rel_path.pop(); },
@@ -97,7 +97,7 @@ impl Visitor for ModulePathResolution<'_> {
                 let Some(sym) = syms.get_symbol(base_scope, cur_name) else {
                     self.ctx.add_error(AstError {
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
+                        err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                     });
                     return
                 };
@@ -105,7 +105,7 @@ impl Visitor for ModulePathResolution<'_> {
                 let Symbol::Module(mod_sym) = &*sym.read() else {
                     self.ctx.add_error(AstError {
                         node_id: node_id.index(),
-                        err: ErrorCode::AstInvalidAttributeData { info: format!("Module path attributes may not contain a root") },
+                        err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                     });
                     return;
                 };
@@ -133,7 +133,7 @@ impl Visitor for ModulePathResolution<'_> {
                     if !path.is_file() {
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidModulePath { paths: err_paths },
+                            err: AstErrorCode::InvalidModulePath { paths: err_paths },
                         });
                         return;
                     }
@@ -149,7 +149,7 @@ impl Visitor for ModulePathResolution<'_> {
                         err_paths.push(path.to_str().unwrap().to_string());
                         self.ctx.add_error(AstError {
                             node_id: node_id.index(),
-                            err: ErrorCode::AstInvalidModulePath { paths: err_paths },
+                            err: AstErrorCode::InvalidModulePath { paths: err_paths },
                         });
                         return;
                     }

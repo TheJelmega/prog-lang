@@ -1,12 +1,11 @@
 use core::fmt::Display;
-use std::{fmt::write, mem::discriminant};
 
-use crate::lexer::{OpenCloseSymbol, Punctuation, Token};
+use crate::lexer::{OpenCloseSymbol, Token};
 
 
 // TODO: Split into distinct error subsets
 // Error ranges
-// E0000-E0999: Internal errors
+// E0000-E0999: Reserved
 // E1000-E1999: Lexer error
 // E2000-E2999: Parser error
 // E3000-E3999: AST errors
@@ -14,164 +13,195 @@ use crate::lexer::{OpenCloseSymbol, Punctuation, Token};
 // E5000-E5999: MIR errors
 // E6000-E6999: LIR errors
 // E7000-E7999: ASM errors
-// E8000-E8999:
-// E9000-E9999:
+// E8000-E8999: Reserved
+// E9000-E9999: Reserved
+
+//==============================================================================================================================
+
+
+// Range: E2000 - E2999
 #[derive(Debug)]
-#[repr(u16)]
-pub enum ErrorCode {
-    InternalError(&'static str) = 0,
+pub enum LexErrorCode {
+    #[allow(unused)]
+    InternalError(&'static str),
 
     // E1000-E1999: Lexer error
 
     /// Invalid BOM
-    LexInvalidBOM(&'static str) = 100,
+    InvalidBOM(&'static str),
 
     // Invalid character in binary literal
-    LexInvalidBinInLit = 1001,
+    InvalidBinInLit,
     // Invalid character in octal literal
-    LexInvalidOctInLit = 1002,
+    InvalidOctInLit,
     // Invalid character in hexadecimal literal
-    LexInvalidHexInLit = 1003,
+    InvalidHexInLit,
     // Invalid leading hexadecimal in hex floating point literal
-    LexInvalidLeadHexFp = 1004,
+    InvalidLeadHexFp,
     // Missing hex floating point exponent indicator 'p'
-    LexMissHexFpInd = 1005,
+    MissHexFpInd,
     //  Invalid character in decimal literal
-    LexInvalidDecInLit = 1006,
+    InvalidDecInLit,
 
     // Block comment is not closed
-    LexUnclosedBlockComment = 1010,
+    UnclosedBlockComment,
 
     // Not enough characters left for valid character literal.
-    LexNotEnoughCharInLit = 1020,
+    NotEnoughCharInLit,
     // Invalid escape code in character literal.
-    LexInvalidEscape = 1021,
+    InvalidEscape,
     // Invalid character in hex character literal
-    LexInvalidHexInChar = 1022,
+    InvalidHexInChar,
     // Invalid character in unicode character literal
-    LexInvalidUnicodeInLit = 1023,
+    InvalidUnicodeInLit,
     // Character is not a valid unicode character
-    LexInvalidUnicode = 1024,
+    InvalidUnicode,
 
     // Not enough characters left for a valid string
-    LexNotEnoughString = 1030,
+    NotEnoughString,
     // String cannot be accross multiple lines without a string continuation sequence
-    LexStringNoContinue = 1031,
+    StringNoContinue,
     // Not enough characters left for a valid raw string
-    LexNotEnoughRawString = 1032,
+    NotEnoughRawString,
     // Missing '"' after 'r' or '#' at the start of a raw string
-    LexInvalidStartRawString = 1033,
+    InvalidStartRawString,
 
     // Trying to close ... block without its respective opening symbol
-    LexNoOpeningSym{ sym: OpenCloseSymbol } = 1040,
+    NoOpeningSym{ sym: OpenCloseSymbol },
     // Mismatch when closing block, found ... expected ...
-    LexMismatchCloseSym{ found: OpenCloseSymbol, expected: OpenCloseSymbol } = 1041,
+    MismatchCloseSym{ found: OpenCloseSymbol, expected: OpenCloseSymbol },
 
-    LexInvalidCharInOp{ ch: char } = 1042,
-    LexInvalidOpSequence { name: String } = 1043,
-
-    // Not enough tokens
-    ParseNotEnoughTokens = 200,
-    // Expected, found
-    ParseFoundButExpected{ found: Token, expected: Token } = 2001,
-    // Unexpected token ... for ...
-    ParseUnexpectedFor{ found: Token, for_reason: &'static str } = 2002,
-
-    // Invalid token at start of path
-    ParseInvalidPathStart{ found: Token, reason: &'static str } = 2010,
-
-    // Use: expected package name or nothing before ':'
-    ParseExpectPackageName{ found: Token } = 2011,
-    // Use: expected module name or nothing between ':' and '.'
-    ParseExpectModuleName{ found: Token } = 2012,
-    
-
-    // Invalid use of "extern"
-    ParseInvalidExternUse = 2020,
-
-    ParseMissingExternFuncNoBlock = 2021,
-
-    // Duplicate property getter/setter
-    ParseDuplicateProp{ get_set: &'static str } = 2022,
-
-    // Label unsupported in location
-    ParseInvalidLabel = 2030,
-    // Expr is not allowed
-    ParseExprNotSupported{ expr: &'static str, loc: &'static str } = 2031,
-    // Invalid precedence associativity
-    ParseInvalidPrecedenceAssoc{ name: String } = 2032,
-    // Ambigouous operators
-    ParseAmbiguousOperators = 2033,
-
-    AstInvalidAttribute{ info: String } = 3000,
-    AstInvalidAttributeData{ info: String } = 3001,
-    AstInvalidModulePath { paths: Vec<String> } = 3002,
-    AstNotTopLevel { path: String, info: String } = 3003,
-
-    AstPrecedenceDoesNotExist{ precedence: String } = 3010,
-
-    AstOperatorDoesNotExist { op: String } = 3020,
-    AstOperatorNoPrecedence { op: String } = 3021,
-    AstOperatorNoOrder { op0: String, op1: String } = 3022,
-    AstInvalidAbiLiteral { lit: String, info: String } = 3023,
-    AstInvalidLiteral { lit: String, info: String } = 3024,
-
-    AstMultipleStructComplete = 3025,
-    AstInvalidUninitVarDecl { info: String } = 3026,
-
-    HirOperatorDoesNotExist { op: String } = 4000,
-    HirOperatorNoPrecedence { op: String } = 4001,
-    HirOperatorNoOrder { op0: String, op1: String } = 4002,
+    InvalidCharInOp{ ch: char },
+    InvalidOpSequence { name: String },
 }
 
-impl Display for ErrorCode {
+impl Display for LexErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let code: u16 = unsafe { *((self as *const Self).cast()) };
+        let code: u16 = 1000 + unsafe { *((self as *const Self).cast::<u16>()) };
         write!(f, "E{code:04}: ")?;
         match self {
             Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
             // Lexer
-            Self::LexInvalidBOM(bom)                        => write!(f, "Found unsupported Byte Order Marker (BOM): {bom}, expected either no BOM or a utf-8 BOM."),
-            Self::LexInvalidBinInLit                        => write!(f, "Found invalid character in binary literal"),
-            Self::LexInvalidOctInLit                        => write!(f, "Found invalid character in octal literal"),
-            Self::LexInvalidHexInLit                        => write!(f, "Found invalid character in hexadecimal integer literal"),
-            Self::LexInvalidLeadHexFp                       => write!(f, "Found invalid leading digit in a hexadecimal floating point literal"),
-            Self::LexMissHexFpInd                           => write!(f, "Missing hexadecimal floating point exponent indicator 'p'"),
-            Self::LexInvalidDecInLit                        => write!(f, "Found invalid character in decimal literal"),
-            Self::LexUnclosedBlockComment                   => write!(f, "Block comment was not closed"),
-            Self::LexNotEnoughCharInLit                     => write!(f, "Not enough characters to form a valid character literal"),
-            Self::LexInvalidEscape                          => write!(f, "Invalid escape code in integer literal"),
-            Self::LexInvalidHexInChar                       => write!(f, "Invalid character in hex character literal"),
-            Self::LexInvalidUnicodeInLit                    => write!(f, "Invalid character in unicode character literal"),
-            Self::LexInvalidUnicode                         => write!(f, "Invalid unicode codepoint"),
-            Self::LexNotEnoughString                        => write!(f, "Not enough characters left for a valid string"),
-            Self::LexStringNoContinue                       => write!(f, "String cannot cross multiple lines without a string continuation sequence"),
-            Self::LexNotEnoughRawString                     => write!(f, "Not enough characters left for a valid raw string"),
-            Self::LexInvalidStartRawString                  => write!(f, "Missing '\"' after 'r' or '#' at start of raw string"),
-            Self::LexNoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_display_str(), sym.as_close_display_str(), sym.as_open_display_str()),
-            Self::LexMismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_display_str(), expected.as_close_display_str()),
-            Self::LexInvalidCharInOp { ch }                 => write!(f, "Unsupported character in operator: '{ch}'"),
-            Self::LexInvalidOpSequence { name }             => write!(f, "Unsupported character sequence in operator: {name}"),
+            Self::InvalidBOM(bom)                        => write!(f, "Found unsupported Byte Order Marker (BOM): {bom}, expected either no BOM or a utf-8 BOM."),
+            Self::InvalidBinInLit                        => write!(f, "Found invalid character in binary literal"),
+            Self::InvalidOctInLit                        => write!(f, "Found invalid character in octal literal"),
+            Self::InvalidHexInLit                        => write!(f, "Found invalid character in hexadecimal integer literal"),
+            Self::InvalidLeadHexFp                       => write!(f, "Found invalid leading digit in a hexadecimal floating point literal"),
+            Self::MissHexFpInd                           => write!(f, "Missing hexadecimal floating point exponent indicator 'p'"),
+            Self::InvalidDecInLit                        => write!(f, "Found invalid character in decimal literal"),
+            Self::UnclosedBlockComment                   => write!(f, "Block comment was not closed"),
+            Self::NotEnoughCharInLit                     => write!(f, "Not enough characters to form a valid character literal"),
+            Self::InvalidEscape                          => write!(f, "Invalid escape code in integer literal"),
+            Self::InvalidHexInChar                       => write!(f, "Invalid character in hex character literal"),
+            Self::InvalidUnicodeInLit                    => write!(f, "Invalid character in unicode character literal"),
+            Self::InvalidUnicode                         => write!(f, "Invalid unicode codepoint"),
+            Self::NotEnoughString                        => write!(f, "Not enough characters left for a valid string"),
+            Self::StringNoContinue                       => write!(f, "String cannot cross multiple lines without a string continuation sequence"),
+            Self::NotEnoughRawString                     => write!(f, "Not enough characters left for a valid raw string"),
+            Self::InvalidStartRawString                  => write!(f, "Missing '\"' after 'r' or '#' at start of raw string"),
+            Self::NoOpeningSym { sym }                   => write!(f, "Trying to close '{}{}' block without matching opening '{}' symbol", sym.as_open_display_str(), sym.as_close_display_str(), sym.as_open_display_str()),
+            Self::MismatchCloseSym { found, expected }   => write!(f, "Mismatch when closing block, found '{}', expected '{}'", found.as_close_display_str(), expected.as_close_display_str()),
+            Self::InvalidCharInOp { ch }                 => write!(f, "Unsupported character in operator: '{ch}'"),
+            Self::InvalidOpSequence { name }             => write!(f, "Unsupported character sequence in operator: {name}"),
+        }
+    }
+}
 
-            // Parser
-            Self::ParseNotEnoughTokens                      => write!(f, "not enough tokens to parse"),
-            Self::ParseFoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
-            Self::ParseUnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
-            Self::ParseInvalidPathStart { found, reason }   => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
-            Self::ParseExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
-            Self::ParseExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
-            Self::ParseInvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
-            Self::ParseMissingExternFuncNoBlock             => write!(f, "An empty block is only allowed on functions that are explicitly defined as extern (when not in a trait)"),
-            Self::ParseDuplicateProp { get_set }            => write!(f, "Duplicate {get_set} in property item"),
-            Self::ParseInvalidLabel                         => write!(f, "A label is not supported in this location"),
-            Self::ParseExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
-            Self::ParseInvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
-            Self::ParseAmbiguousOperators                   => write!(f, "Ambigouos operators, cannot figure out which operators is infix"),
+//==============================================================================================================================
 
-            // AST
-            Self::AstInvalidAttribute { info }              => write!(f, "Invalid attribute: {info}"),
-            Self::AstInvalidAttributeData { info }          => write!(f, "Invalid attribute data: {info}"),
-            Self::AstInvalidModulePath { paths }            => {
+// Range: E2000 - E2999
+#[derive(Debug)]
+#[repr(u16)]
+pub enum ParseErrorCode {
+    InternalError(&'static str),
+    // Not enough tokens
+    NotEnoughTokens = 200,
+    // Expected, found
+    FoundButExpected{ found: Token, expected: Token },
+    // Unexpected token ... for ...
+    UnexpectedFor{ found: Token, for_reason: &'static str },
+
+    // Invalid token at start of path
+    InvalidPathStart{ found: Token, reason: &'static str },
+
+    // Use: expected package name or nothing before ':'
+    ExpectPackageName{ found: Token },
+    // Use: expected module name or nothing between ':' and '.'
+    ExpectModuleName{ found: Token },
+    
+
+    // Invalid use of "extern"
+    InvalidExternUse,
+
+    MissingExternFuncNoBlock,
+
+    // Duplicate property getter/setter
+    DuplicateProp{ get_set: &'static str },
+
+    // Label unsupported in location
+    InvalidLabel,
+    // Expr is not allowed
+    ExprNotSupported{ expr: &'static str, loc: &'static str },
+    // Invalid precedence associativity
+    InvalidPrecedenceAssoc{ name: String },
+    // Ambigouous operators
+    AmbiguousOperators,
+}
+
+impl Display for ParseErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code: u16 = 2000 + unsafe { *((self as *const Self).cast::<u16>()) };
+        write!(f, "E{code:04}: ")?;
+        match self {
+            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
+
+            Self::NotEnoughTokens                      => write!(f, "not enough tokens to parse"),
+            Self::FoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
+            Self::UnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
+            Self::InvalidPathStart { found, reason }   => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
+            Self::ExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
+            Self::ExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
+            Self::InvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
+            Self::MissingExternFuncNoBlock             => write!(f, "An empty block is only allowed on functions that are explicitly defined as extern (when not in a trait)"),
+            Self::DuplicateProp { get_set }            => write!(f, "Duplicate {get_set} in property item"),
+            Self::InvalidLabel                         => write!(f, "A label is not supported in this location"),
+            Self::ExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
+            Self::InvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
+            Self::AmbiguousOperators                   => write!(f, "Ambiguous operators, cannot figure out which operators is infix"),
+
+            #[allow(unreachable_patterns)]
+            _                                               => write!(f, "Unknown Parse error"),
+        }
+    }
+}
+
+//==============================================================================================================================
+
+// Range: E3000 - E3999
+#[derive(Debug)]
+pub enum AstErrorCode {
+    InternalError(&'static str),
+
+    InvalidAttribute{ info: String },
+    InvalidAttributeData{ info: String },
+    InvalidModulePath { paths: Vec<String> },
+    NotTopLevel { path: String, info: String },
+    InvalidAbiLiteral { lit: String, info: String },
+    InvalidLiteral { lit: String, info: String },
+
+    MultipleStructComplete,
+    InvalidUninitVarDecl { info: String },
+}
+
+impl Display for AstErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code: u16 = 3000 + unsafe { *((self as *const Self).cast::<u16>()) };
+        write!(f, "E{code:04}: ")?;
+        match self {
+            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
+            Self::InvalidAttribute { info }              => write!(f, "Invalid attribute: {info}"),
+            Self::InvalidAttributeData { info }          => write!(f, "Invalid attribute data: {info}"),
+            Self::InvalidModulePath { paths }            => {
                 write!(f, "Found invalid module, expected to find corresponding file at: ")?;
                 if !paths.is_empty() {
                     write!(f, "'{}'", paths[0])?;
@@ -181,20 +211,44 @@ impl Display for ErrorCode {
                 }
                 Ok(())
             },
-            Self::AstNotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}"),
-            Self::AstPrecedenceDoesNotExist { precedence }  => write!(f, "Precedence does not exist: {precedence}"),
-            Self::AstOperatorDoesNotExist { op }            => write!(f, "Operator does not exist: {op}"),
-            Self::AstOperatorNoPrecedence { op }            => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
-            Self::AstOperatorNoOrder { op0, op1 }           => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
-            Self::AstInvalidAbiLiteral { lit, info }        => write!(f, "Invalid ABI literal '{lit}': {info}"),
-            Self::AstInvalidLiteral { lit, info }           => write!(f, "Invalid literal '{lit}': {info}"),
-            Self::AstMultipleStructComplete                 => write!(f, "Structure expression may only contain 1 completion expression"),
-            Self::AstInvalidUninitVarDecl { info }          => write!(f, "Invalid unitialized variable declaration: {info}"),
+            Self::NotTopLevel { path, info }             => write!(f, "Found top-level element in a nested module in path '{path}': {info}"),
+            Self::InvalidAbiLiteral { lit, info }        => write!(f, "Invalid ABI literal '{lit}': {info}"),
+            Self::InvalidLiteral { lit, info }           => write!(f, "Invalid literal '{lit}': {info}"),
+            Self::MultipleStructComplete                 => write!(f, "Structure expression may only contain 1 completion expression"),
+            Self::InvalidUninitVarDecl { info }          => write!(f, "Invalid unitialized variable declaration: {info}"),
 
-            // HIR
-            Self::HirOperatorDoesNotExist { op }            => write!(f, "Operator does not exist: {op}"),
-            Self::HirOperatorNoPrecedence { op }            => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
-            Self::HirOperatorNoOrder { op0, op1 }           => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+            #[allow(unreachable_patterns)]
+            _                                            => write!(f, "Unknown AST error"),
+        }
+    }
+}
+
+//==============================================================================================================================
+
+// Range: E4000 - E4999
+#[derive(Debug)]
+pub enum HirErrorCode {
+    #[allow(unused)]
+    InternalError(&'static str),
+
+    OperatorDoesNotExist { op: String },
+    OperatorNoPrecedence { op: String },
+    OperatorNoOrder { op0: String, op1: String },
+}
+
+impl Display for HirErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code: u16 = 4000 + unsafe { *((self as *const Self).cast::<u16>()) };
+        write!(f, "E{code:04}: ")?;
+
+        match self {
+            Self::InternalError(err)           => write!(f, "Internal compiler error: {err}"),
+
+            Self::OperatorDoesNotExist { op }  => write!(f, "Operator does not exist: {op}"),
+            Self::OperatorNoPrecedence { op }  => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
+            Self::OperatorNoOrder { op0, op1 } => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+            #[allow(unreachable_patterns)]
+            _                                  => write!(f, "Unknown HIR error"),
         }
     }
 }

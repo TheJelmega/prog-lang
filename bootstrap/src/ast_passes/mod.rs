@@ -2,7 +2,7 @@ use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
     ast::{Ast, AstNodeRef},
     common::{LibraryPath, OperatorTable, PrecedenceDAG, Scope, SymbolTable},
-    error_warning::ErrorCode
+    error_warning::{AstErrorCode, LexErrorCode}
 };
 use parking_lot::{Mutex, RwLock};
 
@@ -30,7 +30,7 @@ pub use hir_lower::*;
 
 pub struct AstError {
     node_id: usize,
-    err:     ErrorCode,
+    err:     AstErrorCode,
 }
 
 impl fmt::Display for AstError {
