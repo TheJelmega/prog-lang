@@ -32,7 +32,8 @@ impl fmt::Display for ParserErr {
 
 #[derive(Clone, Copy)]
 pub struct ParserFrame {
-    token_start: u32,
+    span:  SpanId,
+    token_id: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -64,7 +65,7 @@ impl<'a> Parser<'a> {
             token_idx: 0,
 
             frames: Vec::new(),
-            last_frame: ParserFrame{ token_start: 0 },
+            last_frame: ParserFrame{ token_id: 0, span: SpanId::INVALID },
             scope_stack: Vec::new(),
 
             names,
@@ -256,8 +257,11 @@ impl Parser<'_> {
     }
 
     fn push_meta_frame(&mut self) {
+        let token_meta = &self.token_store.metadata[self.token_idx];
+
         self.frames.push(ParserFrame {
-            token_start: self.token_idx as u32,
+            span:  token_meta.span_id,
+            token_id: self.token_idx as u32,
         })
     }
 
@@ -273,12 +277,14 @@ impl Parser<'_> {
         let meta = if let Some(frame) = self.pop_meta_frame() {
             self.last_frame = frame;
             AstNodeMeta {
-                first_tok: frame.token_start,
+                span: frame.span,
+                first_tok: frame.token_id,
                 last_tok: self.token_idx as u32,
             }
         } else {
-            self.last_frame = ParserFrame{ token_start: 0 };
+            self.last_frame = ParserFrame{ token_id: 0, span: SpanId::INVALID };
             AstNodeMeta {
+                span: SpanId::INVALID,
                 first_tok: 0,
                 last_tok: 0, 
             }  

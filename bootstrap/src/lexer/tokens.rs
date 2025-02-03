@@ -2,8 +2,8 @@ use std::{
     fmt::{self, Display, Write as _},
     io
 };
-use super::{NameTable, NameId, PunctuationId, PuncutationTable};
-use crate::literals::{Literal, LiteralId, LiteralTable};
+use super::{NameId, NameTable, PunctuationId, PuncutationTable, SpanId, SpanRegistry};
+use crate::{lexer::FormatSpan, literals::{Literal, LiteralId, LiteralTable}};
 
 
 /// Strong keywords
@@ -461,32 +461,10 @@ pub enum MetaElem {
 }
 
 pub struct TokenMetadata {
-    pub char_offset: u64,
-    pub byte_offset: u64,
-    pub line:        u32,
-    pub column:      u32,
-    pub char_len:    u32,
-    pub byte_len:    u32,
+    pub line:        u32, // TODO: remove
+    pub column:      u32, // TODO: remove
+    pub span_id:     SpanId,
     pub meta_elems:  Vec<MetaElem>,
-}
-
-impl Display for TokenMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "line: {:4}, column: {:3}, char_offset: {:5}, byte_offset: {:5}, char_len: {:3}, byte_len: {:3}",
-            self.line,
-            self.column,
-            self.char_offset,
-            self.byte_offset,
-            self.char_len,
-            self.byte_len,
-        )
-    }
-}
-
-impl TokenMetadata {
-    pub fn as_error_loc_string(&self) -> String {
-        format!("{}:{}:", self.line, self.column)
-    }
 }
 
 pub struct TokenStore {
@@ -535,7 +513,7 @@ impl TokenStore {
         self.weak_kw_name_map[kw as usize]
     }
 
-    pub fn log(&self, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable) {
+    pub fn log(&self, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable, spans: &SpanRegistry) {
         println!("Lexer output");
         println!("has BOM: {}", self.has_bom);
         if let Some(shebang) = &self.shebang {
@@ -575,11 +553,11 @@ impl TokenStore {
                 Token::Underscore => write!(&mut print_buf, "Underscore"),
             };
 
-            println!("{print_buf:64} | {}", meta);
+            println!("{print_buf:64} | {}", FormatSpan{ registry: spans, span: meta.span_id });
         }
     }
 
-    pub fn log_csv(&self, writer: &mut dyn io::Write, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable) -> io::Result<()> {
+    pub fn log_csv(&self, writer: &mut dyn io::Write, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable, spans: &SpanRegistry) -> io::Result<()> {
         writeln!(writer, "token,value,line,column,char_offset,byte_offset,char_len,byte_len")?;
 
         for (token, meta) in self.tokens.iter().zip(self.metadata.iter()) {
@@ -603,7 +581,8 @@ impl TokenStore {
                 Token::Underscore => write!(writer, "underscore,_,")?,
             }
 
-            writeln!(writer, "{},{},{},{},{},{}", meta.line, meta.column, meta.char_offset, meta.byte_offset, meta.char_len, meta.byte_len)?;
+            let span = &spans[meta.span_id];
+            writeln!(writer, "{},{},{},{},{},{}", span.row, span.column, span.char_offset, span.byte_offset, span.char_len, span.byte_len)?;
         }
 
         Ok(())

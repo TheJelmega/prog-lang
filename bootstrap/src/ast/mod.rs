@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    common::{IndentLogger, NameId, NameTable, OpType},
+    common::{IndentLogger, NameId, NameTable, OpType, SpanId},
     lexer::{Punctuation, PunctuationId, PuncutationTable, StrongKeyword, TokenStore, WeakKeyword},
     literals::{LiteralId, LiteralTable},
 };
@@ -28,8 +28,9 @@ pub trait AstNode {
 }
 
 pub struct AstNodeMeta {
+    pub span:      SpanId,
     pub first_tok: u32,
-    pub last_tok: u32,
+    pub last_tok:  u32,
 }
 
 pub struct Identifier {

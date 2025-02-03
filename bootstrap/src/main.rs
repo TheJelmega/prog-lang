@@ -1,13 +1,17 @@
 use std::{
-    env, fs::{self, File}, io::Read, path::{Path, PathBuf}, sync::{Arc}, time
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
+    env,
+    time,
 };
 use parking_lot::RwLock;
 
-use ast_passes::Context;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, Scope, SymbolTable, UseTable};
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, SymbolTable, Scope, SpanRegistry, UseTable};
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -60,6 +64,9 @@ fn main() {
     let operators = OperatorTable::new();
     let operators = Arc::new(RwLock::new(operators));
 
+    let span_registry = SpanRegistry::new();
+    let span_registry = Arc::new(RwLock::new(span_registry));
+
     let mut asts = Vec::new();
 
     let mut literal_table = LiteralTable::new();
@@ -83,10 +90,12 @@ fn main() {
     
         let lex_start = time::Instant::now();
     
-        let mut lexer = Lexer::new(&file_content, &mut literal_table, &mut name_table, &mut punct_table);
-        match lexer.lex() {
-            Ok(()) => {},
-            Err(mut err) => {
+        let tokens = {
+            let mut spans = span_registry.write();  
+            let mut lexer = Lexer::new(&input_file, &file_content, &mut literal_table, &mut name_table, &mut punct_table, &mut spans);
+            match lexer.lex() {
+                Ok(()) => {},
+                Err(mut err) => {
                 err.set_path(input_file.clone());
                 println!("{err}");
                 return;
@@ -104,12 +113,15 @@ fn main() {
                 num_lexed_bytes,
                 num_lexed_chars,
                 num_lexed_lines,
-                tokens.tokens.len() as u64
-            );
-        }
-    
+                    tokens.tokens.len() as u64
+                );
+            }
+            tokens
+        };
+            
         if cli.print_lex_output {
-            tokens.log(&literal_table, &name_table, &punct_table);
+            let spans = span_registry.read();
+            tokens.log(&literal_table, &name_table, &punct_table, &spans);
         }
     
         if cli.output_lex_csv {
@@ -125,8 +137,9 @@ fn main() {
                 fs::create_dir_all(parent_dir_path).unwrap();
             }
 
+            let spans = span_registry.read();
             let mut csv_file = File::create(lex_csv_out_path).unwrap();
-            _ = tokens.log_csv(&mut csv_file, &literal_table, &name_table, &punct_table);
+            _ = tokens.log_csv(&mut csv_file, &literal_table, &name_table, &punct_table, &spans);
         }
         
         if cli.lex_only {
@@ -140,7 +153,8 @@ fn main() {
             Ok(_) => {},
             Err(err) => {
                 let tok_meta = &tokens.metadata[err.tok_idx];
-                println!("{}({}): {err}", input_file, tok_meta.as_error_loc_string());
+                let spans = span_registry.read();
+                println!("{}({}): {err}", input_file, FormatSpanLoc{ registry: &spans, span: tok_meta.span_id });
                 return;
             },
         }

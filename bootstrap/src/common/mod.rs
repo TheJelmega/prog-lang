@@ -22,6 +22,9 @@ pub use uses::*;
 mod scope;
 pub use scope::*;
 
+mod span;
+pub use span::*;
+
 use crate::hir::Hir;
 
 

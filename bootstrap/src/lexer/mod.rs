@@ -50,9 +50,11 @@ pub struct Lexer<'a> {
     literals:     &'a mut LiteralTable,
     names:        &'a mut NameTable,
     punctuation:  &'a mut PuncutationTable,
+    spans:        &'a mut SpanRegistry,
 
     meta_elems:   Vec<MetaElem>,
 
+    file:         &'a str,
     // 'source' can be a stream
     source:       &'a str,
     cursor:       &'a str,
@@ -70,7 +72,7 @@ pub struct Lexer<'a> {
 
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str, literals: &'a mut LiteralTable, names: &'a mut NameTable, punctuation: &'a mut PuncutationTable) -> Self {
+    pub fn new(file: &'a str, source: &'a str, literals: &'a mut LiteralTable, names: &'a mut NameTable, punctuation: &'a mut PuncutationTable, spans: &'a mut SpanRegistry) -> Self {
         let mut op_seq_map = HashMap::with_capacity(Self::OP_SEQ_MAPPING.len());
         for (name, ch) in Self::OP_SEQ_MAPPING {
             op_seq_map.insert(name, ch);
@@ -81,7 +83,9 @@ impl<'a> Lexer<'a> {
             literals,
             names,
             punctuation,
+            spans,
             meta_elems: Vec::new(),
+            file,
             source,
             cursor: source,
             byte_offset: 0,
@@ -638,14 +642,22 @@ impl Lexer<'_> {
 
     fn add_token(&mut self, token: Token, char_len: u32, byte_len: u32) {
         let meta_elems = mem::take(&mut self.meta_elems);
-
-        let metadata = TokenMetadata {
+        let span = self.spans.add_span(self.file, Span {
+            file_id: 0,
             char_offset: self.char_offset,
             byte_offset: self.byte_offset,
+            char_len: char_len as u64,
+            byte_len: byte_len as u64,
+            row: self.line,
+            row_end: self.line,
+            column: self.columnn,
+            column_end: self.columnn + char_len,
+        });
+
+        let metadata = TokenMetadata {
             line: self.line,
             column: self.columnn,
-            char_len,
-            byte_len,
+            span_id: span,
             meta_elems,
         };
 
@@ -1885,7 +1897,7 @@ impl Lexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{lexer::{MetaElem, NameTable, PuncutationTable}, literals::{Literal, LiteralTable}};
+    use crate::{lexer::{MetaElem, NameTable, PuncutationTable, SpanRegistry}, literals::{Literal, LiteralTable}};
 
     use super::{Lexer, Token};
 
@@ -1910,7 +1922,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -1956,7 +1969,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2001,7 +2015,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2039,7 +2054,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2076,7 +2092,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2117,7 +2134,8 @@ mod tests {
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2161,7 +2179,8 @@ string
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2197,7 +2216,8 @@ string
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
@@ -2238,7 +2258,8 @@ Comment
         let mut literals = LiteralTable::new();
         let mut names = NameTable::new();
         let mut punctuation = PuncutationTable::new();
-        let mut lexer = Lexer::new(&source, &mut literals, &mut names, &mut punctuation);
+        let mut spans = SpanRegistry::new();
+        let mut lexer = Lexer::new("", &source, &mut literals, &mut names, &mut punctuation, &mut spans);
         lexer.lex().unwrap();
 
         let token_store = &lexer.tokens;
