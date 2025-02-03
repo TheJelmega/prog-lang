@@ -1,7 +1,7 @@
 
-mod logger;
-use std::{fmt, time};
+use std::{fmt, time, hash::Hash};
 
+mod logger;
 pub use logger::*;
 
 mod precedence;
@@ -28,9 +28,7 @@ pub use span::*;
 use crate::hir::Hir;
 
 
-
-
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct LibraryPath {
     pub group:  Option<String>,
     pub package: String,

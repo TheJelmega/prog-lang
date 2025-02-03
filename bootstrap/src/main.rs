@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, SymbolTable, Scope, SpanRegistry, UseTable};
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope, SpanRegistry, UseTable};
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -55,7 +55,7 @@ fn main() {
         files_to_process.push((input_file.clone(), Scope::new()));
     }
     
-    let symbol_table = SymbolTable::new();
+    let symbol_table = RootSymbolTable::new(library_path.clone());
     let symbol_table = Arc::new(RwLock::new(symbol_table));
 
     let precedences = PrecedenceDAG::new();
@@ -96,23 +96,23 @@ fn main() {
             match lexer.lex() {
                 Ok(()) => {},
                 Err(mut err) => {
-                err.set_path(input_file.clone());
-                println!("{err}");
-                return;
-            },
-        };
-        let (num_lexed_bytes, num_lexed_chars, num_lexed_lines) = lexer.stats();
-        let tokens = lexer.tokens;
-        
-        if cli.timings {
-            let lex_dur = time::Instant::now() - lex_start;
-            println!("Lexing {input_file} took {:.2} ms, generating {} tokens", lex_dur.as_secs_f32() * 1000.0, tokens.tokens.len());
-
-            stats.add_lex(
-                lex_dur,
-                num_lexed_bytes,
-                num_lexed_chars,
-                num_lexed_lines,
+                    err.set_path(input_file.clone());
+                    println!("{err}");
+                    return;
+                },
+            };
+            let (num_lexed_bytes, num_lexed_chars, num_lexed_lines) = lexer.stats();
+            let tokens = lexer.tokens;
+            
+            if cli.timings {
+                let lex_dur = time::Instant::now() - lex_start;
+                println!("Lexing {input_file} took {:.2} ms, generating {} tokens", lex_dur.as_secs_f32() * 1000.0, tokens.tokens.len());
+                
+                stats.add_lex(
+                    lex_dur,
+                    num_lexed_bytes,
+                    num_lexed_chars,
+                    num_lexed_lines,
                     tokens.tokens.len() as u64
                 );
             }
@@ -411,7 +411,7 @@ pub struct HirProcessCtx<'a> {
     names:          &'a NameTable,
     puncts:         &'a PuncutationTable,
 
-    sym_table:      &'a mut SymbolTable,
+    sym_table:      &'a mut RootSymbolTable,
     precedence_dag: &'a PrecedenceDAG,
     op_table:       &'a mut OperatorTable,
     uses:           &'a UseTable,

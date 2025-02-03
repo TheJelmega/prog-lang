@@ -2,20 +2,20 @@ use core::prelude;
 use std::{collections::VecDeque, mem};
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, Symbol, SymbolTable, UseTable},
+    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, Symbol, SymbolTable, UseTable},
     hir::*, lexer::PuncutationTable
 };
 
 pub struct PrecedenceProcessing<'a> {
     names:          &'a NameTable,
     precedence_dag: &'a PrecedenceDAG,
-    sym_table:      &'a SymbolTable,
+    sym_table:      &'a RootSymbolTable,
     op_table:       &'a mut OperatorTable,
     use_table:      &'a UseTable,
 }
 
 impl<'a> PrecedenceProcessing<'a> {
-    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a SymbolTable, op_table: &'a mut OperatorTable, use_table: &'a UseTable) -> Self {
+    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a RootSymbolTable, op_table: &'a mut OperatorTable, use_table: &'a UseTable) -> Self {
         Self {
             names,
             precedence_dag,

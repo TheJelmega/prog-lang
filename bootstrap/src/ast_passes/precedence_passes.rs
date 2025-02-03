@@ -227,7 +227,7 @@ impl Visitor for PrecedenceConnection<'_> {
         let ctx_node = self.ctx.get_node_for(node_id);
 
         let syms = self.ctx.syms.read();
-        let sym = syms.get_symbol(&ctx_node.scope, name).unwrap();
+        let sym = syms.get_symbol(None, &ctx_node.scope, name).unwrap();
         let Symbol::Precedence(sym) = &*sym.read() else {
             self.ctx.add_error(AstError {
                 node_id: node_id.index(),

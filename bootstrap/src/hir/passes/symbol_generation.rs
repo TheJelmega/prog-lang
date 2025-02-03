@@ -1,16 +1,16 @@
 use crate::{
-    common::{NameTable, StaticKind, StructKind, SymbolTable},
+    common::{NameTable, RootSymbolTable, StaticKind, StructKind, SymbolTable},
     hir::*,
 };
 
 
 pub struct SymbolGeneration<'a> {
-    sym_table: &'a mut SymbolTable,
+    sym_table: &'a mut RootSymbolTable,
     names:     &'a NameTable,
 }
 
 impl<'a> SymbolGeneration<'a> {
-    pub fn new(sym_table: &'a mut SymbolTable, names: &'a NameTable) -> Self {
+    pub fn new(sym_table: &'a mut RootSymbolTable, names: &'a NameTable) -> Self {
         Self {
             sym_table,
             names

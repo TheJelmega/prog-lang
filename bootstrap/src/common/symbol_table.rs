@@ -6,7 +6,7 @@ use std::{
 };
 use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use super::{IndentLogger, Scope, ScopeSegment, UseTable};
+use super::{IndentLogger, LibraryPath, Scope, ScopeSegment, UseTable};
 
 pub struct SymbolPathIden {
     name:   String,
@@ -203,6 +203,274 @@ impl SymbolTable {
         }
     }
 
+    // TODO: remove start
+    pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) -> SymbolRef {
+        let sym = Symbol::Module(ModuleSymbol{
+            scope: scope.clone(),
+            name: name.clone(),
+            path: file_path,
+            sub_table: SymbolTable::new(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_precedence(&mut self, scope: &Scope, name: String, id: u16) -> SymbolRef {
+        let sym = Symbol::Precedence(PrecedenceSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+            id,
+        }); 
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_function(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Function(FunctionSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+
+            sub_table: SymbolTable::new(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_type_alias(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::TypeAlias(TypeAliasSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_distinct_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::DistinctType(DistinctTypeSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_opaque_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_struct(&mut self, scope: &Scope, name: String, kind: StructKind) -> SymbolRef {
+        let sym = Symbol::Struct(StructSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+            kind,
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_union(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Union(UnionSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_adt_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::AdtEnum(AdtEnumSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_flag_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::FlagEnum(FlagEnumSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_bitfield(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Bitfield(BitfieldSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_const(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Const(ConstSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_static(&mut self, scope: &Scope, name: String, kind: StaticKind) -> SymbolRef {
+        let sym = Symbol::Static(StaticSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+            kind,
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_property(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Property(PropertySymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_trait(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Trait(TraitSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+
+            sub_table: SymbolTable::new(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_impl(&mut self, scope: &Scope, name: String) -> SymbolRef {
+        let sym = Symbol::Impl(ImplSymbol {
+            scope: scope.clone(),
+            name: name.clone(),
+
+            sub_table: SymbolTable::new(),
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+    // TODO: remove end
+
+    fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
+        let sym = Arc::new(RwLock::new(sym));
+        self.add_symbol_(scope, name, params, sym.clone());
+        sym
+    }
+
+    fn add_symbol_(&mut self, scope: &Scope, name: &str, params: &[String], sym: SymbolRef) {
+        let sub_table = self.get_or_insert_sub_table(scope.segments());
+        let entry = sub_table.symbols.entry(name.to_string());
+        let syms = entry.or_insert(Vec::new());
+        syms.push((Vec::from(params), sym));
+    }
+
+    pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
+        let sub_table = self.get_sub_table(scope.segments())?;
+        sub_table.get_symbol_from_name(name)
+    }
+
+    /// Get a symbol, while also searching all available scopes
+    /// 
+    /// * `cur_scope` - Scope of the symbol being processed
+    /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
+    /// * `sym_path` - Path of the symbol as it occurs within code
+    // TODO: lib path
+    pub fn get_symbol_with_uses(&self, use_table: &UseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
+        assert!(!sym_path.is_empty());
+
+        let sym_name = &sym_path.last().unwrap().name;
+        let sym_scope = sym_path.parent();
+
+        // Look into the current scope first
+        if let Some(local_sub_table) = self.get_sub_table(cur_scope.segments()) {
+            if let Some(sym) = local_sub_table.get_symbol(&sym_scope, &sym_name) {
+                return Some(sym);
+            }
+        }
+
+        // Then look into the use table
+        let mut use_loc_path = cur_scope.clone();
+        use_loc_path.extend(cur_sub_scope);
+        let mut found_sym = None;
+        use_table.with_uses(&use_loc_path, |use_path| {
+            let root = sym_path.root().unwrap();
+            let mut act_sym_path = use_path.path.clone();
+            if let Some(alias) = &use_path.alias {
+                if !root.params.is_empty() || root.name != *alias {
+                    return true;
+                }
+                act_sym_path.extend(&sym_path.sub_path());
+            } else {
+                act_sym_path.extend(sym_path);
+            };
+
+            if let Some(sym) = self.get_symbol(&act_sym_path.parent(), sym_name) {
+                if found_sym.is_some() {
+                    todo!("Error, ambiguous symbol");
+                }
+                found_sym = Some(sym);
+                return true;
+            }
+            false
+        });
+
+        found_sym
+    }
+
+    fn get_sub_table(&self, segments: &[ScopeSegment]) -> Option<&SymbolTable> {
+        if segments.is_empty() {
+            return Some(self);
+        }
+
+        let sub_table = self.sub_tables.get(&segments[0])?;
+        sub_table.get_sub_table(&segments[1..])
+    }
+
+    fn get_direct_sub_table_from_name(&self, name: &str) -> Option<&SymbolTable> {
+        for (segment, table) in &self.sub_tables {
+            if segment.name == name {
+                return Some(table);
+            }
+        }
+        None
+    }
+
+    fn get_or_insert_sub_table(&mut self, segments: &[ScopeSegment]) -> &mut SymbolTable {
+        if segments.is_empty() {
+            return self;
+        }
+        
+        let entry = self.sub_tables.entry(segments[0].clone());
+        let sub_table = entry.or_insert(SymbolTable::new());
+        sub_table.get_or_insert_sub_table(&segments[1..])
+    }
+
+    // Get symbol from name alone, will only return reference if only 1 symbol with the name exists, regardless of func parameters
+    fn get_symbol_from_name(&self, name: &str) -> Option<SymbolRef> {
+        let possible_syms = self.symbols.get(name)?;
+        if possible_syms.len() == 1 {
+            Some(possible_syms[0].1.clone())
+        } else {
+            None
+        }
+    }
+
+
+    pub fn log(&self) {
+        let mut logger = IndentLogger::new("    ", "|   ", "+---");
+        SymbolTableLogger::log_table(&mut logger, self);
+    }
+}
+pub struct RootSymbolTable {
+    cur_lib: LibraryPath,
+    tables:  HashMap<LibraryPath, SymbolTable>
+}
+
+impl RootSymbolTable {
+    pub fn new(cur_lib: LibraryPath) -> Self {
+        let mut tables = HashMap::new();
+        tables.insert(cur_lib.clone(), SymbolTable::new());
+
+        Self {
+            cur_lib,
+            tables,
+        }
+    }
+
+    
     pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) -> SymbolRef {
         let sym = Symbol::Module(ModuleSymbol{
             scope: scope.clone(),
@@ -343,21 +611,15 @@ impl SymbolTable {
     }
 
     fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
-        let sym = Arc::new(RwLock::new(sym));
-        self.add_symbol_(scope, name, params, sym.clone());
-        sym
+        // SAFETY: We always add the table for `self.cur_lib`, so we know it exists
+        let cur_table = self.tables.get_mut(&self.cur_lib).unwrap();
+        cur_table.add_symbol(scope, name, params, sym)
     }
 
-    fn add_symbol_(&mut self, scope: &Scope, name: &str, params: &[String], sym: SymbolRef) {
-        let sub_table = self.get_or_insert_sub_table(scope.segments());
-        let entry = sub_table.symbols.entry(name.to_string());
-        let syms = entry.or_insert(Vec::new());
-        syms.push((Vec::from(params), sym));
-    }
-
-    pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
-        let sub_table = self.get_sub_table(scope.segments())?;
-        sub_table.get_symbol_from_name(name)
+    pub fn get_symbol(&self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> Option<SymbolRef> {
+        let lib = lib.unwrap_or(&self.cur_lib);
+        let table = self.tables.get(lib)?;
+        table.get_symbol(scope, name)
     }
 
     /// Get a symbol, while also searching all available scopes
@@ -373,7 +635,8 @@ impl SymbolTable {
         let sym_scope = sym_path.parent();
 
         // Look into the current scope first
-        if let Some(local_sub_table) = self.get_sub_table(cur_scope.segments()) {
+        let cur_table = self.tables.get(&self.cur_lib).unwrap();
+        if let Some(local_sub_table) = cur_table.get_sub_table(cur_scope.segments()) {
             if let Some(sym) = local_sub_table.get_symbol(&sym_scope, &sym_name) {
                 return Some(sym);
             }
@@ -388,14 +651,18 @@ impl SymbolTable {
             let mut act_sym_path = use_path.path.clone();
             if let Some(alias) = &use_path.alias {
                 if !root.params.is_empty() || root.name != *alias {
-                    return true;
+                    return false;
                 }
                 act_sym_path.extend(&sym_path.sub_path());
             } else {
                 act_sym_path.extend(sym_path);
             };
 
-            if let Some(sym) = self.get_symbol(&act_sym_path.parent(), sym_name) {
+            let Some(table) = self.tables.get(&use_path.lib_path) else {
+                return false;
+            };
+
+            if let Some(sym) = table.get_symbol(&act_sym_path.parent(), sym_name) {
                 if found_sym.is_some() {
                     todo!("Error, ambiguous symbol");
                 }
@@ -407,51 +674,26 @@ impl SymbolTable {
 
         found_sym
     }
-
-    fn get_sub_table(&self, segments: &[ScopeSegment]) -> Option<&SymbolTable> {
-        if segments.is_empty() {
-            return Some(self);
-        }
-
-        let sub_table = self.sub_tables.get(&segments[0])?;
-        sub_table.get_sub_table(&segments[1..])
-    }
-
-    fn get_direct_sub_table_from_name(&self, name: &str) -> Option<&SymbolTable> {
-        for (segment, table) in &self.sub_tables {
-            if segment.name == name {
-                return Some(table);
-            }
-        }
-        None
-    }
-
-    fn get_or_insert_sub_table(&mut self, segments: &[ScopeSegment]) -> &mut SymbolTable {
-        if segments.is_empty() {
-            return self;
-        }
-        
-        let entry = self.sub_tables.entry(segments[0].clone());
-        let sub_table = entry.or_insert(SymbolTable::new());
-        sub_table.get_or_insert_sub_table(&segments[1..])
-    }
-
-    // Get symbol from name alone, will only return reference if only 1 symbol with the name exists, regardless of func parameters
-    fn get_symbol_from_name(&self, name: &str) -> Option<SymbolRef> {
-        let possible_syms = self.symbols.get(name)?;
-        if possible_syms.len() == 1 {
-            Some(possible_syms[0].1.clone())
-        } else {
-            None
-        }
-    }
-
-
+    
     pub fn log(&self) {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
-        SymbolTableLogger::log_table(&mut logger, self);
+        for (lib_path, table) in &self.tables {
+            logger.log_indented("Table", |logger| {
+                if let Some(group) = &lib_path.group {
+                    logger.prefixed_log_fmt(format_args!("Group: {group}\n"));
+                }
+                logger.prefixed_log_fmt(format_args!("Package: {}\n", &lib_path.package));
+                logger.prefixed_log_fmt(format_args!("Library: {}\n", &lib_path.library));
+
+                logger.set_last_at_indent();
+                logger.log_indented("Tables", |logger| SymbolTableLogger::log_table(logger, table))
+            });
+        }
+
     }
 }
+
+
 
 struct SymbolTableLogger {
 }
@@ -604,3 +846,4 @@ impl SymbolTableLogger {
         logger.pop_indent();
     }
 }
+

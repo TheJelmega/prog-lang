@@ -1,7 +1,7 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
     ast::{Ast, AstNodeRef},
-    common::{LibraryPath, OperatorTable, PrecedenceDAG, Scope, SymbolTable},
+    common::{LibraryPath, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope, SymbolTable},
     error_warning::{AstErrorCode, LexErrorCode}
 };
 use parking_lot::{Mutex, RwLock};
@@ -71,7 +71,7 @@ pub struct Context {
     pub lib_path: LibraryPath,
     pub errors:   Mutex<Vec<AstError>>,
     ctxs:         Vec<ContextNode>,
-    syms:         Arc<RwLock<SymbolTable>>,
+    syms:         Arc<RwLock<RootSymbolTable>>,
     mod_root:     Scope,
     precedences:  Arc<RwLock<PrecedenceDAG>>,
     operators:    Arc<RwLock<OperatorTable>>,
@@ -80,7 +80,7 @@ pub struct Context {
 impl Context {
     pub fn new(
         lib_path: LibraryPath,
-        syms: Arc<RwLock<SymbolTable>>,
+        syms: Arc<RwLock<RootSymbolTable>>,
         mod_root: Scope,
         ast: &Ast,
         precedences: Arc<RwLock<PrecedenceDAG>>,
