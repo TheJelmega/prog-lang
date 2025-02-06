@@ -8,11 +8,7 @@ use std::{
 };
 
 use crate::{
-    ast::*,
-    error_warning::ParseErrorCode,
-    lexer::{OpenCloseSymbol, Punctuation, PunctuationId, StrongKeyword, Token, TokenMetadata, TokenStore, WeakKeyword},
-    literals::LiteralId,
-    common::{NameTable, NameId}
+    ast::*, common::{NameId, NameTable, Span, SpanRegistry}, error_warning::ParseErrorCode, lexer::{OpenCloseSymbol, Punctuation, PunctuationId, StrongKeyword, Token, TokenMetadata, TokenStore, WeakKeyword}, literals::LiteralId
 };
 
 use super::*;
@@ -50,6 +46,8 @@ pub struct Parser<'a> {
     token_store:    &'a TokenStore,
     token_idx:      usize,
 
+    spans:          &'a mut SpanRegistry,
+
     frames:         Vec<ParserFrame>,
     last_frame:     ParserFrame,
     scope_stack:    Vec<OpenCloseSymbol>,
@@ -59,10 +57,12 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(token_store: &'a TokenStore, names: &'a NameTable) -> Self {
+    pub fn new(token_store: &'a TokenStore, names: &'a NameTable, spans: &'a mut SpanRegistry) -> Self {
         Self {
             token_store,
             token_idx: 0,
+
+            spans,
 
             frames: Vec::new(),
             last_frame: ParserFrame{ token_id: 0, span: SpanId::INVALID },
@@ -126,10 +126,12 @@ impl Parser<'_> {
         false
     }
 
-    fn consume_single(&mut self) -> Token {
+    fn consume_single(&mut self) -> (Token, SpanId) {
         let token_idx = self.token_idx;
         self.token_idx += 1;
-        self.token_store.tokens[token_idx]
+        let span = self.token_store.metadata[token_idx].span_id;
+        let tok = self.token_store.tokens[token_idx];
+        (tok, span)
     }
 
     fn consume(&mut self, expected: Token) -> Result<(), ParserErr> {
@@ -175,6 +177,12 @@ impl Parser<'_> {
             }
             _ => Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) }))
         }
+    }
+
+    fn consume_name_and_span(&mut self) -> Result<(NameId, SpanId), ParserErr> {
+        let token = self.consume_name()?;
+        let span = self.token_store.metadata[self.token_idx - 1].span_id;
+        Ok((token, span))
     }
 
     fn consume_lit(&mut self) -> Result<LiteralId, ParserErr> {
@@ -292,42 +300,65 @@ impl Parser<'_> {
         self.ast.add_node(node, meta)
     }
 
+    pub fn get_cur_span(&self) -> SpanId {
+        self.token_store.metadata[self.token_idx].span_id
+    }
+
+    pub fn get_span_to_current(&mut self, begin: SpanId) -> SpanId {
+        let end = self.token_store.metadata[self.token_idx - 1].span_id;
+        self.spans.combine_spans(begin, end)
+    }
+
 // =============================================================================================================================
 
     fn parse_simple_path(&mut self, only_allow_none_start: bool) -> Result<AstNodeRef<SimplePath>, ParserErr> {
         self.push_meta_frame();
 
         let start = self.parse_simple_path_start(only_allow_none_start)?;
-        let names = self.parse_punct_separated(Punctuation::Dot, Self::consume_name)?;
+        let names = self.parse_punct_separated(Punctuation::Dot, Self::consume_name_and_span)?;
+
+        let begin = start.as_ref().map_or_else(|| names.first().map_or(SpanId::INVALID, |(_, span)| *span), |start| start.span);
+        let span = self.get_span_to_current(begin);
+
         Ok(self.add_node(SimplePath {
+            span,
             start,
             names
         }))
     }
 
-    fn parse_simple_path_start(&mut self, only_allow_none_start: bool) -> Result<SimplePathStart, ParserErr> {
+    fn parse_simple_path_start(&mut self, only_allow_none_start: bool) -> Result<Option<SimplePathStart>, ParserErr> {
         let tok = self.peek()?;
         match tok {
             Token::Name(name_id)                     => {
-                Ok(SimplePathStart::None)
+                Ok(None)
             },
             Token::Punctuation(Punctuation::Dot)     => if only_allow_none_start {
                 Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "inferred simple paths are not allowed" }))
             } else {
-                self.consume_single();
-                Ok(SimplePathStart::Inferred)
+                let (_, span) = self.consume_single();
+                Ok(Some(SimplePathStart {
+                    span,
+                    kind: SimplePathStartKind::Inferred,
+                }))
             },
             Token::WeakKw(WeakKeyword::Super)        => if only_allow_none_start {
                 Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "'super' relative paths are not allowed" }))
             } else {
-                self.consume_single();
-                Ok(SimplePathStart::Super)
+                let (_, span) = self.consume_single();
+                Ok(Some(SimplePathStart {
+                    span,
+                    kind: SimplePathStartKind::Super,
+                }))
             },
             Token::StrongKw(StrongKeyword::SelfName) => if only_allow_none_start {
                 Err(self.gen_error(ParseErrorCode::InvalidPathStart { found: tok, reason: "'self' relative paths are not allowed" }))
             } else {
-                self.consume_single();
-                Ok(SimplePathStart::SelfPath)
+                let (_, span) = self.consume_single();
+                Ok(Some(SimplePathStart {
+                    span,
+                    kind: SimplePathStartKind::SelfPath,
+                }))
             },
             _                                        => Err(self.gen_error(ParseErrorCode::InvalidPathStart{ found: tok, reason: "" }))
         }
@@ -335,14 +366,18 @@ impl Parser<'_> {
 
     fn parse_type_path(&mut self) -> Result<AstNodeRef<TypePath>, ParserErr> {
         self.push_meta_frame();
+        let begin = self.last_frame.span;
+
         let idens = self.parse_punct_separated(Punctuation::Dot, |parser| {
-            let name = parser.consume_name()?;
+            let (name, begin) = parser.consume_name_and_span()?;
 
             if let Some(gen_args) = parser.parse_generic_args(false)? {
-                return Ok(TypePathIdentifier::GenArg { name, gen_args });
+                let span = parser.get_span_to_current(begin);
+                return Ok(TypePathIdentifier::GenArg { span, name, gen_args });
             }
             if let Some(gen_args) = parser.parse_generic_args(true)? {
-                return Ok(TypePathIdentifier::GenArg { name, gen_args });
+                let span = parser.get_span_to_current(begin);
+                return Ok(TypePathIdentifier::GenArg { span, name, gen_args });
             }
 
             if parser.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
@@ -355,23 +390,27 @@ impl Parser<'_> {
                     None
                 };
 
-                Ok(TypePathIdentifier::Fn { name, params, ret })
+                let span = parser.get_span_to_current(begin);
+                Ok(TypePathIdentifier::Fn { span, name, params, ret })
             } else {
-                Ok(TypePathIdentifier::Plain { name })
+                Ok(TypePathIdentifier::Plain { span: begin, name })
             }
         })?;
 
-        Ok(self.add_node(TypePath{ idens }))
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TypePath{ span, idens }))
     }
 
     fn parse_identifier(&mut self, dot_generics: bool) -> Result<Identifier, ParserErr> {
-        let name = self.consume_name()?;
+        let (name, begin) = self.consume_name_and_span()?;
         let gen_args = self.parse_generic_args(dot_generics)?;
-        Ok(Identifier { name, gen_args })
+        let span = self.get_span_to_current(begin);
+        Ok(Identifier { span, name, gen_args })
     }
 
     fn parse_expr_path(&mut self) -> Result<AstNodeRef<ExprPath>, ParserErr> {
         self.push_meta_frame();
+        let begin = self.last_frame.span;
         let inferred = self.try_consume(Token::Punctuation(Punctuation::Dot));
 
         let mut idens = Vec::new();
@@ -383,13 +422,17 @@ impl Parser<'_> {
             }
             self.consume_punct(Punctuation::Dot)?;
         }
+
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(ExprPath{
+            span,
             inferred,
             idens
         }))
     }
 
     fn parse_qualified_path(&mut self) -> Result<AstNodeRef<QualifiedPath>, ParserErr> {
+        let begin = self.get_cur_span();
         self.begin_scope(OpenCloseSymbol::Paren);
         self.consume_punct(Punctuation::Colon)?;
 
@@ -405,9 +448,10 @@ impl Parser<'_> {
 
         let mut sub_path = Vec::new();
         loop {
-            let name = self.consume_name()?;
+            let (name, begin) = self.consume_name_and_span()?;
             let gen_args = self.parse_generic_args(true)?;
-            sub_path.push(Identifier{ name, gen_args });
+            let span = self.get_span_to_current(begin);
+            sub_path.push(Identifier{ span, name, gen_args });
 
             if self.peek()? != Token::Punctuation(Punctuation::Dot) ||!matches!(self.peek_at(1)?, Token::Name(_)) {
                 break;
@@ -415,11 +459,17 @@ impl Parser<'_> {
             self.consume_punct(Punctuation::Dot)?;
         }
 
-        let name = self.consume_name()?;
-        let gen_args = self.parse_generic_args(true)?;
-        let sub_path = Identifier{ name, gen_args };
+        let sub_path = {
+            let (name, begin) = self.consume_name_and_span()?;
+            let gen_args = self.parse_generic_args(true)?;
+            let span = self.get_span_to_current(begin);
+            Identifier{ span, name, gen_args }
+        };
 
+
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(QualifiedPath {
+            span,
             ty,
             bound,
             sub_path,
@@ -636,6 +686,7 @@ impl Parser<'_> {
     }
 
     fn parse_module(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume(Token::StrongKw(StrongKeyword::Mod))?;
         let name = self.consume_name()?;
         
@@ -645,7 +696,9 @@ impl Parser<'_> {
             Some(self.parse_block()?)
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Module(self.add_node(ModuleItem {
+            span,
             attrs,
             vis,
             name,
@@ -654,6 +707,7 @@ impl Parser<'_> {
     }
 
     fn parse_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume(Token::StrongKw(StrongKeyword::Use))?;
 
         let peek = self.peek()?;
@@ -687,7 +741,9 @@ impl Parser<'_> {
 
         self.consume_punct(Punctuation::Semicolon);
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Use(self.add_node(UseItem {
+            span,
             attrs,
             vis,
             group,
@@ -698,6 +754,7 @@ impl Parser<'_> {
     }
 
     fn parse_use_path(&mut self) -> Result<AstNodeRef<UsePath>, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_consume(Token::StrongKw(StrongKeyword::SelfName)) {
 
             let alias = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
@@ -705,7 +762,8 @@ impl Parser<'_> {
             } else {
                 None
             };
-            Ok(self.add_node(UsePath::SelfPath { alias }))
+            let span = self.get_span_to_current(begin);
+            Ok(self.add_node(UsePath::SelfPath { span, alias }))
         } else {
             let mut segments = Vec::new();
             let mut sub_paths = Vec::new();
@@ -734,7 +792,8 @@ impl Parser<'_> {
             }
 
             if !sub_paths.is_empty() {
-                Ok(self.add_node(UsePath::SubPaths { segments, sub_paths }))
+                let span = self.get_span_to_current(begin);
+                Ok(self.add_node(UsePath::SubPaths { span, segments, sub_paths }))
             } else {
                 let alias = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
                     Some(self.consume_name()?)  
@@ -742,12 +801,14 @@ impl Parser<'_> {
                     None
                 };
         
-                Ok(self.add_node(UsePath::Alias { segments, alias }))
+                let span = self.get_span_to_current(begin);
+                Ok(self.add_node(UsePath::Alias { span, segments, alias }))
             }
         }
     }
 
     fn parse_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>, in_extern: bool, in_trait: bool) -> Result<AstNodeRef<Function>, ParserErr> {
+        let begin = self.get_cur_span();
         let is_override = self.try_consume(Token::WeakKw(WeakKeyword::Override));
         let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
@@ -770,16 +831,24 @@ impl Parser<'_> {
             let res = if self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) ||
                 self.peek_at(2)? == Token::Punctuation(Punctuation::Colon)
             {
+                let begin = self.get_cur_span();
+
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
                 self.consume_punct(Punctuation::Colon)?;
                 let ty = self.parse_type()?;
-                FnReceiver::SelfTyped{ is_mut, ty }
+
+                let span = self.get_span_to_current(begin);
+                FnReceiver::SelfTyped{ span, is_mut, ty }
             } else {
+                let begin = self.get_cur_span();
+
                 let is_ref = self.try_consume(Token::Punctuation(Punctuation::Ampersand));
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
-                FnReceiver::SelfReceiver { is_ref, is_mut }
+
+                let span = self.get_span_to_current(begin);
+                FnReceiver::SelfReceiver { span, is_ref, is_mut }
             };
 
             let has_possible_params = self.try_consume(Token::Punctuation(Punctuation::Comma));
@@ -789,7 +858,7 @@ impl Parser<'_> {
         };
 
         let mut params = if has_possible_params {
-            self.parse_comma_separated_end(Punctuation::Comma, Token::CloseSymbol(OpenCloseSymbol::Paren), Self::parse_function_param)?
+            self.parse_punct_separated_end(Punctuation::Comma, Token::CloseSymbol(OpenCloseSymbol::Paren), Self::parse_function_param)?
         } else {
             Vec::new()
         };
@@ -826,7 +895,9 @@ impl Parser<'_> {
             Some(self.parse_block()?)
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(Function {
+            span,
             attrs,
             vis,
             is_override,
@@ -845,7 +916,10 @@ impl Parser<'_> {
     }
 
     fn parse_function_param(&mut self) -> Result<FnParam, ParserErr> {
-        let mut names = self.parse_param_names()?;
+        let begin = self.get_cur_span();
+
+        let names = self.parse_punct_separated_end(Punctuation::Comma, Token::CloseSymbol(OpenCloseSymbol::Paren), Self::parse_param_name)?;
+
         self.consume_punct(Punctuation::Colon)?;
         let ty = self.parse_type()?;
         let is_variadic = self.try_consume(Token::Punctuation(Punctuation::DotDotDot));
@@ -856,7 +930,9 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok (FnParam {
+            span,
             names,
             ty,
             is_variadic,
@@ -864,36 +940,30 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_param_names(&mut self) -> Result<Vec<FnParamName>, ParserErr> {
-        let mut names = Vec::new();
-        while self.peek()? != Token::CloseSymbol(OpenCloseSymbol::Paren) {
-            let label = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
-                Some(self.consume_name()?)
-            } else {
-                None
-            };
-
-            let attrs = self.parse_attributes()?;
-
-            let pattern = self.parse_pattern()?;
-
-            names.push(FnParamName {
-                attrs,
-                label,
-                pattern,
-            });
-
-            if !self.try_consume(Token::Punctuation(Punctuation::Comma)) {
-                break;
-            }
-        }
-
-        Ok(names)
+    fn parse_param_name(&mut self) -> Result<FnParamName, ParserErr> {
+        let begin = self.get_cur_span();
+        let label = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            Some(self.consume_name()?)
+        } else {
+            None
+        };
+        
+        let attrs = self.parse_attributes()?;
+        let pattern = self.parse_pattern()?;
+        
+        let span = self.get_span_to_current(begin);
+        Ok(FnParamName {
+            span,
+            attrs,
+            label,
+            pattern,
+        })
     }
 
     fn parse_func_return(&mut self) -> Result<FnReturn, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_begin_scope(OpenCloseSymbol::Brace) {
-            let mut elems = Vec::new();
+            let mut vars = Vec::new();
             while !self.try_end_scope() {
                 let mut names = Vec::new();
                 loop {
@@ -904,21 +974,26 @@ impl Parser<'_> {
                 }
                 self.consume_punct(Punctuation::Colon);
                 let ty = self.parse_type()?;
-                elems.push((names, ty));
+                vars.push((names, ty));
                 
                 if !self.try_consume(Token::Punctuation(Punctuation::Comma)) {
                     self.end_scope()?;
                     break;
                 }
             }
-            Ok(FnReturn::Named(elems))
+
+            let span = self.get_span_to_current(begin);
+            Ok(FnReturn::Named{ span, vars })
         } else {
             let ty = self.parse_type()?;
-            Ok(FnReturn::Type(ty))
+            let span = self.get_span_to_current(begin);
+            Ok(FnReturn::Type{ span, ty })
         }
     }
 
     fn parse_type_alias(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<TypeAlias>, ParserErr> {
+        let begin = self.get_cur_span();
+
         if self.try_consume(Token::WeakKw(WeakKeyword::Distinct)) {
             self.consume_strong_kw(StrongKeyword::Type)?;
             let name = self.consume_name()?;
@@ -927,7 +1002,9 @@ impl Parser<'_> {
 
             let ty = self.parse_type()?;
             self.consume_punct(Punctuation::Semicolon)?;
+            let span = self.get_span_to_current(begin);
             return Ok(self.add_node(TypeAlias::Distinct {
+                span,
                 attrs,
                 vis,
                 name,
@@ -943,7 +1020,9 @@ impl Parser<'_> {
         let generics = self.parse_generic_params()?;
 
         if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
+            let span = self.get_span_to_current(begin);
             return Ok(self.add_node(TypeAlias::Trait {
+                span,
                 attrs,
                 name,
                 generics,
@@ -962,7 +1041,9 @@ impl Parser<'_> {
             };
             self.consume_punct(Punctuation::Semicolon)?;
 
+            let span = self.get_span_to_current(begin);
             Ok(self.add_node(TypeAlias::Opaque {
+                span,
                 attrs,
                 vis,
                 name,
@@ -977,7 +1058,9 @@ impl Parser<'_> {
 
             let ty = self.parse_type()?;
             self.consume_punct(Punctuation::Semicolon)?;
+            let span = self.get_span_to_current(begin);
             Ok(self.add_node(TypeAlias::Normal {
+                span,
                 attrs,
                 vis,
                 name,
@@ -988,6 +1071,7 @@ impl Parser<'_> {
     }
 
     fn parse_struct(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let is_record = self.try_consume(Token::WeakKw(WeakKeyword::Record));
 
@@ -1001,7 +1085,9 @@ impl Parser<'_> {
         match peek {
             Token::OpenSymbol(OpenCloseSymbol::Brace) => {
                 let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_field)?;
+                let span = self.get_span_to_current(begin);
                 Ok(Item::Struct(self.add_node(Struct::Regular {
+                    span,
                     attrs,
                     vis,
                     is_mut,
@@ -1015,7 +1101,9 @@ impl Parser<'_> {
             Token::OpenSymbol(OpenCloseSymbol::Paren) => {
                 let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_tuple_struct_field)?;
                 self.consume_punct(Punctuation::Semicolon)?;
+                let span = self.get_span_to_current(begin);
                 Ok(Item::Struct(self.add_node(Struct::Tuple {
+                    span,
                     attrs,
                     vis,
                     is_mut,
@@ -1032,20 +1120,24 @@ impl Parser<'_> {
                 }
 
                 self.consume_punct(Punctuation::Semicolon)?;
-                Ok(Item::Struct(self.add_node(Struct::Unit { attrs, vis, name })))
+                let span = self.get_span_to_current(begin);
+                Ok(Item::Struct(self.add_node(Struct::Unit { span, attrs, vis, name })))
             }
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "struct" }))
         }
     }
 
     fn parse_struct_field(&mut self) -> Result<RegStructField, ParserErr> {
+        let begin = self.get_cur_span();
         let attrs = self.parse_attributes()?;
         let vis = self.parse_visibility()?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
 
         if self.try_consume(Token::StrongKw(StrongKeyword::Use)) {
+            let span = self.get_span_to_current(begin);
             let path = self.parse_type_path()?;
             Ok(RegStructField::Use {
+                span,
                 attrs,
                 vis,
                 is_mut,
@@ -1069,7 +1161,9 @@ impl Parser<'_> {
                 None
             };
 
+            let span = self.get_span_to_current(begin);
             Ok(RegStructField::Field {
+                span,
                 attrs,
                 vis,
                 is_mut,
@@ -1081,6 +1175,7 @@ impl Parser<'_> {
     }
 
     fn parse_tuple_struct_field(&mut self) -> Result<TupleStructField, ParserErr> {
+        let begin = self.get_cur_span();
         let attrs = self.parse_attributes()?;
         let vis = self.parse_visibility()?;
         let ty = self.parse_type()?;
@@ -1090,7 +1185,9 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(TupleStructField {
+            span,
             attrs,
             vis,
             ty,
@@ -1099,6 +1196,7 @@ impl Parser<'_> {
     }
 
     fn parse_union(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         self.consume_strong_kw(StrongKeyword::Union)?;
         let name = self.consume_name()?;
@@ -1106,7 +1204,9 @@ impl Parser<'_> {
         let where_clause = self.parse_where_clause()?;
 
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_union_field)?;
+        let span = self.get_span_to_current(begin);
         Ok(Item::Union(self.add_node(Union {
+            span,
             attrs,
             vis,
             is_mut,
@@ -1118,6 +1218,7 @@ impl Parser<'_> {
     }
  
     fn parse_union_field(&mut self) -> Result<UnionField, ParserErr> {
+        let begin = self.get_cur_span();
         let attrs = self.parse_attributes()?;
         let vis = self.parse_visibility()?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
@@ -1125,7 +1226,9 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::Colon)?;
         let ty = self.parse_type()?;
 
+        let span = self.get_span_to_current(begin);
         Ok(UnionField {
+            span,
             attrs,
             vis,
             is_mut,
@@ -1135,6 +1238,7 @@ impl Parser<'_> {
     }
 
     fn parse_enum(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let is_flag = self.try_consume(Token::WeakKw(WeakKeyword::Flag));
         let is_record = self.try_consume(Token::WeakKw(WeakKeyword::Record));
@@ -1151,10 +1255,13 @@ impl Parser<'_> {
                     None
                 };
 
-                Ok(FlagEnumVariant{ attrs, name, discriminant })
+                let span = parser.get_span_to_current(begin);
+                Ok(FlagEnumVariant{ span, attrs, name, discriminant })
             })?;
 
+            let span = self.get_span_to_current(begin);
             Ok(Item::Enum(self.add_node(Enum::Flag {
+                span,
                 attrs,
                 vis,
                 name,
@@ -1165,7 +1272,9 @@ impl Parser<'_> {
             let where_clause = self.parse_where_clause()?;
             let variants = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_enum_variant)?;
 
+            let span = self.get_span_to_current(begin);
             Ok(Item::Enum(self.add_node(Enum::Adt {
+                span,
                 attrs,
                 vis,
                 is_mut,
@@ -1179,6 +1288,7 @@ impl Parser<'_> {
     }
 
     fn parse_enum_variant(&mut self) -> Result<EnumVariant, ParserErr> {
+        let begin = self.get_cur_span();
         let attrs = self.parse_attributes()?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let name = self.consume_name()?;
@@ -1193,7 +1303,9 @@ impl Parser<'_> {
                     None
                 };
 
+                let span = self.get_span_to_current(begin);
                 Ok(EnumVariant::Struct {
+                    span,
                     attrs,
                     name,
                     is_mut,
@@ -1210,7 +1322,9 @@ impl Parser<'_> {
                     None
                 };
 
+                let span = self.get_span_to_current(begin);
                 Ok(EnumVariant::Tuple {
+                    span,
                     attrs,
                     name,
                     is_mut,
@@ -1225,7 +1339,9 @@ impl Parser<'_> {
                     None
                 };
 
+                let span = self.get_span_to_current(begin);
                 Ok(EnumVariant::Fieldless {
+                    span,
                     attrs,
                     name,
                     discriminant,
@@ -1235,6 +1351,7 @@ impl Parser<'_> {
     }
 
     fn parse_bitfield(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let is_record = self.try_consume(Token::WeakKw(WeakKeyword::Record));
         self.consume_strong_kw(StrongKeyword::Bitfield)?;
@@ -1250,7 +1367,9 @@ impl Parser<'_> {
         let where_clause = self.parse_where_clause()?;
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_bitfield_field)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Bitfield(self.add_node(Bitfield {
+            span,
             attrs,
             vis,
             is_mut,
@@ -1264,6 +1383,7 @@ impl Parser<'_> {
     }
 
     fn parse_bitfield_field(&mut self) -> Result<BitfieldField, ParserErr> {
+        let begin = self.get_cur_span();
         let attrs = self.parse_attributes()?;
         let vis = self.parse_visibility()?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
@@ -1277,7 +1397,9 @@ impl Parser<'_> {
                 None
             };
 
+            let span = self.get_span_to_current(begin);
             Ok(BitfieldField::Use {
+                span,
                 attrs,
                 vis,
                 is_mut,
@@ -1307,7 +1429,9 @@ impl Parser<'_> {
                 None
             };
 
+            let span = self.get_span_to_current(begin);
             Ok(BitfieldField::Field {
+                span,
                 attrs,
                 vis,
                 is_mut,
@@ -1320,6 +1444,7 @@ impl Parser<'_> {
     }
 
     fn parse_const_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<Const>, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Const)?;
         let name = self.consume_name()?;
         let ty = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
@@ -1331,7 +1456,9 @@ impl Parser<'_> {
         let val = self.parse_expr(ExprParseMode::General)?;
         self.consume_punct(Punctuation::Semicolon)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(Const {
+            span,
             attrs,
             vis,
             name,
@@ -1341,6 +1468,7 @@ impl Parser<'_> {
     }
 
     fn parse_static_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<Static>, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_consume(Token::StrongKw(StrongKeyword::Extern)) {
             let abi = self.consume_lit()?;
             let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
@@ -1350,7 +1478,9 @@ impl Parser<'_> {
             let ty = self.parse_type()?;
             self.consume_punct(Punctuation::Semicolon)?;
 
+            let span = self.get_span_to_current(begin);
             Ok(self.add_node(Static::Extern {
+                span,
                 attrs,
                 vis,
                 abi,
@@ -1373,8 +1503,10 @@ impl Parser<'_> {
             let val = self.parse_expr(ExprParseMode::General)?;
             self.consume_punct(Punctuation::Semicolon)?;
 
+            let span = self.get_span_to_current(begin);
             if is_tls {
                 Ok(self.add_node(Static::Tls {
+                    span,
                     attrs,
                     vis,
                     is_mut,
@@ -1384,6 +1516,7 @@ impl Parser<'_> {
                 }))
             } else {
                 Ok(self.add_node(Static::Static {
+                    span,
                     attrs,
                     vis,
                     name,
@@ -1395,57 +1528,66 @@ impl Parser<'_> {
     }
 
     fn parse_property(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>, is_trait: bool) -> Result<AstNodeRef<Property>, ParserErr> {
+        let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         self.consume_weak_kw(WeakKeyword::Property)?;
         let name = self.consume_name()?;
 
         let body = if is_trait {
-            let mut has_get = false;
-            let mut has_ref_get = false;
-            let mut has_mut_get = false;
-            let mut has_set = false;
+            let mut has_get = None;
+            let mut has_ref_get = None;
+            let mut has_mut_get = None;
+            let mut has_set = None;
 
             self.begin_scope(OpenCloseSymbol::Brace)?;
             while !self.try_end_scope() {
                 let peek = self.peek()?;
                 match peek {
                     Token::WeakKw(WeakKeyword::Get) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_punct(Punctuation::Semicolon)?;
-                        if has_get {
+                        if has_get.is_some() {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
                         }
                         
-                        has_get = true;
+                        let span = self.get_span_to_current(begin);
+                        has_get = Some(span);
                     },
                     Token::StrongKw(StrongKeyword::Ref) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         self.consume_punct(Punctuation::Semicolon)?;
-                        if has_ref_get {
+                        if has_ref_get.is_some() {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
                         }
-                        
-                        has_ref_get = true;
+
+                        let span = self.get_span_to_current(begin);
+                        has_ref_get = Some(span);
                     },
                     Token::StrongKw(StrongKeyword::Mut) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         self.consume_punct(Punctuation::Semicolon)?;
-                        if has_mut_get {
+                        if has_mut_get.is_some() {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
                         }
                         
-                        has_mut_get = true;
+                        let span = self.get_span_to_current(begin);
+                        has_mut_get = Some(span);
                     },
                     Token::WeakKw(WeakKeyword::Set) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_punct(Punctuation::Semicolon)?;
-                        if has_set {
+                        if has_set.is_some() {
                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
                         }
                     
-                        has_set = true;
+                        let span = self.get_span_to_current(begin);
+                        has_set = Some(span);
                     },
                     _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
                 }
@@ -1468,6 +1610,7 @@ impl Parser<'_> {
                 let peek = self.peek()?;
                 match peek {
                     Token::WeakKw(WeakKeyword::Get) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         let expr = self.parse_expr(ExprParseMode::General)?;
                         if !expr.has_block() {
@@ -1477,9 +1620,11 @@ impl Parser<'_> {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
                         }
                         
-                        get = Some(expr)
+                        let span = self.get_span_to_current(begin);
+                        get = Some((span, expr))
                     },
                     Token::StrongKw(StrongKeyword::Ref) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         let expr = self.parse_expr(ExprParseMode::General)?;
@@ -1490,9 +1635,11 @@ impl Parser<'_> {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
                         }
 
-                        ref_get = Some(expr)
+                        let span = self.get_span_to_current(begin);
+                        ref_get = Some((span, expr))
                     },
                     Token::StrongKw(StrongKeyword::Mut) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         self.consume_weak_kw(WeakKeyword::Get)?;
                         let expr = self.parse_expr(ExprParseMode::General)?;
@@ -1503,19 +1650,22 @@ impl Parser<'_> {
                             return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
                         }
                         
-                        mut_get = Some(expr)
+                         let span = self.get_span_to_current(begin);
+                        mut_get = Some((span, expr))
                     },
                     Token::WeakKw(WeakKeyword::Set) => {
+                        let begin = self.get_cur_span();
                         self.consume_single();
                         let expr = self.parse_expr(ExprParseMode::General)?;
                         if !expr.has_block() {
-                        self.consume_punct(Punctuation::Semicolon)?;
-                    }
-                    if set.is_some() {
-                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
-                    }
-                    
-                    set = Some(expr)
+                            self.consume_punct(Punctuation::Semicolon)?;
+                        }
+                        if set.is_some() {
+                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
+                        }
+
+                        let span = self.get_span_to_current(begin);
+                        set = Some((span, expr))
                 },
                 _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
                 }
@@ -1529,7 +1679,9 @@ impl Parser<'_> {
             }
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(Property {
+            span,
             attrs,
             vis,
             is_unsafe,
@@ -1539,6 +1691,7 @@ impl Parser<'_> {
     }
 
     fn parse_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         let is_sealed = self.try_consume(Token::WeakKw(WeakKeyword::Sealed));
         self.consume_strong_kw(StrongKeyword::Trait)?;
@@ -1556,7 +1709,9 @@ impl Parser<'_> {
             assoc_items.push(self.parse_trait_item()?);
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Trait(self.add_node(Trait {
+            span,
             attrs,
             vis,
             is_unsafe,
@@ -1568,6 +1723,7 @@ impl Parser<'_> {
     }
 
     fn parse_impl(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         self.consume_strong_kw(StrongKeyword::Impl)?;
         let generics = self.parse_generic_params()?;
@@ -1585,7 +1741,9 @@ impl Parser<'_> {
             assoc_items.push(self.parse_assoc_item()?);
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Impl(self.add_node(Impl {
+            span,
             attrs,
             vis,
             is_unsafe,
@@ -1598,6 +1756,7 @@ impl Parser<'_> {
     }
 
     fn parse_extern_block(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Extern)?;
         let abi = self.consume_lit()?;
         
@@ -1607,7 +1766,9 @@ impl Parser<'_> {
             items.push(self.parse_extern_item()?);
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Extern(self.add_node(ExternBlock {
+            span,
             attrs,
             vis,
             abi,
@@ -1616,6 +1777,7 @@ impl Parser<'_> {
     }
 
     fn parse_op_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_weak_kw(WeakKeyword::Op)?;
         self.consume_strong_kw(StrongKeyword::Trait)?;
         let name = self.consume_name()?;
@@ -1639,8 +1801,10 @@ impl Parser<'_> {
 
         let elems = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_op_elem)?;
 
+        let span = self.get_span_to_current(begin);
         if !bases.is_empty() {
             Ok(Item::OpTrait(self.add_node(OpTrait::Extended {
+                span,
                 attrs,
                 vis,
                 name,
@@ -1649,6 +1813,7 @@ impl Parser<'_> {
             })))
         } else {
             Ok(Item::OpTrait(self.add_node(OpTrait::Base {
+                span,
                 attrs,
                 vis,
                 name,
@@ -1660,13 +1825,16 @@ impl Parser<'_> {
     }
 
     fn parse_op_elem(&mut self) -> Result<OpElem, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_consume(Token::WeakKw(WeakKeyword::Invar)) {
             self.push_meta_frame();
-            let expr = self.parse_block_expr(None)?;
-            return Ok(OpElem::Contract{ expr });
+            let expr = self.parse_block_expr(self.get_cur_span(), None)?;
+            
+            let span = self.get_span_to_current(begin);
+            return Ok(OpElem::Contract{ span, expr });
         }
 
-        let peek = self.consume_single();
+        let (peek, _span) = self.consume_single();
         let op_type = match peek {
             Token::WeakKw(WeakKeyword::Prefix)    => OpType::Prefix,
             Token::WeakKw(WeakKeyword::Postfix)   => OpType::Postfix,
@@ -1691,7 +1859,9 @@ impl Parser<'_> {
                 None
             };
 
+            let span = self.get_span_to_current(begin);
             Ok(OpElem::Def {
+                span,
                 op_type,
                 op,
                 name,
@@ -1701,11 +1871,13 @@ impl Parser<'_> {
         } else {
             self.consume_punct(Punctuation::ColonEquals)?;
             let def = self.parse_expr(ExprParseMode::General)?;
-            Ok(OpElem::Extend { op_type, op, def })
+            let span = self.get_span_to_current(begin);
+            Ok(OpElem::Extend { span, op_type, op, def })
         }
     }
 
     fn parse_op_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_weak_kw(WeakKeyword::Op)?;
         self.consume_strong_kw(StrongKeyword::Use)?;
 
@@ -1737,12 +1909,15 @@ impl Parser<'_> {
 
 
         let operators = if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
-            self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_any_punct)?
+            let ops = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_any_punct)?;
+            ops
         } else {
             Vec::new()
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::OpUse(self.add_node(OpUse {
+            span,
             group,
             package,
             library,
@@ -1751,6 +1926,7 @@ impl Parser<'_> {
     }
 
     fn parse_precedence(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_weak_kw(WeakKeyword::Precedence)?;
         let name = self.consume_name()?;
 
@@ -1774,16 +1950,22 @@ impl Parser<'_> {
                     Ok(())
                 },
                 Token::WeakKw(WeakKeyword::Associativity) => {
+                    let begin = parser.get_cur_span();
                     parser.consume_single();
                     parser.consume_punct(Punctuation::Colon)?;
                     let name_id = parser.consume_name()?;
-                    let assoc = match &parser.names[name_id] {
-                        "none" => PrecedenceAssociativity::None,
-                        "left" => PrecedenceAssociativity::Left,
-                        "right" => PrecedenceAssociativity::Right,
+                    let kind = match &parser.names[name_id] {
+                        "none" => PrecedenceAssociativityKind::None,
+                        "left" => PrecedenceAssociativityKind::Left,
+                        "right" => PrecedenceAssociativityKind::Right,
                         _ => return Err(parser.gen_error(ParseErrorCode::InvalidPrecedenceAssoc{ name: parser.names[name_id].to_string() }))
                     };
-                    associativity = Some(assoc);
+                    
+                    let span = parser.get_span_to_current(begin);
+                    associativity = Some(PrecedenceAssociativity {
+                        span,
+                        kind
+                    });
                     Ok(())
                 },
                 Token::Punctuation(Punctuation::Comma) => {
@@ -1794,7 +1976,9 @@ impl Parser<'_> {
             }
         })?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::Precedence(self.add_node(Precedence {
+            span,
             attrs,
             vis,
             name,
@@ -1805,6 +1989,7 @@ impl Parser<'_> {
     }
 
     fn parse_precedence_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_weak_kw(WeakKeyword::Precedence)?;
         self.consume_strong_kw(StrongKeyword::Use)?;
 
@@ -1836,12 +2021,15 @@ impl Parser<'_> {
 
 
         let precedences =  if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
-            self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_name)?
+            let precedences = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_name)?;
+            precedences
         } else {
             Vec::new()
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Item::PrecedenceUse(self.add_node(PrecedenceUse {
+            span,
             group,
             package,
             library,
@@ -1853,6 +2041,7 @@ impl Parser<'_> {
 
     fn parse_block(&mut self) -> Result<AstNodeRef<Block>, ParserErr> {
         self.push_meta_frame();
+        let begin = self.last_frame.span;
         self.begin_scope(OpenCloseSymbol::Brace)?;
 
         let mut stmts = Vec::new();
@@ -1871,7 +2060,9 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(Block {
+            span,
             stmts,
             final_expr,
         }))
@@ -1953,6 +2144,7 @@ impl Parser<'_> {
     }
 
     fn parse_name_var_decl(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<VarDecl>, ParserErr> {
+        let begin = self.get_cur_span();
         let names = self.parse_punct_separated(Punctuation::Comma, |parser| {
             let is_mut = parser.try_consume(Token::StrongKw(StrongKeyword::Mut));
             let name = parser.consume_name()?;
@@ -1963,7 +2155,9 @@ impl Parser<'_> {
         let expr = self.parse_expr(ExprParseMode::AllowComma)?;
         self.consume_punct(Punctuation::Semicolon)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(VarDecl::Named {
+            span,
             attrs,
             names,
             expr,
@@ -1971,6 +2165,7 @@ impl Parser<'_> {
     }
 
     fn parse_let_var_decl(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<VarDecl>, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Let)?;
         self.push_meta_frame();
         let pattern = self.parse_pattern_no_top_alternative()?;
@@ -1986,13 +2181,15 @@ impl Parser<'_> {
         };
         let else_block = if self.try_consume(Token::StrongKw(StrongKeyword::Else)) { 
             self.push_meta_frame();
-            Some(self.parse_block_expr(None)?)
+            Some(self.parse_block_expr(self.get_cur_span(), None)?)
         } else {
             None
         };
         self.consume_punct(Punctuation::Semicolon)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(VarDecl::Let {
+            span,
             attrs,
             pattern,
             ty,
@@ -2002,24 +2199,32 @@ impl Parser<'_> {
     }
 
     fn parse_defer_stmt(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<Defer>, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Defer)?;
         let expr = self.parse_expr(ExprParseMode::General)?;
         if !expr.has_block() {
             self.consume_punct(Punctuation::Semicolon)?;
         }
+        
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(Defer {
+            span,
             attrs,
             expr,
         }))
     }
 
     fn parse_err_defer_stmt(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<ErrDefer>, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::ErrDefer)?;
         let receiver = if self.try_consume(Token::Punctuation(Punctuation::Or)) {
+            let begin = self.get_cur_span();
             let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
             let name = self.consume_name()?;
             self.consume_punct(Punctuation::Or)?;
-            Some(ErrDeferReceiver { is_mut, name })
+
+            let span = self.get_span_to_current(begin);
+            Some(ErrDeferReceiver { span, is_mut, name })
         } else {
             None
         };
@@ -2029,7 +2234,9 @@ impl Parser<'_> {
             self.consume_punct(Punctuation::Semicolon)?;
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(ErrDefer {
+            span,
             attrs,
             receiver,
             expr,
@@ -2037,6 +2244,7 @@ impl Parser<'_> {
     }
 
     fn parse_expr_stmt(&mut self, attrs: Vec<AstNodeRef<Attribute>>, allow_expr_without_semicolon: bool) -> Result<AstNodeRef<ExprStmt>, ParserErr> {
+        let begin = self.get_cur_span();
         let expr = self.parse_expr(ExprParseMode::AllowComma)?;
         let has_semi = if !expr.has_block() {
             if allow_expr_without_semicolon {
@@ -2049,7 +2257,9 @@ impl Parser<'_> {
             false
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(ExprStmt {
+            span,
             attrs,
             expr,
             has_semi,
@@ -2059,6 +2269,7 @@ impl Parser<'_> {
 // =============================================================================================================================
 
     fn parse_expr(&mut self, mode: ExprParseMode) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.push_meta_frame();
         
         let peek = self.peek()?;
@@ -2073,11 +2284,11 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::TryExclaim)    |
             Token::StrongKw(StrongKeyword::Try)           => self.parse_try_block_expr()?,
             Token::StrongKw(StrongKeyword::If)            => self.parse_if_expr()?,
-            Token::StrongKw(StrongKeyword::Loop)          => self.parse_loop_expr(None)?,
-            Token::StrongKw(StrongKeyword::While)         => self.parse_while_expr(None)?,
-            Token::StrongKw(StrongKeyword::Do)            => self.parse_do_while_expr(None)?,
-            Token::StrongKw(StrongKeyword::For)           => self.parse_for_expr(None)?,
-            Token::StrongKw(StrongKeyword::Match)         => self.parse_match_expr(None)?,
+            Token::StrongKw(StrongKeyword::Loop)          => self.parse_loop_expr(self.get_cur_span(), None)?,
+            Token::StrongKw(StrongKeyword::While)         => self.parse_while_expr(self.get_cur_span(), None)?,
+            Token::StrongKw(StrongKeyword::Do)            => self.parse_do_while_expr(self.get_cur_span(), None)?,
+            Token::StrongKw(StrongKeyword::For)           => self.parse_for_expr(self.get_cur_span(),None)?,
+            Token::StrongKw(StrongKeyword::Match)         => self.parse_match_expr(self.get_cur_span(), None)?,
             Token::StrongKw(StrongKeyword::Break)         => self.parse_break_expr()?,
             Token::StrongKw(StrongKeyword::Continue)      => self.parse_continue_expr()?,
             Token::StrongKw(StrongKeyword::Fallthrough)   => self.parse_fallthrough_expr()?,
@@ -2093,15 +2304,16 @@ impl Parser<'_> {
             Token::Punctuation(Punctuation::Or)           => self.parse_closure_expr()?,
 
             Token::Punctuation(Punctuation::Colon)        => {
+                let begin = self.get_cur_span();
                 let label = Some(self.parse_label()?);
                 let peek = self.peek()?;
                 match peek {
-                    Token::StrongKw(StrongKeyword::Loop)      => self.parse_loop_expr(label)?,
-                    Token::StrongKw(StrongKeyword::While)     => self.parse_while_expr(label)?,
-                    Token::StrongKw(StrongKeyword::Do)        => self.parse_do_while_expr(label)?,
-                    Token::StrongKw(StrongKeyword::For)       => self.parse_for_expr(label)?,
-                    Token::StrongKw(StrongKeyword::Match)     => self.parse_match_expr(label)?,
-                    Token::OpenSymbol(OpenCloseSymbol::Brace) => Expr::Block(self.parse_block_expr(label)?),
+                    Token::StrongKw(StrongKeyword::Loop)      => self.parse_loop_expr(begin, label)?,
+                    Token::StrongKw(StrongKeyword::While)     => self.parse_while_expr(begin, label)?,
+                    Token::StrongKw(StrongKeyword::Do)        => self.parse_do_while_expr(begin, label)?,
+                    Token::StrongKw(StrongKeyword::For)       => self.parse_for_expr(begin, label)?,
+                    Token::StrongKw(StrongKeyword::Match)     => self.parse_match_expr(begin, label)?,
+                    Token::OpenSymbol(OpenCloseSymbol::Brace) => Expr::Block(self.parse_block_expr(begin, label)?),
                     _ => return Err(self.gen_error(ParseErrorCode::InvalidLabel)),
                 }
             },
@@ -2110,7 +2322,7 @@ impl Parser<'_> {
 
             Token::Punctuation(_)                             => self.parse_prefix_expr()?,
 
-            Token::OpenSymbol(OpenCloseSymbol::Brace)         => Expr::Block(self.parse_block_expr(None)?),
+            Token::OpenSymbol(OpenCloseSymbol::Brace)         => Expr::Block(self.parse_block_expr(self.get_cur_span(), None)?),
             Token::OpenSymbol(OpenCloseSymbol::Bracket)       => self.parse_array_expr()?,
             Token::OpenSymbol(OpenCloseSymbol::Paren)         => {
                 if self.check_peek(&[1], Token::CloseSymbol(OpenCloseSymbol::Paren)) {
@@ -2173,7 +2385,9 @@ impl Parser<'_> {
                 Token::Punctuation(_) => {
                     let op = self.consume_any_punct()?;
                     if self.is_end_of_expr() {
+                        let span = self.get_span_to_current(begin);
                         Expr::Postfix(self.add_node(PostfixExpr {
+                            span,
                             op,
                             expr,
                         }))
@@ -2188,20 +2402,26 @@ impl Parser<'_> {
                                 return Err(self.gen_error(ParseErrorCode::AmbiguousOperators));
                             } else if has_prev_whitespace {
                                let right = self.parse_expr(mode)?;
+                               let span = self.get_span_to_current(begin);
                                 Expr::Infix(self.add_node(InfixExpr {
+                                    span,
                                     op,
                                     left: expr,
                                     right,
                                 }))
                             } else { // if has_next_whitepace
+                                let span = self.get_span_to_current(begin);
                                 Expr::Postfix(self.add_node(PostfixExpr {
+                                    span,
                                     op,
                                     expr,
                                 }))
                             }
                         } else {    
                             let right = self.parse_expr(mode)?;
+                            let span = self.get_span_to_current(begin);
                             Expr::Infix(self.add_node(InfixExpr {
+                                span,
                                 op,
                                 left: expr,
                                 right,
@@ -2218,7 +2438,9 @@ impl Parser<'_> {
                         Punctuation::Contains
                     };
                     let right = self.parse_expr(mode)?;
+                    let span = self.get_span_to_current(begin);
                     Expr::Infix(self.add_node(InfixExpr {
+                        span,
                         op,
                         left: expr,
                         right,
@@ -2266,22 +2488,29 @@ impl Parser<'_> {
     }
 
     fn parse_literal_expr_node(&mut self) -> Result<LiteralExpr, ParserErr> {
+        let begin = self.get_cur_span();
         let peek = self.peek()?;
         match peek {
             Token::Literal(lit_id) => {
                 let literal = self.consume_lit()?;
                 let lit_op = self.parse_literal_op()?;
 
+                let span = self.get_span_to_current(begin);
                 Ok(LiteralExpr {
+                    span,
                     literal: LiteralValue::Lit(literal),
                     lit_op
                 })
             },
             Token::StrongKw(StrongKeyword::True) |
             Token::StrongKw(StrongKeyword::False) => {
-                let value = self.consume_single() == Token::StrongKw(StrongKeyword::True);
+                let (tok, _span) = self.consume_single();
+                let value = tok == Token::StrongKw(StrongKeyword::True);
                 let lit_op = self.parse_literal_op()?;
+                
+                let span = self.get_span_to_current(begin);
                 Ok(LiteralExpr {
+                    span,
                     literal: LiteralValue::Bool(value),
                     lit_op,
                 })
@@ -2293,40 +2522,40 @@ impl Parser<'_> {
 
     fn parse_literal_op(&mut self) -> Result<Option<LiteralOp>, ParserErr> {
         Ok(if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
-            let peek = self.consume_single();
+            let (peek, span) = self.consume_single();
             Some(match peek {
                 Token::Name(name_id) => LiteralOp::Name(name_id),
                 Token::StrongKw(kw) => match kw {
-                    StrongKeyword::U8     => LiteralOp::Primitive(PrimitiveType::U8),
-                    StrongKeyword::U16    => LiteralOp::Primitive(PrimitiveType::U16),
-                    StrongKeyword::U32    => LiteralOp::Primitive(PrimitiveType::U32),
-                    StrongKeyword::U64    => LiteralOp::Primitive(PrimitiveType::U64),
-                    StrongKeyword::U128   => LiteralOp::Primitive(PrimitiveType::U128),
-                    StrongKeyword::I8     => LiteralOp::Primitive(PrimitiveType::I8),
-                    StrongKeyword::I16    => LiteralOp::Primitive(PrimitiveType::I16),
-                    StrongKeyword::I32    => LiteralOp::Primitive(PrimitiveType::I32),
-                    StrongKeyword::I64    => LiteralOp::Primitive(PrimitiveType::I64),
-                    StrongKeyword::I128   => LiteralOp::Primitive(PrimitiveType::I128),
-                    StrongKeyword::F16    => LiteralOp::Primitive(PrimitiveType::F16),
-                    StrongKeyword::F32    => LiteralOp::Primitive(PrimitiveType::F32),
-                    StrongKeyword::F64    => LiteralOp::Primitive(PrimitiveType::F64),
-                    StrongKeyword::F128   => LiteralOp::Primitive(PrimitiveType::F128),
-                    StrongKeyword::Bool   => LiteralOp::Primitive(PrimitiveType::Bool),
-                    StrongKeyword::B8     => LiteralOp::Primitive(PrimitiveType::B8),
-                    StrongKeyword::B16    => LiteralOp::Primitive(PrimitiveType::B16),
-                    StrongKeyword::B32    => LiteralOp::Primitive(PrimitiveType::B32),
-                    StrongKeyword::B64    => LiteralOp::Primitive(PrimitiveType::B64),
-                    StrongKeyword::Char   => LiteralOp::Primitive(PrimitiveType::Char),
-                    StrongKeyword::Char7  => LiteralOp::Primitive(PrimitiveType::Char7),
-                    StrongKeyword::Char8  => LiteralOp::Primitive(PrimitiveType::Char8),
-                    StrongKeyword::Char16 => LiteralOp::Primitive(PrimitiveType::Char16),
-                    StrongKeyword::Char32 => LiteralOp::Primitive(PrimitiveType::Char32),
-                    StrongKeyword::Str    => LiteralOp::StringSlice(StringSliceType::Str),
-                    StrongKeyword::Str7   => LiteralOp::StringSlice(StringSliceType::Str7),
-                    StrongKeyword::Str8   => LiteralOp::StringSlice(StringSliceType::Str8),
-                    StrongKeyword::Str16  => LiteralOp::StringSlice(StringSliceType::Str16),
-                    StrongKeyword::Str32  => LiteralOp::StringSlice(StringSliceType::Str32),
-                    StrongKeyword::CStr   => LiteralOp::StringSlice(StringSliceType::CStr),
+                    StrongKeyword::U8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U8 }),
+                    StrongKeyword::U16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U16 }),
+                    StrongKeyword::U32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U32 }),
+                    StrongKeyword::U64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U64 }),
+                    StrongKeyword::U128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U128 }),
+                    StrongKeyword::I8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I8 }),
+                    StrongKeyword::I16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I16 }),
+                    StrongKeyword::I32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I32 }),
+                    StrongKeyword::I64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I64 }),
+                    StrongKeyword::I128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I128 }),
+                    StrongKeyword::F16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F16 }),
+                    StrongKeyword::F32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F32 }),
+                    StrongKeyword::F64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F64 }),
+                    StrongKeyword::F128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F128 }),
+                    StrongKeyword::Bool   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Bool }),
+                    StrongKeyword::B8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B8 }),
+                    StrongKeyword::B16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B16 }),
+                    StrongKeyword::B32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B32 }),
+                    StrongKeyword::B64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B64 }),
+                    StrongKeyword::Char   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char }),
+                    StrongKeyword::Char7  => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char7 }),
+                    StrongKeyword::Char8  => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char8 }),
+                    StrongKeyword::Char16 => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char16 }),
+                    StrongKeyword::Char32 => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char32 }),
+                    StrongKeyword::Str    => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str }),
+                    StrongKeyword::Str7   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str7 }),
+                    StrongKeyword::Str8   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str8 }),
+                    StrongKeyword::Str16  => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str16 }),
+                    StrongKeyword::Str32  => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str32 }),
+                    StrongKeyword::CStr   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::CStr }),
                     _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason:  "literal operator" })),
                 }
                 _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "literal operator" })),
@@ -2337,48 +2566,64 @@ impl Parser<'_> {
     }
 
     fn parse_path_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
             let iden = self.parse_identifier(true)?;
-            Ok(Expr::Path(self.add_node(PathExpr::Inferred { iden })))
+            let span = self.get_span_to_current(begin);
+            Ok(Expr::Path(self.add_node(PathExpr::Inferred { span, iden })))
         } else {
             let iden = self.parse_identifier(true)?;
-            Ok(Expr::Path(self.add_node(PathExpr::Named { iden })))
+            let span = self.get_span_to_current(begin);
+            Ok(Expr::Path(self.add_node(PathExpr::Named { span, iden })))
         }
     }
 
     fn parse_qualified_path_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let path = self.parse_qualified_path()?;
-        Ok(Expr::Path(self.add_node(PathExpr::Qualified { path })))
+        let span = self.get_span_to_current(begin);
+        Ok(Expr::Path(self.add_node(PathExpr::Qualified { span, path })))
     }
 
-    fn parse_block_expr(&mut self, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
+    fn parse_block_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
         let block = self.parse_block()?;
+        let span = self.get_span_to_current(begin);
         Ok(self.add_node(BlockExpr {
+            span,
             kind: if let Some(label) = label { BlockExprKind::Labeled { label } } else { BlockExprKind::Normal },
             block
         }))
     }
 
     fn parse_unsafe_block_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Unsafe)?;
 
         let block = self.parse_block()?;
+
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr{
+            span,
             kind: BlockExprKind::Unsafe,
             block,
         })))
     }
 
     fn parse_const_block_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Const)?;
         let block = self.parse_block()?;
+
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr{
+            span,
             kind: BlockExprKind::Const,
             block,
         })))
     }
 
     fn parse_try_block_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let kind = if self.try_consume(Token::StrongKw(StrongKeyword::TryExclaim)) {
             BlockExprKind::TryUnwrap
         } else {
@@ -2386,55 +2631,73 @@ impl Parser<'_> {
             BlockExprKind::Try
         };
         let block = self.parse_block()?;
+
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr {
+            span,
             kind,
             block,
         })))
     }
 
     fn parse_prefix_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let op = self.consume_any_punct()?;
         let expr = self.parse_expr(ExprParseMode::Prefix)?;
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Prefix(self.add_node(PrefixExpr {
+            span,
             op,
             expr,
         })))
     }
 
     fn parse_paren_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let mut exprs = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, |parser| parser.parse_expr(ExprParseMode::AllowComma))?;
+        let span = self.get_span_to_current(begin);
         if exprs.len() == 1 {
             Ok(Expr::Paren(self.add_node(ParenExpr {
+                span,
                 expr: exprs.pop().unwrap(),
             })))
         } else {
             Ok(Expr::Tuple(self.add_node(TupleExpr {
+                span,
                 exprs,
             })))
         }
     }
 
     fn parse_inplace_expr(&mut self, left: Expr) -> Result<Expr, ParserErr> {
+        let begin = left.span(&self.ast);
         self.consume_punct(Punctuation::SingleArrowL)?;
         let right = self.parse_expr(ExprParseMode::AllowComma)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Inplace(self.add_node(InplaceExpr {
+            span,
             left,
             right,
         })))
     }
 
     fn parse_type_cast(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = expr.span(&self.ast);
         if self.try_consume(Token::StrongKw(StrongKeyword::AsQuestion)) {
             let ty = self.parse_type()?;
+            let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                span,
                 kind: TypeCastKind::Try,
                 expr,
                 ty,
             })))
         } else if self.try_consume(Token::StrongKw(StrongKeyword::AsExclaim)) {
             let ty = self.parse_type()?;
+            let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                span,
                 kind: TypeCastKind::Unwrap,
                 expr,
                 ty,
@@ -2442,7 +2705,9 @@ impl Parser<'_> {
         } else {
             self.consume_strong_kw(StrongKeyword::As)?;
             let ty = self.parse_type()?;
+            let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
+                span,
                 kind: TypeCastKind::Normal,
                 expr,
                 ty,
@@ -2451,6 +2716,7 @@ impl Parser<'_> {
     }
 
     fn parse_type_check(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = expr.span(&self.ast);
         let negate = if self.try_consume(Token::StrongKw(StrongKeyword::ExclaimIs)) {
             true
         } else {
@@ -2458,7 +2724,9 @@ impl Parser<'_> {
             false
         };
         let ty = self.parse_type()?;
+        let span = self.get_span_to_current(begin);
         Ok(Expr::TypeCheck(self.add_node(TypeCheckExpr {
+            span,
             negate,
             expr,
             ty,
@@ -2466,13 +2734,17 @@ impl Parser<'_> {
     }
 
     fn parse_array_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let exprs = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, |parser| parser.parse_expr(ExprParseMode::General))?;
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Array(self.add_node(ArrayExpr {
+            span,
             exprs,
         })))
     }
 
     fn parse_struct_expr(&mut self, path: Expr, allow: bool) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         if !allow {
             let peek_1 = self.peek_at(1)?;
             let peek_2 = self.peek_at(2)?;
@@ -2489,39 +2761,48 @@ impl Parser<'_> {
             return Err(self.gen_error(ParseErrorCode::ExprNotSupported { expr: "Struct Expression", loc: "for loop's source value" }));
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Struct(self.add_node(StructExpr {
+            span,
             path,
             args,
         })))
     }
 
     fn parse_struct_arg(&mut self) -> Result<StructArg, ParserErr> {
+        let begin = self.get_cur_span();
         let peek = self.peek()?;
         match peek {
             Token::Name(_) => if self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) {
                 let name = self.consume_name()?;
                 self.consume_punct(Punctuation::Colon);
                 let expr = self.parse_expr(ExprParseMode::General)?;
-                Ok(StructArg::Expr(name, expr))
+                let span = self.get_span_to_current(begin);
+                Ok(StructArg::Expr{ span ,name, expr })
             } else {
                 let name = self.consume_name()?;
-                Ok(StructArg::Name(name))
+                let span = self.get_span_to_current(begin);
+                Ok(StructArg::Name{ span, name })
             },
             Token::Punctuation(Punctuation::DotDot) => {
                 self.consume_single();
                 let expr = self.parse_expr(ExprParseMode::General)?;
-                Ok(StructArg::Complete(expr))
+                let span = self.get_span_to_current(begin);
+                Ok(StructArg::Complete{ span, expr })
             },
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "struct argument" }))
         }
     }
 
     fn parse_index_expr(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = expr.span(&self.ast);
         self.begin_scope(OpenCloseSymbol::Bracket)?;
         let is_opt = self.try_consume(Token::Punctuation(Punctuation::Question));
         let index = self.parse_expr(ExprParseMode::AllowComma)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Index(self.add_node(IndexExpr {
+            span,
             is_opt,
             expr,
             index,
@@ -2529,35 +2810,48 @@ impl Parser<'_> {
     }
 
     fn parse_tuple_index(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = expr.span(&self.ast);
         self.consume_punct(Punctuation::Dot);
         let index = self.consume_lit()?;
+        
+        let span = self.get_span_to_current(begin);
         Ok(Expr::TupleIndex(self.add_node(TupleIndexExpr {
+            span,
             expr,
             index,
         })))
     }
 
     fn parse_call_expression(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = expr.span(&self.ast);
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
+        
+        let span = self.get_span_to_current(begin);
         Ok(Expr::FnCall(self.add_node(FnCallExpr{
+            span,
             expr,
             args
         })))
     }
 
     fn parse_func_arg(&mut self) -> Result<FnArg, ParserErr> {
+        let begin = self.get_cur_span();
+
         if matches!(self.peek()?, Token::Name(_)) && self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) {
             let label = self.consume_name()?;
             self.consume_punct(Punctuation::Colon);
             let expr = self.parse_expr(ExprParseMode::General)?;
-            Ok(FnArg::Labeled { label, expr })
+            let span = self.get_span_to_current(begin);
+            Ok(FnArg::Labeled { span, label, expr })
         } else {
             let expr = self.parse_expr(ExprParseMode::General)?;
-            Ok(FnArg::Expr(expr))
+            let span = self.get_span_to_current(begin);
+            Ok(FnArg::Expr{ span, expr })
         }
     }
 
     fn parse_field_access_or_method_expr(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let is_propagating = if self.try_consume(Token::Punctuation(Punctuation::QuestionDot)) {
             true
         } else {
@@ -2570,7 +2864,9 @@ impl Parser<'_> {
         let gen_args = self.parse_generic_args(true)?;
         if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
             let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
+            let span = self.get_span_to_current(begin);
             Ok(Expr::Method(self.add_node(MethodCallExpr {
+                span,
                 receiver: expr,
                 method: field,
                 gen_args,
@@ -2578,7 +2874,9 @@ impl Parser<'_> {
                 is_propagating,
             })))
         } else {
+            let span = self.get_span_to_current(begin);
             Ok(Expr::FieldAccess(self.add_node(FieldAccessExpr {
+                span,
                 expr,
                 gen_args,
                 field,
@@ -2588,9 +2886,10 @@ impl Parser<'_> {
     }
 
     fn parse_closure_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         let is_moved = self.try_consume(Token::StrongKw(StrongKeyword::Move));
         self.consume_punct(Punctuation::Or)?;
-        let params = self.parse_comma_separated_end(Punctuation::Comma, Token::Punctuation(Punctuation::Or), Self::parse_function_param)?;
+        let params = self.parse_punct_separated_end(Punctuation::Comma, Token::Punctuation(Punctuation::Or), Self::parse_function_param)?;
         self.consume_punct(Punctuation::Or)?;
 
         let ret = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
@@ -2601,7 +2900,9 @@ impl Parser<'_> {
 
         let body = self.parse_expr(ExprParseMode::General)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Closure(self.add_node(ClosureExpr {
+            span,
             is_moved,
             params,
             ret,
@@ -2610,24 +2911,27 @@ impl Parser<'_> {
     }
 
     fn parse_if_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::If)?;
         let cond = self.parse_expr(ExprParseMode::AllowLet)?;
         
         self.push_meta_frame();
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
 
         let else_body = if self.try_consume(Token::StrongKw(StrongKeyword::Else)) {
             if self.peek()? == Token::StrongKw(StrongKeyword::If) {
                 Some(self.parse_if_expr()?)
             } else {
                 self.push_meta_frame();
-                Some(Expr::Block(self.parse_block_expr(None)?))
+                Some(Expr::Block(self.parse_block_expr(self.get_cur_span(), None)?))
             }
         } else {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::If(self.add_node(IfExpr {
+            span,
             cond,
             body,
             else_body,
@@ -2635,12 +2939,16 @@ impl Parser<'_> {
     }
 
     fn parse_let_binding_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Let)?;
         self.push_meta_frame();
         let pattern = self.parse_pattern_no_top_alternative()?;
         self.consume_punct(Punctuation::Equals)?;
         let scrutinee = self.parse_expr(ExprParseMode::Scrutinee)?;
+
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Let(self.add_node(LetBindingExpr {
+            span,
             pattern,
             scrutinee,
         })))
@@ -2653,16 +2961,18 @@ impl Parser<'_> {
         Ok(label)
     }
 
-    fn parse_loop_expr(&mut self, label: Option<NameId>) -> Result<Expr, ParserErr> {
+    fn parse_loop_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Loop)?;
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Loop(self.add_node(LoopExpr {
+            span,
             label,
             body,
         })))
     }
 
-    fn parse_while_expr(&mut self, label: Option<NameId>) -> Result<Expr, ParserErr> {
+    fn parse_while_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::While)?;
         let cond = self.parse_expr(ExprParseMode::AllowLet)?;
         let inc = if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
@@ -2672,16 +2982,18 @@ impl Parser<'_> {
         };
         
         self.push_meta_frame();
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
         let else_body = if self.try_consume(Token::StrongKw(StrongKeyword::Else)) {
             self.push_meta_frame();
-            let else_body = self.parse_block_expr(None)?;
+            let else_body = self.parse_block_expr(self.get_cur_span(), None)?;
             Some(else_body)
         } else {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::While(self.add_node(WhileExpr {
+            span,
             label,
             cond,
             inc,
@@ -2690,34 +3002,39 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_do_while_expr(&mut self, label: Option<NameId>) -> Result<Expr, ParserErr> {
+    fn parse_do_while_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Do)?;
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
         self.consume_strong_kw(StrongKeyword::While)?;
         let cond = self.parse_expr(ExprParseMode::General)?;
+        
+        let span = self.get_span_to_current(begin);
         Ok(Expr::DoWhile(self.add_node(DoWhileExpr {
+            span,
             label,
             body,
             cond,
         })))
     }
 
-    fn parse_for_expr(&mut self, label: Option<NameId>) -> Result<Expr, ParserErr> {
+    fn parse_for_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::For)?;
         let pattern = self.parse_pattern()?;
         self.consume_strong_kw(StrongKeyword::In)?;
         let src = self.parse_expr(ExprParseMode::NoStructLit)?;
         
         self.push_meta_frame();
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
         let else_body = if self.try_consume(Token::StrongKw(StrongKeyword::Else)) {
             self.push_meta_frame();
-            Some(self.parse_block_expr(None)?)
+            Some(self.parse_block_expr(self.get_cur_span(), None)?)
         } else {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::For(self.add_node(ForExpr {
+            span,
             label,
             pattern,
             src,
@@ -2726,7 +3043,7 @@ impl Parser<'_> {
         })))
     }
 
-    fn parse_match_expr(&mut self, label: Option<NameId>) -> Result<Expr, ParserErr> {
+    fn parse_match_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<Expr, ParserErr> {
         self.consume_strong_kw(StrongKeyword::Match)?;
         let scrutinee = self.parse_expr(ExprParseMode::NoStructLit)?;
 
@@ -2747,7 +3064,9 @@ impl Parser<'_> {
             }
         }
         
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Match(self.add_node(MatchExpr {
+            span,
             label,
             scrutinee,
             branches,
@@ -2755,6 +3074,7 @@ impl Parser<'_> {
     }
 
     fn parse_match_branch(&mut self) -> Result<MatchBranch, ParserErr> {
+        let begin = self.get_cur_span();
         let label = if self.peek()? == Token::Punctuation(Punctuation::Colon) {
             Some(self.parse_label()?)
         } else {
@@ -2769,7 +3089,9 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::DoubleArrow)?;
         let body = self.parse_expr(ExprParseMode::General)?;
 
+        let span = self.get_span_to_current(begin);
         Ok(MatchBranch {
+            span,
             label,
             pattern,
             guard,
@@ -2778,6 +3100,7 @@ impl Parser<'_> {
     }
     
     fn parse_break_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Break);
         let label = if self.peek()? == Token::Punctuation(Punctuation::Colon) {
             Some(self.parse_label()?)
@@ -2790,13 +3113,16 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Break(self.add_node(BreakExpr {
+            span,
             label,
             value,
         })))
     }
     
     fn parse_continue_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Continue);
         let label = if self.peek()? == Token::Punctuation(Punctuation::Colon) {
             Some(self.parse_label()?)
@@ -2804,12 +3130,15 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Continue(self.add_node(ContinueExpr {
+            span,
             label,
         })))
     }
     
     fn parse_fallthrough_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Fallthrough);
         let label = if self.peek()? == Token::Punctuation(Punctuation::Colon) {
             Some(self.parse_label()?)
@@ -2817,12 +3146,15 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Fallthrough(self.add_node(FallthroughExpr {
+            span,
             label,
         })))
     }
     
     fn parse_return_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Return);
         let value = if self.peek()? != Token::Punctuation(Punctuation::Semicolon) {
             Some(self.parse_expr(ExprParseMode::AllowComma)?)
@@ -2830,20 +3162,27 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Return(self.add_node(ReturnExpr {
+            span,
             value,
         })))
     }
 
     fn parse_throw_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Throw)?;
         let expr = self.parse_expr(ExprParseMode::General)?;
+        
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Throw(self.add_node(ThrowExpr {
+            span,
             expr,
         })))
     }
 
     fn parse_comma_expr(&mut self, first: Expr) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Comma);
 
         let mut exprs = vec![first];
@@ -2854,30 +3193,35 @@ impl Parser<'_> {
             }
         }
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::Comma(self.add_node(CommaExpr {
+            span,
             exprs,
         })))
     }
 
     fn parse_when_expr(&mut self) -> Result<Expr, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::When)?;
         let cond = self.parse_expr(ExprParseMode::NoStructLit)?;
 
         self.push_meta_frame();
-        let body = self.parse_block_expr(None)?;
+        let body = self.parse_block_expr(self.get_cur_span(), None)?;
 
         let else_body = if self.try_consume(Token::StrongKw(StrongKeyword::Else)) {
             if self.peek()? == Token::StrongKw(StrongKeyword::If) {
                 Some(self.parse_if_expr()?)
             } else {  
                 self.push_meta_frame();
-                Some(Expr::Block(self.parse_block_expr(None)?))
+                Some(Expr::Block(self.parse_block_expr(self.get_cur_span(), None)?))
             }
         } else {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Expr::When(self.add_node(WhenExpr {
+            span,
             cond,
             body,
             else_body,
@@ -2887,13 +3231,16 @@ impl Parser<'_> {
 // =============================================================================================================================
 
     fn parse_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.push_meta_frame();
         
         let mut patterns = self.parse_punct_separated(Punctuation::Or, Self::parse_pattern_no_top_alternative)?;
         if patterns.len() == 1 {
             Ok(patterns.pop().unwrap())
         } else {
+            let span = self.get_span_to_current(begin);
             Ok(Pattern::Alternative(self.add_node(AlternativePattern {
+                span,
                 patterns
             })))
         }
@@ -2934,8 +3281,12 @@ impl Parser<'_> {
     }
 
     fn parse_literal_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         let lit = self.parse_literal_expr_node()?;
+        
+        let span = self.get_span_to_current(begin);
         Ok(Pattern::Literal(self.add_node(LiteralPattern {
+            span,
             literal: lit.literal,
             lit_op: lit.lit_op,
         })))
@@ -2952,6 +3303,7 @@ impl Parser<'_> {
     }
 
     fn parse_identifier_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         let is_ref = self.try_consume(Token::StrongKw(StrongKeyword::Ref));
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
 
@@ -2963,7 +3315,9 @@ impl Parser<'_> {
             None
         };
 
+        let span = self.get_span_to_current(begin);
         Ok(Pattern::Identifier(self.add_node(IdentifierPattern {
+            span,
             is_ref,
             is_mut,
             name,
@@ -2972,24 +3326,30 @@ impl Parser<'_> {
     }
 
     fn parse_dotdot_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::DotDot)?;
         if self.pattern_available() {
             self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
-            Ok(Pattern::Range(self.add_node(RangePattern::To { end })))
+            let span = self.get_span_to_current(begin);
+            Ok(Pattern::Range(self.add_node(RangePattern::To { span, end })))
         } else {
             Ok(Pattern::Rest)
         }
     }
 
     fn parse_inclusive_to_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::DotDotEquals)?;
         self.push_meta_frame();
         let end = self.parse_pattern_no_top_alternative()?;
-        Ok(Pattern::Range(self.add_node(RangePattern::InclusiveTo { end })))
+        
+        let span = self.get_span_to_current(begin);
+        Ok(Pattern::Range(self.add_node(RangePattern::InclusiveTo { span, end })))
     }
 
     fn parse_path_like_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         let peek = self.peek()?;
         let peek_1 = self.peek_at(1)?;
         if peek_1 != Token::Punctuation(Punctuation::Dot) &&
@@ -3005,7 +3365,9 @@ impl Parser<'_> {
                 None
             };
 
+            let span = self.get_span_to_current(begin);
             return Ok(Pattern::Identifier(self.add_node(IdentifierPattern {
+                span,
                 is_ref: false,
                 is_mut: false,
                 name,
@@ -3018,42 +3380,49 @@ impl Parser<'_> {
             match sym {
                 OpenCloseSymbol::Paren => {
                     let patterns = self.parse_comma_separated_closed(sym, Self::parse_pattern)?;
-                    Ok(Pattern::Tuple(self.add_node(TuplePattern { patterns })))
+                    let span = self.get_span_to_current(begin);
+                    Ok(Pattern::Tuple(self.add_node(TuplePattern { span, patterns })))
                 },
                 OpenCloseSymbol::Brace => {
                     let fields = self.parse_comma_separated_closed(sym, Self::parse_struct_pattern_field)?;
-                    Ok(Pattern::Struct(self.add_node(StructPattern::Path{ path, fields })))
+                    let span = self.get_span_to_current(begin);
+                    Ok(Pattern::Struct(self.add_node(StructPattern::Path{ span, path, fields })))
                 },
                 _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
             }
 
         } else {
-            Ok(Pattern::Path(self.add_node(PathPattern{ path })))
+            let span = self.get_span_to_current(begin);
+            Ok(Pattern::Path(self.add_node(PathPattern{ span, path })))
         }
     }
 
     fn parse_struct_pattern_field(&mut self) -> Result<StructPatternField, ParserErr> {
+        let begin = self.get_cur_span();
         let peek = self.peek()?;
         match peek {
             Token::Name(name) => {
                 self.consume_single();
                 if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
                     let pattern = self.parse_pattern()?;
-                    Ok(StructPatternField::Named { name, pattern })
+                    let span = self.get_span_to_current(begin);
+                    Ok(StructPatternField::Named { span, name, pattern })
                 } else {
                     let bound = if self.try_consume(Token::Punctuation(Punctuation::At)) {
                         Some(self.parse_pattern()?)
                     } else {
                         None
                     };
-                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden: name, bound })
+                    let span = self.get_span_to_current(begin);
+                    Ok(StructPatternField::Iden { span, is_ref: false, is_mut: false, iden: name, bound })
                 }
             },
             Token::Literal(lit_id) => {
                 self.consume_single();
                 self.consume_punct(Punctuation::Colon)?;
                 let pattern = self.parse_pattern()?;
-                Ok(StructPatternField::TupleIndex { idx: lit_id, pattern })
+                let span = self.get_span_to_current(begin);
+                Ok(StructPatternField::TupleIndex { span, idx: lit_id, pattern })
             },
             Token::StrongKw(StrongKeyword::Mut) => {
                 self.consume_single();
@@ -3063,7 +3432,8 @@ impl Parser<'_> {
                 } else {
                     None
                 };
-                Ok(StructPatternField::Iden { is_ref: false, is_mut: true, iden, bound })
+                let span = self.get_span_to_current(begin);
+                Ok(StructPatternField::Iden { span, is_ref: false, is_mut: true, iden, bound })
             },
             Token::Punctuation(Punctuation::Ampersand) => {
                 self.consume_single();
@@ -3074,7 +3444,8 @@ impl Parser<'_> {
                 } else {
                     None
                 };
-                Ok(StructPatternField::Iden { is_ref: true, is_mut, iden, bound })
+                let span = self.get_span_to_current(begin);
+                Ok(StructPatternField::Iden { span, is_ref: true, is_mut, iden, bound })
             },
             Token::Punctuation(Punctuation::DotDot) => {
                 self.consume_single();
@@ -3085,20 +3456,26 @@ impl Parser<'_> {
     }
 
     fn parse_inferred_struct_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Dot)?;
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_pattern_field)?;
-        Ok(Pattern::Struct(self.add_node(StructPattern::Inferred { fields })))
+        let span = self.get_span_to_current(begin);
+        Ok(Pattern::Struct(self.add_node(StructPattern::Inferred { span, fields })))
     }
 
     fn parse_enum_member_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Dot)?;
         let name = self.consume_name()?;
+        let span = self.get_span_to_current(begin);
         Ok(Pattern::EnumMember(self.add_node(EnumMemberPattern {
+            span,
             name,
         })))
     }
 
     fn parse_struct_pattern_elem(&mut self) -> Result<StructPatternField, ParserErr> {
+        let begin = self.get_cur_span();
         if self.try_consume(Token::Punctuation(Punctuation::DotDot)) {
             return Ok(StructPatternField::Rest);
         }
@@ -3113,14 +3490,16 @@ impl Parser<'_> {
                 } else {
                     None
                 };
-                Ok(StructPatternField::Iden { is_ref, is_mut, iden, bound })
+                let span = self.get_span_to_current(begin);
+                Ok(StructPatternField::Iden { span, is_ref, is_mut, iden, bound })
             }
             Token::Literal(lit_id) => {
                 self.consume_single();
                 self.consume_punct(Punctuation::Colon)?;
                 let pattern = self.parse_pattern()?;
 
-                Ok(StructPatternField::TupleIndex { idx: lit_id, pattern })
+                let span = self.get_span_to_current(begin);
+                Ok(StructPatternField::TupleIndex { span, idx: lit_id, pattern })
             },
             Token::Name(iden) => {
                 self.consume_single();
@@ -3130,10 +3509,12 @@ impl Parser<'_> {
                     } else {
                         None
                     };
-                    Ok(StructPatternField::Iden { is_ref: false, is_mut: false, iden, bound })
+                    let span = self.get_span_to_current(begin);
+                    Ok(StructPatternField::Iden { span, is_ref: false, is_mut: false, iden, bound })
                 } else {
                     let pattern = self.parse_pattern()?;
-                    Ok(StructPatternField::Named { name: iden, pattern })
+                    let span = self.get_span_to_current(begin);
+                    Ok(StructPatternField::Named { span, name: iden, pattern })
                 }
             }
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: self.peek()?, for_reason: "struct pattern element" }))
@@ -3141,55 +3522,73 @@ impl Parser<'_> {
     }
 
     fn parse_reference_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Ampersand)?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let pattern = self.parse_pattern()?;
 
+        let span = self.get_span_to_current(begin);
         Ok(Pattern::Reference(self.add_node(ReferencePattern {
+            span,
             is_mut,
             pattern,
         } )))
     }
 
     fn parse_tuple_like_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         let mut patterns = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_pattern)?;
         if patterns.len() == 1 {
+            let span = self.get_span_to_current(begin);
             Ok(Pattern::Grouped(self.add_node(GroupedPattern {
+                span,
                 pattern: patterns.pop().unwrap()
             })))
         } else {
+            let span = self.get_span_to_current(begin);
             Ok(Pattern::Tuple(self.add_node(TuplePattern{
+                span,
                 patterns
             })))
         }
     }
 
     fn parse_slice_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         let patterns = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_pattern)?;
-        Ok(Pattern::Slice(self.add_node(SlicePattern {patterns })))
+        let span = self.get_span_to_current(begin);
+        Ok(Pattern::Slice(self.add_node(SlicePattern { span, patterns })))
     }
 
     fn parse_type_check_pattern(&mut self) -> Result<Pattern, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Is)?;
         let ty = self.parse_type()?;
-        Ok(Pattern::TypeCheck(self.add_node(TypeCheckPattern { ty })))
+        let span = self.get_span_to_current(begin);
+        Ok(Pattern::TypeCheck(self.add_node(TypeCheckPattern { span, ty })))
     }
 
     fn parse_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
+        let begin_span = begin.span(&self.ast);
+
         self.consume_punct(Punctuation::DotDot)?;
         if self.pattern_available() {
             self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
-            Ok(Pattern::Range(self.add_node(RangePattern::Exclusive { begin, end })))
+            let span = self.get_span_to_current(begin_span);
+            Ok(Pattern::Range(self.add_node(RangePattern::Exclusive { span, begin, end })))
         } else {
-            Ok(Pattern::Range(self.add_node(RangePattern::From { begin })))
+            let span = self.get_span_to_current(begin_span);
+            Ok(Pattern::Range(self.add_node(RangePattern::From { span, begin })))
         }
     }
     
     fn parse_inclusive_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
+        let begin_span = begin.span(&self.ast);
         self.consume_punct(Punctuation::DotDotEquals)?;
         let end = self.parse_pattern()?;
-        Ok(Pattern::Range(self.add_node(RangePattern::Inclusive { begin, end })))
+        let span = self.get_span_to_current(begin_span);
+        Ok(Pattern::Range(self.add_node(RangePattern::Inclusive { span, begin, end })))
     }
 
 // =============================================================================================================================
@@ -3207,6 +3606,7 @@ impl Parser<'_> {
         self.push_meta_frame();
         
         let peek = self.peek()?;
+        let span = self.get_cur_span();
         match peek {
             Token::OpenSymbol(OpenCloseSymbol::Paren) => self.parse_tuple_like_type(),
             Token::Punctuation(Punctuation::Exclaim) => {
@@ -3222,60 +3622,64 @@ impl Parser<'_> {
                 StrongKeyword::Fn)                      => self.parse_fn_type(),
             Token::StrongKw(StrongKeyword::Enum)        => self.parse_enum_record_type(),
             Token::OpenSymbol(OpenCloseSymbol::Brace)   => self.parse_record_type(),
-            Token::StrongKw(kw)                         => self.parse_type_from_strong_kw(kw),
+            Token::StrongKw(kw)                         => self.parse_type_from_strong_kw(span, kw),
             _                                           => self.parse_path_type(),
         }
     }
 
     fn parse_tuple_like_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         let mut types = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_type)?;
+        let span = self.get_span_to_current(begin);
         if types.is_empty() {
             Ok(Type::Unit)
         } else if types.len() == 1 {
             Ok(Type::Paren(self.add_node(ParenthesizedType {
+                span,
                 ty: types.pop().unwrap(),
             })))
         } else {
             Ok(Type::Tuple(self.add_node(TupleType {
+                span,
                 types,
             })))
         }
     }
 
-    fn parse_type_from_strong_kw(&mut self, kw: StrongKeyword) -> Result<Type, ParserErr> {
+    fn parse_type_from_strong_kw(&mut self, span: SpanId, kw: StrongKeyword) -> Result<Type, ParserErr> {
         let ty = match kw {
-            StrongKeyword::U8     => Type::Primitive(self.add_node(PrimitiveType::U8)),
-            StrongKeyword::U16    => Type::Primitive(self.add_node(PrimitiveType::U16)),
-            StrongKeyword::U32    => Type::Primitive(self.add_node(PrimitiveType::U32)),
-            StrongKeyword::U64    => Type::Primitive(self.add_node(PrimitiveType::U64)),
-            StrongKeyword::U128   => Type::Primitive(self.add_node(PrimitiveType::U128)),
-            StrongKeyword::Usize  => Type::Primitive(self.add_node(PrimitiveType::Usize)),
-            StrongKeyword::I8     => Type::Primitive(self.add_node(PrimitiveType::I8)),
-            StrongKeyword::I16    => Type::Primitive(self.add_node(PrimitiveType::I16)),
-            StrongKeyword::I32    => Type::Primitive(self.add_node(PrimitiveType::I32)),
-            StrongKeyword::I64    => Type::Primitive(self.add_node(PrimitiveType::I64)),
-            StrongKeyword::I128   => Type::Primitive(self.add_node(PrimitiveType::I128)),
-            StrongKeyword::Isize  => Type::Primitive(self.add_node(PrimitiveType::Isize)),
-            StrongKeyword::F16    => Type::Primitive(self.add_node(PrimitiveType::F16)),
-            StrongKeyword::F32    => Type::Primitive(self.add_node(PrimitiveType::F32)),
-            StrongKeyword::F64    => Type::Primitive(self.add_node(PrimitiveType::F64)),
-            StrongKeyword::F128   => Type::Primitive(self.add_node(PrimitiveType::F128)),
-            StrongKeyword::Bool   => Type::Primitive(self.add_node(PrimitiveType::Bool)),
-            StrongKeyword::B8     => Type::Primitive(self.add_node(PrimitiveType::B8)),
-            StrongKeyword::B16    => Type::Primitive(self.add_node(PrimitiveType::B16)),
-            StrongKeyword::B32    => Type::Primitive(self.add_node(PrimitiveType::B32)),
-            StrongKeyword::B64    => Type::Primitive(self.add_node(PrimitiveType::B64)),
-            StrongKeyword::Char   => Type::Primitive(self.add_node(PrimitiveType::Char)),
-            StrongKeyword::Char7  => Type::Primitive(self.add_node(PrimitiveType::Char7)),
-            StrongKeyword::Char8  => Type::Primitive(self.add_node(PrimitiveType::Char8)),
-            StrongKeyword::Char16 => Type::Primitive(self.add_node(PrimitiveType::Char16)),
-            StrongKeyword::Char32 => Type::Primitive(self.add_node(PrimitiveType::Char32)),
-            StrongKeyword::Str    => Type::StringSlice(self.add_node(StringSliceType::Str)),
-            StrongKeyword::Str7   => Type::StringSlice(self.add_node(StringSliceType::Str7)),
-            StrongKeyword::Str8   => Type::StringSlice(self.add_node(StringSliceType::Str8)),
-            StrongKeyword::Str16  => Type::StringSlice(self.add_node(StringSliceType::Str16)),
-            StrongKeyword::Str32  => Type::StringSlice(self.add_node(StringSliceType::Str32)),
-            StrongKeyword::CStr   => Type::StringSlice(self.add_node(StringSliceType::CStr)),
+            StrongKeyword::U8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U8 })),
+            StrongKeyword::U16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U16 })),
+            StrongKeyword::U32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U32 })),
+            StrongKeyword::U64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U64 })),
+            StrongKeyword::U128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U128 })),
+            StrongKeyword::Usize  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Usize })),
+            StrongKeyword::I8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I8 })),
+            StrongKeyword::I16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I16 })),
+            StrongKeyword::I32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I32 })),
+            StrongKeyword::I64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I64 })),
+            StrongKeyword::I128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I128 })),
+            StrongKeyword::Isize  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Isize })),
+            StrongKeyword::F16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F16 })),
+            StrongKeyword::F32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F32 })),
+            StrongKeyword::F64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F64 })),
+            StrongKeyword::F128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F128 })),
+            StrongKeyword::Bool   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Bool })),
+            StrongKeyword::B8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B8 })),
+            StrongKeyword::B16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B16 })),
+            StrongKeyword::B32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B32 })),
+            StrongKeyword::B64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B64 })),
+            StrongKeyword::Char   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char })),
+            StrongKeyword::Char7  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char7 })),
+            StrongKeyword::Char8  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char8 })),
+            StrongKeyword::Char16 => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char16 })),
+            StrongKeyword::Char32 => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char32 })),
+            StrongKeyword::Str    => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str })),
+            StrongKeyword::Str7   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str7 })),
+            StrongKeyword::Str8   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str8 })),
+            StrongKeyword::Str16  => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str16 })),
+            StrongKeyword::Str32  => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str32 })),
+            StrongKeyword::CStr   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::CStr })),
             _ => {
                 let peek = self.peek()?;
                 return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "type" }))
@@ -3288,24 +3692,28 @@ impl Parser<'_> {
 
     fn parse_path_type(&mut self) -> Result<Type, ParserErr> {
         let path = self.parse_type_path()?;
-        Ok(Type::Path(self.add_node(PathType{ path })))
+        let span = self.ast[path].span;
+        Ok(Type::Path(self.add_node(PathType{ span, path })))
     }
 
     fn parse_slice_like_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         self.begin_scope(OpenCloseSymbol::Bracket)?;
         let peek = self.peek()?;
         match peek {
             Token::CloseSymbol(OpenCloseSymbol::Bracket) => {
                 self.end_scope();
                 let ty = self.parse_type_no_bounds()?;
-                Ok(Type::Slice(self.add_node(SliceType { sentinel: None, ty })))
+                let span = self.get_span_to_current(begin);
+                Ok(Type::Slice(self.add_node(SliceType { span, sentinel: None, ty })))
             },
             Token::Punctuation(Punctuation::Semicolon) => {
                 self.consume_single();
                 let sentinel = Some(self.parse_expr(ExprParseMode::General)?);
                 self.end_scope()?;
                 let ty = self.parse_type_no_bounds()?;
-                Ok(Type::Slice(self.add_node(SliceType { sentinel, ty })))
+                let span = self.get_span_to_current(begin);
+                Ok(Type::Slice(self.add_node(SliceType { span, sentinel, ty })))
             }
             Token::Punctuation(Punctuation::Caret) => {
                 self.consume_single();
@@ -3317,7 +3725,8 @@ impl Parser<'_> {
                 self.end_scope()?;
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 let ty = self.parse_type_no_bounds()?;
-                Ok(Type::Pointer(self.add_node(PointerType { is_multi: true, is_mut, sentinel, ty })))
+                let span = self.get_span_to_current(begin);
+                Ok(Type::Pointer(self.add_node(PointerType { span, is_multi: true, is_mut, sentinel, ty })))
             },
             _ => {
                 let size = self.parse_expr(ExprParseMode::General)?;
@@ -3328,32 +3737,40 @@ impl Parser<'_> {
                 };
                 self.end_scope()?;
                 let ty = self.parse_type_no_bounds()?;
-                Ok(Type::Array(self.add_node(ArrayType { size, sentinel, ty })))
+                let span = self.get_span_to_current(begin);
+                Ok(Type::Array(self.add_node(ArrayType { span, size, sentinel, ty })))
             }
         }
     }
 
     fn parse_pointer_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Caret)?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let ty = self.parse_type_no_bounds()?;
-        Ok(Type::Pointer(self.add_node(PointerType { is_multi: false, is_mut, sentinel: None, ty })))
+        let span = self.get_span_to_current(begin);
+        Ok(Type::Pointer(self.add_node(PointerType { span, is_multi: false, is_mut, sentinel: None, ty })))
     }
 
     fn parse_reference_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Ampersand)?;
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let ty = self.parse_type_no_bounds()?;
-        Ok(Type::Ref(self.add_node(ReferenceType { is_mut, ty })))
+        let span = self.get_span_to_current(begin);
+        Ok(Type::Ref(self.add_node(ReferenceType { span, is_mut, ty })))
     }
 
     fn parse_optional_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_punct(Punctuation::Question)?;
         let ty = self.parse_type_no_bounds()?;
-        Ok(Type::Optional(self.add_node(OptionalType { ty })))
+        let span = self.get_span_to_current(begin);
+        Ok(Type::Optional(self.add_node(OptionalType { span, ty })))
     }
 
     fn parse_fn_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         let abi = if self.try_consume(Token::StrongKw(StrongKeyword::Extern)) {
             Some(self.consume_lit()?)
@@ -3371,7 +3788,9 @@ impl Parser<'_> {
         };
 
 
+        let span = self.get_span_to_current(begin);
         Ok(Type::Fn(self.add_node(FnType {
+            span,
             is_unsafe,
             abi,
             params,
@@ -3407,16 +3826,22 @@ impl Parser<'_> {
     }
 
     fn parse_record_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_field)?;
+        let span = self.get_span_to_current(begin);
         Ok(Type::Record(self.add_node(RecordType {
+            span,
             fields
         })))
     }
 
     fn parse_enum_record_type(&mut self) -> Result<Type, ParserErr> {
+        let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Enum);
         let variants = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_enum_variant)?;
+        let span = self.get_span_to_current(begin);
         Ok(Type::EnumRecord(self.add_node(EnumRecordType {
+            span,
             variants
         })))
     }
@@ -3430,6 +3855,7 @@ impl Parser<'_> {
 
     fn parse_generic_args(&mut self, start_with_dot: bool) -> Result<Option<AstNodeRef<GenericArgs>>, ParserErr> {
         // TODO
+
         Ok(None)
     }
 
@@ -3450,30 +3876,37 @@ impl Parser<'_> {
         }
 
         self.push_meta_frame();
+        let begin = self.get_cur_span();
         if self.try_begin_scope(OpenCloseSymbol::Paren) {
             let vis = match self.try_peek().unwrap() {
                 Token::WeakKw(WeakKeyword::Package) => {
                     self.consume_single();
-                    Visibility::Package
+                    self.end_scope()?;
+                    let span = self.get_span_to_current(begin);
+                    Visibility::Package(span)
                 },
                 Token::WeakKw(WeakKeyword::Lib) => {
                     self.consume_single();
-                    Visibility::Lib
+                    self.end_scope()?;
+                    let span = self.get_span_to_current(begin);
+                    Visibility::Lib(span)
                 },
                 Token::WeakKw(WeakKeyword::Super) => {
                     self.consume_single();
-                    Visibility::Super
+                    self.end_scope()?;
+                    let span = self.get_span_to_current(begin);
+                    Visibility::Super(span)
                 },
                 _ => {
                     let path = self.parse_simple_path(true)?;
-                    Visibility::Path(path)
+                    let span = self.get_span_to_current(begin);
+                    Visibility::Path{ span, path }
                 }
             };
 
-            self.end_scope()?;
             Ok(Some(self.add_node(vis)))
         } else {
-            Ok(Some(self.add_node(Visibility::Pub)))
+            Ok(Some(self.add_node(Visibility::Pub(begin))))
         }
     }
 
@@ -3484,6 +3917,7 @@ impl Parser<'_> {
 
         loop {
             self.push_meta_frame();
+            let begin = self.get_cur_span();
             
             let is_mod = if self.try_consume(Token::Punctuation(Punctuation::At)) {
                 false
@@ -3495,7 +3929,9 @@ impl Parser<'_> {
             };
 
             let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_attrib_meta)?;
+            let span = self.get_span_to_current(begin);
             let attr = self.add_node(Attribute {
+                span,
                 is_mod,
                 metas,
             });
@@ -3505,21 +3941,26 @@ impl Parser<'_> {
     }
 
     fn parse_attrib_meta(&mut self) -> Result<AttribMeta, ParserErr> {
+        let begin = self.get_cur_span();
         if matches!(self.peek()?, Token::Name(_)) {
             let path = self.parse_simple_path(false)?;
             if self.peek()? == Token::Punctuation(Punctuation::Equals) {
                 self.consume_punct(Punctuation::Equals)?;
                 let expr = self.parse_expr(ExprParseMode::General)?;
-                Ok(AttribMeta::Assign { path, expr })
+                let span = self.get_span_to_current(begin);
+                Ok(AttribMeta::Assign { span, path, expr })
             } else if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
                 let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_attrib_meta)?;
-                Ok(AttribMeta::Meta { path, metas })
+                let span = self.get_span_to_current(begin);
+                Ok(AttribMeta::Meta { span, path, metas })
             } else {
-                Ok(AttribMeta::Simple { path })
+                let span = self.get_span_to_current(begin);
+                Ok(AttribMeta::Simple { span, path })
             }
         } else {
             let expr = self.parse_expr(ExprParseMode::General)?;
-            Ok(AttribMeta::Expr { expr })
+            let span = self.get_span_to_current(begin);
+            Ok(AttribMeta::Expr { span, expr })
         }
     }
 
@@ -3531,7 +3972,7 @@ impl Parser<'_> {
 
 // =============================================================================================================================
 
-    /// Parse comma separated values ending with with a CloseSymbol
+    /// Parse comma separated values ending with with a CloseSymbol, returning the nodes between them and the span id of the closing symbol
     fn parse_comma_separated_closed<T, F>(&mut self, open_close: OpenCloseSymbol, mut parse_single: F) -> Result<Vec<T>, ParserErr> where
         F: FnMut(&mut Self) -> Result<T, ParserErr>
     {
@@ -3560,7 +4001,7 @@ impl Parser<'_> {
         Ok(values)
     }
 
-    fn parse_comma_separated_end<T, F>(&mut self, separator: Punctuation, end: Token, mut parse_single: F) -> Result<Vec<T>, ParserErr> where
+    fn parse_punct_separated_end<T, F>(&mut self, separator: Punctuation, end: Token, mut parse_single: F) -> Result<Vec<T>, ParserErr> where
         F: FnMut(&mut Self) -> Result<T, ParserErr>
     {
         let mut values = Vec::new();

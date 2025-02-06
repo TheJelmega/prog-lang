@@ -47,10 +47,10 @@ impl Visitor for ModuleAttributeResolver<'_> {
                             err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have expression-only attributes") },
                         })
                     },
-                    AttribMeta::Assign { path, expr } => {
+                    AttribMeta::Assign { span, path, expr } => {
                         let path = &ast[*path];
                         
-                        if path.names.len() == 1 || path.names[0] == self.path_name_id {
+                        if path.names.len() == 1 || path.names[0].0 == self.path_name_id {
                             let Expr::Literal(lit_node_id) = expr else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),

@@ -148,19 +148,23 @@ fn main() {
 
         let parse_start = time::Instant::now();
 
-        let mut parser = Parser::new(&tokens, &name_table);
-        match parser.parse() {
-            Ok(_) => {},
-            Err(err) => {
-                let tok_meta = &tokens.metadata[err.tok_idx];
-                let spans = span_registry.read();
-                println!("{}({}): {err}", input_file, FormatSpanLoc{ registry: &spans, span: tok_meta.span_id });
-                return;
-            },
-        }
+        let mut ast = {
+            let mut spans = span_registry.write();
 
-        let mut ast = parser.ast;
-        ast.tokens = tokens;
+            let mut parser = Parser::new(&tokens, &name_table, &mut spans);
+            match parser.parse() {
+                Ok(_) => {},
+                Err(err) => {
+                    let tok_meta = &tokens.metadata[err.tok_idx];
+                    let spans = span_registry.read();
+                    println!("{}({}): {err}", input_file, FormatSpanLoc{ registry: &spans, span: tok_meta.span_id });
+                    return;
+                },
+            }
+            
+            parser.ast
+        };
+            ast.tokens = tokens;
         ast.file = input_file.clone().into();
 
         if cli.timings {

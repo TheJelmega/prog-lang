@@ -66,12 +66,19 @@ impl SpanRegistry {
         id
     }
 
-    pub fn combine_spans(&mut self, begin: SpanId, end: SpanId) -> Option<SpanId> {
+    pub fn combine_spans(&mut self, begin: SpanId, end: SpanId) -> SpanId {
+        if begin == end {
+            return begin;
+        }
+        if begin == SpanId::INVALID || end == SpanId::INVALID {
+            return SpanId::INVALID;
+        }
+
         let begin = self.spans[begin.0];
         let end = self.spans[end.0];
 
         if begin.file_id != end.file_id {
-            return None;
+            return SpanId::INVALID;
         }
 
         let mut span = begin;
@@ -80,7 +87,7 @@ impl SpanRegistry {
         span.row_end = end.row_end;
         span.column_end = end.column_end;
 
-        Some(self.add_span_(span))
+        self.add_span_(span)
     }
 }
 

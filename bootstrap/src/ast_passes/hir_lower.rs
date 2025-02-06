@@ -247,7 +247,7 @@ impl AstToHirLowering<'_> {
         let mut uses = Vec::new();
 
         match field {
-            RegStructField::Field { attrs, vis, is_mut, names, ty: _, def } => {
+            RegStructField::Field { span, attrs, vis, is_mut, names, ty: _, def } => {
                 let hir_attrs = self.attr_stack.split_off(self.attr_stack.len() - attrs.len());
 
                 let hir_vis = self.get_vis(*vis);
@@ -294,7 +294,7 @@ impl AstToHirLowering<'_> {
 
                 
             },
-            RegStructField::Use { attrs, vis, is_mut, path: _ } => {
+            RegStructField::Use { span, attrs, vis, is_mut, path: _ } => {
                 let attrs = self.get_attribs(ast, attrs);
                 let vis = self.get_vis(*vis);
                 let path = self.type_path_stack.pop().unwrap();
@@ -328,7 +328,7 @@ impl AstToHirLowering<'_> {
 
     fn convert_adt_enum_variant(&mut self, ast: &Ast, variant: &EnumVariant) -> hir::AdtEnumVariant {
         match variant {
-            EnumVariant::Struct { attrs, is_mut, name, fields, discriminant } => {
+            EnumVariant::Struct { span, attrs, is_mut, name, fields, discriminant } => {
                 let hir_attrs = self.attr_stack.split_off(self.attr_stack.len() - attrs.len());
                 let hir_dicriminant = discriminant.map(|_| self.expr_stack.pop().unwrap());
 
@@ -347,7 +347,7 @@ impl AstToHirLowering<'_> {
                     discriminant: hir_dicriminant,
                 }
             },
-            EnumVariant::Tuple { attrs, is_mut, name, fields, discriminant } => {
+            EnumVariant::Tuple { span, attrs, is_mut, name, fields, discriminant } => {
                 let hir_attrs = self.attr_stack.split_off(self.attr_stack.len() - attrs.len());
                 let hir_dicriminant = discriminant.map(|_| self.expr_stack.pop().unwrap());
 
@@ -365,7 +365,7 @@ impl AstToHirLowering<'_> {
                     discriminant: hir_dicriminant,
                 }
             },
-            EnumVariant::Fieldless { attrs, name, discriminant } => {
+            EnumVariant::Fieldless { span, attrs, name, discriminant } => {
                 let hir_attrs = self.attr_stack.split_off(self.attr_stack.len() - attrs.len());
                 let hir_dicriminant = discriminant.map(|_| self.expr_stack.pop().unwrap());
 
@@ -410,7 +410,7 @@ impl AstToHirLowering<'_> {
         helpers::visit_op_elem(self, ast, op_elem);
 
         match op_elem {
-            OpElem::Def { op_type, op, name, ret, def } => {
+            OpElem::Def { span, op_type, op, name, ret, def } => {
                 let def = def.map(|_| self.expr_stack.pop().unwrap());
                 let ret_ty = ret.as_ref().map(|_| self.type_stack.pop().unwrap());
 
@@ -423,7 +423,7 @@ impl AstToHirLowering<'_> {
                     def,
                 });
             },
-            OpElem::Extend { op_type, op, def: _ } => {
+            OpElem::Extend { span, op_type, op, def: _ } => {
                 let def = self.expr_stack.pop().unwrap();
                 
                 self.hir.add_op_specialization(scope, hir::OpSpecialization {
@@ -433,7 +433,7 @@ impl AstToHirLowering<'_> {
                     def,
                 });
             },
-            OpElem::Contract { expr: _ } => {
+            OpElem::Contract { span, expr: _ } => {
                 let expr = self.expr_stack.pop().unwrap();
                 
                 self.hir.add_op_contract(scope, hir::OpContract {
@@ -483,7 +483,7 @@ impl AstToHirLowering<'_> {
 
     fn get_use_subpaths(&mut self, ast: &Ast, use_path: AstNodeRef<UsePath>, lib_path: LibraryPath, base_scope: Scope, paths: &mut Vec<uses::UsePath>) {
         match &ast[use_path] {
-            UsePath::SelfPath { alias } => {
+            UsePath::SelfPath { span, alias } => {
                 paths.push(uses::UsePath {
                     lib_path: lib_path.clone(),
                     path: base_scope.clone(),
@@ -491,7 +491,7 @@ impl AstToHirLowering<'_> {
                     alias: alias.map(|name| self.names[name].to_string()),
                 });
             },
-            UsePath::SubPaths { segments, sub_paths } => {
+            UsePath::SubPaths { span, segments, sub_paths } => {
                 let mut path = base_scope.clone();
                 for segment in segments {
                     path.push(self.names[*segment].to_string());
@@ -501,7 +501,7 @@ impl AstToHirLowering<'_> {
                 }
 
             },
-            UsePath::Alias { segments, alias } => {
+            UsePath::Alias { span, segments, alias } => {
                 let mut path = base_scope.clone();
                 for segment in segments {
                     path.push(self.names[*segment].to_string());
@@ -529,9 +529,14 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_simple_path(&mut self, ast: &Ast, node_id: AstNodeRef<SimplePath>) where Self: Sized {
         let node = &ast[node_id];
 
+        let mut names = Vec::new();
+        for (name, _) in &node.names {
+            names.push(*name);
+        }
+
         self.simple_path_stack.push(hir::SimplePath {
             node_id: node_id.index() as u32,
-            names: node.names.clone(),
+            names,
         })
     }
 
@@ -566,12 +571,12 @@ impl Visitor for AstToHirLowering<'_> {
         let mut segments = Vec::new();
         for iden in node.idens.iter().rev() {
             match iden {
-                TypePathIdentifier::Plain { name } => segments.push(hir::TypePathSegment::Plain { name: *name }),
+                TypePathIdentifier::Plain { span:_, name } => segments.push(hir::TypePathSegment::Plain { name: *name }),
                 TypePathIdentifier::GenArg { name, .. } => {
                     let gen_args = self.gen_args_stack.pop().unwrap();
                     segments.push(hir::TypePathSegment::GenArg { name: *name, gen_args });
                 },
-                TypePathIdentifier::Fn { name, params, ret } => {
+                TypePathIdentifier::Fn { span:_, name, params, ret } => {
                     let ret = ret.as_ref().map(|_| self.type_stack.pop().unwrap());
                     let mut hir_params = Vec::new();
                     for _param in params.iter().rev() {
@@ -682,10 +687,10 @@ impl Visitor for AstToHirLowering<'_> {
 
         let where_clause = node.where_clause.map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
-            FnReturn::Type(_) => self.type_stack.pop().unwrap(),
-            FnReturn::Named(elems) => {
+            FnReturn::Type{ span, ty:_ } => self.type_stack.pop().unwrap(),
+            FnReturn::Named{ span, vars } => {
                 let mut types = Vec::new();
-                for _ in elems {
+                for _ in vars {
                     types.push(self.type_stack.pop().unwrap());
                 }
                 Box::new(hir::Type::Tuple(hir::TupleType {
@@ -698,13 +703,13 @@ impl Visitor for AstToHirLowering<'_> {
         let params = self.convert_fn_params(ast, &node.params, node_id.index());
 
         let receiver = node.receiver.as_ref().map_or(hir::FnReceiver::None, |rec| match rec {
-            FnReceiver::SelfReceiver { is_ref, is_mut } => {
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => {
                 hir::FnReceiver::SelfReceiver {
                     is_ref: *is_ref,
                     is_mut: *is_mut,
                 }
             },
-            FnReceiver::SelfTyped { is_mut, ty: _ } => {
+            FnReceiver::SelfTyped { span, is_mut, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 hir::FnReceiver::SelfTyped {
                     is_mut: *is_mut,
@@ -721,7 +726,7 @@ impl Visitor for AstToHirLowering<'_> {
         let attrs = self.get_attribs(ast, &node.attrs);
 
 
-        let body = node.body.map(|body| if let Some(FnReturn::Named(elems)) = &node.returns {
+        let body = node.body.map(|body| if let Some(FnReturn::Named{ span, vars }) = &node.returns {
             // convert:
             //
             // ```
@@ -742,7 +747,7 @@ impl Visitor for AstToHirLowering<'_> {
             let hir::Type::Tuple(hir::TupleType{ node_id: _, types }) = ret_ty.as_ref() else { unreachable!() };
 
             let mut ret_exprs = Vec::new();
-            for (names, _) in elems {
+            for (names, _) in vars {
                 for name in names {
                     ret_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
                         iden: Identifier {
@@ -762,7 +767,7 @@ impl Visitor for AstToHirLowering<'_> {
 
             let mut block = self.block_stack.pop().unwrap();
             
-            for (idx, (names, _)) in elems.iter().enumerate() {
+            for (idx, (names, _)) in vars.iter().enumerate() {
                 let ty = &types[idx];
                 for name in names {
                     block.stmts.push(Box::new(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
@@ -864,7 +869,7 @@ impl Visitor for AstToHirLowering<'_> {
         let node_ctx = self.ctx.get_node_for(node_id);
         let scope = node_ctx.scope.clone();
         match &ast[node_id] {
-            TypeAlias::Normal { attrs, vis, name, generics, ty: _ } => {
+            TypeAlias::Normal { span, attrs, vis, name, generics, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -879,7 +884,7 @@ impl Visitor for AstToHirLowering<'_> {
                     ty,
                 });
             },
-            TypeAlias::Distinct { attrs, vis, name, generics, ty: _ } => {
+            TypeAlias::Distinct { span, attrs, vis, name, generics, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -894,7 +899,7 @@ impl Visitor for AstToHirLowering<'_> {
                     ty,
                 });
             },
-            TypeAlias::Trait { attrs, name, generics } => {
+            TypeAlias::Trait { span, attrs, name, generics } => {
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -905,7 +910,7 @@ impl Visitor for AstToHirLowering<'_> {
                     generics,
                 })
             },
-            TypeAlias::Opaque { attrs, vis, name, size } => {
+            TypeAlias::Opaque { span, attrs, vis, name, size } => {
                 let size = size.map(|_| self.expr_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
                 let attrs = self.get_attribs(ast, attrs);
@@ -928,7 +933,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = node_ctx.scope.clone();
 
         match &ast[node_id] {
-            Struct::Regular { attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Regular { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 let mut hir_fields = Vec::new();
                 let mut uses = Vec::new();
         
@@ -958,7 +963,7 @@ impl Visitor for AstToHirLowering<'_> {
                     uses,
                 })
             },
-            Struct::Tuple { attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Tuple { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 let mut hir_fields = Vec::new();
                 for field in fields.iter().rev() {
                     hir_fields.push(self.convert_tuple_struct_field(field));
@@ -982,7 +987,7 @@ impl Visitor for AstToHirLowering<'_> {
                     fields: hir_fields,
                 })
             },
-            Struct::Unit { attrs, vis, name } => {
+            Struct::Unit { span, attrs, vis, name } => {
                 let vis = self.get_vis(*vis);
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -1053,7 +1058,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = node_ctx.scope.clone();
 
         match &ast[node_id] {
-            Enum::Adt { attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
+            Enum::Adt { span, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
                 let mut hir_variants = Vec::new();
                 for variant in variants {
                     hir_variants.push(self.convert_adt_enum_variant(ast, variant));
@@ -1077,7 +1082,7 @@ impl Visitor for AstToHirLowering<'_> {
                     variants: hir_variants,
                 });
             },
-            Enum::Flag { attrs, vis, name, variants } => {
+            Enum::Flag { span, attrs, vis, name, variants } => {
                 let mut hir_variants = Vec::new();
                 for variant in variants.iter().rev() {
                     let discriminant = variant.discriminant.map(|_| self.expr_stack.pop().unwrap());
@@ -1120,7 +1125,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut uses = Vec::new();
         for field in node.fields.iter().rev() {
             match field {
-                BitfieldField::Field { attrs, vis, is_mut, names, ty:_, bits, def } => {
+                BitfieldField::Field { span, attrs, vis, is_mut, names, ty:_, bits, def } => {
                     let def = def.map(|_| self.expr_stack.pop().unwrap());
                     let bits = bits.map(|_| self.expr_stack.pop().unwrap());
                     let ty = self.type_stack.pop().unwrap();
@@ -1139,7 +1144,7 @@ impl Visitor for AstToHirLowering<'_> {
                         });
                     }
                 },
-                BitfieldField::Use { attrs, vis, is_mut, path:_, bits } => {
+                BitfieldField::Use { span, attrs, vis, is_mut, path:_, bits } => {
                     let bits = bits.map(|_| self.expr_stack.pop().unwrap());
                     let path = self.type_path_stack.pop().unwrap();
                     let vis = self.get_vis(*vis);
@@ -1218,7 +1223,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = ast_ctx.scope.clone();
 
         match &ast[node_id] {
-            Static::Static { attrs, vis, name, ty, val:_ } => {
+            Static::Static { span, attrs, vis, name, ty, val:_ } => {
                 let val = self.expr_stack.pop().unwrap();
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -1233,7 +1238,7 @@ impl Visitor for AstToHirLowering<'_> {
                     val,
                 })
             },
-            Static::Tls { attrs, vis, is_mut, name, ty, val:_ } => {
+            Static::Tls { span, attrs, vis, is_mut, name, ty, val:_ } => {
                 let val = self.expr_stack.pop().unwrap();
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -1249,7 +1254,7 @@ impl Visitor for AstToHirLowering<'_> {
                     val,
                 })
             },
-            Static::Extern { attrs, vis, abi, is_mut, name, ty:_ } => {
+            Static::Extern { span, attrs, vis, abi, is_mut, name, ty:_ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let abi = self.convert_abi(Some(*abi), node_id.index());
                 let vis = self.get_vis(*vis);
@@ -1307,10 +1312,10 @@ impl Visitor for AstToHirLowering<'_> {
                     vis,
                     is_unsafe: node.is_unsafe,
                     name: node.name,
-                    has_get,
-                    has_ref_get,
-                    has_mut_get,
-                    has_set,
+                    has_get: has_get.is_some(),
+                    has_ref_get: has_ref_get.is_some(),
+                    has_mut_get: has_mut_get.is_some(),
+                    has_set: has_set.is_some(),
                 })
             },
         }
@@ -1426,7 +1431,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut scope = ast_ctx.scope.clone();
 
         match &ast[node_id] {
-            OpTrait::Base { attrs, vis, name, precedence, elems } => {
+            OpTrait::Base { span, attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     self.visit_attribute(ast, *attr);
                 }
@@ -1451,7 +1456,7 @@ impl Visitor for AstToHirLowering<'_> {
                     self.convert_op_elem(ast, op_elem, scope.clone(), node_id.index() as u32);
                 }
             },
-            OpTrait::Extended { attrs, vis, name, bases, elems } => {
+            OpTrait::Extended { span, attrs, vis, name, bases, elems } => {
                 for attr in attrs {
                     self.visit_attribute(ast, *attr);
                 }
@@ -1536,7 +1541,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_var_decl(self, ast, node_id);
 
         match &ast[node_id] {
-            VarDecl::Named { attrs, names, expr: _ } => {
+            VarDecl::Named { span, attrs, names, expr: _ } => {
                 let expr = self.expr_stack.pop().unwrap();
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -1634,7 +1639,7 @@ impl Visitor for AstToHirLowering<'_> {
                     }
                 }
             },
-            VarDecl::Let { attrs, pattern: _, ty, expr, else_block } => {
+            VarDecl::Let { span, attrs, pattern: _, ty, expr, else_block } => {
                 let else_block = else_block.map(|_| self.expr_stack.pop().unwrap());
                 let expr = expr.map(|_| self.expr_stack.pop().unwrap());
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
@@ -1945,8 +1950,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let lit_op = node.lit_op.as_ref().map(|lit_op| match lit_op {
             LiteralOp::Name(name_id)   => hir::LiteralOp::Name(*name_id),
-            LiteralOp::Primitive(ty)   => hir::LiteralOp::Primitive(convert_primitive_type(ty)),
-            LiteralOp::StringSlice(ty) => hir::LiteralOp::StringSlice(convert_string_slice_type(ty)), 
+            LiteralOp::Primitive(ty)   => hir::LiteralOp::Primitive(ty.ty),
+            LiteralOp::StringSlice(ty) => hir::LiteralOp::StringSlice(ty.ty), 
         });
 
         let lit_expr = hir::LiteralExpr {
@@ -1962,7 +1967,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_path_expr(self, ast, node_id);
 
         let expr = match &ast[node_id] {
-            PathExpr::Named { iden } => {
+            PathExpr::Named { span, iden } => {
                 let gen_args = iden.gen_args.map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Named {
@@ -1972,7 +1977,7 @@ impl Visitor for AstToHirLowering<'_> {
                     }
                 }
             },
-            PathExpr::Inferred { iden } => {
+            PathExpr::Inferred { span, iden } => {
                 let gen_args = iden.gen_args.map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Inferred {
@@ -1983,7 +1988,7 @@ impl Visitor for AstToHirLowering<'_> {
                 }
             },
             PathExpr::SelfPath => hir::PathExpr::SelfPath,
-            PathExpr::Qualified { path: _ } => {
+            PathExpr::Qualified { span, path: _ } => {
                 let path = self.qual_path_stack.pop().unwrap();
                 hir::PathExpr::Qualified { path }
             },
@@ -2144,7 +2149,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut complete = None;
         for arg in node.args.iter().rev() {
             match arg {
-                StructArg::Expr(name, _) => {
+                StructArg::Expr{ span, name, expr:_ } => {
                     let expr = self.expr_stack.pop().unwrap();
 
                     args.push(hir::StructArg {
@@ -2152,7 +2157,7 @@ impl Visitor for AstToHirLowering<'_> {
                         expr,
                     });
                 },
-                StructArg::Name(name) => {
+                StructArg::Name{ span ,name } => {
                     let expr = Box::new(hir::Expr::Path(hir::PathExpr::Named { 
                         iden: hir::Identifier {
                             name: *name,
@@ -2165,7 +2170,7 @@ impl Visitor for AstToHirLowering<'_> {
                         expr,
                      });
                 },
-                StructArg::Complete(_) => if complete.is_none() {
+                StructArg::Complete{ span, expr:_ } => if complete.is_none() {
                     let expr = self.expr_stack.pop().unwrap();
                     complete = Some(expr);
                 } else {
@@ -2250,11 +2255,11 @@ impl Visitor for AstToHirLowering<'_> {
         let mut args = Vec::new();
         for arg in &node.args {
             let (label, expr) = match arg {
-                FnArg::Expr(_) => {
+                FnArg::Expr{ span, expr } => {
                     let expr = self.expr_stack.pop().unwrap();
                     (None, expr)
                 },
-                FnArg::Labeled { label, expr: _ } => {
+                FnArg::Labeled { span, label, expr: _ } => {
                     let expr = self.expr_stack.pop().unwrap();
                     (Some(*label), expr)
                 },
@@ -2283,11 +2288,11 @@ impl Visitor for AstToHirLowering<'_> {
         let mut args = Vec::new();
         for arg in &node.args {
             let (label, expr) = match arg {
-                FnArg::Expr(_) => {
+                FnArg::Expr{ span, expr } => {
                     let expr = self.expr_stack.pop().unwrap();
                     (None, expr)
                 },
-                FnArg::Labeled { label, expr: _ } => {
+                FnArg::Labeled { span, label, expr: _ } => {
                     let expr = self.expr_stack.pop().unwrap();
                     (Some(*label), expr)
                 },
@@ -2857,8 +2862,8 @@ impl Visitor for AstToHirLowering<'_> {
         let lit_op = node.lit_op.as_ref().map(|lit_op| {
             match lit_op {
                 LiteralOp::Name(name)         => hir::LiteralOp::Name(*name),
-                LiteralOp::Primitive(prim)    => hir::LiteralOp::Primitive(convert_primitive_type(prim)),
-                LiteralOp::StringSlice(slice) => hir::LiteralOp::StringSlice(convert_string_slice_type(slice)),
+                LiteralOp::Primitive(prim)    => hir::LiteralOp::Primitive(prim.ty),
+                LiteralOp::StringSlice(slice) => hir::LiteralOp::StringSlice(slice.ty),
             }
         });
 
@@ -2955,8 +2960,8 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_struct_pattern(self, ast, node_id);
 
         let (path, ast_fields) = match &ast[node_id] {
-            StructPattern::Inferred { fields } => (None, fields),
-            StructPattern::Path { path: _, fields } => {
+            StructPattern::Inferred { span, fields } => (None, fields),
+            StructPattern::Path { span, path: _, fields } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), fields)
             },
@@ -2965,7 +2970,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut fields = Vec::new();
         for field in ast_fields.iter().rev() {
             match field {
-                StructPatternField::Named { name, pattern: _ } => {
+                StructPatternField::Named { span, name, pattern: _ } => {
                     let pattern = self.pattern_stack.pop().unwrap();
                     fields.push(hir::StructPatternField::Named {
                         node_id: node_id.index() as u32,
@@ -2973,7 +2978,7 @@ impl Visitor for AstToHirLowering<'_> {
                         pattern,
                     });
                 },
-                StructPatternField::TupleIndex { idx, pattern: _ } => {
+                StructPatternField::TupleIndex { span, idx, pattern: _ } => {
                     let pattern = self.pattern_stack.pop().unwrap();
 
                     let index = match &self.literals[*idx] {
@@ -3007,7 +3012,7 @@ impl Visitor for AstToHirLowering<'_> {
                         pattern,
                     })
                 },
-                StructPatternField::Iden { is_ref, is_mut, iden, bound } => {
+                StructPatternField::Iden { span, is_ref, is_mut, iden, bound } => {
                     let bound = bound.as_ref().map(|_| self.pattern_stack.pop().unwrap());
 
                     fields.push(hir::StructPatternField::Iden {
@@ -3034,8 +3039,8 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_tuple_struct_pattern(self, ast, node_id);
 
         let (path, ast_patterns) = match &ast[node_id] {
-            TupleStructPattern::Inferred { patterns } => (None, patterns),
-            TupleStructPattern::Named { path: _, patterns } => {
+            TupleStructPattern::Inferred { span, patterns } => (None, patterns),
+            TupleStructPattern::Named { span, path: _, patterns } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), patterns)
             },
@@ -3145,10 +3150,9 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_primitive_type(&mut self, ast: &Ast, node_id: AstNodeRef<PrimitiveType>) where Self: Sized {
-        let prim_ty = convert_primitive_type(&ast[node_id]);
         self.push_type(hir::Type::Primitive(hir::PrimitiveType {
             node_id: node_id.index() as u32,
-            ty: prim_ty
+            ty: ast[node_id].ty
         }));
     }
 
@@ -3219,7 +3223,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_string_slice_type(&mut self, ast: &Ast, node_id: AstNodeRef<StringSliceType>) where Self: Sized {
-        let slice_ty = convert_string_slice_type(&ast[node_id]);
+        let slice_ty = ast[node_id].ty;
         self.push_type(hir::Type::StringSlice(hir::StringSliceType {
             node_id: node_id.index() as u32,
             ty: slice_ty,
@@ -3417,11 +3421,11 @@ impl Visitor for AstToHirLowering<'_> {
 
         let node = &ast[node_id];
         let vis = match node {
-            Visibility::Pub     => hir::Visibility::Pub,
-            Visibility::Super   => hir::Visibility::Super,
-            Visibility::Lib     => hir::Visibility::Lib,
-            Visibility::Package => hir::Visibility::Package,
-            Visibility::Path(_) => {
+            Visibility::Pub(_)     => hir::Visibility::Pub,
+            Visibility::Super(_)   => hir::Visibility::Super,
+            Visibility::Lib(_)     => hir::Visibility::Lib,
+            Visibility::Package(_) => hir::Visibility::Package,
+            Visibility::Path{ .. } => {
                 let path = self.simple_path_stack.pop().unwrap();
                 hir::Visibility::Path(path)
             },
@@ -3451,48 +3455,6 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_trait_bounds(&mut self, ast: &Ast, node_id: AstNodeRef<TraitBounds>) where Self: Sized {
         helpers::visit_trait_bounds(self, ast, node_id);
-    }
-}
-
-fn convert_primitive_type(ty: &PrimitiveType) -> type_system::PrimitiveType {
-    match ty {
-        PrimitiveType::U8     => type_system::PrimitiveType::U8,
-        PrimitiveType::U16    => type_system::PrimitiveType::U16,
-        PrimitiveType::U32    => type_system::PrimitiveType::U32,
-        PrimitiveType::U64    => type_system::PrimitiveType::U64,
-        PrimitiveType::U128   => type_system::PrimitiveType::U128,
-        PrimitiveType::Usize  => type_system::PrimitiveType::Usize,
-        PrimitiveType::I8     => type_system::PrimitiveType::I8,
-        PrimitiveType::I16    => type_system::PrimitiveType::I16,
-        PrimitiveType::I32    => type_system::PrimitiveType::I32,
-        PrimitiveType::I64    => type_system::PrimitiveType::I64,
-        PrimitiveType::I128   => type_system::PrimitiveType::I128,
-        PrimitiveType::Isize  => type_system::PrimitiveType::Isize,
-        PrimitiveType::F16    => type_system::PrimitiveType::F16,
-        PrimitiveType::F32    => type_system::PrimitiveType::F32,
-        PrimitiveType::F64    => type_system::PrimitiveType::F64,
-        PrimitiveType::F128   => type_system::PrimitiveType::F128,
-        PrimitiveType::Bool   => type_system::PrimitiveType::Bool,
-        PrimitiveType::B8     => type_system::PrimitiveType::B8,
-        PrimitiveType::B16    => type_system::PrimitiveType::B16,
-        PrimitiveType::B32    => type_system::PrimitiveType::B32,
-        PrimitiveType::B64    => type_system::PrimitiveType::B64,
-        PrimitiveType::Char   => type_system::PrimitiveType::Char,
-        PrimitiveType::Char7  => type_system::PrimitiveType::Char7,
-        PrimitiveType::Char8  => type_system::PrimitiveType::Char8,
-        PrimitiveType::Char16 => type_system::PrimitiveType::Char16,
-        PrimitiveType::Char32 => type_system::PrimitiveType::Char32,
-    }
-}
-
-fn convert_string_slice_type(ty: &StringSliceType) -> type_system::StringSliceType {
-    match ty {
-        StringSliceType::Str   => type_system::StringSliceType::Str,
-        StringSliceType::Str7  => type_system::StringSliceType::Str7,
-        StringSliceType::Str8  => type_system::StringSliceType::Str8,
-        StringSliceType::Str16 => type_system::StringSliceType::Str16,
-        StringSliceType::Str32 => type_system::StringSliceType::Str32,
-        StringSliceType::CStr  => type_system::StringSliceType::CStr,
     }
 }
 

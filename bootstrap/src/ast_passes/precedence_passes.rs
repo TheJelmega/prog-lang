@@ -78,10 +78,10 @@ impl Visitor for PrecedenceAttribute<'_> {
                         node_id: node_id.index(),
                         err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
-                    AttribMeta::Assign { path, expr } => {
+                    AttribMeta::Assign { span, path, expr } => {
                         let path = &ast[*path];
                         
-                        if path.names.len() == 1 || path.names[0] == self.builtin_name_id {
+                        if path.names.len() == 1 || path.names[0].0 == self.builtin_name_id {
                             let Expr::Literal(lit_node_id) = expr else { 
                                 self.ctx.add_error(AstError {
                                     node_id: node_id.index(),
