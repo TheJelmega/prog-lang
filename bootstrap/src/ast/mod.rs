@@ -30,6 +30,10 @@ impl NodeId {
     }
 }
 
+pub(super) trait AstNodeParseHelper {
+    fn set_node_id(&mut self, node_id: NodeId);
+}
+
 pub trait AstNode {
     fn span(&self, ast: &Ast) -> SpanId;
     fn node_id(&self, ast: &Ast) -> NodeId;
@@ -113,6 +117,12 @@ impl AstNode for SimplePath {
     }
 }
 
+impl AstNodeParseHelper for SimplePath {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub enum TypePathIdentifier {
     Plain {
         span: SpanId,
@@ -156,6 +166,12 @@ impl AstNode for ExprPath {
     }
 }
 
+impl AstNodeParseHelper for ExprPath {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct TypePath {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -194,6 +210,12 @@ impl AstNode for TypePath {
     }
 }
 
+impl AstNodeParseHelper for TypePath {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct QualifiedPath {
     pub span:     SpanId,
     pub node_id:  NodeId,
@@ -224,12 +246,19 @@ impl AstNode for QualifiedPath {
     }
 }
 
+impl AstNodeParseHelper for QualifiedPath {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct Block {
     pub span:       SpanId,
     pub node_id:     NodeId,
     pub stmts:      Vec<Stmt>,
     pub final_expr: Option<AstNodeRef<ExprStmt>>,
 }
+
 impl AstNode for Block {
     fn span(&self, ast: &Ast) -> SpanId {
         self.span
@@ -246,6 +275,12 @@ impl AstNode for Block {
             logger.set_last_at_indent();
             logger.log_indented_opt_node_ref("Final expression", &self.final_expr);
         });
+    }
+}
+
+impl AstNodeParseHelper for Block {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -477,6 +512,12 @@ impl AstNode for ModuleItem {
     }
 }
 
+impl AstNodeParseHelper for ModuleItem {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 
 pub struct UseItem {
     pub span:    SpanId,
@@ -516,6 +557,12 @@ impl AstNode for UseItem {
             logger.set_last_at_indent();
             logger.log_node_ref(self.path);
         });                                         
+    }
+}
+
+impl AstNodeParseHelper for UseItem {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -603,6 +650,16 @@ impl AstNode for UsePath {
     }
 }
 
+impl AstNodeParseHelper for UsePath {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            UsePath::SelfPath { node_id, .. } => *node_id = ast_node_id,
+            UsePath::SubPaths { node_id, .. } => *node_id = ast_node_id,
+            UsePath::Alias { node_id, .. }    => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub struct Function {
     pub span:         SpanId,
     pub node_id:      NodeId,
@@ -659,6 +716,12 @@ impl AstNode for Function {
                 logger.log_node_ref(*body);
             }
         })
+    }
+}
+
+impl AstNodeParseHelper for Function {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -850,6 +913,17 @@ impl AstNode for TypeAlias {
     }
 }
 
+impl AstNodeParseHelper for TypeAlias {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            TypeAlias::Normal { node_id, .. }   => *node_id = ast_node_id,
+            TypeAlias::Distinct { node_id, .. } => *node_id = ast_node_id,
+            TypeAlias::Trait { node_id, .. }    => *node_id = ast_node_id,
+            TypeAlias::Opaque { node_id, .. }   => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub enum Struct {
     Regular {
         span:         SpanId,
@@ -938,6 +1012,16 @@ impl AstNode for Struct {
     }
 }
 
+impl AstNodeParseHelper for Struct {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            Struct::Regular { node_id, .. } => *node_id = ast_node_id,
+            Struct::Tuple { node_id, .. }   => *node_id = ast_node_id,
+            Struct::Unit { node_id, .. }    => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub enum RegStructField {
     Field {
         span:   SpanId,
@@ -1019,6 +1103,12 @@ pub struct Union {
     pub generics:     Option<AstNodeRef<GenericParams>>,
     pub where_clause: Option<AstNodeRef<WhereClause>>,
     pub fields:       Vec<UnionField>,
+}
+
+impl AstNodeParseHelper for Union {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
 }
 
 impl AstNode for Union {
@@ -1135,6 +1225,15 @@ impl AstNode for Enum {
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Variants", variants, |logger, variant| variant.log(logger));
             }),
+        }
+    }
+}
+
+impl AstNodeParseHelper for Enum {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            Enum::Adt { node_id, .. }  => *node_id =  ast_node_id,
+            Enum::Flag { node_id, .. } => *node_id =  ast_node_id,
         }
     }
 }
@@ -1265,6 +1364,12 @@ impl AstNode for Bitfield {
     }
 }
 
+impl AstNodeParseHelper for Bitfield {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub enum BitfieldField {
     Field {
         span:   SpanId,
@@ -1355,6 +1460,12 @@ impl AstNode for Const {
     }
 }
 
+impl AstNodeParseHelper for Const {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub enum Static {
     Static {
         span:    SpanId,
@@ -1436,6 +1547,16 @@ impl AstNode for Static {
     }
 }
 
+impl AstNodeParseHelper for Static {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            Static::Static { node_id, .. } => *node_id = ast_node_id,
+            Static::Tls { node_id, .. }    => *node_id = ast_node_id,
+            Static::Extern { node_id, .. } => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub struct Property {
     pub span:      SpanId,
     pub node_id:   NodeId,
@@ -1484,6 +1605,12 @@ impl AstNode for Property {
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             self.body.log(logger);
         });
+    }
+}
+
+impl AstNodeParseHelper for Property {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -1579,6 +1706,12 @@ impl AstNode for Trait {
     }
 }
 
+impl AstNodeParseHelper for Trait {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct Impl {
     pub span:         SpanId,
     pub node_id:      NodeId,
@@ -1622,6 +1755,12 @@ impl AstNode for Impl {
     }
 }
 
+impl AstNodeParseHelper for Impl {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ExternBlock {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -1649,6 +1788,12 @@ impl AstNode for ExternBlock {
             logger.set_last_at_indent();  
             logger.log_indented_node_slice("Extern Items", &self.items);
         })
+    }
+}
+
+impl AstNodeParseHelper for ExternBlock {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -1713,6 +1858,15 @@ impl AstNode for OpTrait {
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
             }),
+        }
+    }
+}
+
+impl AstNodeParseHelper for OpTrait {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            OpTrait::Base { node_id, .. }     => *node_id = ast_node_id,
+            OpTrait::Extended { node_id, .. } => *node_id = ast_node_id,
         }
     }
 }
@@ -1801,6 +1955,12 @@ impl AstNode for OpUse {
     }
 }
 
+impl AstNodeParseHelper for OpUse {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 // TODO: May be moved into separate fill
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrecedenceAssociativityKind {
@@ -1868,6 +2028,12 @@ impl AstNode for Precedence {
     }
 }
 
+impl AstNodeParseHelper for Precedence {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PrecedenceUse {
     pub span:        SpanId,
     pub node_id:     NodeId,
@@ -1904,6 +2070,12 @@ impl AstNode for PrecedenceUse {
                 logger.prefixed_log_fmt(format_args!("{}", logger.resolve_name(*name)))
             })
         })
+    }
+}
+
+impl AstNodeParseHelper for PrecedenceUse {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2017,6 +2189,15 @@ impl AstNode for VarDecl {
     }
 }
 
+impl AstNodeParseHelper for VarDecl {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            VarDecl::Named { node_id, .. } => *node_id = ast_node_id,
+            VarDecl::Let { node_id, .. }   => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub struct Defer {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2039,6 +2220,12 @@ impl AstNode for Defer {
             logger.set_last_at_indent();
             logger.log_indented_node("Expr", &self.expr); 
         });
+    }
+}
+
+impl AstNodeParseHelper for Defer {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2073,6 +2260,12 @@ impl AstNode for ErrDefer {
     }
 }
 
+impl AstNodeParseHelper for ErrDefer {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ErrDeferReceiver {
     pub span:   SpanId,
     pub is_mut: bool,
@@ -2086,6 +2279,7 @@ pub struct ExprStmt {
     pub expr:     Expr,
     pub has_semi: bool,
 }
+
 impl AstNode for ExprStmt {
     fn span(&self, ast: &Ast) -> SpanId {
         self.span
@@ -2101,6 +2295,12 @@ impl AstNode for ExprStmt {
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         })
+    }
+}
+
+impl AstNodeParseHelper for ExprStmt {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2344,6 +2544,12 @@ impl AstNode for LiteralExpr {
     }
 }
 
+impl AstNodeParseHelper for LiteralExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub enum PathExpr {
     Named {
         span:    SpanId,
@@ -2404,6 +2610,17 @@ impl AstNode for PathExpr {
     }
 }
 
+impl AstNodeParseHelper for PathExpr {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            PathExpr::Named { node_id, .. }     => *node_id = ast_node_id,
+            PathExpr::Inferred { node_id, .. }  => *node_id = ast_node_id,
+            PathExpr::SelfPath => (), // TODO
+            PathExpr::Qualified { node_id, .. } => *node_id = ast_node_id,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockExprKind {
     Normal,
@@ -2451,6 +2668,12 @@ impl AstNode for BlockExpr {
     }
 }
 
+impl AstNodeParseHelper for BlockExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PrefixExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2476,6 +2699,12 @@ impl AstNode for PrefixExpr {
     }
 }
 
+impl AstNodeParseHelper for PrefixExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PostfixExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2498,6 +2727,12 @@ impl AstNode for PostfixExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
+    }
+}
+
+impl AstNodeParseHelper for PostfixExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2528,6 +2763,12 @@ impl AstNode for InfixExpr {
     }
 }
 
+impl AstNodeParseHelper for InfixExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ParenExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2548,6 +2789,12 @@ impl AstNode for ParenExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
+    }
+}
+
+impl AstNodeParseHelper for ParenExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2573,6 +2820,12 @@ impl AstNode for InplaceExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.right);
         });
+    }
+}
+
+impl AstNodeParseHelper for InplaceExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2615,6 +2868,12 @@ impl AstNode for TypeCastExpr {
     }
 }
 
+impl AstNodeParseHelper for TypeCastExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct TypeCheckExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2639,6 +2898,12 @@ impl AstNode for TypeCheckExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
         })
+    }
+}
+
+impl AstNodeParseHelper for TypeCheckExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2669,6 +2934,12 @@ impl AstNode for TupleExpr {
     }
 }
 
+impl AstNodeParseHelper for TupleExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 // Add support for [expr; size]
 pub struct ArrayExpr {
     pub span:    SpanId,
@@ -2694,6 +2965,12 @@ impl AstNode for ArrayExpr {
                 logger.log_node(expr);
             }
         });
+    }
+}
+
+impl AstNodeParseHelper for ArrayExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2753,6 +3030,12 @@ impl AstNode for StructExpr {
     }
 }
 
+impl AstNodeParseHelper for StructExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct IndexExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2781,6 +3064,12 @@ impl AstNode for IndexExpr {
     }
 }
 
+impl AstNodeParseHelper for IndexExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct TupleIndexExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -2803,6 +3092,12 @@ impl AstNode for TupleIndexExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
+    }
+}
+
+impl AstNodeParseHelper for TupleIndexExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2857,6 +3152,12 @@ impl AstNode for FnCallExpr {
     }
 }
 
+impl AstNodeParseHelper for FnCallExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct MethodCallExpr {
     pub span:           SpanId,
     pub node_id:        NodeId,
@@ -2885,6 +3186,12 @@ impl AstNode for MethodCallExpr {
             logger.set_last_at_indent();
             logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
         });
+    }
+}
+
+impl AstNodeParseHelper for MethodCallExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2917,6 +3224,12 @@ impl AstNode for FieldAccessExpr {
     }
 }
 
+impl AstNodeParseHelper for FieldAccessExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ClosureExpr {
     pub span:     SpanId,
     pub node_id:  NodeId,
@@ -2942,6 +3255,12 @@ impl AstNode for ClosureExpr {
     }
 }
 
+impl AstNodeParseHelper for ClosureExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct LetBindingExpr {
     pub span:      SpanId,
     pub node_id:   NodeId,
@@ -2964,6 +3283,12 @@ impl AstNode for LetBindingExpr {
             logger.set_last_at_indent();
             logger.log_node(&self.scrutinee);
         });
+    }
+}
+
+impl AstNodeParseHelper for LetBindingExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2995,6 +3320,12 @@ impl AstNode for IfExpr {
     }
 }
 
+impl AstNodeParseHelper for IfExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct LoopExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3019,6 +3350,12 @@ impl AstNode for LoopExpr {
             logger.set_last_at_indent();
             logger.log_node_ref(self.body);
         });
+    }
+}
+
+impl AstNodeParseHelper for LoopExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3056,6 +3393,12 @@ impl AstNode for WhileExpr {
     }
 }
 
+impl AstNodeParseHelper for WhileExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct DoWhileExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3082,6 +3425,12 @@ impl AstNode for DoWhileExpr {
             logger.set_last_at_indent();
             logger.log_indented_node("Condition", &self.cond);
         });
+    }
+}
+
+impl AstNodeParseHelper for DoWhileExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3119,6 +3468,12 @@ impl AstNode for ForExpr {
     }
 }
 
+impl AstNodeParseHelper for ForExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct MatchExpr {
     pub span:      SpanId,
     pub node_id:   NodeId,
@@ -3146,6 +3501,12 @@ impl AstNode for MatchExpr {
             logger.set_last_at_indent();
             logger.log_indented_slice("Branches", &self.branches, |logger, branch| branch.log(logger));
         });
+    }
+}
+
+impl AstNodeParseHelper for MatchExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3198,6 +3559,12 @@ impl AstNode for BreakExpr {
     }
 }
 
+impl AstNodeParseHelper for BreakExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ContinueExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3219,6 +3586,12 @@ impl AstNode for ContinueExpr {
                 logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
         });
+    }
+}
+
+impl AstNodeParseHelper for ContinueExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3246,6 +3619,12 @@ impl AstNode for FallthroughExpr {
     }
 }
 
+impl AstNodeParseHelper for FallthroughExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ReturnExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3266,6 +3645,12 @@ impl AstNode for ReturnExpr {
             logger.set_last_at_indent();
             logger.log_opt_node(&self.value);
         });
+    }
+}
+
+impl AstNodeParseHelper for ReturnExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3291,6 +3676,12 @@ impl AstNode for ThrowExpr {
     }
 }
 
+impl AstNodeParseHelper for ThrowExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct CommaExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3310,6 +3701,12 @@ impl AstNode for CommaExpr {
         logger.log_ast_node("Comma expression", |logger| {
             logger.log_node_slice(&self.exprs);
         })
+    }
+}
+
+impl AstNodeParseHelper for CommaExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3338,6 +3735,12 @@ impl AstNode for WhenExpr {
             logger.set_last_at_indent();
             logger.log_indented_opt_node("Else Body", &self.else_body);
         });
+    }
+}
+
+impl AstNodeParseHelper for WhenExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3451,6 +3854,12 @@ impl AstNode for LiteralPattern {
     }
 }
 
+impl AstNodeParseHelper for LiteralPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct IdentifierPattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3480,6 +3889,12 @@ impl AstNode for IdentifierPattern {
     }
 }
 
+impl AstNodeParseHelper for IdentifierPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PathPattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3500,6 +3915,12 @@ impl AstNode for PathPattern {
             logger.set_last_at_indent();
             logger.log_node_ref(self.path);
         });
+    }
+}
+
+impl AstNodeParseHelper for PathPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3582,6 +4003,18 @@ impl AstNode for RangePattern {
     }
 }
 
+impl AstNodeParseHelper for RangePattern {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            RangePattern::Exclusive { node_id, .. }   => *node_id = ast_node_id,
+            RangePattern::Inclusive { node_id, .. }   => *node_id = ast_node_id,
+            RangePattern::From { node_id, .. }        => *node_id = ast_node_id,
+            RangePattern::To { node_id, .. }          => *node_id = ast_node_id,
+            RangePattern::InclusiveTo { node_id, .. } => *node_id = ast_node_id,
+        }
+    }
+}
+
 pub struct ReferencePattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3604,6 +4037,12 @@ impl AstNode for ReferencePattern {
             logger.set_last_at_indent();
             logger.log_node(&self.pattern);
         })
+    }
+}
+
+impl AstNodeParseHelper for ReferencePattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3649,6 +4088,15 @@ impl AstNode for StructPattern {
                 logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
             },
         });
+    }
+}
+
+impl AstNodeParseHelper for StructPattern {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            StructPattern::Inferred { node_id, .. } => *node_id = ast_node_id,
+            StructPattern::Path { node_id, .. }     => *node_id = ast_node_id,
+        }
     }
 }
 
@@ -3702,48 +4150,57 @@ impl StructPatternField {
 
 // TODO: doesn't seem to get parsed, check this out
 pub enum TupleStructPattern {
+    Inferred {
+        span:     SpanId,
+        node_id:  NodeId,
+        patterns: Vec<Pattern>,
+    },
     Named {
         span:     SpanId,
         node_id:  NodeId,
         path:     AstNodeRef<ExprPath>,
         patterns: Vec<Pattern>,
     },
-    Inferred {
-        span:     SpanId,
-        node_id:  NodeId,
-        patterns: Vec<Pattern>,
-    }
 }
 
 impl AstNode for TupleStructPattern {
     fn span(&self, ast: &Ast) -> SpanId {
         match self {
-            TupleStructPattern::Named { span, .. }    => *span,
             TupleStructPattern::Inferred { span, .. } => *span,
+            TupleStructPattern::Named { span, .. }    => *span,
         }    
     }
 
     fn node_id(&self, ast: &Ast) -> NodeId {
         match self {
-            TupleStructPattern::Named { node_id, .. }    => *node_id,
             TupleStructPattern::Inferred { node_id, .. } => *node_id,
+            TupleStructPattern::Named { node_id, .. }    => *node_id,
         }    
     }
 
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Tuple Struct Pattern", |logger| {
             match self {
+                TupleStructPattern::Inferred { span, node_id, patterns } => {
+                    logger.set_last_at_indent();
+                    logger.log_indented_node_slice("Patterns", patterns);
+                },
                 TupleStructPattern::Named { span, node_id, path, patterns } => {
                     logger.prefixed_logln("Inferred Path");
                     logger.set_last_at_indent();
                     logger.log_indented_node_slice("Patterns", patterns);
                 },
-                TupleStructPattern::Inferred { span, node_id, patterns } => {
-                    logger.set_last_at_indent();
-                    logger.log_indented_node_slice("Patterns", patterns);
-                },
             }
         });
+    }
+}
+
+impl AstNodeParseHelper for TupleStructPattern {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            TupleStructPattern::Inferred { node_id, .. } => *node_id = ast_node_id,
+            TupleStructPattern::Named { node_id, .. }    => *node_id = ast_node_id,
+        }
     }
 }
 
@@ -3770,6 +4227,12 @@ impl AstNode for TuplePattern {
     }
 }
 
+impl AstNodeParseHelper for TuplePattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct GroupedPattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3790,6 +4253,12 @@ impl AstNode for GroupedPattern {
             logger.set_last_at_indent();
             logger.log_node(&self.pattern);
         })
+    }
+}
+
+impl AstNodeParseHelper for GroupedPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3816,6 +4285,12 @@ impl AstNode for SlicePattern {
     }
 }
 
+impl AstNodeParseHelper for SlicePattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct EnumMemberPattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3835,6 +4310,12 @@ impl AstNode for EnumMemberPattern {
         logger.log_ast_node("Enum Member Pattern", |logger| {
             logger.prefixed_log_fmt(format_args!("Enum Member: {}\n", logger.resolve_name(self.name)));
         });
+    }
+}
+
+impl AstNodeParseHelper for EnumMemberPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3861,6 +4342,12 @@ impl AstNode for AlternativePattern {
     }
 }
 
+impl AstNodeParseHelper for AlternativePattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct TypeCheckPattern {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3881,6 +4368,12 @@ impl AstNode for TypeCheckPattern {
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
         })
+    }
+}
+
+impl AstNodeParseHelper for TypeCheckPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3989,6 +4482,12 @@ impl AstNode for ParenthesizedType {
     }
 }
 
+impl AstNodeParseHelper for ParenthesizedType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PrimitiveType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4040,6 +4539,12 @@ impl AstNode for PrimitiveType {
     }
 }
 
+impl AstNodeParseHelper for PrimitiveType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct PathType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4062,6 +4567,12 @@ impl AstNode for PathType {
     }
 }
 
+impl AstNodeParseHelper for PathType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct TupleType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4081,6 +4592,12 @@ impl AstNode for TupleType {
         logger.log_ast_node("Tuple Type", |logger| {
             logger.log_indented_node_slice("Types", &self.types);
         });
+    }
+}
+
+impl AstNodeParseHelper for TupleType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4111,6 +4628,12 @@ impl AstNode for ArrayType {
     }
 }
 
+impl AstNodeParseHelper for ArrayType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct SliceType {
     pub span:     SpanId,
     pub node_id:  NodeId,
@@ -4133,6 +4656,12 @@ impl AstNode for SliceType {
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
         });
+    }
+}
+
+impl AstNodeParseHelper for SliceType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4163,6 +4692,12 @@ impl AstNode for StringSliceType {
                 type_system::StringSliceType::CStr  => logger.logln("cstr"),
             }
         });
+    }
+}
+
+impl AstNodeParseHelper for StringSliceType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4198,6 +4733,12 @@ impl AstNode for PointerType {
     }
 }
 
+impl AstNodeParseHelper for PointerType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ReferenceType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4224,6 +4765,12 @@ impl AstNode for ReferenceType {
     }
 }
 
+impl AstNodeParseHelper for ReferenceType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct OptionalType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4244,6 +4791,12 @@ impl AstNode for OptionalType {
             logger.set_last_at_indent();
             logger.log_node(&self.ty);
         });
+    }
+}
+
+impl AstNodeParseHelper for OptionalType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4289,6 +4842,12 @@ impl AstNode for FnType {
     }
 }
 
+impl AstNodeParseHelper for FnType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct RecordType {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -4309,6 +4868,12 @@ impl AstNode for RecordType {
             logger.set_last_at_indent();
             logger.log_indented_slice("Fields", &self.fields, |logger, field| field.log(logger));
         });
+    }
+}
+
+impl AstNodeParseHelper for RecordType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4335,6 +4900,12 @@ impl AstNode for EnumRecordType {
     }
 }
 
+impl AstNodeParseHelper for EnumRecordType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 // =============================================================================================================================
 
 pub struct GenericParams {
@@ -4353,6 +4924,12 @@ impl AstNode for GenericParams {
         logger.log_indented("Generic Params", |logger| {
 
         });
+    }
+}
+
+impl AstNodeParseHelper for GenericParams {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        
     }
 }
 
@@ -4375,6 +4952,12 @@ impl AstNode for GenericArgs {
     }
 }
 
+impl AstNodeParseHelper for GenericArgs {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        
+    }
+}
+
 pub struct WhereClause {
 
 }
@@ -4394,6 +4977,12 @@ impl AstNode for WhereClause {
     }
 }
 
+impl AstNodeParseHelper for WhereClause {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        
+    }
+}
+
 pub struct TraitBounds {
     
 }
@@ -4410,6 +4999,12 @@ impl AstNode for TraitBounds {
         logger.log_indented("Trait Bounds", |logger| {
 
         });  
+    }
+}
+
+impl AstNodeParseHelper for TraitBounds {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        
     }
 }
 
@@ -4472,6 +5067,18 @@ impl AstNode for Visibility {
     }
 }
 
+impl AstNodeParseHelper for Visibility {
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            Visibility::Pub { span, node_id } => *node_id = ast_node_id,
+            Visibility::Super { span, node_id } => *node_id = ast_node_id  ,
+            Visibility::Lib { span, node_id } => *node_id = ast_node_id,
+            Visibility::Package { span, node_id } => *node_id = ast_node_id,
+            Visibility::Path { span, node_id, path } => *node_id = ast_node_id ,
+        }
+    }
+}
+
 // =============================================================================================================================
 
 pub struct Attribute {
@@ -4496,6 +5103,12 @@ impl AstNode for Attribute {
             logger.set_last_at_indent();
             logger.log_indented_slice("Meta", &self.metas, |logger, meta| meta.log(logger));
         })
+    }
+}
+
+impl AstNodeParseHelper for Attribute {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -4548,6 +5161,7 @@ impl AttribMeta {
 pub struct Contract {
 
 }
+
 impl AstNode for Contract {
     fn span(&self, ast: &Ast) -> SpanId {
         SpanId::INVALID
@@ -4559,6 +5173,11 @@ impl AstNode for Contract {
 
     fn log(&self, logger: &mut AstLogger) {
         
+    }
+}
+
+impl AstNodeParseHelper for Contract {
+    fn set_node_id(&mut self, node_id: NodeId) {
     }
 }
 
@@ -4606,8 +5225,9 @@ impl Ast {
         }
     }
 
-    pub fn add_node<T: AstNode + 'static>(&mut self, node: T, meta: AstNodeMeta) -> AstNodeRef<T> {
+    pub fn add_node<T: AstNode + AstNodeParseHelper + 'static>(&mut self, mut node: T, meta: AstNodeMeta) -> AstNodeRef<T> {
         let idx = self.nodes.len();
+        node.set_node_id(NodeId(idx));
         self.nodes.push(Box::new(node));
         self.meta.push(meta);
         AstNodeRef { idx, _phantom: PhantomData }

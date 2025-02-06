@@ -281,7 +281,7 @@ impl Parser<'_> {
         self.frames.pop()
     }
 
-    fn add_node<T: AstNode + 'static>(&mut self, node: T) -> AstNodeRef<T> {
+    fn add_node<T: AstNode + AstNodeParseHelper + 'static>(&mut self, node: T) -> AstNodeRef<T> {
         let meta = if let Some(frame) = self.pop_meta_frame() {
             self.last_frame = frame;
             AstNodeMeta {
