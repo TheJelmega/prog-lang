@@ -483,7 +483,7 @@ impl AstToHirLowering<'_> {
 
     fn get_use_subpaths(&mut self, ast: &Ast, use_path: AstNodeRef<UsePath>, lib_path: LibraryPath, base_scope: Scope, paths: &mut Vec<uses::UsePath>) {
         match &ast[use_path] {
-            UsePath::SelfPath { span, alias } => {
+            UsePath::SelfPath { span, node_id, alias } => {
                 paths.push(uses::UsePath {
                     lib_path: lib_path.clone(),
                     path: base_scope.clone(),
@@ -491,7 +491,7 @@ impl AstToHirLowering<'_> {
                     alias: alias.map(|name| self.names[name].to_string()),
                 });
             },
-            UsePath::SubPaths { span, segments, sub_paths } => {
+            UsePath::SubPaths { span, node_id, segments, sub_paths } => {
                 let mut path = base_scope.clone();
                 for segment in segments {
                     path.push(self.names[*segment].to_string());
@@ -501,7 +501,7 @@ impl AstToHirLowering<'_> {
                 }
 
             },
-            UsePath::Alias { span, segments, alias } => {
+            UsePath::Alias { span, node_id, segments, alias } => {
                 let mut path = base_scope.clone();
                 for segment in segments {
                     path.push(self.names[*segment].to_string());
@@ -703,13 +703,13 @@ impl Visitor for AstToHirLowering<'_> {
         let params = self.convert_fn_params(ast, &node.params, node_id.index());
 
         let receiver = node.receiver.as_ref().map_or(hir::FnReceiver::None, |rec| match rec {
-            FnReceiver::SelfReceiver { span, is_ref, is_mut } => {
+            FnReceiver::SelfReceiver { span, node_id, is_ref, is_mut } => {
                 hir::FnReceiver::SelfReceiver {
                     is_ref: *is_ref,
                     is_mut: *is_mut,
                 }
             },
-            FnReceiver::SelfTyped { span, is_mut, ty: _ } => {
+            FnReceiver::SelfTyped { span, node_id, is_mut, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 hir::FnReceiver::SelfTyped {
                     is_mut: *is_mut,
@@ -869,7 +869,7 @@ impl Visitor for AstToHirLowering<'_> {
         let node_ctx = self.ctx.get_node_for(node_id);
         let scope = node_ctx.scope.clone();
         match &ast[node_id] {
-            TypeAlias::Normal { span, attrs, vis, name, generics, ty: _ } => {
+            TypeAlias::Normal { span, node_id, attrs, vis, name, generics, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -884,7 +884,7 @@ impl Visitor for AstToHirLowering<'_> {
                     ty,
                 });
             },
-            TypeAlias::Distinct { span, attrs, vis, name, generics, ty: _ } => {
+            TypeAlias::Distinct { span, node_id, attrs, vis, name, generics, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -899,7 +899,7 @@ impl Visitor for AstToHirLowering<'_> {
                     ty,
                 });
             },
-            TypeAlias::Trait { span, attrs, name, generics } => {
+            TypeAlias::Trait { span, node_id, attrs, name, generics } => {
                 let generics = generics.map(|_| self.gen_params_stack.pop().unwrap());
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -910,7 +910,7 @@ impl Visitor for AstToHirLowering<'_> {
                     generics,
                 })
             },
-            TypeAlias::Opaque { span, attrs, vis, name, size } => {
+            TypeAlias::Opaque { span, node_id, attrs, vis, name, size } => {
                 let size = size.map(|_| self.expr_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
                 let attrs = self.get_attribs(ast, attrs);
@@ -933,7 +933,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = node_ctx.scope.clone();
 
         match &ast[node_id] {
-            Struct::Regular { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Regular { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 let mut hir_fields = Vec::new();
                 let mut uses = Vec::new();
         
@@ -963,7 +963,7 @@ impl Visitor for AstToHirLowering<'_> {
                     uses,
                 })
             },
-            Struct::Tuple { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Tuple { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 let mut hir_fields = Vec::new();
                 for field in fields.iter().rev() {
                     hir_fields.push(self.convert_tuple_struct_field(field));
@@ -987,7 +987,7 @@ impl Visitor for AstToHirLowering<'_> {
                     fields: hir_fields,
                 })
             },
-            Struct::Unit { span, attrs, vis, name } => {
+            Struct::Unit { span, node_id, attrs, vis, name } => {
                 let vis = self.get_vis(*vis);
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -1058,7 +1058,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = node_ctx.scope.clone();
 
         match &ast[node_id] {
-            Enum::Adt { span, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
+            Enum::Adt { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
                 let mut hir_variants = Vec::new();
                 for variant in variants {
                     hir_variants.push(self.convert_adt_enum_variant(ast, variant));
@@ -1082,7 +1082,7 @@ impl Visitor for AstToHirLowering<'_> {
                     variants: hir_variants,
                 });
             },
-            Enum::Flag { span, attrs, vis, name, variants } => {
+            Enum::Flag { span, node_id, attrs, vis, name, variants } => {
                 let mut hir_variants = Vec::new();
                 for variant in variants.iter().rev() {
                     let discriminant = variant.discriminant.map(|_| self.expr_stack.pop().unwrap());
@@ -1223,7 +1223,7 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = ast_ctx.scope.clone();
 
         match &ast[node_id] {
-            Static::Static { span, attrs, vis, name, ty, val:_ } => {
+            Static::Static { span, node_id, attrs, vis, name, ty, val:_ } => {
                 let val = self.expr_stack.pop().unwrap();
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -1238,7 +1238,7 @@ impl Visitor for AstToHirLowering<'_> {
                     val,
                 })
             },
-            Static::Tls { span, attrs, vis, is_mut, name, ty, val:_ } => {
+            Static::Tls { span, node_id, attrs, vis, is_mut, name, ty, val:_ } => {
                 let val = self.expr_stack.pop().unwrap();
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
                 let vis = self.get_vis(*vis);
@@ -1254,7 +1254,7 @@ impl Visitor for AstToHirLowering<'_> {
                     val,
                 })
             },
-            Static::Extern { span, attrs, vis, abi, is_mut, name, ty:_ } => {
+            Static::Extern { span, node_id, attrs, vis, abi, is_mut, name, ty:_ } => {
                 let ty = self.type_stack.pop().unwrap();
                 let abi = self.convert_abi(Some(*abi), node_id.index());
                 let vis = self.get_vis(*vis);
@@ -1431,7 +1431,7 @@ impl Visitor for AstToHirLowering<'_> {
         let mut scope = ast_ctx.scope.clone();
 
         match &ast[node_id] {
-            OpTrait::Base { span, attrs, vis, name, precedence, elems } => {
+            OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     self.visit_attribute(ast, *attr);
                 }
@@ -1456,7 +1456,7 @@ impl Visitor for AstToHirLowering<'_> {
                     self.convert_op_elem(ast, op_elem, scope.clone(), node_id.index() as u32);
                 }
             },
-            OpTrait::Extended { span, attrs, vis, name, bases, elems } => {
+            OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => {
                 for attr in attrs {
                     self.visit_attribute(ast, *attr);
                 }
@@ -1541,7 +1541,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_var_decl(self, ast, node_id);
 
         match &ast[node_id] {
-            VarDecl::Named { span, attrs, names, expr: _ } => {
+            VarDecl::Named { span, node_id, attrs, names, expr: _ } => {
                 let expr = self.expr_stack.pop().unwrap();
                 let attrs = self.get_attribs(ast, attrs);
 
@@ -1639,7 +1639,7 @@ impl Visitor for AstToHirLowering<'_> {
                     }
                 }
             },
-            VarDecl::Let { span, attrs, pattern: _, ty, expr, else_block } => {
+            VarDecl::Let { span, node_id, attrs, pattern: _, ty, expr, else_block } => {
                 let else_block = else_block.map(|_| self.expr_stack.pop().unwrap());
                 let expr = expr.map(|_| self.expr_stack.pop().unwrap());
                 let ty = ty.as_ref().map(|_| self.type_stack.pop().unwrap());
@@ -1967,7 +1967,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_path_expr(self, ast, node_id);
 
         let expr = match &ast[node_id] {
-            PathExpr::Named { span, iden } => {
+            PathExpr::Named { span, node_id, iden } => {
                 let gen_args = iden.gen_args.map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Named {
@@ -1977,7 +1977,7 @@ impl Visitor for AstToHirLowering<'_> {
                     }
                 }
             },
-            PathExpr::Inferred { span, iden } => {
+            PathExpr::Inferred { span, node_id, iden } => {
                 let gen_args = iden.gen_args.map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Inferred {
@@ -1988,7 +1988,7 @@ impl Visitor for AstToHirLowering<'_> {
                 }
             },
             PathExpr::SelfPath => hir::PathExpr::SelfPath,
-            PathExpr::Qualified { span, path: _ } => {
+            PathExpr::Qualified { span, node_id, path: _ } => {
                 let path = self.qual_path_stack.pop().unwrap();
                 hir::PathExpr::Qualified { path }
             },
@@ -2960,8 +2960,8 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_struct_pattern(self, ast, node_id);
 
         let (path, ast_fields) = match &ast[node_id] {
-            StructPattern::Inferred { span, fields } => (None, fields),
-            StructPattern::Path { span, path: _, fields } => {
+            StructPattern::Inferred { span, node_id, fields } => (None, fields),
+            StructPattern::Path { span, node_id, path: _, fields } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), fields)
             },
@@ -3039,8 +3039,8 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_tuple_struct_pattern(self, ast, node_id);
 
         let (path, ast_patterns) = match &ast[node_id] {
-            TupleStructPattern::Inferred { span, patterns } => (None, patterns),
-            TupleStructPattern::Named { span, path: _, patterns } => {
+            TupleStructPattern::Inferred { span, node_id, patterns } => (None, patterns),
+            TupleStructPattern::Named { span, node_id, path: _, patterns } => {
                 let path = self.path_stack.pop().unwrap();
                 (Some(path), patterns)
             },
@@ -3421,11 +3421,11 @@ impl Visitor for AstToHirLowering<'_> {
 
         let node = &ast[node_id];
         let vis = match node {
-            Visibility::Pub(_)     => hir::Visibility::Pub,
-            Visibility::Super(_)   => hir::Visibility::Super,
-            Visibility::Lib(_)     => hir::Visibility::Lib,
-            Visibility::Package(_) => hir::Visibility::Package,
-            Visibility::Path{ .. } => {
+            Visibility::Pub{ .. }     => hir::Visibility::Pub,
+            Visibility::Super{ .. }   => hir::Visibility::Super,
+            Visibility::Lib{ .. }     => hir::Visibility::Lib,
+            Visibility::Package{ .. } => hir::Visibility::Package,
+            Visibility::Path{ .. }    => {
                 let path = self.simple_path_stack.pop().unwrap();
                 hir::Visibility::Path(path)
             },

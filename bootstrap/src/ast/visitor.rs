@@ -597,11 +597,11 @@ pub mod helpers {
     pub fn visit_use_path<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<UsePath>) {
         let node = &ast[node_id];
         match node {
-            UsePath::SelfPath { span, alias } => {},
-            UsePath::SubPaths { span, segments, sub_paths } => for path in sub_paths {
+            UsePath::SelfPath { span, node_id, alias } => {},
+            UsePath::SubPaths { span, node_id, segments, sub_paths } => for path in sub_paths {
                 visitor.visit_use_path(ast, *path);
             },
-            UsePath::Alias { span, segments, alias } => {},
+            UsePath::Alias { span, node_id, segments, alias } => {},
         }
     }
 
@@ -617,7 +617,7 @@ pub mod helpers {
             visitor.visit_generic_params(ast, generics);
         }
 
-        if let Some(FnReceiver::SelfTyped { span, is_mut, ty }) = &node.receiver {
+        if let Some(FnReceiver::SelfTyped { span, node_id, is_mut, ty }) = &node.receiver {
             visitor.visit_type(ast, ty);
         }
 
@@ -668,7 +668,7 @@ pub mod helpers {
 
     pub fn visit_type_alias<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TypeAlias>) {
         match &ast[node_id] {
-            TypeAlias::Normal { span, attrs, vis, name, generics, ty } => {
+            TypeAlias::Normal { span, node_id, attrs, vis, name, generics, ty } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -680,7 +680,7 @@ pub mod helpers {
                 }
                 visitor.visit_type(ast, ty);
             },
-            TypeAlias::Distinct { span, attrs, vis, name, generics, ty } => {
+            TypeAlias::Distinct { span, node_id, attrs, vis, name, generics, ty } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -692,7 +692,7 @@ pub mod helpers {
                 }
                 visitor.visit_type(ast, ty);
             },
-            TypeAlias::Trait { span, attrs, name, generics } => {
+            TypeAlias::Trait { span, node_id, attrs, name, generics } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -700,7 +700,7 @@ pub mod helpers {
                     visitor.visit_generic_params(ast, *generics);
                 }
             },
-            TypeAlias::Opaque { span, attrs, vis, name, size } => {
+            TypeAlias::Opaque { span, node_id, attrs, vis, name, size } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -716,7 +716,7 @@ pub mod helpers {
 
     pub fn visit_struct<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Struct>) {
         match &ast[node_id] {
-            Struct::Regular { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Regular { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -733,7 +733,7 @@ pub mod helpers {
                     visitor.visit_reg_struct_field(ast, field);
                 }
             },
-            Struct::Tuple { span, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
+            Struct::Tuple { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -750,7 +750,7 @@ pub mod helpers {
                     visitor.visit_tuple_struct_field(ast, field);
                 }
             },
-            Struct::Unit { span, attrs, vis, name } => {
+            Struct::Unit { span, node_id, attrs, vis, name } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -827,7 +827,7 @@ pub mod helpers {
 
     pub fn visit_enum<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Enum>) {
         match &ast[node_id] {
-            Enum::Adt { span, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
+            Enum::Adt { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -844,7 +844,7 @@ pub mod helpers {
                     visitor.visit_enum_variant(ast, variant);
                 }
             },
-            Enum::Flag { span, attrs, vis, name, variants } => {
+            Enum::Flag { span, node_id, attrs, vis, name, variants } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -964,7 +964,7 @@ pub mod helpers {
 
     pub fn visit_static<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Static>) {
         match &ast[node_id] {
-            Static::Static { span, attrs, vis, name, ty, val } => {
+            Static::Static { span, node_id, attrs, vis, name, ty, val } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -976,7 +976,7 @@ pub mod helpers {
                 }
                 visitor.visit_expr(ast, val);
             },
-            Static::Tls { span, attrs, vis, is_mut, name, ty, val } => {
+            Static::Tls { span, node_id, attrs, vis, is_mut, name, ty, val } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -988,7 +988,7 @@ pub mod helpers {
                 }
                 visitor.visit_expr(ast, val);
             },
-            Static::Extern { span, attrs, vis, abi, is_mut, name, ty } => {
+            Static::Extern { span, node_id, attrs, vis, abi, is_mut, name, ty } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -1081,7 +1081,7 @@ pub mod helpers {
 
     pub fn visit_op_trait<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<OpTrait>) {
         match &ast[node_id] {
-            OpTrait::Base { span, attrs, vis, name, precedence, elems } => {
+            OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -1092,7 +1092,7 @@ pub mod helpers {
                     visit_op_elem(visitor, ast, elem);
                 }
             },
-            OpTrait::Extended { span, attrs, vis, name, bases, elems } => {
+            OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -1165,13 +1165,13 @@ pub mod helpers {
 
     pub fn visit_var_decl<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<VarDecl>) {
         match &ast[node_id] {
-            VarDecl::Named { span, attrs, names, expr } => {
+            VarDecl::Named { span, node_id, attrs, names, expr } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
                 visitor.visit_expr(ast, expr);
             },
-            VarDecl::Let { span, attrs, pattern, ty, expr, else_block } => {
+            VarDecl::Let { span, node_id, attrs, pattern, ty, expr, else_block } => {
                 for attr in attrs {
                     visitor.visit_attribute(ast, *attr);
                 }
@@ -1514,21 +1514,21 @@ pub mod helpers {
 
     pub fn visit_range_pattern<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<RangePattern>) {
         match &ast[node_id] {
-            RangePattern::Exclusive { span, begin, end } => {
+            RangePattern::Exclusive { span, node_id, begin, end } => {
                 visitor.visit_pattern(ast, begin);
                 visitor.visit_pattern(ast, end);
             },
-            RangePattern::Inclusive { span, begin, end } => {
+            RangePattern::Inclusive { span, node_id, begin, end } => {
                 visitor.visit_pattern(ast, begin);
                 visitor.visit_pattern(ast, end);
             },
-            RangePattern::From { span, begin } => {
+            RangePattern::From { span, node_id, begin } => {
                 visitor.visit_pattern(ast, begin);
             },
-            RangePattern::To { span, end } => {
+            RangePattern::To { span, node_id, end } => {
                 visitor.visit_pattern(ast, end);
             },
-            RangePattern::InclusiveTo { span, end } => {
+            RangePattern::InclusiveTo { span, node_id, end } => {
                 visitor.visit_pattern(ast, end);
             },
         }
@@ -1542,7 +1542,7 @@ pub mod helpers {
     pub fn visit_struct_pattern<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<StructPattern>) {
         let node = &ast[node_id];
         match node {
-            StructPattern::Inferred { span, fields } => for field in fields {
+            StructPattern::Inferred { span, node_id, fields } => for field in fields {
                 match field {
                     StructPatternField::Named { span, name, pattern }              => visitor.visit_pattern(ast, pattern),
                     StructPatternField::TupleIndex { span, idx, pattern }          => visitor.visit_pattern(ast, pattern),
@@ -1552,7 +1552,7 @@ pub mod helpers {
                     StructPatternField::Rest                                 => {},
                 }
             },
-            StructPattern::Path { span, path, fields } => {
+            StructPattern::Path { span, node_id, path, fields } => {
                 visitor.visit_expr_path(ast, *path);
                 for field in fields {
                     match field {
@@ -1571,13 +1571,13 @@ pub mod helpers {
     pub fn visit_tuple_struct_pattern<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<TupleStructPattern>) {
         let node = &ast[node_id];
         match node {
-            TupleStructPattern::Named { span, path, patterns } => {
+            TupleStructPattern::Named { span, node_id, path, patterns } => {
                 visitor.visit_expr_path(ast, *path);
                 for pattern in patterns {
                     visitor.visit_pattern(ast, pattern);
                 }
             },
-            TupleStructPattern::Inferred { span, patterns } => for pattern in patterns {
+            TupleStructPattern::Inferred { span, node_id, patterns } => for pattern in patterns {
                 visitor.visit_pattern(ast, pattern);
             },
         }
@@ -1716,7 +1716,7 @@ pub mod helpers {
 
     pub fn visit_visibility<T: Visitor>(visitor: &mut T, ast: &Ast, node_id: AstNodeRef<Visibility>) {
         match &ast[node_id] {
-            Visibility::Path{ span:_, path } => visitor.visit_simple_path(ast, *path),
+            Visibility::Path{ span:_, node_id, path } => visitor.visit_simple_path(ast, *path),
             _                                => {},
         }
     }
@@ -1730,13 +1730,13 @@ pub mod helpers {
 
     pub fn visit_attribute_meta<T: Visitor>(visitor: &mut T, ast: &Ast, meta: &AttribMeta) {
         match meta {
-            AttribMeta::Simple { span, path }       => visitor.visit_simple_path(ast, *path),
-            AttribMeta::Expr { span, expr }         => visitor.visit_expr(ast, expr),
-            AttribMeta::Assign { span, path, expr } => {
+            AttribMeta::Simple { span, node_id, path }       => visitor.visit_simple_path(ast, *path),
+            AttribMeta::Expr { span, node_id, expr }         => visitor.visit_expr(ast, expr),
+            AttribMeta::Assign { span, node_id, path, expr } => {
                 visitor.visit_simple_path(ast, *path);
                 visitor.visit_expr(ast, expr);
             },
-            AttribMeta::Meta { span, path, metas }  => {
+            AttribMeta::Meta { span, node_id, path, metas }  => {
                 visitor.visit_simple_path(ast, *path);
                 for meta in metas {
                     visit_attribute_meta(visitor, ast, meta);

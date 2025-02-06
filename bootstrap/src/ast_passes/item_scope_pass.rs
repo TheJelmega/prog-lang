@@ -21,25 +21,25 @@ impl<'a> ModuleScopePass<'a> {
 
 impl Visitor for ModuleScopePass<'_> {
     fn visit_item(&mut self, ast: &Ast, item: &Item) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id());
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
         ctx.scope = self.scope.clone();
         helpers::visit_item(self, ast, item);
     }
 
     fn visit_trait_item(&mut self, ast: &Ast, item: &TraitItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id());
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
         ctx.scope = self.scope.clone();
         helpers::visit_trait_item(self, ast, item);
     }
 
     fn visit_assoc_item(&mut self, ast: &Ast, item: &AssocItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id());
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
         ctx.scope = self.scope.clone();
         helpers::visit_assoc_item(self, ast, item);
     }
 
     fn visit_extern_item(&mut self, ast: &Ast, item: &ExternItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id());
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
         ctx.scope = self.scope.clone();
         helpers::visit_extern_item(self, ast, item);
     }

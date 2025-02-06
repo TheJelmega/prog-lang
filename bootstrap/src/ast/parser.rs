@@ -322,6 +322,7 @@ impl Parser<'_> {
 
         Ok(self.add_node(SimplePath {
             span,
+            node_id: NodeId::default(),
             start,
             names
         }))
@@ -398,7 +399,7 @@ impl Parser<'_> {
         })?;
 
         let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TypePath{ span, idens }))
+        Ok(self.add_node(TypePath{ span, node_id: NodeId::default(), idens }))
     }
 
     fn parse_identifier(&mut self, dot_generics: bool) -> Result<Identifier, ParserErr> {
@@ -426,6 +427,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(ExprPath{
             span,
+            node_id: NodeId::default(),
             inferred,
             idens
         }))
@@ -470,6 +472,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(QualifiedPath {
             span,
+            node_id: NodeId::default(),
             ty,
             bound,
             sub_path,
@@ -699,6 +702,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Module(self.add_node(ModuleItem {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             name,
@@ -744,6 +748,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Use(self.add_node(UseItem {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             group,
@@ -763,7 +768,7 @@ impl Parser<'_> {
                 None
             };
             let span = self.get_span_to_current(begin);
-            Ok(self.add_node(UsePath::SelfPath { span, alias }))
+            Ok(self.add_node(UsePath::SelfPath { span, node_id: NodeId::default(), alias }))
         } else {
             let mut segments = Vec::new();
             let mut sub_paths = Vec::new();
@@ -793,7 +798,7 @@ impl Parser<'_> {
 
             if !sub_paths.is_empty() {
                 let span = self.get_span_to_current(begin);
-                Ok(self.add_node(UsePath::SubPaths { span, segments, sub_paths }))
+                Ok(self.add_node(UsePath::SubPaths { span, node_id: NodeId::default(), segments, sub_paths }))
             } else {
                 let alias = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
                     Some(self.consume_name()?)  
@@ -802,7 +807,7 @@ impl Parser<'_> {
                 };
         
                 let span = self.get_span_to_current(begin);
-                Ok(self.add_node(UsePath::Alias { span, segments, alias }))
+                Ok(self.add_node(UsePath::Alias { span, node_id: NodeId::default(), segments, alias }))
             }
         }
     }
@@ -839,7 +844,7 @@ impl Parser<'_> {
                 let ty = self.parse_type()?;
 
                 let span = self.get_span_to_current(begin);
-                FnReceiver::SelfTyped{ span, is_mut, ty }
+                FnReceiver::SelfTyped{ span, node_id: NodeId::default(), is_mut, ty }
             } else {
                 let begin = self.get_cur_span();
 
@@ -848,7 +853,7 @@ impl Parser<'_> {
                 self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
 
                 let span = self.get_span_to_current(begin);
-                FnReceiver::SelfReceiver { span, is_ref, is_mut }
+                FnReceiver::SelfReceiver { span, node_id: NodeId::default(), is_ref, is_mut }
             };
 
             let has_possible_params = self.try_consume(Token::Punctuation(Punctuation::Comma));
@@ -898,6 +903,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Function {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_override,
@@ -1005,6 +1011,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             return Ok(self.add_node(TypeAlias::Distinct {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1023,6 +1030,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             return Ok(self.add_node(TypeAlias::Trait {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 name,
                 generics,
@@ -1044,6 +1052,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(self.add_node(TypeAlias::Opaque {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1061,6 +1070,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(self.add_node(TypeAlias::Normal {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1088,6 +1098,7 @@ impl Parser<'_> {
                 let span = self.get_span_to_current(begin);
                 Ok(Item::Struct(self.add_node(Struct::Regular {
                     span,
+                    node_id: NodeId::default(),
                     attrs,
                     vis,
                     is_mut,
@@ -1104,6 +1115,7 @@ impl Parser<'_> {
                 let span = self.get_span_to_current(begin);
                 Ok(Item::Struct(self.add_node(Struct::Tuple {
                     span,
+                    node_id: NodeId::default(),
                     attrs,
                     vis,
                     is_mut,
@@ -1121,7 +1133,7 @@ impl Parser<'_> {
 
                 self.consume_punct(Punctuation::Semicolon)?;
                 let span = self.get_span_to_current(begin);
-                Ok(Item::Struct(self.add_node(Struct::Unit { span, attrs, vis, name })))
+                Ok(Item::Struct(self.add_node(Struct::Unit { span, node_id: NodeId::default(), attrs, vis, name })))
             }
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "struct" }))
         }
@@ -1207,6 +1219,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Union(self.add_node(Union {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_mut,
@@ -1262,6 +1275,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Item::Enum(self.add_node(Enum::Flag {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1275,6 +1289,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Item::Enum(self.add_node(Enum::Adt {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 is_mut,
@@ -1370,6 +1385,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Bitfield(self.add_node(Bitfield {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_mut,
@@ -1459,6 +1475,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Const {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             name,
@@ -1481,6 +1498,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(self.add_node(Static::Extern {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 abi,
@@ -1507,6 +1525,7 @@ impl Parser<'_> {
             if is_tls {
                 Ok(self.add_node(Static::Tls {
                     span,
+                    node_id: NodeId::default(),
                     attrs,
                     vis,
                     is_mut,
@@ -1517,6 +1536,7 @@ impl Parser<'_> {
             } else {
                 Ok(self.add_node(Static::Static {
                     span,
+                    node_id: NodeId::default(),
                     attrs,
                     vis,
                     name,
@@ -1682,6 +1702,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Property {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_unsafe,
@@ -1712,6 +1733,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Trait(self.add_node(Trait {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_unsafe,
@@ -1744,6 +1766,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Impl(self.add_node(Impl {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             is_unsafe,
@@ -1769,6 +1792,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Extern(self.add_node(ExternBlock {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             abi,
@@ -1805,6 +1829,7 @@ impl Parser<'_> {
         if !bases.is_empty() {
             Ok(Item::OpTrait(self.add_node(OpTrait::Extended {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1814,6 +1839,7 @@ impl Parser<'_> {
         } else {
             Ok(Item::OpTrait(self.add_node(OpTrait::Base {
                 span,
+                node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
@@ -1918,6 +1944,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::OpUse(self.add_node(OpUse {
             span,
+            node_id: NodeId::default(),
             group,
             package,
             library,
@@ -1979,6 +2006,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::Precedence(self.add_node(Precedence {
             span,
+            node_id: NodeId::default(),
             attrs,
             vis,
             name,
@@ -2030,6 +2058,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Item::PrecedenceUse(self.add_node(PrecedenceUse {
             span,
+            node_id: NodeId::default(),
             group,
             package,
             library,
@@ -2063,6 +2092,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Block {
             span,
+            node_id: NodeId::default(),
             stmts,
             final_expr,
         }))
@@ -2158,6 +2188,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(VarDecl::Named {
             span,
+            node_id: NodeId::default(),
             attrs,
             names,
             expr,
@@ -2190,6 +2221,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(VarDecl::Let {
             span,
+            node_id: NodeId::default(),
             attrs,
             pattern,
             ty,
@@ -2209,6 +2241,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Defer {
             span,
+            node_id: NodeId::default(),
             attrs,
             expr,
         }))
@@ -2237,6 +2270,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(ErrDefer {
             span,
+            node_id: NodeId::default(),
             attrs,
             receiver,
             expr,
@@ -2260,6 +2294,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(ExprStmt {
             span,
+            node_id: NodeId::default(),
             attrs,
             expr,
             has_semi,
@@ -2388,6 +2423,7 @@ impl Parser<'_> {
                         let span = self.get_span_to_current(begin);
                         Expr::Postfix(self.add_node(PostfixExpr {
                             span,
+                            node_id: NodeId::default(),
                             op,
                             expr,
                         }))
@@ -2405,6 +2441,7 @@ impl Parser<'_> {
                                let span = self.get_span_to_current(begin);
                                 Expr::Infix(self.add_node(InfixExpr {
                                     span,
+                                    node_id: NodeId::default(),
                                     op,
                                     left: expr,
                                     right,
@@ -2413,6 +2450,7 @@ impl Parser<'_> {
                                 let span = self.get_span_to_current(begin);
                                 Expr::Postfix(self.add_node(PostfixExpr {
                                     span,
+                                    node_id: NodeId::default(),
                                     op,
                                     expr,
                                 }))
@@ -2422,6 +2460,7 @@ impl Parser<'_> {
                             let span = self.get_span_to_current(begin);
                             Expr::Infix(self.add_node(InfixExpr {
                                 span,
+                                node_id: NodeId::default(),
                                 op,
                                 left: expr,
                                 right,
@@ -2441,6 +2480,7 @@ impl Parser<'_> {
                     let span = self.get_span_to_current(begin);
                     Expr::Infix(self.add_node(InfixExpr {
                         span,
+                        node_id: NodeId::default(),
                         op,
                         left: expr,
                         right,
@@ -2498,6 +2538,7 @@ impl Parser<'_> {
                 let span = self.get_span_to_current(begin);
                 Ok(LiteralExpr {
                     span,
+                    node_id: NodeId::default(),
                     literal: LiteralValue::Lit(literal),
                     lit_op
                 })
@@ -2511,6 +2552,7 @@ impl Parser<'_> {
                 let span = self.get_span_to_current(begin);
                 Ok(LiteralExpr {
                     span,
+                    node_id: NodeId::default(),
                     literal: LiteralValue::Bool(value),
                     lit_op,
                 })
@@ -2526,36 +2568,36 @@ impl Parser<'_> {
             Some(match peek {
                 Token::Name(name_id) => LiteralOp::Name(name_id),
                 Token::StrongKw(kw) => match kw {
-                    StrongKeyword::U8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U8 }),
-                    StrongKeyword::U16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U16 }),
-                    StrongKeyword::U32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U32 }),
-                    StrongKeyword::U64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U64 }),
-                    StrongKeyword::U128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::U128 }),
-                    StrongKeyword::I8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I8 }),
-                    StrongKeyword::I16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I16 }),
-                    StrongKeyword::I32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I32 }),
-                    StrongKeyword::I64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I64 }),
-                    StrongKeyword::I128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::I128 }),
-                    StrongKeyword::F16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F16 }),
-                    StrongKeyword::F32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F32 }),
-                    StrongKeyword::F64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F64 }),
-                    StrongKeyword::F128   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::F128 }),
-                    StrongKeyword::Bool   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Bool }),
-                    StrongKeyword::B8     => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B8 }),
-                    StrongKeyword::B16    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B16 }),
-                    StrongKeyword::B32    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B32 }),
-                    StrongKeyword::B64    => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::B64 }),
-                    StrongKeyword::Char   => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char }),
-                    StrongKeyword::Char7  => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char7 }),
-                    StrongKeyword::Char8  => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char8 }),
-                    StrongKeyword::Char16 => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char16 }),
-                    StrongKeyword::Char32 => LiteralOp::Primitive(PrimitiveType { span, ty: type_system::PrimitiveType::Char32 }),
-                    StrongKeyword::Str    => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str }),
-                    StrongKeyword::Str7   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str7 }),
-                    StrongKeyword::Str8   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str8 }),
-                    StrongKeyword::Str16  => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str16 }),
-                    StrongKeyword::Str32  => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::Str32 }),
-                    StrongKeyword::CStr   => LiteralOp::StringSlice(StringSliceType { span, ty: type_system::StringSliceType::CStr }),
+                    StrongKeyword::U8     => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U8 }),
+                    StrongKeyword::U16    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U16 }),
+                    StrongKeyword::U32    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U32 }),
+                    StrongKeyword::U64    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U64 }),
+                    StrongKeyword::U128   => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U128 }),
+                    StrongKeyword::I8     => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I8 }),
+                    StrongKeyword::I16    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I16 }),
+                    StrongKeyword::I32    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I32 }),
+                    StrongKeyword::I64    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I64 }),
+                    StrongKeyword::I128   => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I128 }),
+                    StrongKeyword::F16    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F16 }),
+                    StrongKeyword::F32    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F32 }),
+                    StrongKeyword::F64    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F64 }),
+                    StrongKeyword::F128   => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F128 }),
+                    StrongKeyword::Bool   => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Bool }),
+                    StrongKeyword::B8     => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B8 }),
+                    StrongKeyword::B16    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B16 }),
+                    StrongKeyword::B32    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B32 }),
+                    StrongKeyword::B64    => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B64 }),
+                    StrongKeyword::Char   => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char }),
+                    StrongKeyword::Char7  => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char7 }),
+                    StrongKeyword::Char8  => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char8 }),
+                    StrongKeyword::Char16 => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char16 }),
+                    StrongKeyword::Char32 => LiteralOp::Primitive(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char32 }),
+                    StrongKeyword::Str    => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str }),
+                    StrongKeyword::Str7   => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str7 }),
+                    StrongKeyword::Str8   => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str8 }),
+                    StrongKeyword::Str16  => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str16 }),
+                    StrongKeyword::Str32  => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str32 }),
+                    StrongKeyword::CStr   => LiteralOp::StringSlice(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::CStr }),
                     _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason:  "literal operator" })),
                 }
                 _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "literal operator" })),
@@ -2570,11 +2612,11 @@ impl Parser<'_> {
         if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
             let iden = self.parse_identifier(true)?;
             let span = self.get_span_to_current(begin);
-            Ok(Expr::Path(self.add_node(PathExpr::Inferred { span, iden })))
+            Ok(Expr::Path(self.add_node(PathExpr::Inferred { span, node_id: NodeId::default(), iden })))
         } else {
             let iden = self.parse_identifier(true)?;
             let span = self.get_span_to_current(begin);
-            Ok(Expr::Path(self.add_node(PathExpr::Named { span, iden })))
+            Ok(Expr::Path(self.add_node(PathExpr::Named { span, node_id: NodeId::default(), iden })))
         }
     }
 
@@ -2582,7 +2624,7 @@ impl Parser<'_> {
         let begin = self.get_cur_span();
         let path = self.parse_qualified_path()?;
         let span = self.get_span_to_current(begin);
-        Ok(Expr::Path(self.add_node(PathExpr::Qualified { span, path })))
+        Ok(Expr::Path(self.add_node(PathExpr::Qualified { span, node_id: NodeId::default(), path })))
     }
 
     fn parse_block_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
@@ -2590,6 +2632,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(BlockExpr {
             span,
+            node_id: NodeId::default(),
             kind: if let Some(label) = label { BlockExprKind::Labeled { label } } else { BlockExprKind::Normal },
             block
         }))
@@ -2604,6 +2647,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr{
             span,
+            node_id: NodeId::default(),
             kind: BlockExprKind::Unsafe,
             block,
         })))
@@ -2617,6 +2661,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr{
             span,
+            node_id: NodeId::default(),
             kind: BlockExprKind::Const,
             block,
         })))
@@ -2635,6 +2680,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Block(self.add_node(BlockExpr {
             span,
+            node_id: NodeId::default(),
             kind,
             block,
         })))
@@ -2647,6 +2693,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Prefix(self.add_node(PrefixExpr {
             span,
+            node_id: NodeId::default(),
             op,
             expr,
         })))
@@ -2659,11 +2706,13 @@ impl Parser<'_> {
         if exprs.len() == 1 {
             Ok(Expr::Paren(self.add_node(ParenExpr {
                 span,
+                node_id: NodeId::default(),
                 expr: exprs.pop().unwrap(),
             })))
         } else {
             Ok(Expr::Tuple(self.add_node(TupleExpr {
                 span,
+                node_id: NodeId::default(),
                 exprs,
             })))
         }
@@ -2677,6 +2726,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Inplace(self.add_node(InplaceExpr {
             span,
+            node_id: NodeId::default(),
             left,
             right,
         })))
@@ -2689,6 +2739,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
                 span,
+                node_id: NodeId::default(),
                 kind: TypeCastKind::Try,
                 expr,
                 ty,
@@ -2698,6 +2749,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
                 span,
+                node_id: NodeId::default(),
                 kind: TypeCastKind::Unwrap,
                 expr,
                 ty,
@@ -2708,6 +2760,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Expr::TypeCast(self.add_node(TypeCastExpr {
                 span,
+                node_id: NodeId::default(),
                 kind: TypeCastKind::Normal,
                 expr,
                 ty,
@@ -2727,6 +2780,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::TypeCheck(self.add_node(TypeCheckExpr {
             span,
+            node_id: NodeId::default(),
             negate,
             expr,
             ty,
@@ -2739,6 +2793,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Array(self.add_node(ArrayExpr {
             span,
+            node_id: NodeId::default(),
             exprs,
         })))
     }
@@ -2764,6 +2819,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Struct(self.add_node(StructExpr {
             span,
+            node_id: NodeId::default(),
             path,
             args,
         })))
@@ -2803,6 +2859,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Index(self.add_node(IndexExpr {
             span,
+            node_id: NodeId::default(),
             is_opt,
             expr,
             index,
@@ -2817,6 +2874,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::TupleIndex(self.add_node(TupleIndexExpr {
             span,
+            node_id: NodeId::default(),
             expr,
             index,
         })))
@@ -2829,6 +2887,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::FnCall(self.add_node(FnCallExpr{
             span,
+            node_id: NodeId::default(),
             expr,
             args
         })))
@@ -2867,6 +2926,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Expr::Method(self.add_node(MethodCallExpr {
                 span,
+                node_id: NodeId::default(),
                 receiver: expr,
                 method: field,
                 gen_args,
@@ -2877,6 +2937,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Expr::FieldAccess(self.add_node(FieldAccessExpr {
                 span,
+                node_id: NodeId::default(),
                 expr,
                 gen_args,
                 field,
@@ -2903,6 +2964,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Closure(self.add_node(ClosureExpr {
             span,
+            node_id: NodeId::default(),
             is_moved,
             params,
             ret,
@@ -2932,6 +2994,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::If(self.add_node(IfExpr {
             span,
+            node_id: NodeId::default(),
             cond,
             body,
             else_body,
@@ -2949,6 +3012,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Let(self.add_node(LetBindingExpr {
             span,
+            node_id: NodeId::default(),
             pattern,
             scrutinee,
         })))
@@ -2967,6 +3031,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Loop(self.add_node(LoopExpr {
             span,
+            node_id: NodeId::default(),
             label,
             body,
         })))
@@ -2994,6 +3059,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::While(self.add_node(WhileExpr {
             span,
+            node_id: NodeId::default(),
             label,
             cond,
             inc,
@@ -3011,6 +3077,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::DoWhile(self.add_node(DoWhileExpr {
             span,
+            node_id: NodeId::default(),
             label,
             body,
             cond,
@@ -3035,6 +3102,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::For(self.add_node(ForExpr {
             span,
+            node_id: NodeId::default(),
             label,
             pattern,
             src,
@@ -3067,6 +3135,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Match(self.add_node(MatchExpr {
             span,
+            node_id: NodeId::default(),
             label,
             scrutinee,
             branches,
@@ -3116,6 +3185,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Break(self.add_node(BreakExpr {
             span,
+            node_id: NodeId::default(),
             label,
             value,
         })))
@@ -3133,6 +3203,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Continue(self.add_node(ContinueExpr {
             span,
+            node_id: NodeId::default(),
             label,
         })))
     }
@@ -3149,6 +3220,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Fallthrough(self.add_node(FallthroughExpr {
             span,
+            node_id: NodeId::default(),
             label,
         })))
     }
@@ -3165,6 +3237,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Return(self.add_node(ReturnExpr {
             span,
+            node_id: NodeId::default(),
             value,
         })))
     }
@@ -3177,6 +3250,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Throw(self.add_node(ThrowExpr {
             span,
+            node_id: NodeId::default(),
             expr,
         })))
     }
@@ -3196,6 +3270,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::Comma(self.add_node(CommaExpr {
             span,
+            node_id: NodeId::default(),
             exprs,
         })))
     }
@@ -3222,6 +3297,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Expr::When(self.add_node(WhenExpr {
             span,
+            node_id: NodeId::default(),
             cond,
             body,
             else_body,
@@ -3241,6 +3317,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Pattern::Alternative(self.add_node(AlternativePattern {
                 span,
+                node_id: NodeId::default(),
                 patterns
             })))
         }
@@ -3287,6 +3364,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Pattern::Literal(self.add_node(LiteralPattern {
             span,
+            node_id: NodeId::default(),
             literal: lit.literal,
             lit_op: lit.lit_op,
         })))
@@ -3318,6 +3396,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Pattern::Identifier(self.add_node(IdentifierPattern {
             span,
+            node_id: NodeId::default(),
             is_ref,
             is_mut,
             name,
@@ -3332,7 +3411,7 @@ impl Parser<'_> {
             self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
             let span = self.get_span_to_current(begin);
-            Ok(Pattern::Range(self.add_node(RangePattern::To { span, end })))
+            Ok(Pattern::Range(self.add_node(RangePattern::To { span, node_id: NodeId::default(), end })))
         } else {
             Ok(Pattern::Rest)
         }
@@ -3345,7 +3424,7 @@ impl Parser<'_> {
         let end = self.parse_pattern_no_top_alternative()?;
         
         let span = self.get_span_to_current(begin);
-        Ok(Pattern::Range(self.add_node(RangePattern::InclusiveTo { span, end })))
+        Ok(Pattern::Range(self.add_node(RangePattern::InclusiveTo { span, node_id: NodeId::default(), end })))
     }
 
     fn parse_path_like_pattern(&mut self) -> Result<Pattern, ParserErr> {
@@ -3368,6 +3447,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             return Ok(Pattern::Identifier(self.add_node(IdentifierPattern {
                 span,
+                node_id: NodeId::default(),
                 is_ref: false,
                 is_mut: false,
                 name,
@@ -3381,19 +3461,19 @@ impl Parser<'_> {
                 OpenCloseSymbol::Paren => {
                     let patterns = self.parse_comma_separated_closed(sym, Self::parse_pattern)?;
                     let span = self.get_span_to_current(begin);
-                    Ok(Pattern::Tuple(self.add_node(TuplePattern { span, patterns })))
+                    Ok(Pattern::Tuple(self.add_node(TuplePattern { span, node_id: NodeId::default(), patterns })))
                 },
                 OpenCloseSymbol::Brace => {
                     let fields = self.parse_comma_separated_closed(sym, Self::parse_struct_pattern_field)?;
                     let span = self.get_span_to_current(begin);
-                    Ok(Pattern::Struct(self.add_node(StructPattern::Path{ span, path, fields })))
+                    Ok(Pattern::Struct(self.add_node(StructPattern::Path{ span, node_id: NodeId::default(), path, fields })))
                 },
                 _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: Token::OpenSymbol(sym), for_reason: "pattern" })),
             }
 
         } else {
             let span = self.get_span_to_current(begin);
-            Ok(Pattern::Path(self.add_node(PathPattern{ span, path })))
+            Ok(Pattern::Path(self.add_node(PathPattern{ span, node_id: NodeId::default(), path })))
         }
     }
 
@@ -3460,7 +3540,7 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::Dot)?;
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_pattern_field)?;
         let span = self.get_span_to_current(begin);
-        Ok(Pattern::Struct(self.add_node(StructPattern::Inferred { span, fields })))
+        Ok(Pattern::Struct(self.add_node(StructPattern::Inferred { span, node_id: NodeId::default(), fields })))
     }
 
     fn parse_enum_member_pattern(&mut self) -> Result<Pattern, ParserErr> {
@@ -3470,6 +3550,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Pattern::EnumMember(self.add_node(EnumMemberPattern {
             span,
+            node_id: NodeId::default(),
             name,
         })))
     }
@@ -3530,6 +3611,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Pattern::Reference(self.add_node(ReferencePattern {
             span,
+            node_id: NodeId::default(),
             is_mut,
             pattern,
         } )))
@@ -3542,12 +3624,14 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Pattern::Grouped(self.add_node(GroupedPattern {
                 span,
+                node_id: NodeId::default(),
                 pattern: patterns.pop().unwrap()
             })))
         } else {
             let span = self.get_span_to_current(begin);
             Ok(Pattern::Tuple(self.add_node(TuplePattern{
                 span,
+                node_id: NodeId::default(),
                 patterns
             })))
         }
@@ -3557,7 +3641,7 @@ impl Parser<'_> {
         let begin = self.get_cur_span();
         let patterns = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_pattern)?;
         let span = self.get_span_to_current(begin);
-        Ok(Pattern::Slice(self.add_node(SlicePattern { span, patterns })))
+        Ok(Pattern::Slice(self.add_node(SlicePattern { span, node_id: NodeId::default(), patterns })))
     }
 
     fn parse_type_check_pattern(&mut self) -> Result<Pattern, ParserErr> {
@@ -3565,7 +3649,7 @@ impl Parser<'_> {
         self.consume_strong_kw(StrongKeyword::Is)?;
         let ty = self.parse_type()?;
         let span = self.get_span_to_current(begin);
-        Ok(Pattern::TypeCheck(self.add_node(TypeCheckPattern { span, ty })))
+        Ok(Pattern::TypeCheck(self.add_node(TypeCheckPattern { span, node_id: NodeId::default(), ty })))
     }
 
     fn parse_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
@@ -3576,10 +3660,10 @@ impl Parser<'_> {
             self.push_meta_frame();
             let end = self.parse_pattern_no_top_alternative()?;
             let span = self.get_span_to_current(begin_span);
-            Ok(Pattern::Range(self.add_node(RangePattern::Exclusive { span, begin, end })))
+            Ok(Pattern::Range(self.add_node(RangePattern::Exclusive { span, node_id: NodeId::default(), begin, end })))
         } else {
             let span = self.get_span_to_current(begin_span);
-            Ok(Pattern::Range(self.add_node(RangePattern::From { span, begin })))
+            Ok(Pattern::Range(self.add_node(RangePattern::From { span, node_id: NodeId::default(), begin })))
         }
     }
     
@@ -3588,7 +3672,7 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::DotDotEquals)?;
         let end = self.parse_pattern()?;
         let span = self.get_span_to_current(begin_span);
-        Ok(Pattern::Range(self.add_node(RangePattern::Inclusive { span, begin, end })))
+        Ok(Pattern::Range(self.add_node(RangePattern::Inclusive { span, node_id: NodeId::default(), begin, end })))
     }
 
 // =============================================================================================================================
@@ -3636,11 +3720,13 @@ impl Parser<'_> {
         } else if types.len() == 1 {
             Ok(Type::Paren(self.add_node(ParenthesizedType {
                 span,
+                node_id: NodeId::default(),
                 ty: types.pop().unwrap(),
             })))
         } else {
             Ok(Type::Tuple(self.add_node(TupleType {
                 span,
+                node_id: NodeId::default(),
                 types,
             })))
         }
@@ -3648,38 +3734,38 @@ impl Parser<'_> {
 
     fn parse_type_from_strong_kw(&mut self, span: SpanId, kw: StrongKeyword) -> Result<Type, ParserErr> {
         let ty = match kw {
-            StrongKeyword::U8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U8 })),
-            StrongKeyword::U16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U16 })),
-            StrongKeyword::U32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U32 })),
-            StrongKeyword::U64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U64 })),
-            StrongKeyword::U128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::U128 })),
-            StrongKeyword::Usize  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Usize })),
-            StrongKeyword::I8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I8 })),
-            StrongKeyword::I16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I16 })),
-            StrongKeyword::I32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I32 })),
-            StrongKeyword::I64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I64 })),
-            StrongKeyword::I128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::I128 })),
-            StrongKeyword::Isize  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Isize })),
-            StrongKeyword::F16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F16 })),
-            StrongKeyword::F32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F32 })),
-            StrongKeyword::F64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F64 })),
-            StrongKeyword::F128   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::F128 })),
-            StrongKeyword::Bool   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Bool })),
-            StrongKeyword::B8     => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B8 })),
-            StrongKeyword::B16    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B16 })),
-            StrongKeyword::B32    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B32 })),
-            StrongKeyword::B64    => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::B64 })),
-            StrongKeyword::Char   => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char })),
-            StrongKeyword::Char7  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char7 })),
-            StrongKeyword::Char8  => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char8 })),
-            StrongKeyword::Char16 => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char16 })),
-            StrongKeyword::Char32 => Type::Primitive(self.add_node(PrimitiveType { span, ty: type_system::PrimitiveType::Char32 })),
-            StrongKeyword::Str    => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str })),
-            StrongKeyword::Str7   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str7 })),
-            StrongKeyword::Str8   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str8 })),
-            StrongKeyword::Str16  => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str16 })),
-            StrongKeyword::Str32  => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::Str32 })),
-            StrongKeyword::CStr   => Type::StringSlice(self.add_node(StringSliceType { span, ty: type_system::StringSliceType::CStr })),
+            StrongKeyword::U8     => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U8 })),
+            StrongKeyword::U16    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U16 })),
+            StrongKeyword::U32    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U32 })),
+            StrongKeyword::U64    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U64 })),
+            StrongKeyword::U128   => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::U128 })),
+            StrongKeyword::Usize  => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Usize })),
+            StrongKeyword::I8     => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I8 })),
+            StrongKeyword::I16    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I16 })),
+            StrongKeyword::I32    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I32 })),
+            StrongKeyword::I64    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I64 })),
+            StrongKeyword::I128   => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::I128 })),
+            StrongKeyword::Isize  => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Isize })),
+            StrongKeyword::F16    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F16 })),
+            StrongKeyword::F32    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F32 })),
+            StrongKeyword::F64    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F64 })),
+            StrongKeyword::F128   => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::F128 })),
+            StrongKeyword::Bool   => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Bool })),
+            StrongKeyword::B8     => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B8 })),
+            StrongKeyword::B16    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B16 })),
+            StrongKeyword::B32    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B32 })),
+            StrongKeyword::B64    => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::B64 })),
+            StrongKeyword::Char   => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char })),
+            StrongKeyword::Char7  => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char7 })),
+            StrongKeyword::Char8  => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char8 })),
+            StrongKeyword::Char16 => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char16 })),
+            StrongKeyword::Char32 => Type::Primitive(self.add_node(PrimitiveType { span, node_id: NodeId::default(), ty: type_system::PrimitiveType::Char32 })),
+            StrongKeyword::Str    => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str })),
+            StrongKeyword::Str7   => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str7 })),
+            StrongKeyword::Str8   => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str8 })),
+            StrongKeyword::Str16  => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str16 })),
+            StrongKeyword::Str32  => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::Str32 })),
+            StrongKeyword::CStr   => Type::StringSlice(self.add_node(StringSliceType { span, node_id: NodeId::default(), ty: type_system::StringSliceType::CStr })),
             _ => {
                 let peek = self.peek()?;
                 return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "type" }))
@@ -3693,7 +3779,7 @@ impl Parser<'_> {
     fn parse_path_type(&mut self) -> Result<Type, ParserErr> {
         let path = self.parse_type_path()?;
         let span = self.ast[path].span;
-        Ok(Type::Path(self.add_node(PathType{ span, path })))
+        Ok(Type::Path(self.add_node(PathType{ span, node_id: NodeId::default(), path })))
     }
 
     fn parse_slice_like_type(&mut self) -> Result<Type, ParserErr> {
@@ -3705,7 +3791,7 @@ impl Parser<'_> {
                 self.end_scope();
                 let ty = self.parse_type_no_bounds()?;
                 let span = self.get_span_to_current(begin);
-                Ok(Type::Slice(self.add_node(SliceType { span, sentinel: None, ty })))
+                Ok(Type::Slice(self.add_node(SliceType { span, node_id: NodeId::default(), sentinel: None, ty })))
             },
             Token::Punctuation(Punctuation::Semicolon) => {
                 self.consume_single();
@@ -3713,7 +3799,7 @@ impl Parser<'_> {
                 self.end_scope()?;
                 let ty = self.parse_type_no_bounds()?;
                 let span = self.get_span_to_current(begin);
-                Ok(Type::Slice(self.add_node(SliceType { span, sentinel, ty })))
+                Ok(Type::Slice(self.add_node(SliceType { span, node_id: NodeId::default(), sentinel, ty })))
             }
             Token::Punctuation(Punctuation::Caret) => {
                 self.consume_single();
@@ -3726,7 +3812,7 @@ impl Parser<'_> {
                 let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
                 let ty = self.parse_type_no_bounds()?;
                 let span = self.get_span_to_current(begin);
-                Ok(Type::Pointer(self.add_node(PointerType { span, is_multi: true, is_mut, sentinel, ty })))
+                Ok(Type::Pointer(self.add_node(PointerType { span, node_id: NodeId::default(), is_multi: true, is_mut, sentinel, ty })))
             },
             _ => {
                 let size = self.parse_expr(ExprParseMode::General)?;
@@ -3738,7 +3824,7 @@ impl Parser<'_> {
                 self.end_scope()?;
                 let ty = self.parse_type_no_bounds()?;
                 let span = self.get_span_to_current(begin);
-                Ok(Type::Array(self.add_node(ArrayType { span, size, sentinel, ty })))
+                Ok(Type::Array(self.add_node(ArrayType { span, node_id: NodeId::default(), size, sentinel, ty })))
             }
         }
     }
@@ -3749,7 +3835,7 @@ impl Parser<'_> {
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let ty = self.parse_type_no_bounds()?;
         let span = self.get_span_to_current(begin);
-        Ok(Type::Pointer(self.add_node(PointerType { span, is_multi: false, is_mut, sentinel: None, ty })))
+        Ok(Type::Pointer(self.add_node(PointerType { span, node_id: NodeId::default(), is_multi: false, is_mut, sentinel: None, ty })))
     }
 
     fn parse_reference_type(&mut self) -> Result<Type, ParserErr> {
@@ -3758,7 +3844,7 @@ impl Parser<'_> {
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         let ty = self.parse_type_no_bounds()?;
         let span = self.get_span_to_current(begin);
-        Ok(Type::Ref(self.add_node(ReferenceType { span, is_mut, ty })))
+        Ok(Type::Ref(self.add_node(ReferenceType { span, node_id: NodeId::default(), is_mut, ty })))
     }
 
     fn parse_optional_type(&mut self) -> Result<Type, ParserErr> {
@@ -3766,7 +3852,7 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::Question)?;
         let ty = self.parse_type_no_bounds()?;
         let span = self.get_span_to_current(begin);
-        Ok(Type::Optional(self.add_node(OptionalType { span, ty })))
+        Ok(Type::Optional(self.add_node(OptionalType { span, node_id: NodeId::default(), ty })))
     }
 
     fn parse_fn_type(&mut self) -> Result<Type, ParserErr> {
@@ -3791,6 +3877,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Type::Fn(self.add_node(FnType {
             span,
+            node_id: NodeId::default(),
             is_unsafe,
             abi,
             params,
@@ -3831,6 +3918,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Type::Record(self.add_node(RecordType {
             span,
+            node_id: NodeId::default(),
             fields
         })))
     }
@@ -3842,6 +3930,7 @@ impl Parser<'_> {
         let span = self.get_span_to_current(begin);
         Ok(Type::EnumRecord(self.add_node(EnumRecordType {
             span,
+            node_id: NodeId::default(),
             variants
         })))
     }
@@ -3874,7 +3963,7 @@ impl Parser<'_> {
         if !self.try_consume(Token::StrongKw(StrongKeyword::Pub)) {
             return Ok(None);
         }
-
+        
         self.push_meta_frame();
         let begin = self.get_cur_span();
         if self.try_begin_scope(OpenCloseSymbol::Paren) {
@@ -3883,30 +3972,30 @@ impl Parser<'_> {
                     self.consume_single();
                     self.end_scope()?;
                     let span = self.get_span_to_current(begin);
-                    Visibility::Package(span)
+                    Visibility::Package{ span, node_id: NodeId::default() }
                 },
                 Token::WeakKw(WeakKeyword::Lib) => {
                     self.consume_single();
                     self.end_scope()?;
                     let span = self.get_span_to_current(begin);
-                    Visibility::Lib(span)
+                    Visibility::Lib{ span, node_id: NodeId::default() }
                 },
                 Token::WeakKw(WeakKeyword::Super) => {
                     self.consume_single();
                     self.end_scope()?;
                     let span = self.get_span_to_current(begin);
-                    Visibility::Super(span)
+                    Visibility::Super{ span, node_id: NodeId::default() }
                 },
                 _ => {
                     let path = self.parse_simple_path(true)?;
                     let span = self.get_span_to_current(begin);
-                    Visibility::Path{ span, path }
+                    Visibility::Path{ span, node_id: NodeId::default(), path }
                 }
             };
 
             Ok(Some(self.add_node(vis)))
         } else {
-            Ok(Some(self.add_node(Visibility::Pub(begin))))
+            Ok(Some(self.add_node(Visibility::Pub{ span: begin, node_id: NodeId::default() })))
         }
     }
 
@@ -3932,6 +4021,7 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             let attr = self.add_node(Attribute {
                 span,
+                node_id: NodeId::default(),
                 is_mod,
                 metas,
             });
@@ -3948,19 +4038,19 @@ impl Parser<'_> {
                 self.consume_punct(Punctuation::Equals)?;
                 let expr = self.parse_expr(ExprParseMode::General)?;
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Assign { span, path, expr })
+                Ok(AttribMeta::Assign { span, node_id: NodeId::default(), path, expr })
             } else if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
                 let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_attrib_meta)?;
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Meta { span, path, metas })
+                Ok(AttribMeta::Meta { span, node_id: NodeId::default(), path, metas })
             } else {
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Simple { span, path })
+                Ok(AttribMeta::Simple { span, node_id: NodeId::default(), path })
             }
         } else {
             let expr = self.parse_expr(ExprParseMode::General)?;
             let span = self.get_span_to_current(begin);
-            Ok(AttribMeta::Expr { span, expr })
+            Ok(AttribMeta::Expr { span, node_id: NodeId::default(), expr })
         }
     }
 

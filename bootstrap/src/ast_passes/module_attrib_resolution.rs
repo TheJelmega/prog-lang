@@ -30,24 +30,24 @@ impl Visitor for ModuleAttributeResolver<'_> {
         }
     }
 
-    fn visit_module(&mut self, ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
-        let node = &ast[node_id];
+    fn visit_module(&mut self, ast: &Ast, ast_node_id: AstNodeRef<ModuleItem>) where Self: Sized {
+        let node = &ast[ast_node_id];
         for attr in &node.attrs {
             for meta in &ast[*attr].metas {
                 match meta {
                     AttribMeta::Simple { .. } => {
                         self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: ast_node_id.index(),
                             err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have simple attributes") },
                         })
                     },
                     AttribMeta::Expr { .. } => {
                         self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: ast_node_id.index(),
                             err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have expression-only attributes") },
                         })
                     },
-                    AttribMeta::Assign { span, path, expr } => {
+                    AttribMeta::Assign { span, node_id, path, expr } => {
                         let path = &ast[*path];
                         
                         if path.names.len() == 1 || path.names[0].0 == self.path_name_id {
@@ -81,7 +81,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                                 }
                             };
                             
-                            let ctx_node = self.ctx.get_node_for_mut(node_id);
+                            let ctx_node = self.ctx.get_node_for_mut(ast_node_id);
                             let ContextNodeData::Module(module_data) = &mut ctx_node.data else { unreachable!() };
                             module_data.path = path;
                         }
@@ -89,14 +89,14 @@ impl Visitor for ModuleAttributeResolver<'_> {
                     },
                     AttribMeta::Meta { .. } => {
                         self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: ast_node_id.index(),
                             err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have nested attributes") },
                         })
                     },
                 }
             }
 
-            helpers::visit_module(self, ast, node_id);
+            helpers::visit_module(self, ast, ast_node_id);
         }
     }
 }
