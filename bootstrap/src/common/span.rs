@@ -89,6 +89,19 @@ impl SpanRegistry {
 
         self.add_span_(span)
     }
+
+    pub fn get_file(&self, file_id: u32) -> &str {
+        &self.files[file_id as usize]
+    }
+
+    pub fn get_file_from_span_id(&self, span: SpanId) -> Option<&str> {
+        if span.0 >= self.spans.len() {
+            None
+        } else {
+            let file_id = self.spans[span.0].file_id;
+            Some(&self.files[file_id as usize])
+        }
+    }
 }
 
 impl Index<SpanId> for SpanRegistry {

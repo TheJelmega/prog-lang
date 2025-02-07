@@ -1,6 +1,6 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
-    ast::{Ast, AstNodeRef},
+    ast::{Ast, AstNodeRef, AstNode, NodeId},
     common::{LibraryPath, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope, SymbolTable},
     error_warning::{AstErrorCode, LexErrorCode}
 };
@@ -29,7 +29,7 @@ mod hir_lower;
 pub use hir_lower::*;
 
 pub struct AstError {
-    node_id: usize,
+    node_id: NodeId,
     err:     AstErrorCode,
 }
 
@@ -105,8 +105,8 @@ impl Context {
         &self.ctxs[id]
     }
 
-    pub fn get_node_for<T>(&self, id: AstNodeRef<T>) -> &ContextNode {
-        self.get_node_for_index(id.index())
+    pub fn get_node_for<T: AstNode>(&self, node: &AstNodeRef<T>) -> &ContextNode {
+        self.get_node_for_index(node.node_id().index())
     }
 
      
@@ -115,8 +115,8 @@ impl Context {
         &mut self.ctxs[id]
     }
 
-    pub fn get_node_for_mut<T>(&mut self, id: AstNodeRef<T>) -> &mut ContextNode {
-        self.get_node_for_index_mut(id.index())
+    pub fn get_node_for_mut<T: AstNode>(&mut self, node: &AstNodeRef<T>) -> &mut ContextNode {
+        self.get_node_for_index_mut(node.node_id().index())
     }
 
     pub fn add_error(&self, err: AstError) {

@@ -20,41 +20,39 @@ impl<'a> ModuleScopePass<'a> {
 }
 
 impl Visitor for ModuleScopePass<'_> {
-    fn visit_item(&mut self, ast: &Ast, item: &Item) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
+    fn visit_item(&mut self, item: &Item) where Self: Sized {
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
         ctx.scope = self.scope.clone();
-        helpers::visit_item(self, ast, item);
+        helpers::visit_item(self, item);
     }
 
-    fn visit_trait_item(&mut self, ast: &Ast, item: &TraitItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
+    fn visit_trait_item(&mut self, item: &TraitItem) where Self: Sized {
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
         ctx.scope = self.scope.clone();
-        helpers::visit_trait_item(self, ast, item);
+        helpers::visit_trait_item(self, item);
     }
 
-    fn visit_assoc_item(&mut self, ast: &Ast, item: &AssocItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
+    fn visit_assoc_item(&mut self, item: &AssocItem) where Self: Sized {
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
         ctx.scope = self.scope.clone();
-        helpers::visit_assoc_item(self, ast, item);
+        helpers::visit_assoc_item(self, item);
     }
 
-    fn visit_extern_item(&mut self, ast: &Ast, item: &ExternItem) where Self: Sized {
-        let ctx = self.ctx.get_node_for_index_mut(item.node_id(ast).index());
+    fn visit_extern_item(&mut self, item: &ExternItem) where Self: Sized {
+        let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
         ctx.scope = self.scope.clone();
-        helpers::visit_extern_item(self, ast, item);
+        helpers::visit_extern_item(self, item);
     }
 
-    fn visit_module(&mut self, ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
-        let node = &ast[node_id];
+    fn visit_module(&mut self, node: &AstNodeRef<ModuleItem>) where Self: Sized {
         let name = &self.names[node.name];
         self.scope.push(name.to_string());
-        helpers::visit_module(self, ast, node_id);
+        helpers::visit_module(self, node);
         self.scope.pop();
     }
 
     // Only item that can have nested items
-    fn visit_function(&mut self, ast: &Ast, node_id: AstNodeRef<Function>) where Self: Sized {
-        let node = &ast[node_id];
+    fn visit_function(&mut self, node: &AstNodeRef<Function>) where Self: Sized {
         let name = self.names[node.name].to_string();
 
         let mut param_names = Vec::new();
@@ -63,8 +61,7 @@ impl Visitor for ModuleScopePass<'_> {
             for name in &param.names {
                 if let Some(label) = name.label {
                     param_names.push(self.names[label].to_string())
-                } else if let Pattern::Identifier(pattern_id) = name.pattern {
-                    let pattern = &ast[pattern_id];
+                } else if let Pattern::Identifier(pattern) = &name.pattern {
                     param_names.push(self.names[pattern.name].to_string());
                 } else {
                     param_names.push(format!("__anon_{anon_idx}"));
@@ -74,7 +71,7 @@ impl Visitor for ModuleScopePass<'_> {
         }
 
         self.scope.push_with_params(name, param_names);
-        helpers::visit_function(self, ast, node_id, true);
+        helpers::visit_function(self, node, true);
         self.scope.pop();
     }
 }

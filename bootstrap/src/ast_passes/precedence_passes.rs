@@ -20,11 +20,10 @@ impl<'a> PrecedenceCollection<'a> {
 }
 
 impl Visitor for PrecedenceCollection<'_> {
-    fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
-        let ctx_node = self.ctx.get_node_for(node_id);
+    fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {
+        let ctx_node = self.ctx.get_node_for(node);
         let scope = &ctx_node.scope;
 
-        let node = &ast[node_id];
         let name = self.names[node.name].to_string();
 
         let id = {
@@ -37,7 +36,7 @@ impl Visitor for PrecedenceCollection<'_> {
             syms.add_precedence(&scope, name, id);
         }
 
-        let ctx_node = self.ctx.get_node_for_mut(node_id);
+        let ctx_node = self.ctx.get_node_for_mut(node);
         let ContextNodeData::Precedence(prec_id) = &mut ctx_node.data else { unreachable!() };
         *prec_id = id;
     }
@@ -61,38 +60,33 @@ impl<'a> PrecedenceAttribute<'a> {
 }
 
 impl Visitor for PrecedenceAttribute<'_> {
-    fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
-        let node = &ast[node_id];
+    fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {
+        let ContextNodeData::Precedence(id) = &self.ctx.get_node_for(node).data else { unreachable!() };
 
-        let ContextNodeData::Precedence(id) = &self.ctx.get_node_for(node_id).data else { unreachable!() };
-
-        for attr_id in &node.attrs {
-            let attr = &ast[*attr_id];
+        for attr in &node.attrs {
             for meta in &attr.metas {
                 match meta {
                     AttribMeta::Simple { .. } => self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: node.node_id(),
                             err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                         }),
                     AttribMeta::Expr { .. } => self.ctx.add_error(AstError {
-                        node_id: node_id.index(),
+                        node_id: node.node_id(),
                         err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
                     AttribMeta::Assign { span, node_id, path, expr } => {
-                        let path = &ast[*path];
-                        
                         if path.names.len() == 1 || path.names[0].0 == self.builtin_name_id {
-                            let Expr::Literal(lit_node_id) = expr else { 
+                            let Expr::Literal(lit_node) = expr else { 
                                 self.ctx.add_error(AstError {
-                                    node_id: node_id.index(),
+                                    node_id: node.node_id(),
                                     err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                 });
                                 continue;
                             };
 
-                            let LiteralValue::Lit(lit_id) = ast[*lit_node_id].literal else { 
+                            let LiteralValue::Lit(lit_id) = lit_node.literal else { 
                                 self.ctx.add_error(AstError {
-                                    node_id: node_id.index(),
+                                    node_id: node.node_id(),
                                     err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                 });
                                 continue;
@@ -104,7 +98,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                                     Literal::String(path) => path.to_string(),
                                     _ => {
                                         self.ctx.add_error(AstError {
-                                            node_id: node_id.index(),
+                                            node_id: node.node_id(),
                                             err: AstErrorCode::InvalidAttributeData { info: format!("Builtin attribute only accepts string literals") },
                                         });
                                         continue;
@@ -123,7 +117,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                                 },
                                 _ => {
                                     self.ctx.add_error(AstError {
-                                        node_id: node_id.index(),
+                                        node_id: node.node_id(),
                                         err: AstErrorCode::InvalidAttributeData { info: format!("Only 'highest_precedence' and 'lowest_precedence' are allowed builtin attributes on precedences") },
                                     });
                                     continue;
@@ -134,7 +128,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                         }
                     },
                     AttribMeta::Meta { .. } => self.ctx.add_error(AstError {
-                        node_id: node_id.index(),
+                        node_id: node.node_id(),
                         err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
                 }
@@ -163,19 +157,19 @@ impl<'a> PrecedenceImportCollection<'a> {
 }
 
 impl Visitor for PrecedenceImportCollection<'_> {
-    fn visit_module(&mut self, ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
+    fn visit_module(&mut self, node: &AstNodeRef<ModuleItem>) where Self: Sized {
         self.top_level = false;
-        helpers::visit_module(self, ast, node_id);
+        helpers::visit_module(self, node);
     }
 
-    fn visit_precedence_use(&mut self, ast: &Ast, node_id: AstNodeRef<PrecedenceUse>) where Self: Sized {
+    fn visit_precedence_use(&mut self, node: &AstNodeRef<PrecedenceUse>) where Self: Sized {
         if !self.top_level {
-            let scope = &self.ctx.get_node_for(node_id).scope;
+            let scope = &self.ctx.get_node_for(node).scope;
 
             let path = scope.to_string();
 
             self.ctx.add_error(AstError {
-                node_id: node_id.index(),
+                node_id: node.node_id(),
                 err: AstErrorCode::NotTopLevel { 
                     path,
                     info: "Precedence use".to_string(),
@@ -183,8 +177,6 @@ impl Visitor for PrecedenceImportCollection<'_> {
             });
             return;
         }
-
-        let node = &ast[node_id];
         
         let group = node.group.map(|group| self.names[group].to_string());
         let package = match node.package {
@@ -220,17 +212,16 @@ impl<'a> PrecedenceConnection<'a> {
 }
 
 impl Visitor for PrecedenceConnection<'_> {
-    fn visit_precedence(&mut self, ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
-        let node = &ast[node_id];
+    fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {
         let name = &self.names[node.name];
 
-        let ctx_node = self.ctx.get_node_for(node_id);
+        let ctx_node = self.ctx.get_node_for(node);
 
         let syms = self.ctx.syms.read();
         let sym = syms.get_symbol(None, &ctx_node.scope, name).unwrap();
         let Symbol::Precedence(sym) = &*sym.read() else {
             self.ctx.add_error(AstError {
-                node_id: node_id.index(),
+                node_id: node.node_id(),
                 err: AstErrorCode::InternalError("Expected Precedence symbol when accessing symbol associated to a precedence node ")
             });
             return;

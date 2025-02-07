@@ -2079,7 +2079,7 @@ impl Parser<'_> {
         }
 
         let final_expr = if let Some(Stmt::Expr(stmt)) = stmts.last() {
-            if self.ast[*stmt].has_semi {
+            if stmt.has_semi {
                 let Some(Stmt::Expr(stmt)) = stmts.pop() else { return Err(self.gen_error(ParseErrorCode::InternalError("Final expr in block stopped existing when removing it"))) };
                 Some(stmt)
             } else {
@@ -2719,7 +2719,7 @@ impl Parser<'_> {
     }
 
     fn parse_inplace_expr(&mut self, left: Expr) -> Result<Expr, ParserErr> {
-        let begin = left.span(&self.ast);
+        let begin = left.span();
         self.consume_punct(Punctuation::SingleArrowL)?;
         let right = self.parse_expr(ExprParseMode::AllowComma)?;
 
@@ -2733,7 +2733,7 @@ impl Parser<'_> {
     }
 
     fn parse_type_cast(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        let begin = expr.span(&self.ast);
+        let begin = expr.span();
         if self.try_consume(Token::StrongKw(StrongKeyword::AsQuestion)) {
             let ty = self.parse_type()?;
             let span = self.get_span_to_current(begin);
@@ -2769,7 +2769,7 @@ impl Parser<'_> {
     }
 
     fn parse_type_check(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        let begin = expr.span(&self.ast);
+        let begin = expr.span();
         let negate = if self.try_consume(Token::StrongKw(StrongKeyword::ExclaimIs)) {
             true
         } else {
@@ -2851,7 +2851,7 @@ impl Parser<'_> {
     }
 
     fn parse_index_expr(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        let begin = expr.span(&self.ast);
+        let begin = expr.span();
         self.begin_scope(OpenCloseSymbol::Bracket)?;
         let is_opt = self.try_consume(Token::Punctuation(Punctuation::Question));
         let index = self.parse_expr(ExprParseMode::AllowComma)?;
@@ -2867,7 +2867,7 @@ impl Parser<'_> {
     }
 
     fn parse_tuple_index(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        let begin = expr.span(&self.ast);
+        let begin = expr.span();
         self.consume_punct(Punctuation::Dot);
         let index = self.consume_lit()?;
         
@@ -2881,7 +2881,7 @@ impl Parser<'_> {
     }
 
     fn parse_call_expression(&mut self, expr: Expr) -> Result<Expr, ParserErr> {
-        let begin = expr.span(&self.ast);
+        let begin = expr.span();
         let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
         
         let span = self.get_span_to_current(begin);
@@ -3653,7 +3653,7 @@ impl Parser<'_> {
     }
 
     fn parse_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
-        let begin_span = begin.span(&self.ast);
+        let begin_span = begin.span();
 
         self.consume_punct(Punctuation::DotDot)?;
         if self.pattern_available() {
@@ -3668,7 +3668,7 @@ impl Parser<'_> {
     }
     
     fn parse_inclusive_range_pattern(&mut self, begin: Pattern) -> Result<Pattern, ParserErr> {
-        let begin_span = begin.span(&self.ast);
+        let begin_span = begin.span();
         self.consume_punct(Punctuation::DotDotEquals)?;
         let end = self.parse_pattern()?;
         let span = self.get_span_to_current(begin_span);
@@ -3778,7 +3778,7 @@ impl Parser<'_> {
 
     fn parse_path_type(&mut self) -> Result<Type, ParserErr> {
         let path = self.parse_type_path()?;
-        let span = self.ast[path].span;
+        let span = path.span;
         Ok(Type::Path(self.add_node(PathType{ span, node_id: NodeId::default(), path })))
     }
 

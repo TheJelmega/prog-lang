@@ -27,18 +27,18 @@ impl<'a> OperatorImport<'a> {
 }
 
 impl Visitor for OperatorImport<'_> {
-    fn visit_module(&mut self, ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
+    fn visit_module(&mut self, node: &AstNodeRef<ModuleItem>) where Self: Sized {
         self.top_level = false;
-        helpers::visit_module(self, ast, node_id);
+        helpers::visit_module(self, node);
     }
 
-    fn visit_op_use(&mut self, ast: &Ast, node_id: AstNodeRef<OpUse>) where Self: Sized {
+    fn visit_op_use(&mut self, node: &AstNodeRef<OpUse>) where Self: Sized {
         if !self.top_level {
-            let scope = &self.ctx.get_node_for(node_id).scope;
+            let scope = &self.ctx.get_node_for(node).scope;
             let path = scope.to_string();
 
             self.ctx.add_error(AstError {
-                node_id: node_id.index(),
+                node_id: node.node_id(),
                 err: AstErrorCode::NotTopLevel { 
                     path,
                     info: "Operator use".to_string(),
@@ -46,8 +46,6 @@ impl Visitor for OperatorImport<'_> {
             });
             return;
         }
-
-        let node = &ast[node_id];
 
         let group = node.group.map(|group| self.names[group].to_string());
         let package = match node.package {

@@ -26,16 +26,16 @@ impl<'a> ModulePathResolution<'a> {
 
 impl Visitor for ModulePathResolution<'_> {
 
-    fn visit_item(&mut self, ast: &Ast, item: &Item) where Self: Sized {
+    fn visit_item(&mut self, item: &Item) where Self: Sized {
         match item {
-            Item::Module(module) => self.visit_module(ast, *module),
+            Item::Module(module) => self.visit_module(module),
             _ => {},
         }
     }
 
-    fn visit_module(&mut self, ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
+    fn visit_module(&mut self, node: &AstNodeRef<ModuleItem>) where Self: Sized {
         let attr_path = {   
-            let ctx_node = &mut self.ctx.get_node_for(node_id);
+            let ctx_node = &mut self.ctx.get_node_for(node);
             let ContextNodeData::Module(module_data) = &ctx_node.data else { unreachable!() }; 
             match &module_data.path {
                 Some(path) => Some(path.clone()),
@@ -49,18 +49,18 @@ impl Visitor for ModulePathResolution<'_> {
             None => PathBuf::new(),
         };
 
-        let mod_name = &self.names[ast[node_id].name];
+        let mod_name = &self.names[node.name];
 
         match attr_path {
             Some(path) => {
                 for comp in path.components() {
                     match comp {
                         std::path::Component::Prefix(_) => self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: node.node_id(),
                             err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
                         std::path::Component::RootDir => self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: node.node_id(),
                             err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                         }),
                         std::path::Component::CurDir => {},
@@ -75,9 +75,9 @@ impl Visitor for ModulePathResolution<'_> {
         let mut path = self.base_path.to_path_buf();
         path.push(rel_path.clone());
 
-        if ast[node_id].block.is_some() {
+        if node.block.is_some() {
             self.path_stack.push(path);
-            helpers::visit_module(self, ast, node_id);
+            helpers::visit_module(self, node);
             self.path_stack.pop();
             return;
         }
@@ -86,7 +86,7 @@ impl Visitor for ModulePathResolution<'_> {
             // Check if the path is mod path, meaning:
             // - path is the main 'lib.xn' or 'main.xn' file
             // - path is a 'mod.xn' file
-            let ctx_node = self.ctx.get_node_for(node_id);
+            let ctx_node = self.ctx.get_node_for(node);
             let is_mod_path = if ctx_node.scope.is_empty() {
                 true
             } else {
@@ -96,7 +96,7 @@ impl Visitor for ModulePathResolution<'_> {
 
                 let Some(sym) = syms.get_symbol(None, base_scope, cur_name) else {
                     self.ctx.add_error(AstError {
-                        node_id: node_id.index(),
+                        node_id: node.node_id(),
                         err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                     });
                     return
@@ -104,7 +104,7 @@ impl Visitor for ModulePathResolution<'_> {
 
                 let Symbol::Module(mod_sym) = &*sym.read() else {
                     self.ctx.add_error(AstError {
-                        node_id: node_id.index(),
+                        node_id: node.node_id(),
                         err: AstErrorCode::InvalidAttributeData { info: format!("Module path attributes may not contain a root") },
                     });
                     return;
@@ -132,7 +132,7 @@ impl Visitor for ModulePathResolution<'_> {
 
                     if !path.is_file() {
                         self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: node.node_id(),
                             err: AstErrorCode::InvalidModulePath { paths: err_paths },
                         });
                         return;
@@ -148,7 +148,7 @@ impl Visitor for ModulePathResolution<'_> {
                     if !path.is_file() {
                         err_paths.push(path.to_str().unwrap().to_string());
                         self.ctx.add_error(AstError {
-                            node_id: node_id.index(),
+                            node_id: node.node_id(),
                             err: AstErrorCode::InvalidModulePath { paths: err_paths },
                         });
                         return;
@@ -157,14 +157,14 @@ impl Visitor for ModulePathResolution<'_> {
             }
         }
 
-        let mod_name = self.names[ast[node_id].name].to_string();
+        let mod_name = self.names[node.name].to_string();
         {
-            let ctx_node = self.ctx.get_node_for_mut(node_id);
+            let ctx_node = self.ctx.get_node_for_mut(node);
             let ContextNodeData::Module(module_data) = &mut ctx_node.data else { unreachable!() };
             module_data.sym_path = ctx_node.scope.clone();
             module_data.sym_path.push(mod_name.to_string());
         }
-        let ctx_node = self.ctx.get_node_for(node_id);
+        let ctx_node = self.ctx.get_node_for(node);
         
         let mut base_scope = ctx_node.scope.clone();
         base_scope.push(mod_name.clone());

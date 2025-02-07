@@ -18,7 +18,7 @@ impl<'a> ContextSetup<'a> {
 }
 
 impl Visitor for ContextSetup<'_> {
-    fn visit_module(&mut self, _ast: &Ast, node_id: AstNodeRef<ModuleItem>) where Self: Sized {
+    fn visit_module(&mut self, node_id: &AstNodeRef<ModuleItem>) where Self: Sized {
         let node = self.ctx.get_node_for_mut(node_id);
         node.data = ContextNodeData::Module(ModuleContextData { 
             path: None,
@@ -26,15 +26,15 @@ impl Visitor for ContextSetup<'_> {
         })
     }
 
-    fn visit_precedence(&mut self, _ast: &Ast, node_id: AstNodeRef<Precedence>) where Self: Sized {
+    fn visit_precedence(&mut self, node_id: &AstNodeRef<Precedence>) where Self: Sized {
         let node = self.ctx.get_node_for_mut(node_id);
         node.data = ContextNodeData::Precedence(u16::MAX);
     }
 
-    fn visit_binary_expr(&mut self, ast: &Ast, node_id: AstNodeRef<InfixExpr>) where Self: Sized {
+    fn visit_binary_expr(&mut self, node_id: &AstNodeRef<InfixExpr>) where Self: Sized {
         let node = self.ctx.get_node_for_mut(node_id);
         node.data = ContextNodeData::Infix { reorder: false };
 
-        helpers::visit_binary_expr(self, ast, node_id);
+        helpers::visit_binary_expr(self, node_id);
     }
 }

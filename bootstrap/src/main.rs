@@ -288,7 +288,8 @@ fn main() {
 
     let mut hir = hir::Hir::new();
     do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &mut hir, &mut use_table, library_path.clone());
+        let spans = span_registry.read();
+        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &spans, &mut hir, &mut use_table, library_path.clone());
         pass.visit(ast);
     });
     stats.add_ast_hir_lower(&hir);

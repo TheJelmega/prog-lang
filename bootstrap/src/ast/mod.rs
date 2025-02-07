@@ -5,7 +5,7 @@ use std::{
     io::{Stdout, Write},
     marker::PhantomData,
     ops::{Index, IndexMut},
-    path::{self, PathBuf},
+    path::{self, PathBuf}, sync::Arc,
 };
 
 use crate::{
@@ -35,8 +35,8 @@ pub(super) trait AstNodeParseHelper {
 }
 
 pub trait AstNode {
-    fn span(&self, ast: &Ast) -> SpanId;
-    fn node_id(&self, ast: &Ast) -> NodeId;
+    fn span(&self) -> SpanId;
+    fn node_id(&self) -> NodeId;
     fn log(&self, logger: &mut AstLogger);
 }
 
@@ -56,7 +56,7 @@ impl Identifier {
     pub fn log(&self, logger: &mut AstLogger) {
         logger.log_indented("Identifier", |logger| {
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            if let Some(gen_args) = self.gen_args {
+            if let Some(gen_args) = &self.gen_args {
                 logger.log_node_ref(gen_args);
             }
         })
@@ -94,11 +94,11 @@ pub struct SimplePath {
 }
 
 impl AstNode for SimplePath {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -149,11 +149,11 @@ pub struct ExprPath {
 }
 
 impl AstNode for ExprPath {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -179,11 +179,11 @@ pub struct TypePath {
 }
 
 impl AstNode for TypePath {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -200,7 +200,7 @@ impl AstNode for TypePath {
                 TypePathIdentifier::GenArg { span:_, name, gen_args } => logger.log_indented("Identifier", |logger| {
                     logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                     logger.set_last_at_indent();
-                    logger.log_node_ref(*gen_args);
+                    logger.log_node_ref(gen_args);
                 }),
                 TypePathIdentifier::Fn { span:_, name, params, ret } => logger.log_indented("Function Identifier", |logger| {
                     logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
@@ -225,11 +225,11 @@ pub struct QualifiedPath {
 }
 
 impl AstNode for QualifiedPath {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id 
     }
 
@@ -237,7 +237,7 @@ impl AstNode for QualifiedPath {
         logger.log_indented("Qualified Path", |logger| {
             logger.log_indented_node("Type", &self.ty);
             if let Some(bound) = &self.bound {
-                logger.log_indented_node_ref("Bound", *bound);
+                logger.log_indented_node_ref("Bound", bound);
             }
             
             logger.set_last_at_indent();
@@ -260,11 +260,11 @@ pub struct Block {
 }
 
 impl AstNode for Block {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -308,72 +308,72 @@ pub enum Item {
 }
 
 impl AstNode for Item {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            Item::Use(item)           => ast[*item].span(ast),
-            Item::Module(item)        => ast[*item].span(ast),
-            Item::Function(item)      => ast[*item].span(ast),
-            Item::TypeAlias(item)     => ast[*item].span(ast),
-            Item::Struct(item)        => ast[*item].span(ast),
-            Item::Union(item)         => ast[*item].span(ast),
-            Item::Enum(item)          => ast[*item].span(ast),
-            Item::Bitfield(item)      => ast[*item].span(ast),
-            Item::Const(item)         => ast[*item].span(ast),
-            Item::Static(item)        => ast[*item].span(ast),
-            Item::Property(item)      => ast[*item].span(ast),
-            Item::Trait(item)         => ast[*item].span(ast),
-            Item::Impl(item)          => ast[*item].span(ast),
-            Item::Extern(item)        => ast[*item].span(ast),
-            Item::OpTrait(item)       => ast[*item].span(ast),
-            Item::OpUse(item)         => ast[*item].span(ast),
-            Item::Precedence(item)    => ast[*item].span(ast),
-            Item::PrecedenceUse(item) => ast[*item].span(ast),
+            Item::Use(item)           => item.span(),
+            Item::Module(item)        => item.span(),
+            Item::Function(item)      => item.span(),
+            Item::TypeAlias(item)     => item.span(),
+            Item::Struct(item)        => item.span(),
+            Item::Union(item)         => item.span(),
+            Item::Enum(item)          => item.span(),
+            Item::Bitfield(item)      => item.span(),
+            Item::Const(item)         => item.span(),
+            Item::Static(item)        => item.span(),
+            Item::Property(item)      => item.span(),
+            Item::Trait(item)         => item.span(),
+            Item::Impl(item)          => item.span(),
+            Item::Extern(item)        => item.span(),
+            Item::OpTrait(item)       => item.span(),
+            Item::OpUse(item)         => item.span(),
+            Item::Precedence(item)    => item.span(),
+            Item::PrecedenceUse(item) => item.span(),
         }
     }
     
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            Item::Use(item)           => ast[*item].node_id(ast),
-            Item::Module(item)        => ast[*item].node_id(ast),
-            Item::Function(item)      => ast[*item].node_id(ast),
-            Item::TypeAlias(item)     => ast[*item].node_id(ast),
-            Item::Struct(item)        => ast[*item].node_id(ast),
-            Item::Union(item)         => ast[*item].node_id(ast),
-            Item::Enum(item)          => ast[*item].node_id(ast),
-            Item::Bitfield(item)      => ast[*item].node_id(ast),
-            Item::Const(item)         => ast[*item].node_id(ast),
-            Item::Static(item)        => ast[*item].node_id(ast),
-            Item::Property(item)      => ast[*item].node_id(ast),
-            Item::Trait(item)         => ast[*item].node_id(ast),
-            Item::Impl(item)          => ast[*item].node_id(ast),
-            Item::Extern(item)        => ast[*item].node_id(ast),
-            Item::OpTrait(item)       => ast[*item].node_id(ast),
-            Item::OpUse(item)         => ast[*item].node_id(ast),
-            Item::Precedence(item)    => ast[*item].node_id(ast),
-            Item::PrecedenceUse(item) => ast[*item].node_id(ast),
+            Item::Use(item)           => item.node_id(),
+            Item::Module(item)        => item.node_id(),
+            Item::Function(item)      => item.node_id(),
+            Item::TypeAlias(item)     => item.node_id(),
+            Item::Struct(item)        => item.node_id(),
+            Item::Union(item)         => item.node_id(),
+            Item::Enum(item)          => item.node_id(),
+            Item::Bitfield(item)      => item.node_id(),
+            Item::Const(item)         => item.node_id(),
+            Item::Static(item)        => item.node_id(),
+            Item::Property(item)      => item.node_id(),
+            Item::Trait(item)         => item.node_id(),
+            Item::Impl(item)          => item.node_id(),
+            Item::Extern(item)        => item.node_id(),
+            Item::OpTrait(item)       => item.node_id(),
+            Item::OpUse(item)         => item.node_id(),
+            Item::Precedence(item)    => item.node_id(),
+            Item::PrecedenceUse(item) => item.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Module(item)        => logger.log_node_ref(*item),
-            Self::Use(item)           => logger.log_node_ref(*item),
-            Self::Function(item)      => logger.log_node_ref(*item),
-            Self::TypeAlias(item)     => logger.log_node_ref(*item),
-            Self::Struct(item)        => logger.log_node_ref(*item),
-            Self::Union(item)         => logger.log_node_ref(*item),
-            Self::Enum(item)          => logger.log_node_ref(*item),
-            Self::Bitfield(item)      => logger.log_node_ref(*item),
-            Self::Const(item)         => logger.log_node_ref(*item),
-            Self::Static(item)        => logger.log_node_ref(*item),
-            Self::Property(item)      => logger.log_node_ref(*item),
-            Self::Trait(item)         => logger.log_node_ref(*item),
-            Self::Impl(item)          => logger.log_node_ref(*item),
-            Self::Extern(item)        => logger.log_node_ref(*item),
-            Self::OpTrait(item)       => logger.log_node_ref(*item),
-            Self::OpUse(item)         => logger.log_node_ref(*item),
-            Self::Precedence(item)    => logger.log_node_ref(*item),
-            Self::PrecedenceUse(item) => logger.log_node_ref(*item),
+            Self::Module(item)        => logger.log_node_ref(item),
+            Self::Use(item)           => logger.log_node_ref(item),
+            Self::Function(item)      => logger.log_node_ref(item),
+            Self::TypeAlias(item)     => logger.log_node_ref(item),
+            Self::Struct(item)        => logger.log_node_ref(item),
+            Self::Union(item)         => logger.log_node_ref(item),
+            Self::Enum(item)          => logger.log_node_ref(item),
+            Self::Bitfield(item)      => logger.log_node_ref(item),
+            Self::Const(item)         => logger.log_node_ref(item),
+            Self::Static(item)        => logger.log_node_ref(item),
+            Self::Property(item)      => logger.log_node_ref(item),
+            Self::Trait(item)         => logger.log_node_ref(item),
+            Self::Impl(item)          => logger.log_node_ref(item),
+            Self::Extern(item)        => logger.log_node_ref(item),
+            Self::OpTrait(item)       => logger.log_node_ref(item),
+            Self::OpUse(item)         => logger.log_node_ref(item),
+            Self::Precedence(item)    => logger.log_node_ref(item),
+            Self::PrecedenceUse(item) => logger.log_node_ref(item),
         }
     }
 }
@@ -386,30 +386,30 @@ pub enum TraitItem {
 }
 
 impl AstNode for TraitItem {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            TraitItem::Function(item)  => ast[*item].span(ast),
-            TraitItem::TypeAlias(item) => ast[*item].span(ast),
-            TraitItem::Const(item)     => ast[*item].span(ast),
-            TraitItem::Property(item)  => ast[*item].span(ast),
+            TraitItem::Function(item)  => item.span(),
+            TraitItem::TypeAlias(item) => item.span(),
+            TraitItem::Const(item)     => item.span(),
+            TraitItem::Property(item)  => item.span(),
         }
     }
     
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            TraitItem::Function(item)  => ast[*item].node_id(ast),
-            TraitItem::TypeAlias(item) => ast[*item].node_id(ast),
-            TraitItem::Const(item)     => ast[*item].node_id(ast),
-            TraitItem::Property(item)  => ast[*item].node_id(ast),
+            TraitItem::Function(item)  => item.node_id(),
+            TraitItem::TypeAlias(item) => item.node_id(),
+            TraitItem::Const(item)     => item.node_id(),
+            TraitItem::Property(item)  => item.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Function(fn_item)       => logger.log_node_ref(*fn_item),
-            Self::TypeAlias(type_alias)   => logger.log_node_ref(*type_alias),
-            Self::Const(const_item)       => logger.log_node_ref(*const_item),
-            Self::Property(prop_item)     => logger.log_node_ref(*prop_item),
+            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
+            Self::TypeAlias(type_alias)   => logger.log_node_ref(type_alias),
+            Self::Const(const_item)       => logger.log_node_ref(const_item),
+            Self::Property(prop_item)     => logger.log_node_ref(prop_item),
         }
     }
 }
@@ -424,33 +424,33 @@ pub enum AssocItem {
 }
 
 impl AstNode for AssocItem {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            AssocItem::Function(item)  => ast[*item].span(ast),
-            AssocItem::TypeAlias(item) => ast[*item].span(ast),
-            AssocItem::Const(item)     => ast[*item].span(ast),
-            AssocItem::Static(item)    => ast[*item].span(ast),
-            AssocItem::Property(item)  => ast[*item].span(ast),
+            AssocItem::Function(item)  => item.span(),
+            AssocItem::TypeAlias(item) => item.span(),
+            AssocItem::Const(item)     => item.span(),
+            AssocItem::Static(item)    => item.span(),
+            AssocItem::Property(item)  => item.span(),
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            AssocItem::Function(item)  => ast[*item].node_id(ast),
-            AssocItem::TypeAlias(item) => ast[*item].node_id(ast),
-            AssocItem::Const(item)     => ast[*item].node_id(ast),
-            AssocItem::Static(item)    => ast[*item].node_id(ast),
-            AssocItem::Property(item)  => ast[*item].node_id(ast),
+            AssocItem::Function(item)  => item.node_id(),
+            AssocItem::TypeAlias(item) => item.node_id(),
+            AssocItem::Const(item)     => item.node_id(),
+            AssocItem::Static(item)    => item.node_id(),
+            AssocItem::Property(item)  => item.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Function(fn_item)       => logger.log_node_ref(*fn_item),
-            Self::TypeAlias(type_alias)   => logger.log_node_ref(*type_alias),
-            Self::Const(const_item)       => logger.log_node_ref(*const_item),
-            Self::Static(static_item)     => logger.log_node_ref(*static_item),
-            Self::Property(prop_item)     => logger.log_node_ref(*prop_item),
+            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
+            Self::TypeAlias(type_alias)   => logger.log_node_ref(type_alias),
+            Self::Const(const_item)       => logger.log_node_ref(const_item),
+            Self::Static(static_item)     => logger.log_node_ref(static_item),
+            Self::Property(prop_item)     => logger.log_node_ref(prop_item),
         }
     }
 }
@@ -461,24 +461,24 @@ pub enum ExternItem {
 }
 
 impl AstNode for ExternItem {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            ExternItem::Function(item) => ast[*item].span(ast),
-            ExternItem::Static(item)   => ast[*item].span(ast),
+            ExternItem::Function(item) => item.span(),
+            ExternItem::Static(item)   => item.span(),
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            ExternItem::Function(item) => ast[*item].node_id(ast),
-            ExternItem::Static(item)   => ast[*item].node_id(ast),
+            ExternItem::Function(item) => item.node_id(),
+            ExternItem::Static(item)   => item.node_id(),
         }    
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Function(fn_item)       => logger.log_node_ref(*fn_item),
-            Self::Static(static_item)     => logger.log_node_ref(*static_item),
+            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
+            Self::Static(static_item)     => logger.log_node_ref(static_item),
         }
     }
 }
@@ -493,11 +493,11 @@ pub struct ModuleItem {
 }
 
 impl AstNode for ModuleItem {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -531,11 +531,11 @@ pub struct UseItem {
 }
 
 impl AstNode for UseItem {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -555,7 +555,7 @@ impl AstNode for UseItem {
             }
             
             logger.set_last_at_indent();
-            logger.log_node_ref(self.path);
+            logger.log_node_ref(&self.path);
         });                                         
     }
 }
@@ -586,7 +586,7 @@ pub enum UsePath {
     }
 }
 impl AstNode for UsePath {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             UsePath::SelfPath { span, .. } => *span,
             UsePath::SubPaths { span, .. } => *span,
@@ -594,7 +594,7 @@ impl AstNode for UsePath {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             UsePath::SelfPath { node_id, .. } => *node_id,
             UsePath::SubPaths { node_id, .. } => *node_id,
@@ -680,11 +680,11 @@ pub struct Function {
 }
 
 impl AstNode for Function {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -713,7 +713,7 @@ impl AstNode for Function {
             logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
             logger.set_last_at_indent();
             if let Some(body) = &self.body {
-                logger.log_node_ref(*body);
+                logger.log_node_ref(body);
             }
         })
     }
@@ -861,7 +861,7 @@ pub enum TypeAlias {
 }
 
 impl AstNode for TypeAlias {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             TypeAlias::Normal { span, .. }   => *span,
             TypeAlias::Distinct { span, .. } => *span,
@@ -870,7 +870,7 @@ impl AstNode for TypeAlias {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             TypeAlias::Normal { node_id, .. }   => *node_id,
             TypeAlias::Distinct { node_id, .. } => *node_id,
@@ -959,7 +959,7 @@ pub enum Struct {
 }
 
 impl AstNode for Struct {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             Struct::Regular { span, .. } => *span,
             Struct::Tuple { span, .. }   => *span,
@@ -967,7 +967,7 @@ impl AstNode for Struct {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             Struct::Regular { node_id, .. } => *node_id,
             Struct::Tuple { node_id, .. }   => *node_id,
@@ -1064,7 +1064,7 @@ impl RegStructField {
                 logger.log_opt_node_ref(vis);
                 logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 logger.set_last_at_indent();
-                logger.log_node_ref(*path);
+                logger.log_node_ref(path);
             }),
         }
     }
@@ -1112,11 +1112,11 @@ impl AstNodeParseHelper for Union {
 }
 
 impl AstNode for Union {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1185,14 +1185,14 @@ pub enum Enum {
 }
 
 impl AstNode for Enum {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             Enum::Adt { span, .. }  => *span,
             Enum::Flag { span, .. } => *span,
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             Enum::Adt { node_id, .. }  => *node_id,
             Enum::Flag { node_id, .. } => *node_id,
@@ -1332,11 +1332,11 @@ pub struct Bitfield {
 }
 
 impl AstNode for Bitfield {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1421,7 +1421,7 @@ impl BitfieldField {
                     logger.set_last_at_indent();
                 }
                 logger.set_last_at_indent_if(bits.is_none());
-                logger.log_indented_node_ref("Path", *path);
+                logger.log_indented_node_ref("Path", path);
 
                 logger.set_last_at_indent();
                 logger.log_indented_opt_node("Bits", bits);
@@ -1442,11 +1442,11 @@ pub struct Const {
 }
 
 impl AstNode for Const {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1499,7 +1499,7 @@ pub enum Static {
 }
 
 impl AstNode for Static {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             Static::Static { span, .. } => *span,
             Static::Tls { span, .. }    => *span,
@@ -1507,7 +1507,7 @@ impl AstNode for Static {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             Static::Static { node_id, .. } => *node_id,
             Static::Tls { node_id, .. }    => *node_id,
@@ -1584,11 +1584,11 @@ pub enum PropertyBody {
 }
 
 impl AstNode for Property {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
     
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1682,11 +1682,11 @@ pub struct Trait {
 }
 
 impl AstNode for Trait {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1726,11 +1726,11 @@ pub struct Impl {
 }
 
 impl AstNode for Impl {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1771,11 +1771,11 @@ pub struct ExternBlock {
 }
 
 impl AstNode for ExternBlock {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1819,14 +1819,14 @@ pub enum OpTrait {
 }
 
 impl AstNode for OpTrait {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             OpTrait::Base { span, .. }     => *span,
             OpTrait::Extended { span, .. } => *span,
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             OpTrait::Base { node_id, .. }     => *node_id,
             OpTrait::Extended { node_id, .. } => *node_id,
@@ -1911,7 +1911,7 @@ impl OpElem {
                 logger.set_last_at_indent();
                 logger.log_indented_node("Default Implementation", def);
             }),
-            OpElem::Contract { span, expr } => logger.log_indented_node_ref("Contract", *expr),
+            OpElem::Contract { span, expr } => logger.log_indented_node_ref("Contract", expr),
         }
     }
 }
@@ -1926,11 +1926,11 @@ pub struct OpUse {
 }
 
 impl AstNode for OpUse {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -1996,11 +1996,11 @@ pub struct Precedence {
 }
 
 impl AstNode for Precedence {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2044,11 +2044,11 @@ pub struct PrecedenceUse {
 }
 
 impl AstNode for PrecedenceUse {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2091,25 +2091,25 @@ pub enum Stmt {
 }
 
 impl AstNode for Stmt {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             Stmt::Empty          => SpanId::INVALID, // TODO
-            Stmt::Item(item)     => item.span(ast),
-            Stmt::VarDecl(item)  => ast[*item].span(ast),
-            Stmt::Defer(item)    => ast[*item].span(ast),
-            Stmt::ErrDefer(item) => ast[*item].span(ast),
-            Stmt::Expr(item)     => ast[*item].span(ast),
+            Stmt::Item(item)     => item.span(),
+            Stmt::VarDecl(item)  => item.span(),
+            Stmt::Defer(item)    => item.span(),
+            Stmt::ErrDefer(item) => item.span(),
+            Stmt::Expr(item)     => item.span(),
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             Stmt::Empty          => NodeId::default(), // TODO
-            Stmt::Item(item)     => item.node_id(ast),
-            Stmt::VarDecl(item)  => ast[*item].node_id(ast),
-            Stmt::Defer(item)    => ast[*item].node_id(ast),
-            Stmt::ErrDefer(item) => ast[*item].node_id(ast),
-            Stmt::Expr(item)     => ast[*item].node_id(ast),
+            Stmt::Item(item)     => item.node_id(),
+            Stmt::VarDecl(item)  => item.node_id(),
+            Stmt::Defer(item)    => item.node_id(),
+            Stmt::ErrDefer(item) => item.node_id(),
+            Stmt::Expr(item)     => item.node_id(),
         }
     }
 
@@ -2119,10 +2119,10 @@ impl AstNode for Stmt {
                 logger.prefixed_logln("Emtpy");
             },
             Self::Item(item)         => item.log(logger),
-            Self::VarDecl(var_decl)  => logger.log_node_ref(*var_decl),
-            Self::Defer(defer)       => logger.log_node_ref(*defer),
-            Self::ErrDefer(errdefer) => logger.log_node_ref(*errdefer),
-            Self::Expr(expr)         => logger.log_node_ref(*expr),
+            Self::VarDecl(var_decl)  => logger.log_node_ref(var_decl),
+            Self::Defer(defer)       => logger.log_node_ref(defer),
+            Self::ErrDefer(errdefer) => logger.log_node_ref(errdefer),
+            Self::Expr(expr)         => logger.log_node_ref(expr),
         }
     }
 }
@@ -2147,14 +2147,14 @@ pub enum VarDecl {
 }
 
 impl AstNode for VarDecl {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             VarDecl::Named { span, .. } => *span,
             VarDecl::Let { span, .. }   => *span,
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             VarDecl::Named { node_id, .. } => *node_id,
             VarDecl::Let { node_id, .. }   => *node_id,
@@ -2206,11 +2206,11 @@ pub struct Defer {
 }
 
 impl AstNode for Defer {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2239,11 +2239,11 @@ pub struct ErrDefer {
 }
 
 impl AstNode for ErrDefer {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2281,11 +2281,11 @@ pub struct ExprStmt {
 }
 
 impl AstNode for ExprStmt {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2306,7 +2306,7 @@ impl AstNodeParseHelper for ExprStmt {
 
 // =============================================================================================================================
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Expr {
     Literal(AstNodeRef<LiteralExpr>),
     // Can include a sequence of field accesses
@@ -2362,126 +2362,126 @@ impl Expr {
 }
 
 impl AstNode for Expr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            Expr::Literal(expr)     => ast[*expr].span(ast),
-            Expr::Path(expr)        => ast[*expr].span(ast),
+            Expr::Literal(expr)     => expr.span(),
+            Expr::Path(expr)        => expr.span(),
             Expr::Unit              => SpanId::INVALID, // TODO
-            Expr::Block(expr)       => ast[*expr].span(ast),
-            Expr::Prefix(expr)      => ast[*expr].span(ast),
-            Expr::Postfix(expr)     => ast[*expr].span(ast),
-            Expr::Infix(expr)       => ast[*expr].span(ast),
-            Expr::Paren(expr)       => ast[*expr].span(ast),
-            Expr::Inplace(expr)     => ast[*expr].span(ast),
-            Expr::TypeCast(expr)    => ast[*expr].span(ast),
-            Expr::TypeCheck(expr)   => ast[*expr].span(ast),
-            Expr::Tuple(expr)       => ast[*expr].span(ast),
-            Expr::Array(expr)       => ast[*expr].span(ast),
-            Expr::Struct(expr)      => ast[*expr].span(ast),
-            Expr::Index(expr)       => ast[*expr].span(ast),
-            Expr::TupleIndex(expr)  => ast[*expr].span(ast),
-            Expr::FnCall(expr)      => ast[*expr].span(ast),
-            Expr::Method(expr)      => ast[*expr].span(ast),
-            Expr::FieldAccess(expr) => ast[*expr].span(ast),
-            Expr::Closure(expr)     => ast[*expr].span(ast),
+            Expr::Block(expr)       => expr.span(),
+            Expr::Prefix(expr)      => expr.span(),
+            Expr::Postfix(expr)     => expr.span(),
+            Expr::Infix(expr)       => expr.span(),
+            Expr::Paren(expr)       => expr.span(),
+            Expr::Inplace(expr)     => expr.span(),
+            Expr::TypeCast(expr)    => expr.span(),
+            Expr::TypeCheck(expr)   => expr.span(),
+            Expr::Tuple(expr)       => expr.span(),
+            Expr::Array(expr)       => expr.span(),
+            Expr::Struct(expr)      => expr.span(),
+            Expr::Index(expr)       => expr.span(),
+            Expr::TupleIndex(expr)  => expr.span(),
+            Expr::FnCall(expr)      => expr.span(),
+            Expr::Method(expr)      => expr.span(),
+            Expr::FieldAccess(expr) => expr.span(),
+            Expr::Closure(expr)     => expr.span(),
             Expr::FullRange         => SpanId::INVALID, // TODO
-            Expr::If(expr)          => ast[*expr].span(ast),
-            Expr::Let(expr)         => ast[*expr].span(ast),
-            Expr::Loop(expr)        => ast[*expr].span(ast),
-            Expr::While(expr)       => ast[*expr].span(ast),
-            Expr::DoWhile(expr)     => ast[*expr].span(ast),
-            Expr::For(expr)         => ast[*expr].span(ast),
-            Expr::Match(expr)       => ast[*expr].span(ast),
-            Expr::Break(expr)       => ast[*expr].span(ast),
-            Expr::Continue(expr)    => ast[*expr].span(ast),
-            Expr::Fallthrough(expr) => ast[*expr].span(ast),
-            Expr::Return(expr)      => ast[*expr].span(ast),
+            Expr::If(expr)          => expr.span(),
+            Expr::Let(expr)         => expr.span(),
+            Expr::Loop(expr)        => expr.span(),
+            Expr::While(expr)       => expr.span(),
+            Expr::DoWhile(expr)     => expr.span(),
+            Expr::For(expr)         => expr.span(),
+            Expr::Match(expr)       => expr.span(),
+            Expr::Break(expr)       => expr.span(),
+            Expr::Continue(expr)    => expr.span(),
+            Expr::Fallthrough(expr) => expr.span(),
+            Expr::Return(expr)      => expr.span(),
             Expr::Underscore        => SpanId::INVALID, // TODO
-            Expr::Throw(expr)       => ast[*expr].span(ast),
-            Expr::Comma(expr)       => ast[*expr].span(ast),
-            Expr::When(expr)        => ast[*expr].span(ast),
+            Expr::Throw(expr)       => expr.span(),
+            Expr::Comma(expr)       => expr.span(),
+            Expr::When(expr)        => expr.span(),
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            Expr::Literal(expr)     => ast[*expr].node_id(ast),
-            Expr::Path(expr)        => ast[*expr].node_id(ast),
+            Expr::Literal(expr)     => expr.node_id(),
+            Expr::Path(expr)        => expr.node_id(),
             Expr::Unit              => NodeId::default(), // TODO
-            Expr::Block(expr)       => ast[*expr].node_id(ast),
-            Expr::Prefix(expr)      => ast[*expr].node_id(ast),
-            Expr::Postfix(expr)     => ast[*expr].node_id(ast),
-            Expr::Infix(expr)       => ast[*expr].node_id(ast),
-            Expr::Paren(expr)       => ast[*expr].node_id(ast),
-            Expr::Inplace(expr)     => ast[*expr].node_id(ast),
-            Expr::TypeCast(expr)    => ast[*expr].node_id(ast),
-            Expr::TypeCheck(expr)   => ast[*expr].node_id(ast),
-            Expr::Tuple(expr)       => ast[*expr].node_id(ast),
-            Expr::Array(expr)       => ast[*expr].node_id(ast),
-            Expr::Struct(expr)      => ast[*expr].node_id(ast),
-            Expr::Index(expr)       => ast[*expr].node_id(ast),
-            Expr::TupleIndex(expr)  => ast[*expr].node_id(ast),
-            Expr::FnCall(expr)      => ast[*expr].node_id(ast),
-            Expr::Method(expr)      => ast[*expr].node_id(ast),
-            Expr::FieldAccess(expr) => ast[*expr].node_id(ast),
-            Expr::Closure(expr)     => ast[*expr].node_id(ast),
+            Expr::Block(expr)       => expr.node_id(),
+            Expr::Prefix(expr)      => expr.node_id(),
+            Expr::Postfix(expr)     => expr.node_id(),
+            Expr::Infix(expr)       => expr.node_id(),
+            Expr::Paren(expr)       => expr.node_id(),
+            Expr::Inplace(expr)     => expr.node_id(),
+            Expr::TypeCast(expr)    => expr.node_id(),
+            Expr::TypeCheck(expr)   => expr.node_id(),
+            Expr::Tuple(expr)       => expr.node_id(),
+            Expr::Array(expr)       => expr.node_id(),
+            Expr::Struct(expr)      => expr.node_id(),
+            Expr::Index(expr)       => expr.node_id(),
+            Expr::TupleIndex(expr)  => expr.node_id(),
+            Expr::FnCall(expr)      => expr.node_id(),
+            Expr::Method(expr)      => expr.node_id(),
+            Expr::FieldAccess(expr) => expr.node_id(),
+            Expr::Closure(expr)     => expr.node_id(),
             Expr::FullRange         => NodeId::default(), // TODO
-            Expr::If(expr)          => ast[*expr].node_id(ast),
-            Expr::Let(expr)         => ast[*expr].node_id(ast),
-            Expr::Loop(expr)        => ast[*expr].node_id(ast),
-            Expr::While(expr)       => ast[*expr].node_id(ast),
-            Expr::DoWhile(expr)     => ast[*expr].node_id(ast),
-            Expr::For(expr)         => ast[*expr].node_id(ast),
-            Expr::Match(expr)       => ast[*expr].node_id(ast),
-            Expr::Break(expr)       => ast[*expr].node_id(ast),
-            Expr::Continue(expr)    => ast[*expr].node_id(ast),
-            Expr::Fallthrough(expr) => ast[*expr].node_id(ast),
-            Expr::Return(expr)      => ast[*expr].node_id(ast),
+            Expr::If(expr)          => expr.node_id(),
+            Expr::Let(expr)         => expr.node_id(),
+            Expr::Loop(expr)        => expr.node_id(),
+            Expr::While(expr)       => expr.node_id(),
+            Expr::DoWhile(expr)     => expr.node_id(),
+            Expr::For(expr)         => expr.node_id(),
+            Expr::Match(expr)       => expr.node_id(),
+            Expr::Break(expr)       => expr.node_id(),
+            Expr::Continue(expr)    => expr.node_id(),
+            Expr::Fallthrough(expr) => expr.node_id(),
+            Expr::Return(expr)      => expr.node_id(),
             Expr::Underscore        => NodeId::default(), // TODO
-            Expr::Throw(expr)       => ast[*expr].node_id(ast),
-            Expr::Comma(expr)       => ast[*expr].node_id(ast),
-            Expr::When(expr)        => ast[*expr].node_id(ast),
+            Expr::Throw(expr)       => expr.node_id(),
+            Expr::Comma(expr)       => expr.node_id(),
+            Expr::When(expr)        => expr.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Literal(lit)      => logger.log_node_ref(*lit),
-            Self::Path(path)        => logger.log_node_ref(*path),
+            Self::Literal(expr)     => logger.log_node_ref(expr),
+            Self::Path(expr)        => logger.log_node_ref(expr),
             Self::Unit              => logger.prefixed_logln("Unit Expression"),
-            Self::Block(block)      => logger.log_node_ref(*block),
-            Self::Prefix(expr)      => logger.log_node_ref(*expr),
-            Self::Postfix(expr)     => logger.log_node_ref(*expr),
-            Self::Infix(expr)       => logger.log_node_ref(*expr),
-            Self::Paren(expr)       => logger.log_node_ref(*expr),
-            Self::Inplace(expr)     => logger.log_node_ref(*expr),
-            Self::TypeCast(expr)    => logger.log_node_ref(*expr),
-            Self::TypeCheck(expr)   => logger.log_node_ref(*expr),
-            Self::Tuple(expr)       => logger.log_node_ref(*expr),
-            Self::Array(expr)       => logger.log_node_ref(*expr),
-            Self::Struct(expr)      => logger.log_node_ref(*expr),
-            Self::Index(expr)       => logger.log_node_ref(*expr),
-            Self::TupleIndex(expr)  => logger.log_node_ref(*expr),
-            Self::FnCall(expr)      => logger.log_node_ref(*expr),
-            Self::Method(expr)      => logger.log_node_ref(*expr),
-            Self::FieldAccess(expr) => logger.log_node_ref(*expr),
-            Self::Closure(expr)     => logger.log_node_ref(*expr),
+            Self::Block(expr)       => logger.log_node_ref(expr),
+            Self::Prefix(expr)      => logger.log_node_ref(expr),
+            Self::Postfix(expr)     => logger.log_node_ref(expr),
+            Self::Infix(expr)       => logger.log_node_ref(expr),
+            Self::Paren(expr)       => logger.log_node_ref(expr),
+            Self::Inplace(expr)     => logger.log_node_ref(expr),
+            Self::TypeCast(expr)    => logger.log_node_ref(expr),
+            Self::TypeCheck(expr)   => logger.log_node_ref(expr),
+            Self::Tuple(expr)       => logger.log_node_ref(expr),
+            Self::Array(expr)       => logger.log_node_ref(expr),
+            Self::Struct(expr)      => logger.log_node_ref(expr),
+            Self::Index(expr)       => logger.log_node_ref(expr),
+            Self::TupleIndex(expr)  => logger.log_node_ref(expr),
+            Self::FnCall(expr)      => logger.log_node_ref(expr),
+            Self::Method(expr)      => logger.log_node_ref(expr),
+            Self::FieldAccess(expr) => logger.log_node_ref(expr),
+            Self::Closure(expr)     => logger.log_node_ref(expr),
             Self::FullRange         => logger.prefixed_logln("Full Range Expression"),
-            Self::If(expr)          => logger.log_node_ref(*expr),
-            Self::Let(expr)         => logger.log_node_ref(*expr),
-            Self::Loop(expr)        => logger.log_node_ref(*expr),
-            Self::While(expr)       => logger.log_node_ref(*expr),
-            Self::DoWhile(expr)     => logger.log_node_ref(*expr),
-            Self::For(expr)         => logger.log_node_ref(*expr),
-            Self::Match(expr)       => logger.log_node_ref(*expr),
-            Self::Break(expr)       => logger.log_node_ref(*expr),
-            Self::Continue(expr)    => logger.log_node_ref(*expr),
-            Self::Fallthrough(expr) => logger.log_node_ref(*expr),
-            Self::Return(expr)      => logger.log_node_ref(*expr),
+            Self::If(expr)          => logger.log_node_ref(expr),
+            Self::Let(expr)         => logger.log_node_ref(expr),
+            Self::Loop(expr)        => logger.log_node_ref(expr),
+            Self::While(expr)       => logger.log_node_ref(expr),
+            Self::DoWhile(expr)     => logger.log_node_ref(expr),
+            Self::For(expr)         => logger.log_node_ref(expr),
+            Self::Match(expr)       => logger.log_node_ref(expr),
+            Self::Break(expr)       => logger.log_node_ref(expr),
+            Self::Continue(expr)    => logger.log_node_ref(expr),
+            Self::Fallthrough(expr) => logger.log_node_ref(expr),
+            Self::Return(expr)      => logger.log_node_ref(expr),
             Self::Underscore        => logger.prefixed_logln("Underscore Expression"),
-            Self::Throw(expr)       => logger.log_node_ref(*expr),
-            Self::Comma(expr)       => logger.log_node_ref(*expr),
-            Self::When(expr)        => logger.log_node_ref(*expr),
+            Self::Throw(expr)       => logger.log_node_ref(expr),
+            Self::Comma(expr)       => logger.log_node_ref(expr),
+            Self::When(expr)        => logger.log_node_ref(expr),
         }
     }
 }
@@ -2521,11 +2521,11 @@ pub struct LiteralExpr {
 }
 
 impl AstNode for LiteralExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2570,7 +2570,7 @@ pub enum PathExpr {
 }
 
 impl AstNode for PathExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             PathExpr::Named { span, .. }     => *span,
             PathExpr::Inferred { span, .. }  => *span,
@@ -2579,7 +2579,7 @@ impl AstNode for PathExpr {
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             PathExpr::Named { node_id, .. }     => *node_id,
             PathExpr::Inferred { node_id, .. }  => *node_id,
@@ -2604,7 +2604,7 @@ impl AstNode for PathExpr {
             },
             PathExpr::Qualified { span, node_id, path } => logger.log_ast_node("Qualified Path Expr", |logger| {
                 logger.set_last_at_indent();
-                logger.log_node_ref(*path);
+                logger.log_node_ref(path);
             })
         }
     }
@@ -2639,11 +2639,11 @@ pub struct BlockExpr {
 }
 
 impl AstNode for BlockExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2663,7 +2663,7 @@ impl AstNode for BlockExpr {
                 logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(label)));
             }
             logger.set_last_at_indent();
-            logger.log_node_ref(self.block);
+            logger.log_node_ref(&self.block);
         });
     }
 }
@@ -2682,11 +2682,11 @@ pub struct PrefixExpr {
 }
 
 impl AstNode for PrefixExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2713,11 +2713,11 @@ pub struct PostfixExpr {
 }
 
 impl AstNode for PostfixExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2745,11 +2745,11 @@ pub struct InfixExpr {
 }
 
 impl AstNode for InfixExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2776,11 +2776,11 @@ pub struct ParenExpr {
 }
 
 impl AstNode for ParenExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2806,11 +2806,11 @@ pub struct InplaceExpr {
 }
 
 impl AstNode for InplaceExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2845,11 +2845,11 @@ pub struct TypeCastExpr {
 }
 
 impl AstNode for TypeCastExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2883,11 +2883,11 @@ pub struct TypeCheckExpr {
 }
 
 impl AstNode for TypeCheckExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2914,11 +2914,11 @@ pub struct TupleExpr {
 }
 
 impl AstNode for TupleExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -2948,11 +2948,11 @@ pub struct ArrayExpr {
 }
 
 impl AstNode for ArrayExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3012,11 +3012,11 @@ pub struct StructExpr {
 }
 
 impl AstNode for StructExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3045,11 +3045,11 @@ pub struct IndexExpr {
 }
 
 impl AstNode for IndexExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3078,11 +3078,11 @@ pub struct TupleIndexExpr {
 }
 
 impl AstNode for TupleIndexExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3134,11 +3134,11 @@ pub struct FnCallExpr {
 }
 
 impl AstNode for FnCallExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3169,11 +3169,11 @@ pub struct MethodCallExpr {
 }
 
 impl AstNode for MethodCallExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3205,11 +3205,11 @@ pub struct FieldAccessExpr {
 }
 
 impl AstNode for FieldAccessExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3240,11 +3240,11 @@ pub struct ClosureExpr {
 }
 
 impl AstNode for ClosureExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3269,11 +3269,11 @@ pub struct LetBindingExpr {
 }
 
 impl AstNode for LetBindingExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3301,11 +3301,11 @@ pub struct IfExpr {
 }
 
 impl AstNode for IfExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3313,7 +3313,7 @@ impl AstNode for IfExpr {
         logger.log_ast_node("If Expression", |logger| {
             logger.log_indented_node("Condition", &self.cond);
             logger.set_last_at_indent_if(self.else_body.is_none());
-            logger.log_indented_node_ref("Body", self.body);
+            logger.log_indented_node_ref("Body", &self.body);
             logger.set_last_at_indent();
             logger.log_indented_opt_node("Else Body", &self.else_body);
         });
@@ -3334,11 +3334,11 @@ pub struct LoopExpr {
 }
 
 impl AstNode for LoopExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3348,7 +3348,7 @@ impl AstNode for LoopExpr {
                 logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
             logger.set_last_at_indent();
-            logger.log_node_ref(self.body);
+            logger.log_node_ref(&self.body);
         });
     }
 }
@@ -3370,11 +3370,11 @@ pub struct WhileExpr {
 }
 
 impl AstNode for WhileExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3386,7 +3386,7 @@ impl AstNode for WhileExpr {
             logger.log_indented_node("Condition", &self.cond);
             logger.log_indented_opt_node("Increment", &self.inc);
             logger.set_last_at_indent_if(self.else_body.is_none());
-            logger.log_indented_node_ref("Body", self.body);
+            logger.log_indented_node_ref("Body", &self.body);
             logger.set_last_at_indent();
             logger.log_indented_opt_node_ref("Else Body", &self.else_body);
         });
@@ -3408,11 +3408,11 @@ pub struct DoWhileExpr {
 }
 
 impl AstNode for DoWhileExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3421,7 +3421,7 @@ impl AstNode for DoWhileExpr {
             if let Some(label) = &self.label {
                 logger.prefixed_log_fmt(format_args!("Label: {}\n", logger.resolve_name(*label)));
             }
-            logger.log_indented_node_ref("Body", self.body);
+            logger.log_indented_node_ref("Body", &self.body);
             logger.set_last_at_indent();
             logger.log_indented_node("Condition", &self.cond);
         });
@@ -3445,11 +3445,11 @@ pub struct ForExpr {
 }
 
 impl AstNode for ForExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3461,7 +3461,7 @@ impl AstNode for ForExpr {
             logger.log_indented_node("Pattern", &self.pattern);
             logger.log_indented_node("Src", &self.src);
             logger.set_last_at_indent_if(self.else_body.is_some());
-            logger.log_indented_node_ref("Body", self.body);
+            logger.log_indented_node_ref("Body", &self.body);
             logger.set_last_at_indent();
             logger.log_indented_opt_node_ref("Else Body", &self.else_body);
         });
@@ -3483,11 +3483,11 @@ pub struct MatchExpr {
 }
 
 impl AstNode for MatchExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3540,11 +3540,11 @@ pub struct BreakExpr {
 }
 
 impl AstNode for BreakExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3572,11 +3572,11 @@ pub struct ContinueExpr {
 }
 
 impl AstNode for ContinueExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3602,11 +3602,11 @@ pub struct FallthroughExpr {
 }
 
 impl AstNode for FallthroughExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3632,11 +3632,11 @@ pub struct ReturnExpr {
 }
 
 impl AstNode for ReturnExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3661,11 +3661,11 @@ pub struct ThrowExpr {
 }
 
 impl AstNode for ThrowExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3689,11 +3689,11 @@ pub struct CommaExpr {
 }
 
 impl AstNode for CommaExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3719,11 +3719,11 @@ pub struct WhenExpr {
 }
 
 impl AstNode for WhenExpr {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3731,7 +3731,7 @@ impl AstNode for WhenExpr {
         logger.log_ast_node("When Expression", |logger| {
             logger.log_indented_node("Condition", &self.cond);
             logger.set_last_at_indent_if(self.else_body.is_none());
-            logger.log_indented_node_ref("Body", self.body);
+            logger.log_indented_node_ref("Body", &self.body);
             logger.set_last_at_indent();
             logger.log_indented_opt_node("Else Body", &self.else_body);
         });
@@ -3765,63 +3765,63 @@ pub enum Pattern {
 }
 
 impl AstNode for Pattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            Pattern::Literal(pattern)     => ast[*pattern].span(ast),
-            Pattern::Identifier(pattern)  => ast[*pattern].span(ast),
-            Pattern::Path(pattern)        => ast[*pattern].span(ast),
+            Pattern::Literal(pattern)     => pattern.span(),
+            Pattern::Identifier(pattern)  => pattern.span(),
+            Pattern::Path(pattern)        => pattern.span(),
             Pattern::Wildcard             => SpanId::INVALID, // TODO
             Pattern::Rest                 => SpanId::INVALID, // TODO
-            Pattern::Range(pattern)       => ast[*pattern].span(ast),
-            Pattern::Reference(pattern)   => ast[*pattern].span(ast),
-            Pattern::Struct(pattern)      => ast[*pattern].span(ast),
-            Pattern::TupleStruct(pattern) => ast[*pattern].span(ast),
-            Pattern::Tuple(pattern)       => ast[*pattern].span(ast),
-            Pattern::Grouped(pattern)     => ast[*pattern].span(ast),
-            Pattern::Slice(pattern)       => ast[*pattern].span(ast),
-            Pattern::EnumMember(pattern)  => ast[*pattern].span(ast),
-            Pattern::Alternative(pattern) => ast[*pattern].span(ast),
-            Pattern::TypeCheck(pattern)   => ast[*pattern].span(ast),
+            Pattern::Range(pattern)       => pattern.span(),
+            Pattern::Reference(pattern)   => pattern.span(),
+            Pattern::Struct(pattern)      => pattern.span(),
+            Pattern::TupleStruct(pattern) => pattern.span(),
+            Pattern::Tuple(pattern)       => pattern.span(),
+            Pattern::Grouped(pattern)     => pattern.span(),
+            Pattern::Slice(pattern)       => pattern.span(),
+            Pattern::EnumMember(pattern)  => pattern.span(),
+            Pattern::Alternative(pattern) => pattern.span(),
+            Pattern::TypeCheck(pattern)   => pattern.span(),
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            Pattern::Literal(pattern)     => ast[*pattern].node_id(ast),
-            Pattern::Identifier(pattern)  => ast[*pattern].node_id(ast),
-            Pattern::Path(pattern)        => ast[*pattern].node_id(ast),
+            Pattern::Literal(pattern)     => pattern.node_id(),
+            Pattern::Identifier(pattern)  => pattern.node_id(),
+            Pattern::Path(pattern)        => pattern.node_id(),
             Pattern::Wildcard             => NodeId::default(), // TODO
             Pattern::Rest                 => NodeId::default(), // TODO
-            Pattern::Range(pattern)       => ast[*pattern].node_id(ast),
-            Pattern::Reference(pattern)   => ast[*pattern].node_id(ast),
-            Pattern::Struct(pattern)      => ast[*pattern].node_id(ast),
-            Pattern::TupleStruct(pattern) => ast[*pattern].node_id(ast),
-            Pattern::Tuple(pattern)       => ast[*pattern].node_id(ast),
-            Pattern::Grouped(pattern)     => ast[*pattern].node_id(ast),
-            Pattern::Slice(pattern)       => ast[*pattern].node_id(ast),
-            Pattern::EnumMember(pattern)  => ast[*pattern].node_id(ast),
-            Pattern::Alternative(pattern) => ast[*pattern].node_id(ast),
-            Pattern::TypeCheck(pattern)   => ast[*pattern].node_id(ast),
+            Pattern::Range(pattern)       => pattern.node_id(),
+            Pattern::Reference(pattern)   => pattern.node_id(),
+            Pattern::Struct(pattern)      => pattern.node_id(),
+            Pattern::TupleStruct(pattern) => pattern.node_id(),
+            Pattern::Tuple(pattern)       => pattern.node_id(),
+            Pattern::Grouped(pattern)     => pattern.node_id(),
+            Pattern::Slice(pattern)       => pattern.node_id(),
+            Pattern::EnumMember(pattern)  => pattern.node_id(),
+            Pattern::Alternative(pattern) => pattern.node_id(),
+            Pattern::TypeCheck(pattern)   => pattern.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Pattern::Literal(pattern)     => logger.log_node_ref(*pattern),
-            Pattern::Identifier(pattern)  => logger.log_node_ref(*pattern),
-            Pattern::Path(pattern)        => logger.log_node_ref(*pattern),
+            Pattern::Literal(pattern)     => logger.log_node_ref(pattern),
+            Pattern::Identifier(pattern)  => logger.log_node_ref(pattern),
+            Pattern::Path(pattern)        => logger.log_node_ref(pattern),
             Pattern::Wildcard             => logger.prefixed_logln("Wildcard Pattern"),
             Pattern::Rest                 => logger.prefixed_logln("Rest Pattern"),
-            Pattern::Range(pattern)       => logger.log_node_ref(*pattern),
-            Pattern::Reference(pattern)   => logger.log_node_ref(*pattern),
-            Pattern::Tuple(pattern)       => logger.log_node_ref(*pattern),
-            Pattern::Struct(pattern)      => logger.log_node_ref(*pattern),
-            Pattern::TupleStruct(pattern) => logger.log_node_ref(*pattern),
-            Pattern::Grouped(pattern)     => logger.log_node_ref(*pattern),
-            Pattern::Slice(pattern)       => logger.log_node_ref(*pattern),
-            Pattern::EnumMember(pattern)  => logger.log_node_ref(*pattern),
-            Pattern::Alternative(pattern) => logger.log_node_ref(*pattern),
-            Pattern::TypeCheck(pattern)   => logger.log_node_ref(*pattern),
+            Pattern::Range(pattern)       => logger.log_node_ref(pattern),
+            Pattern::Reference(pattern)   => logger.log_node_ref(pattern),
+            Pattern::Tuple(pattern)       => logger.log_node_ref(pattern),
+            Pattern::Struct(pattern)      => logger.log_node_ref(pattern),
+            Pattern::TupleStruct(pattern) => logger.log_node_ref(pattern),
+            Pattern::Grouped(pattern)     => logger.log_node_ref(pattern),
+            Pattern::Slice(pattern)       => logger.log_node_ref(pattern),
+            Pattern::EnumMember(pattern)  => logger.log_node_ref(pattern),
+            Pattern::Alternative(pattern) => logger.log_node_ref(pattern),
+            Pattern::TypeCheck(pattern)   => logger.log_node_ref(pattern),
         }
     }
 }
@@ -3834,11 +3834,11 @@ pub struct LiteralPattern {
 }
 
 impl AstNode for LiteralPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3870,11 +3870,11 @@ pub struct IdentifierPattern {
 }
 
 impl AstNode for IdentifierPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -3902,18 +3902,18 @@ pub struct PathPattern {
 }
 
 impl AstNode for PathPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Path Pattern", |logger| {
             logger.set_last_at_indent();
-            logger.log_node_ref(self.path);
+            logger.log_node_ref(&self.path);
         });
     }
 }
@@ -3955,7 +3955,7 @@ pub enum RangePattern {
 }
 
 impl AstNode for RangePattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             RangePattern::Exclusive { span, .. }   => *span,
             RangePattern::Inclusive { span, .. }   => *span,
@@ -3965,7 +3965,7 @@ impl AstNode for RangePattern {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             RangePattern::Exclusive { node_id, .. }   => *node_id,
             RangePattern::Inclusive { node_id, .. }   => *node_id,
@@ -4023,11 +4023,11 @@ pub struct ReferencePattern {
 }
 
 impl AstNode for ReferencePattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4061,14 +4061,14 @@ pub enum StructPattern {
 }
 
 impl AstNode for StructPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             StructPattern::Inferred { span, .. } => *span,
             StructPattern::Path { span, .. } => *span,
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             StructPattern::Inferred { node_id, .. } => *node_id,
             StructPattern::Path { node_id, .. } => *node_id,
@@ -4083,7 +4083,7 @@ impl AstNode for StructPattern {
                 logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
             },
             StructPattern::Path { span, node_id, path, fields } => {
-                logger.log_indented_node_ref("Path", *path);
+                logger.log_indented_node_ref("Path", path);
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Fields", fields, |logger, field| field.log(logger));
             },
@@ -4164,14 +4164,14 @@ pub enum TupleStructPattern {
 }
 
 impl AstNode for TupleStructPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             TupleStructPattern::Inferred { span, .. } => *span,
             TupleStructPattern::Named { span, .. }    => *span,
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             TupleStructPattern::Inferred { node_id, .. } => *node_id,
             TupleStructPattern::Named { node_id, .. }    => *node_id,
@@ -4211,11 +4211,11 @@ pub struct TuplePattern {
 }
 
 impl AstNode for TuplePattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4240,11 +4240,11 @@ pub struct GroupedPattern {
 }
 
 impl AstNode for GroupedPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4269,11 +4269,11 @@ pub struct SlicePattern {
 }
 
 impl AstNode for SlicePattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4298,11 +4298,11 @@ pub struct EnumMemberPattern {
 }
 
 impl AstNode for EnumMemberPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4326,11 +4326,11 @@ pub struct AlternativePattern {
 }
 
 impl AstNode for AlternativePattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4355,11 +4355,11 @@ pub struct TypeCheckPattern {
 }
 
 impl AstNode for TypeCheckPattern {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4398,63 +4398,63 @@ pub enum Type {
 }
 
 impl AstNode for Type {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
-            Type::Paren(ty)       => ast[*ty].span(ast),
-            Type::Primitive(ty)   => ast[*ty].span(ast),
+            Type::Paren(ty)       => ty.span(),
+            Type::Primitive(ty)   => ty.span(),
             Type::Never           => SpanId::INVALID,
             Type::Unit            => SpanId::INVALID,
-            Type::Path(ty)        => ast[*ty].span(ast),
-            Type::Tuple(ty)       => ast[*ty].span(ast),
-            Type::Array(ty)       => ast[*ty].span(ast),
-            Type::Slice(ty)       => ast[*ty].span(ast),
-            Type::StringSlice(ty) => ast[*ty].span(ast),
-            Type::Pointer(ty)     => ast[*ty].span(ast),
-            Type::Ref(ty)         => ast[*ty].span(ast),
-            Type::Optional(ty)    => ast[*ty].span(ast),
-            Type::Fn(ty)          => ast[*ty].span(ast),
-            Type::Record(ty)      => ast[*ty].span(ast),
-            Type::EnumRecord(ty)  => ast[*ty].span(ast),
+            Type::Path(ty)        => ty.span(),
+            Type::Tuple(ty)       => ty.span(),
+            Type::Array(ty)       => ty.span(),
+            Type::Slice(ty)       => ty.span(),
+            Type::StringSlice(ty) => ty.span(),
+            Type::Pointer(ty)     => ty.span(),
+            Type::Ref(ty)         => ty.span(),
+            Type::Optional(ty)    => ty.span(),
+            Type::Fn(ty)          => ty.span(),
+            Type::Record(ty)      => ty.span(),
+            Type::EnumRecord(ty)  => ty.span(),
         }
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
-            Type::Paren(ty)       => ast[*ty].node_id(ast),
-            Type::Primitive(ty)   => ast[*ty].node_id(ast),
+            Type::Paren(ty)       => ty.node_id(),
+            Type::Primitive(ty)   => ty.node_id(),
             Type::Never           => NodeId::default(),
             Type::Unit            => NodeId::default(),
-            Type::Path(ty)        => ast[*ty].node_id(ast),
-            Type::Tuple(ty)       => ast[*ty].node_id(ast),
-            Type::Array(ty)       => ast[*ty].node_id(ast),
-            Type::Slice(ty)       => ast[*ty].node_id(ast),
-            Type::StringSlice(ty) => ast[*ty].node_id(ast),
-            Type::Pointer(ty)     => ast[*ty].node_id(ast),
-            Type::Ref(ty)         => ast[*ty].node_id(ast),
-            Type::Optional(ty)    => ast[*ty].node_id(ast),
-            Type::Fn(ty)          => ast[*ty].node_id(ast),
-            Type::Record(ty)      => ast[*ty].node_id(ast),
-            Type::EnumRecord(ty)  => ast[*ty].node_id(ast),
+            Type::Path(ty)        => ty.node_id(),
+            Type::Tuple(ty)       => ty.node_id(),
+            Type::Array(ty)       => ty.node_id(),
+            Type::Slice(ty)       => ty.node_id(),
+            Type::StringSlice(ty) => ty.node_id(),
+            Type::Pointer(ty)     => ty.node_id(),
+            Type::Ref(ty)         => ty.node_id(),
+            Type::Optional(ty)    => ty.node_id(),
+            Type::Fn(ty)          => ty.node_id(),
+            Type::Record(ty)      => ty.node_id(),
+            Type::EnumRecord(ty)  => ty.node_id(),
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Type::Paren(ty)       => logger.log_node_ref(*ty),
-            Type::Primitive(ty)   => logger.log_node_ref(*ty),
+            Type::Paren(ty)       => logger.log_node_ref(ty),
+            Type::Primitive(ty)   => logger.log_node_ref(ty),
             Type::Never           => logger.prefixed_logln("Never Type"),
             Type::Unit            => logger.prefixed_logln("Unit Type"),
-            Type::Path(ty)        => logger.log_node_ref(*ty),
-            Type::Tuple(ty)       => logger.log_node_ref(*ty),
-            Type::Array(ty)       => logger.log_node_ref(*ty),
-            Type::Slice(ty)       => logger.log_node_ref(*ty),
-            Type::StringSlice(ty) => logger.log_node_ref(*ty),
-            Type::Pointer(ty)     => logger.log_node_ref(*ty),
-            Type::Ref(ty)         => logger.log_node_ref(*ty),
-            Type::Optional(ty)    => logger.log_node_ref(*ty),
-            Type::Fn(ty)          => logger.log_node_ref(*ty),
-            Type::Record(ty)      => logger.log_node_ref(*ty),
-            Type::EnumRecord(ty)  => logger.log_node_ref(*ty),
+            Type::Path(ty)        => logger.log_node_ref(ty),
+            Type::Tuple(ty)       => logger.log_node_ref(ty),
+            Type::Array(ty)       => logger.log_node_ref(ty),
+            Type::Slice(ty)       => logger.log_node_ref(ty),
+            Type::StringSlice(ty) => logger.log_node_ref(ty),
+            Type::Pointer(ty)     => logger.log_node_ref(ty),
+            Type::Ref(ty)         => logger.log_node_ref(ty),
+            Type::Optional(ty)    => logger.log_node_ref(ty),
+            Type::Fn(ty)          => logger.log_node_ref(ty),
+            Type::Record(ty)      => logger.log_node_ref(ty),
+            Type::EnumRecord(ty)  => logger.log_node_ref(ty),
         }
     }
 }
@@ -4466,11 +4466,11 @@ pub struct ParenthesizedType {
 }
 
 impl AstNode for ParenthesizedType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4495,11 +4495,11 @@ pub struct PrimitiveType {
 }
 
 impl AstNode for PrimitiveType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4552,17 +4552,17 @@ pub struct PathType {
 }
 
 impl AstNode for PathType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Path Type", |logger| {
-            logger.log_node_ref(self.path);
+            logger.log_node_ref(&self.path);
         });
     }
 }
@@ -4580,11 +4580,11 @@ pub struct TupleType {
 }
 
 impl AstNode for TupleType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4610,11 +4610,11 @@ pub struct ArrayType {
 }
 
 impl AstNode for ArrayType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4642,11 +4642,11 @@ pub struct SliceType {
 }
 
 impl AstNode for SliceType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4672,11 +4672,11 @@ pub struct StringSliceType {
 }
 
 impl AstNode for StringSliceType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4711,11 +4711,11 @@ pub struct PointerType {
 }
 
 impl AstNode for PointerType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4747,11 +4747,11 @@ pub struct ReferenceType {
 }
 
 impl AstNode for ReferenceType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4778,11 +4778,11 @@ pub struct OptionalType {
 }
 
 impl AstNode for OptionalType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4810,11 +4810,11 @@ pub struct FnType {
 }
 
 impl AstNode for FnType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4855,11 +4855,11 @@ pub struct RecordType {
 }
 
 impl AstNode for RecordType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4884,11 +4884,11 @@ pub struct EnumRecordType {
 }
 
 impl AstNode for EnumRecordType {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -4912,11 +4912,11 @@ pub struct GenericParams {
 
 }
 impl AstNode for GenericParams {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         SpanId::INVALID
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         NodeId::default()
     }
 
@@ -4937,11 +4937,11 @@ pub struct GenericArgs {
 
 }
 impl AstNode for GenericArgs {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         SpanId::INVALID
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         NodeId::default()
     }
 
@@ -4962,11 +4962,11 @@ pub struct WhereClause {
 
 }
 impl AstNode for WhereClause {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         SpanId::INVALID
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         NodeId::default()
     }
 
@@ -4987,11 +4987,11 @@ pub struct TraitBounds {
     
 }
 impl AstNode for TraitBounds {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         SpanId::INVALID
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         NodeId::default()
     }
 
@@ -5035,7 +5035,7 @@ pub enum Visibility {
 }
 
 impl AstNode for Visibility {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         match self {
             Visibility::Pub { span, .. }     => *span,
             Visibility::Super { span, .. }   => *span,
@@ -5045,7 +5045,7 @@ impl AstNode for Visibility {
         }    
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         match self {
             Visibility::Pub { node_id, .. }     => *node_id,
             Visibility::Super { node_id, .. }   => *node_id,
@@ -5062,7 +5062,7 @@ impl AstNode for Visibility {
             Visibility::Super{ .. }      => logger.logln("pub(super)"),
             Visibility::Lib{ .. }        => logger.logln("pub(lib)"),
             Visibility::Package{ .. }    => logger.logln("pub(package)"),
-            Visibility::Path{ path, .. } => logger.log_indented_node_ref("pub(..)", *path),
+            Visibility::Path{ path, .. } => logger.log_indented_node_ref("pub(..)", path),
         }
     }
 }
@@ -5089,11 +5089,11 @@ pub struct Attribute {
 }
 
 impl AstNode for Attribute {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         self.span
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -5140,15 +5140,15 @@ pub enum AttribMeta {
 impl AttribMeta {
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Simple { path, .. }       => logger.log_indented_node_ref("Simple Attrib Meta", *path),
+            Self::Simple { path, .. }       => logger.log_indented_node_ref("Simple Attrib Meta", path),
             Self::Expr { expr, .. }         => logger.log_indented_node("Expression Attrib Meta", expr),
             Self::Assign { path, expr, .. } => logger.log_indented("Assign Attribute Meta", |logger| {
-                logger.log_indented_node_ref("Path", *path);
+                logger.log_indented_node_ref("Path", path);
                 logger.set_last_at_indent();
                 logger.log_indented_node("Expr", expr)
             }),
             Self::Meta { path, metas, .. }  => logger.log_indented("Nested Attribute Meta", |logger| {
-                logger.log_indented_node_ref("Path", *path);
+                logger.log_indented_node_ref("Path", path);
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Metas", metas, |logger, meta| meta.log(logger));
             }),
@@ -5163,11 +5163,11 @@ pub struct Contract {
 }
 
 impl AstNode for Contract {
-    fn span(&self, ast: &Ast) -> SpanId {
+    fn span(&self) -> SpanId {
         SpanId::INVALID
     }
 
-    fn node_id(&self, ast: &Ast) -> NodeId {
+    fn node_id(&self) -> NodeId {
         NodeId::default()
     }
 
@@ -5183,30 +5183,32 @@ impl AstNodeParseHelper for Contract {
 
 // =============================================================================================================================
 
-#[derive(PartialEq, Eq, Debug)]
-pub struct AstNodeRef<T> {
-    idx:      usize,
-    _phantom: PhantomData<T>,
-}
+// #[derive(PartialEq, Eq, Debug)]
+// pub struct AstNodeRef<T> {
+//     idx:      usize,
+//     _phantom: PhantomData<T>,
+// }
 
-impl<T> Clone for AstNodeRef<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<T> Copy for AstNodeRef<T> {}
+// impl<T> Clone for AstNodeRef<T> {
+//     fn clone(&self) -> Self {
+//         *self
+//     }
+// }
+// impl<T> Copy for AstNodeRef<T> {}
 
-impl<T> AstNodeRef<T> {
-    pub fn index(&self) -> usize {
-        self.idx
-    }
-}
+// impl<T> AstNodeRef<T> {
+//     pub fn index(&self) -> usize {
+//         self.idx
+//     }
+// }
+
+pub type AstNodeRef<T> = Arc<T>;
 
 
 
 pub struct Ast {
     pub file:   PathBuf,
-    pub nodes:  Vec<Box<dyn AstNode>>,
+    pub nodes:  Vec<Arc<dyn AstNode>>,
     pub meta:   Vec<AstNodeMeta>,
 
     pub items:  Vec<Item>,
@@ -5228,27 +5230,11 @@ impl Ast {
     pub fn add_node<T: AstNode + AstNodeParseHelper + 'static>(&mut self, mut node: T, meta: AstNodeMeta) -> AstNodeRef<T> {
         let idx = self.nodes.len();
         node.set_node_id(NodeId(idx));
-        self.nodes.push(Box::new(node));
+        let node_ref = Arc::new(node);
+        self.nodes.push(node_ref.clone());
         self.meta.push(meta);
-        AstNodeRef { idx, _phantom: PhantomData }
+        node_ref
     }
-
-    pub fn get<T: AstNode + 'static>(&self, id: AstNodeRef<T>) -> (&T, &AstNodeMeta) {
-        let node = &*self.nodes[id.idx];
-
-        // SAFETY: We cannot manually create node references and the indices are stable, so we will always have a value of the type we want here
-        let node_ptr = &*node as *const _ as *const T;
-        (unsafe { &*node_ptr }, &self.meta[id.idx])
-    }
-
-    pub fn get_mut<T: AstNode + 'static>(&mut self, id: AstNodeRef<T>) -> (&mut T, &mut AstNodeMeta) {
-        let node = &mut *self.nodes[id.idx];
-
-        // SAFETY: We cannot manually create node references and the indices are stable, so we will always have a value of the type we want here
-        let node_ptr = &mut *node as *mut _ as *mut T;
-        (unsafe { &mut *node_ptr }, &mut self.meta[id.idx])
-    }
-
 
     pub fn log(&self, names: &NameTable, literals: &LiteralTable, puncts: &PuncutationTable) {
         let mut logger = AstLogger::new(self, names, literals, puncts);
@@ -5265,20 +5251,6 @@ impl Ast {
     }
 }
 
-impl<T: AstNode + 'static> Index<AstNodeRef<T>> for Ast {
-    type Output = T;
-
-    fn index(&self, index: AstNodeRef<T>) -> &Self::Output {
-        self.get(index).0
-    }
-}
-
-impl<T: AstNode + 'static> IndexMut<AstNodeRef<T>> for Ast {
-    fn index_mut(&mut self, index: AstNodeRef<T>) -> &mut Self::Output {
-        self.get_mut(index).0
-    }
-}
-
 pub struct AstLogger<'a> {
     ast:          &'a Ast,
     names:        &'a NameTable,
@@ -5288,7 +5260,7 @@ pub struct AstLogger<'a> {
     logger:       IndentLogger,
     indent_kinds: Vec<bool>,
 
-    node_id:      usize,
+    node_id:      NodeId,
 }
 
 impl<'a> AstLogger<'a> {
@@ -5300,7 +5272,7 @@ impl<'a> AstLogger<'a> {
             puncts,
             logger: IndentLogger::new("    ", "|   ", "+---"),
             indent_kinds: vec![true],
-            node_id: 0,
+            node_id: NodeId::default(),
         }
     }
 }
@@ -5358,11 +5330,10 @@ impl AstLogger<'_> {
         punt.as_str(&self.puncts).to_string()
     }
 
-    fn log_node_ref<T: AstNode + 'static>(&mut self, id: AstNodeRef<T>) {
+    fn log_node_ref<T: AstNode + 'static>(&mut self, node: &AstNodeRef<T>) {
         let prev_id = self.node_id;
-        self.node_id = id.idx;
+        self.node_id = node.node_id();
         
-        let node = &self.ast[id];
         node.log(self);
         
         self.node_id = prev_id;
@@ -5388,15 +5359,15 @@ impl AstLogger<'_> {
     pub fn log_ast_node<F>(&mut self, name: &'static str, f: F) where
         F: Fn(&mut Self)
     {
-        let (first_tok, last_tok) = if self.node_id < self.ast.meta.len() {
-            let meta = &self.ast.meta[self.node_id];
+        let (first_tok, last_tok) = if self.node_id.index() < self.ast.meta.len() {
+            let meta = &self.ast.meta[self.node_id.index()];
             (meta.first_tok, meta.last_tok)
         } else {
             (0, 0)
         };
 
 
-        self.prefixed_log_fmt(format_args!("[ {name} ] (node id: {}, tokens: [{first_tok}..{last_tok}])\n", self.node_id));
+        self.prefixed_log_fmt(format_args!("[ {name} ] (node id: {}, tokens: [{first_tok}..{last_tok}])\n", self.node_id.index()));
         self.push_indent();
         f(self);
         self.pop_indent();
@@ -5426,10 +5397,9 @@ impl AstLogger<'_> {
         })
     }
 
-    pub fn log_indented_node_ref<T: AstNode + 'static>(&mut self, name: &'static str, id: AstNodeRef<T>) {
-        let node = &self.ast[id];
-        self.node_id = id.idx;
-        self.log_indented_node(name, node);
+    pub fn log_indented_node_ref<T: AstNode + 'static>(&mut self, name: &'static str, node: &AstNodeRef<T>) {
+        self.node_id = node.node_id();
+        self.log_indented_node(name, &**node);
     }
 
     pub fn log_indented_node<T: AstNode>(&mut self, name: &'static str, node: &T) {
@@ -5449,7 +5419,7 @@ impl AstLogger<'_> {
             if idx == nodes.len() - 1 {
                 logger.set_last_at_indent();
             }
-            logger.log_node_ref(*node);
+            logger.log_node_ref(node);
         });
     }
 
@@ -5482,9 +5452,9 @@ impl AstLogger<'_> {
         }
     }
 
-    pub fn log_opt_node_ref<T: AstNode + 'static>(&mut self, id: &Option<AstNodeRef<T>>) {
-        if let Some(id) = id {
-            self.log_node_ref(*id);
+    pub fn log_opt_node_ref<T: AstNode + 'static>(&mut self, node: &Option<AstNodeRef<T>>) {
+        if let Some(id) = node {
+            self.log_node_ref(id);
         }
     }
 
@@ -5496,7 +5466,7 @@ impl AstLogger<'_> {
     
     pub fn log_indented_opt_node_ref<T: AstNode + 'static>(&mut self, name: &'static str, val: &Option<AstNodeRef<T>>) {
         if let Some(val) = val {
-            self.log_indented_node_ref(name, *val)
+            self.log_indented_node_ref(name, val)
         }
     }
     
