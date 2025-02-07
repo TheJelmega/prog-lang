@@ -1957,7 +1957,7 @@ impl Visitor for AstToHirLowering<'_> {
                     }
                 }
             },
-            PathExpr::SelfPath => hir::PathExpr::SelfPath,
+            PathExpr::SelfPath{ .. } => hir::PathExpr::SelfPath,
             PathExpr::Qualified { span, node_id, path: _ } => {
                 let path = self.qual_path_stack.pop().unwrap();
                 hir::PathExpr::Qualified { path }
@@ -1966,7 +1966,7 @@ impl Visitor for AstToHirLowering<'_> {
         self.push_expr(hir::Expr::Path(expr)); 
     }
 
-    fn visit_unit_expr(&mut self) where Self: Sized {
+    fn visit_unit_expr(&mut self, node: &AstNodeRef<UnitExpr>) where Self: Sized {
         self.push_expr(hir::Expr::Unit);
     }
 
@@ -2305,7 +2305,7 @@ impl Visitor for AstToHirLowering<'_> {
         }))
     }
 
-    fn visit_full_range_expr(&mut self) where Self: Sized {
+    fn visit_full_range_expr(&mut self, node: &AstNodeRef<FullRangeExpr>) where Self: Sized {
         self.push_expr(hir::Expr::FullRange)
     }
 
@@ -2720,7 +2720,7 @@ impl Visitor for AstToHirLowering<'_> {
         }));
     }
 
-    fn visit_underscore_expr(&mut self) where Self: Sized {
+    fn visit_underscore_expr(&mut self, node: &AstNodeRef<UnderscoreExpr>) where Self: Sized {
         self.push_expr(hir::Expr::Underscore);
     }
 
@@ -2827,11 +2827,11 @@ impl Visitor for AstToHirLowering<'_> {
         }));
     }
 
-    fn visit_wildcard_pattern(&mut self) where Self: Sized {
+    fn visit_wildcard_pattern(&mut self, node: &AstNodeRef<WildcardPattern>) where Self: Sized {
         self.push_pattern(hir::Pattern::Wildcard);
     }
 
-    fn visit_rest_pattern(&mut self) where Self: Sized {
+    fn visit_rest_pattern(&mut self, node: &AstNodeRef<RestPattern>) where Self: Sized {
         self.push_pattern(hir::Pattern::Rest);
     }
 
@@ -3075,11 +3075,11 @@ impl Visitor for AstToHirLowering<'_> {
         }));
     }
 
-    fn visit_unit_type(&mut self) where Self: Sized {
+    fn visit_unit_type(&mut self, node: &AstNodeRef<UnitType>) where Self: Sized {
         self.push_type(hir::Type::Unit);
     }
 
-    fn visit_never_type(&mut self) where Self: Sized {
+    fn visit_never_type(&mut self, node: &AstNodeRef<NeverType>) where Self: Sized {
         self.push_type(hir::Type::Never);
     }
 

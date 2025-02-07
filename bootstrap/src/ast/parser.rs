@@ -2166,8 +2166,16 @@ impl Parser<'_> {
                 }
             },
             Token::Punctuation(Punctuation::Semicolon) => {
+                if !attrs.is_empty() {
+                    return Err(self.gen_error(ParseErrorCode::EmptyStmtWithAttrs));
+                }
+
+                let span = self.get_cur_span();
                 self.consume_single();
-                Ok(Stmt::Empty)
+                Ok(Stmt::Empty(self.add_node(EmptyStmt {
+                    span,
+                    node_id: NodeId::default(),
+                })))
             },
             _ => self.parse_expr_stmt(attrs, allow_expr_without_semicolon).map(|stmt| Stmt::Expr(stmt))
         }
@@ -2331,7 +2339,10 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::When)          => self.parse_when_expr()?,
             Token::StrongKw(StrongKeyword::SelfName)      => {
                 self.consume_single();
-                Expr::Path(self.add_node(PathExpr::SelfPath))
+                Expr::Path(self.add_node(PathExpr::SelfPath {
+                    span: begin,
+                    node_id: NodeId::default(),
+                }))
             },
             Token::StrongKw(StrongKeyword::Let) if mode == ExprParseMode::AllowLet => self.parse_let_binding_expr()?,
 
@@ -2363,7 +2374,11 @@ impl Parser<'_> {
                 if self.check_peek(&[1], Token::CloseSymbol(OpenCloseSymbol::Paren)) {
                     self.consume_single();
                     self.consume_single();
-                    Expr::Unit
+                    let span = self.get_span_to_current(begin);
+                    Expr::Unit(self.add_node(UnitExpr {
+                        span,
+                        node_id: NodeId::default(),
+                    }))
                 } else if self.check_peek(&[1], Token::Punctuation(Punctuation::Colon)) {
                     self.parse_qualified_path_expr()?
                 } else {
@@ -2373,7 +2388,10 @@ impl Parser<'_> {
 
             Token::Underscore => {
                 self.consume_single();
-                Expr::Underscore
+                Expr::Underscore(self.add_node(UnderscoreExpr {
+                    span: begin,
+                    node_id: NodeId::default(),
+                }))
             },
 
             _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "expression" })),
@@ -3332,8 +3350,12 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Ref |
                             StrongKeyword::Mut)           => self.parse_identifier_pattern()?,
             Token::Underscore                             => {
+                let span = self.get_cur_span();
                 self.consume_single();
-                Pattern::Wildcard
+                Pattern::Wildcard(self.add_node(WildcardPattern {
+                    span,
+                    node_id: NodeId::default(),
+                }))
             },
             Token::Punctuation(Punctuation::DotDot)       => self.parse_dotdot_pattern()?,
             Token::Punctuation(Punctuation::DotDotEquals) => self.parse_inclusive_to_pattern()?,
@@ -3413,7 +3435,10 @@ impl Parser<'_> {
             let span = self.get_span_to_current(begin);
             Ok(Pattern::Range(self.add_node(RangePattern::To { span, node_id: NodeId::default(), end })))
         } else {
-            Ok(Pattern::Rest)
+            Ok(Pattern::Rest(self.add_node(RestPattern {
+                span: begin,
+                node_id: NodeId::default(),
+            })))
         }
     }
 
@@ -3695,7 +3720,10 @@ impl Parser<'_> {
             Token::OpenSymbol(OpenCloseSymbol::Paren) => self.parse_tuple_like_type(),
             Token::Punctuation(Punctuation::Exclaim) => {
                 self.consume_single();
-                Ok(Type::Never)
+                Ok(Type::Never(self.add_node(NeverType {
+                    span,
+                    node_id: NodeId::default(),
+                })))
             },
             Token::OpenSymbol(OpenCloseSymbol::Bracket) => self.parse_slice_like_type(),
             Token::Punctuation(Punctuation::Caret)      => self.parse_pointer_type(),
@@ -3716,7 +3744,10 @@ impl Parser<'_> {
         let mut types = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_type)?;
         let span = self.get_span_to_current(begin);
         if types.is_empty() {
-            Ok(Type::Unit)
+            Ok(Type::Unit(self.add_node(UnitType {
+                span,
+                node_id: NodeId::default(),
+            })))
         } else if types.len() == 1 {
             Ok(Type::Paren(self.add_node(ParenthesizedType {
                 span,

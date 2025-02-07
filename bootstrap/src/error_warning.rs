@@ -146,6 +146,8 @@ pub enum ParseErrorCode {
     InvalidPrecedenceAssoc{ name: String },
     // Ambigouous operators
     AmbiguousOperators,
+
+    EmptyStmtWithAttrs,
 }
 
 impl Display for ParseErrorCode {
@@ -168,6 +170,7 @@ impl Display for ParseErrorCode {
             Self::ExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
             Self::InvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
             Self::AmbiguousOperators                   => write!(f, "Ambiguous operators, cannot figure out which operators is infix"),
+            Self::EmptyStmtWithAttrs                   => write!(f, "An empty statement cannot have attributes applied to it"),
 
             #[allow(unreachable_patterns)]
             _                                               => write!(f, "Unknown Parse error"),

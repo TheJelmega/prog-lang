@@ -254,7 +254,7 @@ impl AstNodeParseHelper for QualifiedPath {
 
 pub struct Block {
     pub span:       SpanId,
-    pub node_id:     NodeId,
+    pub node_id:    NodeId,
     pub stmts:      Vec<Stmt>,
     pub final_expr: Option<AstNodeRef<ExprStmt>>,
 }
@@ -2082,7 +2082,7 @@ impl AstNodeParseHelper for PrecedenceUse {
 // =============================================================================================================================
 
 pub enum Stmt {
-    Empty,
+    Empty(AstNodeRef<EmptyStmt>),
     Item(Item),
     VarDecl(AstNodeRef<VarDecl>),
     Defer(AstNodeRef<Defer>),
@@ -2093,7 +2093,7 @@ pub enum Stmt {
 impl AstNode for Stmt {
     fn span(&self) -> SpanId {
         match self {
-            Stmt::Empty          => SpanId::INVALID, // TODO
+            Stmt::Empty(item)    => item.span(),
             Stmt::Item(item)     => item.span(),
             Stmt::VarDecl(item)  => item.span(),
             Stmt::Defer(item)    => item.span(),
@@ -2104,7 +2104,7 @@ impl AstNode for Stmt {
 
     fn node_id(&self) -> NodeId {
         match self {
-            Stmt::Empty          => NodeId::default(), // TODO
+            Stmt::Empty(item)    => item.node_id(),
             Stmt::Item(item)     => item.node_id(),
             Stmt::VarDecl(item)  => item.node_id(),
             Stmt::Defer(item)    => item.node_id(),
@@ -2115,15 +2115,38 @@ impl AstNode for Stmt {
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            Self::Empty             => {
-                logger.prefixed_logln("Emtpy");
-            },
+            Self::Empty(item)        => logger.log_node_ref(item),
             Self::Item(item)         => item.log(logger),
             Self::VarDecl(var_decl)  => logger.log_node_ref(var_decl),
             Self::Defer(defer)       => logger.log_node_ref(defer),
             Self::ErrDefer(errdefer) => logger.log_node_ref(errdefer),
             Self::Expr(expr)         => logger.log_node_ref(expr),
         }
+    }
+}
+
+pub struct EmptyStmt {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for EmptyStmt {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Empty Statement")
+    }
+}
+
+impl AstNodeParseHelper for EmptyStmt {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -2311,7 +2334,7 @@ pub enum Expr {
     Literal(AstNodeRef<LiteralExpr>),
     // Can include a sequence of field accesses
     Path(AstNodeRef<PathExpr>),
-    Unit,
+    Unit(AstNodeRef<UnitExpr>),
     Block(AstNodeRef<BlockExpr>),
     Prefix(AstNodeRef<PrefixExpr>),
     Postfix(AstNodeRef<PostfixExpr>),
@@ -2329,7 +2352,7 @@ pub enum Expr {
     Method(AstNodeRef<MethodCallExpr>),
     FieldAccess(AstNodeRef<FieldAccessExpr>),
     Closure(AstNodeRef<ClosureExpr>),
-    FullRange,
+    FullRange(AstNodeRef<FullRangeExpr>),
     If(AstNodeRef<IfExpr>),
     Let(AstNodeRef<LetBindingExpr>),
     Loop(AstNodeRef<LoopExpr>),
@@ -2341,7 +2364,7 @@ pub enum Expr {
     Continue(AstNodeRef<ContinueExpr>),
     Fallthrough(AstNodeRef<FallthroughExpr>),
     Return(AstNodeRef<ReturnExpr>),
-    Underscore,
+    Underscore(AstNodeRef<UnderscoreExpr>),
     Throw(AstNodeRef<ThrowExpr>),
     Comma(AstNodeRef<CommaExpr>),
     When(AstNodeRef<WhenExpr>),
@@ -2366,7 +2389,7 @@ impl AstNode for Expr {
         match self {
             Expr::Literal(expr)     => expr.span(),
             Expr::Path(expr)        => expr.span(),
-            Expr::Unit              => SpanId::INVALID, // TODO
+            Expr::Unit(expr)        => expr.span(),
             Expr::Block(expr)       => expr.span(),
             Expr::Prefix(expr)      => expr.span(),
             Expr::Postfix(expr)     => expr.span(),
@@ -2384,7 +2407,7 @@ impl AstNode for Expr {
             Expr::Method(expr)      => expr.span(),
             Expr::FieldAccess(expr) => expr.span(),
             Expr::Closure(expr)     => expr.span(),
-            Expr::FullRange         => SpanId::INVALID, // TODO
+            Expr::FullRange(expr)   => expr.span(),
             Expr::If(expr)          => expr.span(),
             Expr::Let(expr)         => expr.span(),
             Expr::Loop(expr)        => expr.span(),
@@ -2396,7 +2419,7 @@ impl AstNode for Expr {
             Expr::Continue(expr)    => expr.span(),
             Expr::Fallthrough(expr) => expr.span(),
             Expr::Return(expr)      => expr.span(),
-            Expr::Underscore        => SpanId::INVALID, // TODO
+            Expr::Underscore(expr)  => expr.span(),
             Expr::Throw(expr)       => expr.span(),
             Expr::Comma(expr)       => expr.span(),
             Expr::When(expr)        => expr.span(),
@@ -2407,7 +2430,7 @@ impl AstNode for Expr {
         match self {
             Expr::Literal(expr)     => expr.node_id(),
             Expr::Path(expr)        => expr.node_id(),
-            Expr::Unit              => NodeId::default(), // TODO
+            Expr::Unit(expr)        => expr.node_id(),
             Expr::Block(expr)       => expr.node_id(),
             Expr::Prefix(expr)      => expr.node_id(),
             Expr::Postfix(expr)     => expr.node_id(),
@@ -2425,7 +2448,7 @@ impl AstNode for Expr {
             Expr::Method(expr)      => expr.node_id(),
             Expr::FieldAccess(expr) => expr.node_id(),
             Expr::Closure(expr)     => expr.node_id(),
-            Expr::FullRange         => NodeId::default(), // TODO
+            Expr::FullRange(expr)   => expr.node_id(),
             Expr::If(expr)          => expr.node_id(),
             Expr::Let(expr)         => expr.node_id(),
             Expr::Loop(expr)        => expr.node_id(),
@@ -2437,7 +2460,7 @@ impl AstNode for Expr {
             Expr::Continue(expr)    => expr.node_id(),
             Expr::Fallthrough(expr) => expr.node_id(),
             Expr::Return(expr)      => expr.node_id(),
-            Expr::Underscore        => NodeId::default(), // TODO
+            Expr::Underscore(expr)  => expr.node_id(),
             Expr::Throw(expr)       => expr.node_id(),
             Expr::Comma(expr)       => expr.node_id(),
             Expr::When(expr)        => expr.node_id(),
@@ -2448,7 +2471,7 @@ impl AstNode for Expr {
         match self {
             Self::Literal(expr)     => logger.log_node_ref(expr),
             Self::Path(expr)        => logger.log_node_ref(expr),
-            Self::Unit              => logger.prefixed_logln("Unit Expression"),
+            Self::Unit(expr)        => logger.log_node_ref(expr),
             Self::Block(expr)       => logger.log_node_ref(expr),
             Self::Prefix(expr)      => logger.log_node_ref(expr),
             Self::Postfix(expr)     => logger.log_node_ref(expr),
@@ -2466,7 +2489,7 @@ impl AstNode for Expr {
             Self::Method(expr)      => logger.log_node_ref(expr),
             Self::FieldAccess(expr) => logger.log_node_ref(expr),
             Self::Closure(expr)     => logger.log_node_ref(expr),
-            Self::FullRange         => logger.prefixed_logln("Full Range Expression"),
+            Self::FullRange(expr)   => logger.log_node_ref(expr),
             Self::If(expr)          => logger.log_node_ref(expr),
             Self::Let(expr)         => logger.log_node_ref(expr),
             Self::Loop(expr)        => logger.log_node_ref(expr),
@@ -2478,7 +2501,7 @@ impl AstNode for Expr {
             Self::Continue(expr)    => logger.log_node_ref(expr),
             Self::Fallthrough(expr) => logger.log_node_ref(expr),
             Self::Return(expr)      => logger.log_node_ref(expr),
-            Self::Underscore        => logger.prefixed_logln("Underscore Expression"),
+            Self::Underscore(expr)  => logger.log_node_ref(expr),
             Self::Throw(expr)       => logger.log_node_ref(expr),
             Self::Comma(expr)       => logger.log_node_ref(expr),
             Self::When(expr)        => logger.log_node_ref(expr),
@@ -2561,7 +2584,10 @@ pub enum PathExpr {
         node_id: NodeId,
         iden:    Identifier,
     },
-    SelfPath,
+    SelfPath {
+        span:    SpanId,
+        node_id: NodeId,
+    },
     Qualified {
         span:    SpanId,
         node_id: NodeId,
@@ -2574,7 +2600,7 @@ impl AstNode for PathExpr {
         match self {
             PathExpr::Named { span, .. }     => *span,
             PathExpr::Inferred { span, .. }  => *span,
-            PathExpr::SelfPath               => SpanId::INVALID, // TODO
+            PathExpr::SelfPath { span, ..}   => *span,
             PathExpr::Qualified { span, .. } => *span,
         }
     }
@@ -2583,7 +2609,7 @@ impl AstNode for PathExpr {
         match self {
             PathExpr::Named { node_id, .. }     => *node_id,
             PathExpr::Inferred { node_id, .. }  => *node_id,
-            PathExpr::SelfPath                  => NodeId::default(), // TODO
+            PathExpr::SelfPath{ node_id, .. }   => *node_id,
             PathExpr::Qualified { node_id, .. } => *node_id,
         }
     }
@@ -2598,7 +2624,7 @@ impl AstNode for PathExpr {
                 logger.set_last_at_indent();
                 iden.log(logger);
             }),
-            PathExpr::SelfPath => {
+            PathExpr::SelfPath{ span, node_id } => {
                 logger.set_last_at_indent();
                 logger.prefixed_logln("Self Path Expr");
             },
@@ -2615,9 +2641,34 @@ impl AstNodeParseHelper for PathExpr {
         match self {
             PathExpr::Named { node_id, .. }     => *node_id = ast_node_id,
             PathExpr::Inferred { node_id, .. }  => *node_id = ast_node_id,
-            PathExpr::SelfPath => (), // TODO
+            PathExpr::SelfPath{ node_id, ..}    => *node_id = ast_node_id,
             PathExpr::Qualified { node_id, .. } => *node_id = ast_node_id,
         }
+    }
+}
+
+pub struct UnitExpr {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for UnitExpr {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Unit Expression")
+    }
+}
+
+impl AstNodeParseHelper for UnitExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -3261,14 +3312,12 @@ impl AstNodeParseHelper for ClosureExpr {
     }
 }
 
-pub struct LetBindingExpr {
-    pub span:      SpanId,
-    pub node_id:   NodeId,
-    pub pattern:   Pattern,
-    pub scrutinee: Expr,
+pub struct FullRangeExpr {
+    pub span:    SpanId,
+    pub node_id: NodeId,
 }
 
-impl AstNode for LetBindingExpr {
+impl AstNode for FullRangeExpr {
     fn span(&self) -> SpanId {
         self.span
     }
@@ -3278,15 +3327,11 @@ impl AstNode for LetBindingExpr {
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Let Binding Expression", |logger| {
-            logger.log_node(&self.pattern);
-            logger.set_last_at_indent();
-            logger.log_node(&self.scrutinee);
-        });
+        logger.prefixed_logln("Full Range Expression")
     }
 }
 
-impl AstNodeParseHelper for LetBindingExpr {
+impl AstNodeParseHelper for FullRangeExpr {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
@@ -3321,6 +3366,37 @@ impl AstNode for IfExpr {
 }
 
 impl AstNodeParseHelper for IfExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct LetBindingExpr {
+    pub span:      SpanId,
+    pub node_id:   NodeId,
+    pub pattern:   Pattern,
+    pub scrutinee: Expr,
+}
+
+impl AstNode for LetBindingExpr {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Let Binding Expression", |logger| {
+            logger.log_node(&self.pattern);
+            logger.set_last_at_indent();
+            logger.log_node(&self.scrutinee);
+        });
+    }
+}
+
+impl AstNodeParseHelper for LetBindingExpr {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
@@ -3654,6 +3730,31 @@ impl AstNodeParseHelper for ReturnExpr {
     }
 }
 
+pub struct UnderscoreExpr {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for UnderscoreExpr {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Underscore expression")
+    }
+}
+
+impl AstNodeParseHelper for UnderscoreExpr {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
 pub struct ThrowExpr {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -3750,8 +3851,8 @@ pub enum Pattern {
     Literal(AstNodeRef<LiteralPattern>),
     Identifier(AstNodeRef<IdentifierPattern>),
     Path(AstNodeRef<PathPattern>),
-    Wildcard,
-    Rest,
+    Wildcard(AstNodeRef<WildcardPattern>),
+    Rest(AstNodeRef<RestPattern>),
     Range(AstNodeRef<RangePattern>),
     Reference(AstNodeRef<ReferencePattern>),
     Struct(AstNodeRef<StructPattern>),
@@ -3770,8 +3871,8 @@ impl AstNode for Pattern {
             Pattern::Literal(pattern)     => pattern.span(),
             Pattern::Identifier(pattern)  => pattern.span(),
             Pattern::Path(pattern)        => pattern.span(),
-            Pattern::Wildcard             => SpanId::INVALID, // TODO
-            Pattern::Rest                 => SpanId::INVALID, // TODO
+            Pattern::Wildcard(pattern)    => pattern.span(),
+            Pattern::Rest(pattern)        => pattern.span(),
             Pattern::Range(pattern)       => pattern.span(),
             Pattern::Reference(pattern)   => pattern.span(),
             Pattern::Struct(pattern)      => pattern.span(),
@@ -3790,8 +3891,8 @@ impl AstNode for Pattern {
             Pattern::Literal(pattern)     => pattern.node_id(),
             Pattern::Identifier(pattern)  => pattern.node_id(),
             Pattern::Path(pattern)        => pattern.node_id(),
-            Pattern::Wildcard             => NodeId::default(), // TODO
-            Pattern::Rest                 => NodeId::default(), // TODO
+            Pattern::Wildcard(pattern)    => pattern.node_id(),
+            Pattern::Rest(pattern)        => pattern.node_id(),
             Pattern::Range(pattern)       => pattern.node_id(),
             Pattern::Reference(pattern)   => pattern.node_id(),
             Pattern::Struct(pattern)      => pattern.node_id(),
@@ -3810,8 +3911,8 @@ impl AstNode for Pattern {
             Pattern::Literal(pattern)     => logger.log_node_ref(pattern),
             Pattern::Identifier(pattern)  => logger.log_node_ref(pattern),
             Pattern::Path(pattern)        => logger.log_node_ref(pattern),
-            Pattern::Wildcard             => logger.prefixed_logln("Wildcard Pattern"),
-            Pattern::Rest                 => logger.prefixed_logln("Rest Pattern"),
+            Pattern::Wildcard(pattern)    => logger.log_node_ref(pattern),
+            Pattern::Rest(pattern)        => logger.log_node_ref(pattern),
             Pattern::Range(pattern)       => logger.log_node_ref(pattern),
             Pattern::Reference(pattern)   => logger.log_node_ref(pattern),
             Pattern::Tuple(pattern)       => logger.log_node_ref(pattern),
@@ -3919,6 +4020,56 @@ impl AstNode for PathPattern {
 }
 
 impl AstNodeParseHelper for PathPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct WildcardPattern {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for WildcardPattern {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Wildcard Pattern")
+    }
+}
+
+impl AstNodeParseHelper for WildcardPattern {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct RestPattern {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for RestPattern {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Rest Pattern")
+    }
+}
+
+impl AstNodeParseHelper for RestPattern {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
@@ -4382,8 +4533,8 @@ impl AstNodeParseHelper for TypeCheckPattern {
 pub enum Type {
     Paren(AstNodeRef<ParenthesizedType>),
     Primitive(AstNodeRef<PrimitiveType>),
-    Unit,
-    Never,
+    Unit(AstNodeRef<UnitType>),
+    Never(AstNodeRef<NeverType>),
     Path(AstNodeRef<PathType>),
     Tuple(AstNodeRef<TupleType>),
     Array(AstNodeRef<ArrayType>),
@@ -4402,8 +4553,8 @@ impl AstNode for Type {
         match self {
             Type::Paren(ty)       => ty.span(),
             Type::Primitive(ty)   => ty.span(),
-            Type::Never           => SpanId::INVALID,
-            Type::Unit            => SpanId::INVALID,
+            Type::Never(ty)       => ty.span(),
+            Type::Unit(ty)        => ty.span(),
             Type::Path(ty)        => ty.span(),
             Type::Tuple(ty)       => ty.span(),
             Type::Array(ty)       => ty.span(),
@@ -4422,8 +4573,8 @@ impl AstNode for Type {
         match self {
             Type::Paren(ty)       => ty.node_id(),
             Type::Primitive(ty)   => ty.node_id(),
-            Type::Never           => NodeId::default(),
-            Type::Unit            => NodeId::default(),
+            Type::Never(ty)       => ty.node_id(),
+            Type::Unit(ty)        => ty.node_id(),
             Type::Path(ty)        => ty.node_id(),
             Type::Tuple(ty)       => ty.node_id(),
             Type::Array(ty)       => ty.node_id(),
@@ -4442,8 +4593,8 @@ impl AstNode for Type {
         match self {
             Type::Paren(ty)       => logger.log_node_ref(ty),
             Type::Primitive(ty)   => logger.log_node_ref(ty),
-            Type::Never           => logger.prefixed_logln("Never Type"),
-            Type::Unit            => logger.prefixed_logln("Unit Type"),
+            Type::Never(ty)       => logger.log_node_ref(ty),
+            Type::Unit(ty)        => logger.log_node_ref(ty),
             Type::Path(ty)        => logger.log_node_ref(ty),
             Type::Tuple(ty)       => logger.log_node_ref(ty),
             Type::Array(ty)       => logger.log_node_ref(ty),
@@ -4540,6 +4691,56 @@ impl AstNode for PrimitiveType {
 }
 
 impl AstNodeParseHelper for PrimitiveType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct UnitType {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for UnitType {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Unit Type")
+    }
+}
+
+impl AstNodeParseHelper for UnitType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct NeverType {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+}
+
+impl AstNode for NeverType {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.prefixed_logln("Never Type")
+    }
+}
+
+impl AstNodeParseHelper for NeverType {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }

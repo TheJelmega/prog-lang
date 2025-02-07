@@ -146,6 +146,9 @@ pub trait Visitor {
         helpers::visit_stmt(self, node);
     }
 
+    fn visit_empty_stmt(&mut self, node: &AstNodeRef<EmptyStmt>) where Self: Sized {
+    }
+
     fn visit_var_decl(&mut self, node: &AstNodeRef<VarDecl>) where Self: Sized {
         helpers::visit_var_decl(self, node);
     }
@@ -176,7 +179,7 @@ pub trait Visitor {
         helpers::visit_path_expr(self, node);
     }
 
-    fn visit_unit_expr(&mut self) where Self: Sized {
+    fn visit_unit_expr(&mut self, node: &AstNodeRef<UnitExpr>) where Self: Sized {
     }
 
     fn visit_block_expr(&mut self, node: &AstNodeRef<BlockExpr>) where Self: Sized {
@@ -247,7 +250,7 @@ pub trait Visitor {
         helpers::visit_closure_expr(self, node);
     }
 
-    fn visit_full_range_expr(&mut self) where Self: Sized {
+    fn visit_full_range_expr(&mut self, node: &AstNodeRef<FullRangeExpr>) where Self: Sized {
     }
 
     fn visit_let_binding_expr(&mut self, node: &AstNodeRef<LetBindingExpr>) where Self: Sized {
@@ -294,7 +297,7 @@ pub trait Visitor {
         helpers::visit_return_expr(self, node);
     }
 
-    fn visit_underscore_expr(&mut self) where Self: Sized {
+    fn visit_underscore_expr(&mut self, node: &AstNodeRef<UnderscoreExpr>) where Self: Sized {
     }
 
     fn visit_throw_expr(&mut self, node: &AstNodeRef<ThrowExpr>) where Self: Sized {
@@ -326,10 +329,10 @@ pub trait Visitor {
         helpers::visit_path_pattern(self, node);
     }
 
-    fn visit_wildcard_pattern(&mut self) where Self: Sized {
+    fn visit_wildcard_pattern(&mut self, node: &AstNodeRef<WildcardPattern>) where Self: Sized {
     }
 
-    fn visit_rest_pattern(&mut self) where Self: Sized {
+    fn visit_rest_pattern(&mut self, node: &AstNodeRef<RestPattern>) where Self: Sized {
     }
 
     fn visit_range_pattern(&mut self, node: &AstNodeRef<RangePattern>) where Self: Sized {
@@ -385,10 +388,10 @@ pub trait Visitor {
         
     }
 
-    fn visit_unit_type(&mut self) where Self: Sized {
+    fn visit_unit_type(&mut self, node: &AstNodeRef<UnitType>) where Self: Sized {
     }
 
-    fn visit_never_type(&mut self) where Self: Sized {
+    fn visit_never_type(&mut self, node: &AstNodeRef<NeverType>) where Self: Sized {
     }
 
     fn visit_path_type(&mut self, node: &AstNodeRef<PathType>) where Self: Sized {
@@ -1139,7 +1142,7 @@ pub mod helpers {
 
     pub fn visit_stmt<T: Visitor>(visitor: &mut T, node: &Stmt) {
         match node {
-            Stmt::Empty          => {},
+            Stmt::Empty(item)    => visitor.visit_empty_stmt(item),
             Stmt::Item(item)     => visitor.visit_item(item),
             Stmt::VarDecl(node)  => visitor.visit_var_decl(node),
             Stmt::Defer(node)    => visitor.visit_defer(node),
@@ -1202,7 +1205,7 @@ pub mod helpers {
         match node {
             Expr::Literal(node)        => visitor.visit_literal_expr(node),
             Expr::Path(node)           => visitor.visit_path_expr(node),
-            Expr::Unit                 => visitor.visit_unit_expr(),
+            Expr::Unit(node)           => visitor.visit_unit_expr(node),
             Expr::Block(node)          => visitor.visit_block_expr(node),
             Expr::Prefix(node)         => visitor.visit_prefix_expr(node),
             Expr::Postfix(node)        => visitor.visit_postfix_expr(node),
@@ -1220,7 +1223,7 @@ pub mod helpers {
             Expr::Method(node)         => visitor.visit_method_call_expr(node),
             Expr::FieldAccess(node)    => visitor.visit_field_access_expr(node),
             Expr::Closure(node)        => visitor.visit_closure_expr(node),
-            Expr::FullRange            => visitor.visit_full_range_expr(),
+            Expr::FullRange(node)      => visitor.visit_full_range_expr(node),
             Expr::If(node)             => visitor.visit_if_expr(node),
             Expr::Let(node)            => visitor.visit_let_binding_expr(node),
             Expr::Loop(node)           => visitor.visit_loop_expr(node),
@@ -1232,7 +1235,7 @@ pub mod helpers {
             Expr::Continue(node)       => visitor.visit_continue_expr(node),
             Expr::Fallthrough(node)    => visitor.visit_fallthrough_expr(node),
             Expr::Return(node)         => visitor.visit_return_expr(node),
-            Expr::Underscore           => visitor.visit_underscore_expr(),
+            Expr::Underscore(node)     => visitor.visit_underscore_expr(node),
             Expr::Throw(node)          => visitor.visit_throw_expr(node),
             Expr::Comma(node)          => visitor.visit_comma_expr(node),
             Expr::When(node)           => visitor.visit_when_expr(node),
@@ -1438,8 +1441,8 @@ pub mod helpers {
             Pattern::Literal(node)     => visitor.visit_literal_pattern(node),
             Pattern::Identifier(node)  => visitor.visit_identifier_pattern(node),
             Pattern::Path(node)        => visitor.visit_path_pattern(node),
-            Pattern::Wildcard          => visitor.visit_wildcard_pattern(),
-            Pattern::Rest              => visitor.visit_rest_pattern(),
+            Pattern::Wildcard(node)    => visitor.visit_wildcard_pattern(node),
+            Pattern::Rest(node)        => visitor.visit_rest_pattern(node),
             Pattern::Range(node)       => visitor.visit_range_pattern(node),
             Pattern::Reference(node)   => visitor.visit_reference_pattern(node),
             Pattern::Struct(node)      => visitor.visit_struct_pattern(node),
@@ -1563,8 +1566,8 @@ pub mod helpers {
         match node {
             Type::Paren(ty)       => visitor.visit_paren_type(ty),
             Type::Primitive(ty)   => visitor.visit_primitive_type(ty),
-            Type::Unit            => visitor.visit_unit_type(),
-            Type::Never           => visitor.visit_never_type(),
+            Type::Unit(ty)        => visitor.visit_unit_type(ty),
+            Type::Never(ty)       => visitor.visit_never_type(ty),
             Type::Path(ty)        => visitor.visit_path_type(ty),
             Type::Tuple(ty)       => visitor.visit_tuple_type(ty),
             Type::Array(ty)       => visitor.visit_array_type(ty),
