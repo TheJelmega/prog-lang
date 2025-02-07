@@ -30,11 +30,4 @@ impl Visitor for ContextSetup<'_> {
         let node = self.ctx.get_node_for_mut(node_id);
         node.data = ContextNodeData::Precedence(u16::MAX);
     }
-
-    fn visit_binary_expr(&mut self, node_id: &AstNodeRef<InfixExpr>) where Self: Sized {
-        let node = self.ctx.get_node_for_mut(node_id);
-        node.data = ContextNodeData::Infix { reorder: false };
-
-        helpers::visit_binary_expr(self, node_id);
-    }
 }

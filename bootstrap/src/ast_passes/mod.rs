@@ -1,8 +1,8 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
     ast::{Ast, AstNodeRef, AstNode, NodeId},
-    common::{LibraryPath, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope, SymbolTable},
-    error_warning::{AstErrorCode, LexErrorCode}
+    common::{LibraryPath, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope},
+    error_warning::AstErrorCode
 };
 use parking_lot::{Mutex, RwLock};
 
@@ -22,8 +22,6 @@ mod precedence_passes;
 pub use precedence_passes::*;
 
 mod operator_passes;
-pub use operator_passes::*;
-
 
 mod hir_lower;
 pub use hir_lower::*;
@@ -48,9 +46,6 @@ pub enum ContextNodeData {
     None,
     Module(ModuleContextData),
     Precedence(u16),
-    Infix {
-        reorder: bool,
-    },
 }
 
 pub struct ContextNode {
@@ -74,7 +69,6 @@ pub struct Context {
     syms:         Arc<RwLock<RootSymbolTable>>,
     mod_root:     Scope,
     precedences:  Arc<RwLock<PrecedenceDAG>>,
-    operators:    Arc<RwLock<OperatorTable>>,
 }
 
 impl Context {
@@ -84,7 +78,6 @@ impl Context {
         mod_root: Scope,
         ast: &Ast,
         precedences: Arc<RwLock<PrecedenceDAG>>,
-        operators: Arc<RwLock<OperatorTable>>
     ) -> Self {
         let mut ctxs = Vec::with_capacity(ast.nodes.len());
         ctxs.resize_with(ast.nodes.len(), || ContextNode::new());
@@ -96,7 +89,6 @@ impl Context {
             syms,
             mod_root,
             precedences,
-            operators,
         }
     }
 

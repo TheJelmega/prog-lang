@@ -3,13 +3,12 @@ use std::mem;
 use crate::{
     ast::*,
     common::{uses, Abi, LibraryPath, NameTable, Scope, SpanRegistry, UseTable},
-    error_warning::{AstErrorCode, LexErrorCode},
+    error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
-    type_system,
 };
 
-use super::{AstError, Context, ContextNodeData};
+use super::{AstError, Context};
 
 // TODO: node tracking for nodes that don't have a `node_id`
 

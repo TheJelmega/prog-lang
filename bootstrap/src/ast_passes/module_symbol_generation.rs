@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 
-use crate::{ast::*, common::{NameTable, Scope, Symbol}, error_warning::{AstErrorCode, LexErrorCode}};
+use crate::{
+    ast::*,
+    common::{NameTable, Scope, Symbol},
+    error_warning::AstErrorCode
+};
 
 use super::{AstError, Context, ContextNodeData};
 

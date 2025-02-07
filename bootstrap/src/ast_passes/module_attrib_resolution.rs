@@ -1,5 +1,8 @@
 use crate::{
-    ast::*, common::{NameId, NameTable}, error_warning::{AstErrorCode, LexErrorCode}, literals::{Literal, LiteralTable}
+    ast::*,
+    common::{NameId, NameTable},
+    error_warning::AstErrorCode,
+    literals::{Literal, LiteralTable}
 };
 
 use super::{AstError, Context, ContextNodeData};
@@ -46,7 +49,7 @@ impl Visitor for ModuleAttributeResolver<'_> {
                             err: AstErrorCode::InvalidAttribute { info: format!("Modules may not have expression-only attributes") },
                         })
                     },
-                    AttribMeta::Assign { span, node_id, path, expr } => {
+                    AttribMeta::Assign { path, expr, .. } => {
                         if path.names.len() == 1 || path.names[0].0 == self.path_name_id {
                             let Expr::Literal(lit_node) = expr else { 
                                 self.ctx.add_error(AstError {

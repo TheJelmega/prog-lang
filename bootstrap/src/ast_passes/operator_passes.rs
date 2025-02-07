@@ -1,8 +1,7 @@
 use crate::{
     ast::*,
     common::{NameTable, OperatorImportPath},
-    error_warning::{AstErrorCode, LexErrorCode},
-    lexer::PuncutationTable
+    error_warning::AstErrorCode,
 };
 
 use super::{AstError, Context};

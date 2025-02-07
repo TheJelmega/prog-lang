@@ -189,7 +189,6 @@ fn main() {
             base_scope.clone(),
             &ast,
             precedences.clone(),
-            operators.clone(),
         );
 
         do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {

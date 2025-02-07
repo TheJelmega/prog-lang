@@ -1,9 +1,11 @@
-use crate::{ast::*, common::{NameId, NameTable, PrecedenceImportPath, Symbol}, error_warning::{AstErrorCode, LexErrorCode}, literals::{Literal, LiteralTable}};
+use crate::{
+    ast::*,
+    common::{NameId, NameTable, PrecedenceImportPath, Symbol},
+    error_warning::AstErrorCode,
+    literals::{Literal, LiteralTable}
+};
 
 use super::{AstError, Context, ContextNodeData};
-
-
-
 
 pub struct PrecedenceCollection<'a> {
     ctx:     &'a mut Context,
@@ -74,7 +76,7 @@ impl Visitor for PrecedenceAttribute<'_> {
                         node_id: node.node_id(),
                         err: AstErrorCode::InvalidAttribute { info: "Only the builtin attribute is allowed on precedences".to_string() },
                     }),
-                    AttribMeta::Assign { span, node_id, path, expr } => {
+                    AttribMeta::Assign { path, expr, .. } => {
                         if path.names.len() == 1 || path.names[0].0 == self.builtin_name_id {
                             let Expr::Literal(lit_node) = expr else { 
                                 self.ctx.add_error(AstError {
