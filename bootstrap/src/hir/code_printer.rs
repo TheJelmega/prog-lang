@@ -32,7 +32,7 @@ impl<'a> CodePrinter<'a> {
 
     pub fn log_fn_param(&mut self, param: &mut FnParam) {
         match param {
-            FnParam::Param { attrs, label, pattern, ty } => {
+            FnParam::Param { span, attrs, label, pattern, ty } => {
                 for attr in attrs {
                     self.visit_attribute(attr);
                 }
@@ -43,7 +43,7 @@ impl<'a> CodePrinter<'a> {
                 self.logger.log(" : ");
                 self.visit_type(ty);
             },
-            FnParam::Opt { attrs, label, pattern, ty, def } => {
+            FnParam::Opt { span, attrs, label, pattern, ty, def } => {
                 for attr in attrs {
                     self.visit_attribute(attr);
                 }
@@ -56,7 +56,7 @@ impl<'a> CodePrinter<'a> {
                 self.logger.log(" = ");
                 self.visit_expr(def);
             },
-            FnParam::Variadic { attrs, name, ty } => {
+            FnParam::Variadic { span, attrs, name, ty } => {
                 for attr in attrs {
                     self.visit_attribute(attr);
                 }
@@ -312,11 +312,11 @@ impl CodePrinter<'_> {
     pub fn log_vis(&mut self, vis: &mut Visibility) {
         match vis {
             Visibility::Priv =>    self.logger.prefixed_log(""),
-            Visibility::Pub =>     self.logger.prefixed_log("pub "),
-            Visibility::Lib =>     self.logger.prefixed_log("pub(lib) "),
-            Visibility::Package => self.logger.prefixed_log("pub(lib) "),
-            Visibility::Super =>   self.logger.prefixed_log("pub(lib) "),
-            Visibility::Path(path) => {
+            Visibility::Pub{ .. } =>     self.logger.prefixed_log("pub "),
+            Visibility::Lib{ .. } =>     self.logger.prefixed_log("pub(lib) "),
+            Visibility::Package{ .. } => self.logger.prefixed_log("pub(lib) "),
+            Visibility::Super{ .. } =>   self.logger.prefixed_log("pub(lib) "),
+            Visibility::Path{ path, .. } => {
                 self.logger.prefixed_log("pub(");
                 self.visit_simple_path(path);
                 self.logger.prefixed_log(") ");
@@ -372,12 +372,12 @@ impl Visitor for CodePrinter<'_> {
                 self.logger.log(".");
             }
             match segment {
-                TypePathSegment::Plain { name } => self.logger.log(&self.names[*name]),
-                TypePathSegment::GenArg { name, gen_args } => {
+                TypePathSegment::Plain { name, .. } => self.logger.log(&self.names[*name]),
+                TypePathSegment::GenArg { name, gen_args, .. } => {
                     self.logger.log(&self.names[*name]);
                     self.visit_gen_args(gen_args);
                 },
-                TypePathSegment::Fn { name, params, ret } => {
+                TypePathSegment::Fn { name, params, ret, .. } => {
                     self.logger.log_fmt(format_args!("{}(", &self.names[*name]));
                     let end = params.len() - 1;
                     for (idx, ty) in params.iter_mut().enumerate() {
@@ -676,7 +676,7 @@ impl Visitor for CodePrinter<'_> {
         self.logger.push_indent();
         for variant in &mut node.variants {
             match variant {
-                AdtEnumVariant::Struct { attrs, is_mut, name, fields, discriminant } => {
+                AdtEnumVariant::Struct { span, attrs, is_mut, name, fields, discriminant } => {
                     for attr in attrs {
                         self.visit_attribute(attr);
                     }
@@ -696,7 +696,7 @@ impl Visitor for CodePrinter<'_> {
                     }
                     self.logger.prefixed_logln(",");
                 },
-                AdtEnumVariant::Tuple { attrs, is_mut, name, fields, discriminant } => {
+                AdtEnumVariant::Tuple { span, attrs, is_mut, name, fields, discriminant } => {
                     for attr in attrs {
                         self.visit_attribute(attr);
                     }
@@ -716,7 +716,7 @@ impl Visitor for CodePrinter<'_> {
                     }
                     self.logger.prefixed_logln(",");
                 },
-                AdtEnumVariant::Fieldless { attrs, name, discriminant } => {
+                AdtEnumVariant::Fieldless { span, attrs, name, discriminant } => {
                     for attr in attrs {
                         self.visit_attribute(attr);
                     }
@@ -898,12 +898,12 @@ impl Visitor for CodePrinter<'_> {
         self.logger.log("(");
         match &mut node.receiver {
             FnReceiver::None => (),
-            FnReceiver::SelfReceiver { is_ref, is_mut } => self.logger.log_fmt(format_args!(
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => self.logger.log_fmt(format_args!(
                 "{}{}self",
                 if *is_ref { "&" } else { "" },
                 if *is_mut { "mut "} else { "" },
             )),
-            FnReceiver::SelfTyped { is_mut, ty } => {
+            FnReceiver::SelfTyped { span, is_mut, ty } => {
                 self.logger.log_fmt(format_args!(
                     "{}self : ",
                     if *is_mut { "mut "} else { "" },
@@ -1011,12 +1011,12 @@ impl Visitor for CodePrinter<'_> {
         self.logger.log("(");
         match &mut node.receiver {
             FnReceiver::None => (),
-            FnReceiver::SelfReceiver { is_ref, is_mut } => self.logger.log_fmt(format_args!(
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => self.logger.log_fmt(format_args!(
                 "{}{}self",
                 if *is_ref { "&" } else { "" },
                 if *is_mut { "mut "} else { "" },
             )),
-            FnReceiver::SelfTyped { is_mut, ty } => {
+            FnReceiver::SelfTyped { span, is_mut, ty } => {
                 self.logger.log_fmt(format_args!(
                     "{}self : ",
                     if *is_mut { "mut "} else { "" },
@@ -1270,15 +1270,15 @@ impl Visitor for CodePrinter<'_> {
         helpers::visit_expr(self, expr);
     }
 
-    fn visit_unit_expr(&mut self) {
+    fn visit_unit_expr(&mut self, node: &mut UnitExpr) {
         self.logger.log("()");
     }
     
-    fn visit_fullrange_expr(&mut self) {
+    fn visit_fullrange_expr(&mut self, node: &mut FullRangeExpr) {
         self.logger.log("..");
     }
     
-    fn visit_underscore_expr(&mut self) {
+    fn visit_underscore_expr(&mut self, node: &mut UnderscoreExpr) {
         self.logger.log("_");
     }
 
@@ -1299,20 +1299,20 @@ impl Visitor for CodePrinter<'_> {
 
     fn visit_path_expr(&mut self, node: &mut PathExpr) {
         match node {
-            PathExpr::Named { iden } => {
+            PathExpr::Named { iden, .. } => {
                 self.logger.log_fmt(format_args!("{}", &self.names[iden.name]));
                 if let Some(gen_args) = &mut iden.gen_args {
                     self.visit_gen_args(gen_args);
                 }
             },
-            PathExpr::Inferred { iden } => {
+            PathExpr::Inferred { iden, .. } => {
                 self.logger.log_fmt(format_args!(".{}", &self.names[iden.name]));
                 if let Some(gen_args) = &mut iden.gen_args {
                     self.visit_gen_args(gen_args);
                 }
             },
-            PathExpr::SelfPath => self.logger.log("self"),
-            PathExpr::Qualified { path } => self.visit_qual_path(path),
+            PathExpr::SelfPath{ .. } => self.logger.log("self"),
+            PathExpr::Qualified { path, .. } => self.visit_qual_path(path),
         }
     }
 
@@ -1564,11 +1564,11 @@ impl Visitor for CodePrinter<'_> {
         helpers::visit_pattern(self, node);
     }
 
-    fn visit_wildcard_pattern(&mut self) {
+    fn visit_wildcard_pattern(&mut self, node: &mut WildcardPattern) {
         self.logger.log("_");
     }
     
-    fn visit_rest_pattern(&mut self) {
+    fn visit_rest_pattern(&mut self, node: &mut RestPattern) {
         self.logger.log("..");
     }
 
@@ -1606,31 +1606,31 @@ impl Visitor for CodePrinter<'_> {
 
     fn visit_range_pattern(&mut self, node: &mut RangePattern) {
         match node {
-            RangePattern::Exclusive { node_id, begin, end } => {
+            RangePattern::Exclusive { begin, end, .. } => {
                 self.logger.log("(");
                 self.visit_pattern(begin);
                 self.logger.log(") .. (");
                 self.visit_pattern(end);
                 self.logger.log(")");
             },
-            RangePattern::Inclusive { node_id, begin, end } => {
+            RangePattern::Inclusive { begin, end, .. } => {
                 self.logger.log("(");
                 self.visit_pattern(begin);
                 self.logger.log(") ..= (");
                 self.visit_pattern(end);
                 self.logger.log(")");
             },
-            RangePattern::From { node_id, begin } => {
+            RangePattern::From { begin, .. } => {
                 self.logger.log("(");
                 self.visit_pattern(begin);
                 self.logger.log(") ..");
             },
-            RangePattern::To { node_id, end } => {
+            RangePattern::To { end, .. } => {
                 self.logger.log(") .. (");
                 self.visit_pattern(end);
                 self.logger.log(")");
             },
-            RangePattern::InclusiveTo { node_id, end } => {
+            RangePattern::InclusiveTo { end, .. } => {
                 self.logger.log("..= (");
                 self.visit_pattern(end);
                 self.logger.log(")");
@@ -1653,15 +1653,15 @@ impl Visitor for CodePrinter<'_> {
         self.logger.push_indent();
         for field in &mut node.fields {
             match field {
-                StructPatternField::Named { node_id, name, pattern } => {
+                StructPatternField::Named { name, pattern, .. } => {
                     self.logger.prefixed_log_fmt(format_args!("{}: ", &self.names[*name]));
                     self.visit_pattern(pattern);
                 },
-                StructPatternField::TupleIndex { node_id, index, pattern } => {
+                StructPatternField::TupleIndex { index, pattern, .. } => {
                     self.logger.prefixed_log_fmt(format_args!("{index}: "));
                     self.visit_pattern(pattern);
                 },
-                StructPatternField::Iden { node_id, is_ref, is_mut, iden, bound } => {
+                StructPatternField::Iden { is_ref, is_mut, iden, bound, .. } => {
                     self.logger.log_fmt(format_args!("{}{}{}",
                         if *is_ref { "ref " } else { "" },
                         if *is_mut { "mut " } else { "" },
@@ -1746,11 +1746,11 @@ impl Visitor for CodePrinter<'_> {
         helpers::visit_type(self, node)
     }
 
-    fn visit_unit_type(&mut self) {
+    fn visit_unit_type(&mut self, node: &mut UnitType) {
         self.logger.log("()");
     }
     
-    fn visit_never_type(&mut self) {
+    fn visit_never_type(&mut self, node: &mut NeverType) {
         self.logger.log("!");
     }
 

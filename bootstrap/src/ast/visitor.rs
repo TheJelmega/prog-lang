@@ -613,7 +613,7 @@ pub mod helpers {
             visitor.visit_generic_params(generics);
         }
 
-        if let Some(FnReceiver::SelfTyped { span, node_id, is_mut, ty }) = &node.receiver {
+        if let Some(FnReceiver::SelfTyped { span, is_mut, ty }) = &node.receiver {
             visitor.visit_type(ty);
         }
 

@@ -221,9 +221,14 @@ impl Visitor for InfixReorder<'_> {
                 });
             },
             PrecedenceOrder::Higher => { // the current precedence is higher, so re-order (higher is inner)
-                let dummy = Box::new(Expr::Unit);
+                // temporary dummy used when switching nodes around
+                let dummy = Box::new(Expr::Unit(UnitExpr {
+                    span: SpanId::INVALID,
+                    node_id: ast::NodeId::INVALID,
+                }));
 
                 let right_node_id = right.node_id;
+                let right_span = right.span;
 
                 let op = node.op;
                 let right_op = right.op;
@@ -235,14 +240,16 @@ impl Visitor for InfixReorder<'_> {
                 let left = mem::replace(&mut node.left, dummy);
 
                 // Update current node
-                node.node_id = right_node_id;
                 node.left = Box::new(Expr::Infix(InfixExpr {
+                    span: node.span,
                     node_id: node.node_id,
                     left,
                     op,
                     right: middle,
                     can_reorder: false, // doens't matter after this point + already in the correct order, so don't even need todo this
                 }));
+                node.span = right_span;
+                node.node_id = right_node_id;
                 node.op = right_op;
                 node.right = right;
                 

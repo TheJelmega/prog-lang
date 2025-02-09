@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::*,
-    common::{uses, Abi, LibraryPath, NameTable, Scope, SpanRegistry, UseTable},
+    common::{uses, Abi, LibraryPath, NameTable, Scope, SpanId, SpanRegistry, UseTable},
     error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
@@ -60,7 +60,8 @@ impl<'a> AstToHirLowering<'a> {
         let comp_gen_name = names.add("compiler_generated");
 
         let comp_gen_attr = Box::new(hir::Attribute {
-            node_id: u32::MAX,
+            span: SpanId::INVALID,
+            node_id: NodeId::INVALID,
             path: vec![comp_gen_name],
             meta: hir::AttrMeta::None,
         });
@@ -157,6 +158,7 @@ impl AstToHirLowering<'_> {
                 let attrs = self.get_attribs(&param.names[0].attrs);
 
                 params.push(hir::FnParam::Opt {
+                    span: param.span,
                     attrs,
                     label: param.names[0].label,
                     pattern,
@@ -175,7 +177,7 @@ impl AstToHirLowering<'_> {
                 let ty = self.type_stack.pop().unwrap();
                 let pattern = self.pattern_stack.pop().unwrap();
                 
-                let name = if let hir::Pattern::Iden(hir::IdenPattern { node_id: _, is_ref, is_mut, name, bound }) = *pattern {
+                let name = if let hir::Pattern::Iden(hir::IdenPattern { is_ref, is_mut, name, bound, .. }) = *pattern {
                     if is_ref {
                         self.ctx.add_error(AstError {
                             node_id,
@@ -209,6 +211,7 @@ impl AstToHirLowering<'_> {
                 let attrs = self.get_attribs(&param.names[0].attrs);
 
                 params.push(hir::FnParam::Variadic {
+                    span: param.span,
                     attrs,
                     name,
                     ty,
@@ -228,9 +231,10 @@ impl AstToHirLowering<'_> {
 
                 for name in &param.names {
                     let pattern = self.pattern_stack.pop().unwrap();
-                    let attrs = self.get_attribs(&param.names[0].attrs);
+                    let attrs = self.get_attribs(&name.attrs);
                     
                     params.push(hir::FnParam::Param {
+                        span: name.span,
                         attrs,
                         label: name.label,
                         pattern,
@@ -260,6 +264,7 @@ impl AstToHirLowering<'_> {
                     if let hir::Expr::Tuple(exprs) = *hir_def {
                         for (name, expr) in names.iter().zip(exprs.exprs.into_iter()).rev() {
                             fields.push(hir::StructField {
+                                span: *span,
                                 attrs: hir_attrs.clone(),
                                 vis: hir_vis.clone(),
                                 is_mut: *is_mut,
@@ -271,6 +276,7 @@ impl AstToHirLowering<'_> {
                     } else {
                         for name in names.iter().rev() {
                             fields.push(hir::StructField {
+                                span: *span,
                                 attrs: hir_attrs.clone(),
                                 vis: hir_vis.clone(),
                                 is_mut: *is_mut,
@@ -283,6 +289,7 @@ impl AstToHirLowering<'_> {
                 } else {
                     for name in names.iter().rev() {
                         fields.push(hir::StructField {
+                            span: *span,
                             attrs: hir_attrs.clone(),
                             vis: hir_vis.clone(),
                             is_mut: *is_mut,
@@ -301,6 +308,7 @@ impl AstToHirLowering<'_> {
                 let path = self.type_path_stack.pop().unwrap();
 
                 uses.push(hir::StructUse {
+                    span: *span,
                     attrs,
                     vis,
                     is_mut: *is_mut,
@@ -320,6 +328,7 @@ impl AstToHirLowering<'_> {
         let def = field.def.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
         hir::TupleStructField {
+            span: field.span,
             attrs,
             vis,
             ty,
@@ -341,6 +350,7 @@ impl AstToHirLowering<'_> {
                 hir_fields.reverse();
 
                 hir::AdtEnumVariant::Struct {
+                    span: *span,
                     attrs: hir_attrs,
                     is_mut: *is_mut,
                     name: *name,
@@ -359,6 +369,7 @@ impl AstToHirLowering<'_> {
                 hir_fields.reverse();
 
                 hir::AdtEnumVariant::Tuple {
+                    span: *span,
                     attrs: hir_attrs,
                     is_mut: *is_mut,
                     name: *name,
@@ -371,6 +382,7 @@ impl AstToHirLowering<'_> {
                 let hir_dicriminant = discriminant.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
                 hir::AdtEnumVariant::Fieldless {
+                    span: *span,
                     attrs: hir_attrs,
                     name: *name,
                     discriminant: hir_dicriminant
@@ -407,7 +419,7 @@ impl AstToHirLowering<'_> {
         }
     }
 
-    fn convert_op_elem(&mut self, op_elem: &OpElem, scope: Scope, node_id: u32) {
+    fn convert_op_elem(&mut self, op_elem: &OpElem, scope: Scope, node_id: NodeId) {
         helpers::visit_op_elem(self, op_elem);
 
         match op_elem {
@@ -416,6 +428,7 @@ impl AstToHirLowering<'_> {
                 let ret_ty = ret.as_ref().map(|_| self.type_stack.pop().unwrap());
 
                 self.hir.add_op_function(scope, hir::OpFunction {
+                    span: *span,
                     node_id,
                     op_ty: *op_type,
                     op: *op,
@@ -428,6 +441,7 @@ impl AstToHirLowering<'_> {
                 let def = self.expr_stack.pop().unwrap();
                 
                 self.hir.add_op_specialization(scope, hir::OpSpecialization {
+                    span: *span,
                     node_id,
                     op_ty: *op_type,
                     op: *op,
@@ -438,6 +452,7 @@ impl AstToHirLowering<'_> {
                 let expr = self.expr_stack.pop().unwrap();
                 
                 self.hir.add_op_contract(scope, hir::OpContract {
+                    span: *span,
                     node_id,
                     expr,
                 });
@@ -445,14 +460,16 @@ impl AstToHirLowering<'_> {
         }
     }
 
-    fn create_true_false_patterns(&mut self, node_id: u32) -> (Box<hir::Pattern>, Box<hir::Pattern>) {
+    fn create_true_false_patterns(&mut self, span: SpanId, node_id: NodeId) -> (Box<hir::Pattern>, Box<hir::Pattern>) {
         let true_pat = Box::new(hir::Pattern::Literal(hir::LiteralPattern {
-            node_id: node_id,
+            span,
+            node_id,
             literal: hir::LiteralValue::Bool(true),
             lit_op: None,
         }));
         let false_pat = Box::new(hir::Pattern::Literal(hir::LiteralPattern {
-            node_id: node_id,
+            span,
+            node_id,
             literal: hir::LiteralValue::Bool(true),
             lit_op: None,
         }));
@@ -534,7 +551,8 @@ impl Visitor for AstToHirLowering<'_> {
         }
 
         self.simple_path_stack.push(hir::SimplePath {
-            node_id: node.node_id().index() as u32,
+            span: node.span(),
+            node_id: node.node_id,
             names,
         })
     }
@@ -546,6 +564,7 @@ impl Visitor for AstToHirLowering<'_> {
         for iden in node.idens.iter().rev() {
             let gen_args = iden.gen_args.as_ref().map(|_| self.gen_args_stack.pop().unwrap());
             idens.push(hir::Identifier {
+                span: iden.span,
                 name: iden.name,
                 gen_args,
             });
@@ -554,7 +573,8 @@ impl Visitor for AstToHirLowering<'_> {
 
 
         self.path_stack.push(hir::Path {
-            node_id: node.node_id().index() as u32,
+            span: node.span(),
+            node_id: node.node_id,
             is_inferred: node.inferred,
             idens,
         })
@@ -566,12 +586,12 @@ impl Visitor for AstToHirLowering<'_> {
         let mut segments = Vec::new();
         for iden in node.idens.iter().rev() {
             match iden {
-                TypePathIdentifier::Plain { span:_, name } => segments.push(hir::TypePathSegment::Plain { name: *name }),
-                TypePathIdentifier::GenArg { name, .. } => {
+                TypePathIdentifier::Plain { span, name } => segments.push(hir::TypePathSegment::Plain { span: *span, name: *name }),
+                TypePathIdentifier::GenArg { span, name, .. } => {
                     let gen_args = self.gen_args_stack.pop().unwrap();
-                    segments.push(hir::TypePathSegment::GenArg { name: *name, gen_args });
+                    segments.push(hir::TypePathSegment::GenArg { span: *span, name: *name, gen_args });
                 },
-                TypePathIdentifier::Fn { span:_, name, params, ret } => {
+                TypePathIdentifier::Fn { span, name, params, ret } => {
                     let ret = ret.as_ref().map(|_| self.type_stack.pop().unwrap());
                     let mut hir_params = Vec::new();
                     for _param in params.iter().rev() {
@@ -580,6 +600,7 @@ impl Visitor for AstToHirLowering<'_> {
                     hir_params.reverse();
 
                     segments.push(hir::TypePathSegment::Fn {
+                        span: *span,
                         name: *name,
                         params: hir_params,
                         ret,
@@ -591,7 +612,8 @@ impl Visitor for AstToHirLowering<'_> {
 
 
         self.type_path_stack.push(hir::TypePath {
-            node_id: node.node_id().index() as u32,
+            span: node.span(),
+            node_id: node.node_id,
             segments,
         })
     }
@@ -601,6 +623,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let sub_gen_args = node.sub_path.gen_args.as_ref().map(|_| self.gen_args_stack.pop().unwrap());
         let sub_path = vec![hir::Identifier {
+            span: node.sub_path.span,
             name: node.sub_path.name,
             gen_args: sub_gen_args,
         }];
@@ -609,7 +632,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ty = self.type_stack.pop().unwrap();
 
         self.qual_path_stack.push(hir::QualifiedPath {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             ty,
             bound,
             sub_path,
@@ -676,14 +700,15 @@ impl Visitor for AstToHirLowering<'_> {
 
         let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
-            FnReturn::Type{ span, ty:_ } => self.type_stack.pop().unwrap(),
+            FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
             FnReturn::Named{ span, vars } => {
                 let mut types = Vec::new();
                 for _ in vars {
                     types.push(self.type_stack.pop().unwrap());
                 }
                 Box::new(hir::Type::Tuple(hir::TupleType {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: node.node_id,
                     types,
                 }))
             },
@@ -692,15 +717,17 @@ impl Visitor for AstToHirLowering<'_> {
         let params = self.convert_fn_params(&node.params, node.node_id());
 
         let receiver = node.receiver.as_ref().map_or(hir::FnReceiver::None, |rec| match rec {
-            FnReceiver::SelfReceiver { span, node_id, is_ref, is_mut } => {
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => {
                 hir::FnReceiver::SelfReceiver {
+                    span: *span,
                     is_ref: *is_ref,
                     is_mut: *is_mut,
                 }
             },
-            FnReceiver::SelfTyped { span, node_id, is_mut, ty: _ } => {
+            FnReceiver::SelfTyped { span, is_mut, ty: _ } => {
                 let ty = self.type_stack.pop().unwrap();
                 hir::FnReceiver::SelfTyped {
+                    span: *span,
                     is_mut: *is_mut,
                     ty,
                 }
@@ -733,13 +760,16 @@ impl Visitor for AstToHirLowering<'_> {
             // ```
 
             let Some(ret_ty) = &return_ty else { unreachable!() };
-            let hir::Type::Tuple(hir::TupleType{ node_id: _, types }) = ret_ty.as_ref() else { unreachable!() };
+            let hir::Type::Tuple(hir::TupleType{ types, .. }) = ret_ty.as_ref() else { unreachable!() };
 
             let mut ret_exprs = Vec::new();
             for (names, _) in vars {
-                for name in names {
+                for (name, span) in names {
                     ret_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                        span: *span,
+                        node_id: node.node_id,
                         iden: Identifier {
+                            span: *span,
                             name: *name,
                             gen_args: None,
                         },
@@ -747,7 +777,8 @@ impl Visitor for AstToHirLowering<'_> {
                 }
             }
             let ret_tup_expr = Box::new(hir::Expr::Tuple(hir::TupleExpr {
-                node_id: node.node_id().index() as u32,
+                span: *span,
+                node_id: node.node_id,
                 exprs: ret_exprs,
             }));
             self.named_ret_expr = Some(ret_tup_expr.clone());
@@ -758,9 +789,10 @@ impl Visitor for AstToHirLowering<'_> {
             
             for (idx, (names, _)) in vars.iter().enumerate() {
                 let ty = &types[idx];
-                for name in names {
+                for (name, span) in names {
                     block.stmts.push(Box::new(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id: node.node_id,
                         attrs: Vec::new(),
                         is_mut: true,
                         name: *name,
@@ -783,7 +815,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         if self.in_trait {
             self.hir.add_trait_function(node_ctx.scope.clone(), hir::TraitFunction {
-                node_id: node.node_id().index() as u32,
+                span: node.span,
+                node_id: node.node_id,
                 attrs,
                 vis,
                 is_override: node.is_override,
@@ -802,7 +835,8 @@ impl Visitor for AstToHirLowering<'_> {
             if let hir::FnReceiver::None = receiver {
                 // function, external function
                 self.hir.add_function(self.in_impl, node_ctx.scope.clone(), hir::Function {
-                    node_id: node.node_id().index() as u32,
+                    span: node.span,
+                    node_id: node.node_id,
                     attrs,
                     vis,
                     is_const: node.is_const,
@@ -819,7 +853,8 @@ impl Visitor for AstToHirLowering<'_> {
             } else {
                 // method
                 self.hir.add_method(node_ctx.scope.clone(), hir::Method {
-                    node_id: node.node_id().index() as u32,
+                    span: node.span,
+                    node_id: node.node_id,
                     attrs,
                     vis,
                     is_const: node.is_const,
@@ -837,7 +872,8 @@ impl Visitor for AstToHirLowering<'_> {
         } else {
             // extern
             self.hir.add_extern_function(node_ctx.scope.clone(), hir::ExternFunctionNoBody {
-                node_id: node.node_id().index() as u32,
+                span: node.span,
+                node_id: node.node_id,
                 attrs,
                 vis,
                 is_unsafe: node.is_unsafe,
@@ -865,7 +901,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_type_alias(scope, hir::TypeAlias {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -880,7 +917,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_distinct_type(scope, hir::DistinctType {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -893,7 +931,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_trait_type_alias(scope, hir::TraitTypeAlias {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     name: *name,
                     generics,
@@ -905,7 +944,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_opaque_type(scope, hir::OpaqueType {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -940,7 +980,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_struct(scope, hir::Struct {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     is_mut: *is_mut,
@@ -965,7 +1006,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_tuple_struct(scope, hir::TupleStruct {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     is_mut: *is_mut,
@@ -981,7 +1023,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_unit_struct(scope, hir::UnitStruct {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -1012,6 +1055,7 @@ impl Visitor for AstToHirLowering<'_> {
             let attrs = self.get_attribs(&node.attrs);
 
             fields.push(hir::UnionField {
+                span: node.span,
                 attrs,
                 vis,
                 is_mut: field.is_mut,
@@ -1029,7 +1073,8 @@ impl Visitor for AstToHirLowering<'_> {
         let node_ctx = self.ctx.get_node_for(node);
 
         self.hir.add_union(node_ctx.scope.clone(), hir::Union {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             vis,
             is_mut: node.is_mut,
@@ -1059,7 +1104,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_adt_enum(scope, hir::AdtEnum {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     is_mut: *is_mut,
@@ -1077,6 +1123,7 @@ impl Visitor for AstToHirLowering<'_> {
                     let attrs = self.get_attribs(attrs);
                     
                     hir_variants.push(hir::FlagEnumVariant {
+                        span: *span,
                         attrs,
                         name: *name,
                         discriminant,
@@ -1088,7 +1135,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_flag_enum(scope, hir::FlagEnum {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -1120,6 +1168,7 @@ impl Visitor for AstToHirLowering<'_> {
 
                     for name in names.iter().rev() {
                         fields.push(hir::BitfieldField {
+                            span: *span,
                             attrs: attrs.clone(),
                             vis: vis.clone(),
                             is_mut: *is_mut,
@@ -1137,6 +1186,7 @@ impl Visitor for AstToHirLowering<'_> {
                     let attrs = self.get_attribs(attrs);
                     
                     uses.push(hir::BitfieldUse {
+                        span: *span,
                         attrs,
                         vis,
                         is_mut: *is_mut,
@@ -1156,7 +1206,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_bitfield(ast_ctx.scope.clone(), hir::Bitfield {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             vis,
             is_mut: node.is_mut,
@@ -1186,7 +1237,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node );
         let item = hir::Const {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             vis,
             name: node.name,
@@ -1214,7 +1266,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_static(self.in_impl, scope, hir::Static {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -1229,7 +1282,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_tls_static(self.in_impl, scope, hir::TlsStatic {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     is_mut: *is_mut,
@@ -1245,7 +1299,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 self.hir.add_extern_static(scope, hir::ExternStatic {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     abi,
@@ -1274,7 +1329,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(&node.attrs);
 
                 self.hir.add_property(scope, hir::Property {
-                    node_id: node.node_id().index() as u32,
+                    span: node.span,
+                    node_id: node.node_id,
                     attrs,
                     vis,
                     is_unsafe: node.is_unsafe,
@@ -1290,7 +1346,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(&node.attrs);
 
                 self.hir.add_trait_property(scope, hir::TraitProperty {
-                    node_id: node.node_id().index() as u32,
+                    span: node.span,
+                    node_id: node.node_id,
                     attrs,
                     vis,
                     is_unsafe: node.is_unsafe,
@@ -1321,7 +1378,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_trait(ast_ctx.scope.clone(), hir::Trait {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             vis,
             is_unsafe: node.is_unsafe,
@@ -1364,7 +1422,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_impl(ast_ctx.scope.clone(), hir::Impl {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             vis,
             is_unsafe: node.is_unsafe,
@@ -1423,7 +1482,8 @@ impl Visitor for AstToHirLowering<'_> {
                 let vis = self.get_vis(vis.as_ref());
 
                 self.hir.add_op_trait(scope.clone(), hir::OpTrait {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -1433,7 +1493,7 @@ impl Visitor for AstToHirLowering<'_> {
 
                 scope.push(self.names[*name].to_string());
                 for op_elem in elems {
-                    self.convert_op_elem(op_elem, scope.clone(), node.node_id().index() as u32);
+                    self.convert_op_elem(op_elem, scope.clone(), *node_id);
                 }
             },
             OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => {
@@ -1455,7 +1515,8 @@ impl Visitor for AstToHirLowering<'_> {
                 hir_bases.reverse();
 
                 self.hir.add_op_trait(scope.clone(), hir::OpTrait {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
@@ -1465,7 +1526,7 @@ impl Visitor for AstToHirLowering<'_> {
 
                 scope.push(self.names[*name].to_string());
                 for op_elem in elems {
-                    self.convert_op_elem(op_elem, scope.clone(), node.node_id().index() as u32);
+                    self.convert_op_elem(op_elem, scope.clone(), *node_id);
                 }
             },
         }
@@ -1503,6 +1564,7 @@ impl Visitor for AstToHirLowering<'_> {
         stmts.reverse();
 
         self.block_stack.push(hir::Block {
+            span: node.span,
             stmts,
             expr,
         });
@@ -1525,10 +1587,11 @@ impl Visitor for AstToHirLowering<'_> {
                 let attrs = self.get_attribs(attrs);
 
                 if names.len() == 1 {
-                    let (is_mut, name) = names[0];
+                    let (is_mut, name, _) = names[0];
                     
                     self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id: *node_id,
                         attrs,
                         is_mut,
                         name,
@@ -1538,9 +1601,10 @@ impl Visitor for AstToHirLowering<'_> {
                 } else {
                     match *expr {
                         hir::Expr::Comma(comma_expr) => {
-                            for ((is_mut, name), expr) in names.iter().zip(comma_expr.exprs.into_iter()) {
+                            for ((is_mut, name, span), expr) in names.iter().zip(comma_expr.exprs.into_iter()) {
                                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                                    node_id: node.node_id().index() as u32,
+                                    span: *span,
+                                    node_id: *node_id,
                                     attrs: attrs.clone(),
                                     is_mut: *is_mut,
                                     name: *name,
@@ -1550,9 +1614,10 @@ impl Visitor for AstToHirLowering<'_> {
                             }
                         },
                         hir::Expr::Tuple(tuple_expr) => {
-                            for ((is_mut, name), expr) in names.iter().zip(tuple_expr.exprs.into_iter()) {
+                            for ((is_mut, name, span), expr) in names.iter().zip(tuple_expr.exprs.into_iter()) {
                                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                                    node_id: node.node_id().index() as u32,
+                                    span: *span,
+                                    node_id: *node_id,
                                     attrs: attrs.clone(),
                                     is_mut: *is_mut,
                                     name: *name,
@@ -1576,13 +1641,13 @@ impl Visitor for AstToHirLowering<'_> {
                             // let b = tmp_0_0.1;
                             // ```
 
-                            let span = self.spans[node.span()];
-
-                            let tmp_name = format!("__tmp_{}_{}", span.row, span.column);
+                            let span_info = self.spans[node.span()];
+                            let tmp_name = format!("__tmp_{}_{}", span_info.row, span_info.column);
                             let tmp_name = self.names.add(&tmp_name);
 
                             self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                                node_id: node.node_id().index() as u32,
+                                span: *span,
+                                node_id: *node_id,
                                 attrs: Vec::new(),
                                 is_mut: false,
                                 name: tmp_name,
@@ -1590,22 +1655,27 @@ impl Visitor for AstToHirLowering<'_> {
                                 expr,
                             }));
                         
-                            for (index, (is_mut, name)) in names.iter().enumerate() {
+                            for (index, (is_mut, name, span)) in names.iter().enumerate() {
                                 let path_expr = Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                                    span: *span,
+                                    node_id: node.node_id(),
                                     iden: hir::Identifier {
+                                        span: *span,
                                         name: *name,
                                         gen_args: None,
                                     }
                                 }));
                             
                                 let tup_index = Box::new(hir::Expr::TupleIndex(hir::TupleIndexExpr {
-                                    node_id: node.node_id().index() as u32,
+                                    span: *span,
+                                    node_id: *node_id,
                                     expr: path_expr,
                                     index,
                                 }));
                             
                                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                                    node_id: node.node_id().index() as u32,
+                                    span: *span,
+                                    node_id: *node_id,
                                     attrs: attrs.clone(),
                                     is_mut: *is_mut,
                                     name: *name,
@@ -1633,7 +1703,7 @@ impl Visitor for AstToHirLowering<'_> {
                         Some(ty) => ty,
                         None => {
                             self.ctx.add_error(AstError {
-                                node_id: node.node_id(),
+                                node_id: *node_id,
                                 err: AstErrorCode::InvalidUninitVarDecl { info: "Missing type".to_string() },
                             });
                             return;
@@ -1645,21 +1715,22 @@ impl Visitor for AstToHirLowering<'_> {
                         hir::Pattern::Iden(hir::IdenPattern { is_ref, is_mut, name, bound, .. }) => {
                             if is_ref {
                                 self.ctx.add_error(AstError {
-                                    node_id: node.node_id(),
+                                    node_id: *node_id,
                                     err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                                 });
                                 return;
                             }
                             if bound.is_some() {
                                 self.ctx.add_error(AstError {
-                                    node_id: node.node_id(),
+                                    node_id: *node_id,
                                     err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                                 });
                                 return;
                             }
 
                             self.push_stmt(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
-                                node_id: node.node_id().index() as u32,
+                                span: *span,
+                                node_id: *node_id,
                                 attrs,
                                 is_mut,
                                 name,
@@ -1674,7 +1745,7 @@ impl Visitor for AstToHirLowering<'_> {
                                 },
                                 _ => {
                                     self.ctx.add_error(AstError {
-                                        node_id: node.node_id(),
+                                        node_id: *node_id,
                                         err: AstErrorCode::InvalidUninitVarDecl { info: "Expected a tuple type".to_string() },
                                     });
                                     return;
@@ -1683,24 +1754,25 @@ impl Visitor for AstToHirLowering<'_> {
 
                             for (pattern, ty) in patterns.into_iter().zip(types.into_iter()) {
                                 match *pattern {
-                                    hir::Pattern::Iden(hir::IdenPattern{ is_ref, is_mut, name, bound, ..  }) => {
+                                    hir::Pattern::Iden(hir::IdenPattern{ span, is_ref, is_mut, name, bound, ..  }) => {
                                         if is_ref {
                                             self.ctx.add_error(AstError {
-                                                node_id: node.node_id(),
+                                                node_id: *node_id,
                                                 err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                                             });
                                             return;
                                         }
                                         if bound.is_some() {
                                             self.ctx.add_error(AstError {
-                                                node_id: node.node_id(),
+                                                node_id: *node_id,
                                                 err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                                             });
                                             return;
                                         }
 
                                         self.push_stmt(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
-                                            node_id: node.node_id().index() as u32,
+                                            span: span,
+                                            node_id: *node_id,
                                             attrs: attrs.clone(),
                                             is_mut,
                                             name,
@@ -1709,7 +1781,7 @@ impl Visitor for AstToHirLowering<'_> {
                                     },
                                     _ => {
                                         self.ctx.add_error(AstError {
-                                            node_id: node.node_id(),
+                                            node_id: *node_id,
                                             err: AstErrorCode::InvalidUninitVarDecl { info: "Only identifiers within tuple patterns are allowed".to_string() },
                                         });
                                     }
@@ -1718,7 +1790,7 @@ impl Visitor for AstToHirLowering<'_> {
                         },
                         _ => {
                             self.ctx.add_error(AstError {
-                                node_id: node.node_id(),
+                                node_id: *node_id,
                                 err: AstErrorCode::InvalidUninitVarDecl { info: "Only identifiers are allowed".to_string() },
                             });
                         }
@@ -1728,24 +1800,25 @@ impl Visitor for AstToHirLowering<'_> {
 
                 // Special case for simple assignment, i.e.:
                 // `let a: T = expr;`
-                if let hir::Pattern::Iden(hir::IdenPattern { is_ref, is_mut, name, bound, .. }) = *pattern {
+                if let hir::Pattern::Iden(hir::IdenPattern { node_id, is_ref, is_mut, name, bound, .. }) = *pattern {
                     if is_ref {
                         self.ctx.add_error(AstError {
-                            node_id: node.node_id(),
+                            node_id,
                             err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot be prefixed with 'ref'".to_string() },
                         });
                         return;
                     }
                     if bound.is_some() {
                         self.ctx.add_error(AstError {
-                            node_id: node.node_id(),
+                            node_id,
                             err: AstErrorCode::InvalidUninitVarDecl { info: "Identifiers cannot have a bound".to_string() },
                         });
                         return;
                     }
 
                     self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id,
                         attrs,
                         is_mut,
                         name,
@@ -1755,14 +1828,50 @@ impl Visitor for AstToHirLowering<'_> {
                     return;
                 }
 
-                let span = self.spans[node.span()];
+                // rewrite
+                // ```
+                // let .{ a, b: (c, d) } = val;
+                // ``` 
+                // as
+                // ``` 
+                // let tmp0 = val;
+                // let tmp1 = match tmp0 {
+                //     .{ a, b: (c, d) } => (a, c, d),
+                //     _ => <irrefutable>
+                // }
+                //
+                // let a = tmp.0;
+                // let c = tmp.1;
+                // let d = tmp.2;
+                // ``` 
+                // or
+                // ```
+                // let .{ a, b: (c, d) } = val else { .. };
+                // ``` 
+                // as
+                // ``` 
+                // let tmp0 = val;
+                // let tmp1 = match tmp {
+                //     .{ a, b: (c, d) } => (a, c, d),
+                //     _ => { .. }
+                // }
+                //
+                // let a = tmp.0;
+                // let c = tmp.1;
+                // let d = tmp.2;
+                // ``` 
 
-                let tmp0_name = format!("__tmp0_{}_{}", span.row, span.column);
+                let expr_span = expr.span();
+                let pattern_span = pattern.span();
+
+                let span_info = self.spans[node.span()];
+                let tmp0_name = format!("__tmp0_{}_{}", span_info.row, span_info.column);
                 let tmp0_name = self.names.add(&tmp0_name);
 
                 // Assignment for type check
                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs: Vec::new(),
                     is_mut: false,
                     name: tmp0_name,
@@ -1778,25 +1887,34 @@ impl Visitor for AstToHirLowering<'_> {
                 let mut tup_exprs = Vec::new();
                 for name in &bind_names {
                     tup_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                        span: name.span,
+                        node_id: *node_id,
                         iden: Identifier {
+                            span: name.span,
                             name: name.name,
                             gen_args: None,
                         }
                     })));
                 }
                 let tup_expr = Box::new(hir::Expr::Tuple(hir::TupleExpr {
-                    node_id: node.node_id().index() as u32,
+                    span: pattern_span,
+                    node_id: *node_id,
                     exprs: tup_exprs,
                 })); 
 
                 let scrutinee = Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                    span:  expr_span,
+                    node_id: *node_id,
                     iden: hir::Identifier {
+                        span: expr_span,
                         name: tmp0_name,
                         gen_args: None,
                     }
                 }));
+                
                 let match_expr = Box::new(hir::Expr::Match(hir::MatchExpr {
-                    node_id: node.node_id().index() as u32,
+                    span: pattern.span(),
+                    node_id: *node_id,
                     label: None,
                     scrutinee,
                     branches: vec![
@@ -1808,24 +1926,29 @@ impl Visitor for AstToHirLowering<'_> {
                     },
                     hir::MatchBranch {
                         label: None,
-                        pattern: Box::new(hir::Pattern::Wildcard),
+                        pattern: Box::new(hir::Pattern::Wildcard(hir::WildcardPattern {
+                            span: SpanId::INVALID,
+                            node_id: *node_id,
+                        })),
                         guard: None,
                         body: else_block.unwrap_or(Box::new(hir::Expr::Irrefutable)),
                     }
                     ],
+                    bool_cond: false,
                 }));
                 
-                let span = self.spans[node.span()];
-
+                
                 let tmp1_name = if bind_names.len() == 1 {
                     bind_names[0].name
                 } else {
+                    let span = self.spans[node.span()];
                     let tmp_name = format!("__tmp_{}_{}", span.row, span.column);
                     self.names.add(&tmp_name)
                 };
 
                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                    node_id: node.node_id().index() as u32,
+                    span: *span,
+                    node_id: *node_id,
                     attrs: Vec::new(),
                     is_mut: false,
                     name: tmp1_name,
@@ -1834,7 +1957,10 @@ impl Visitor for AstToHirLowering<'_> {
                 }));
 
                 let index_src = Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                    span: pattern_span,
+                    node_id: *node_id,
                     iden: hir::Identifier {
+                        span: pattern_span,
                         name: tmp1_name,
                         gen_args: None,
                     }
@@ -1843,13 +1969,15 @@ impl Visitor for AstToHirLowering<'_> {
                 if bind_names.len() > 0 {
                     for (index, name) in bind_names.iter().enumerate() {
                         let index_expr = Box::new(hir::Expr::TupleIndex(hir::TupleIndexExpr {
-                            node_id: node.node_id().index() as u32,
+                            span: name.span,
+                            node_id: *node_id,
                             expr: index_src.clone(),
                             index,
                         }));
 
                         self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
-                            node_id: node.node_id().index() as u32,
+                            span: name.span,
+                            node_id: *node_id,
                             attrs: attrs.clone(),
                             is_mut: name.is_mut,
                             name: name.name,
@@ -1869,7 +1997,8 @@ impl Visitor for AstToHirLowering<'_> {
         let attrs = self.get_attribs(&node.attrs);
 
         self.push_stmt(hir::Stmt::Defer(hir::DeferStmt {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             expr,
         }))
@@ -1880,13 +2009,15 @@ impl Visitor for AstToHirLowering<'_> {
 
         let expr = self.expr_stack.pop().unwrap();
         let rec = node.receiver.as_ref().map(|rec| hir::ErrorDeferReceiver {
+            span: rec.span,
             is_mut: rec.is_mut,
             name: rec.name,
         });
         let attrs = self.get_attribs(&node.attrs);
 
         self.push_stmt(hir::Stmt::ErrDefer(hir::ErrorDeferStmt {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs,
             rec,
             expr,
@@ -1899,7 +2030,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap(); 
 
         self.push_stmt(hir::Stmt::Expr(hir::ExprStmt {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
         }));
     }
@@ -1925,7 +2057,8 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         let lit_expr = hir::LiteralExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             literal,
             lit_op,
         };
@@ -1941,7 +2074,10 @@ impl Visitor for AstToHirLowering<'_> {
                 let gen_args = iden.gen_args.as_ref().map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Named {
+                    span: *span,
+                    node_id: *node_id,
                     iden: hir::Identifier {
+                        span: *span,
                         name: iden.name,
                         gen_args,
                     }
@@ -1951,23 +2087,36 @@ impl Visitor for AstToHirLowering<'_> {
                 let gen_args = iden.gen_args.as_ref().map(|_| self.gen_args_stack.pop().unwrap());
 
                 hir::PathExpr::Inferred {
+                    span: *span,
+                    node_id: *node_id,
                     iden: hir::Identifier {
+                        span: *span,
                         name: iden.name,
                         gen_args,
                     }
                 }
             },
-            PathExpr::SelfPath{ .. } => hir::PathExpr::SelfPath,
+            PathExpr::SelfPath{ node_id, span } => hir::PathExpr::SelfPath {
+                span: *span,
+                node_id: *node_id,
+            },
             PathExpr::Qualified { span, node_id, path: _ } => {
                 let path = self.qual_path_stack.pop().unwrap();
-                hir::PathExpr::Qualified { path }
+                hir::PathExpr::Qualified {
+                    span: *span,
+                    node_id: *node_id,
+                    path
+                }
             },
         };
         self.push_expr(hir::Expr::Path(expr)); 
     }
 
     fn visit_unit_expr(&mut self, node: &AstNodeRef<UnitExpr>) where Self: Sized {
-        self.push_expr(hir::Expr::Unit);
+        self.push_expr(hir::Expr::Unit(hir::UnitExpr {
+            span: node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_block_expr(&mut self, node: &AstNodeRef<BlockExpr>) where Self: Sized {
@@ -1984,7 +2133,8 @@ impl Visitor for AstToHirLowering<'_> {
 
         let block = self.block_stack.pop().unwrap();
         self.push_expr(hir::Expr::Block(hir::BlockExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             kind,
             block,
         }))
@@ -1996,7 +2146,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Prefix(hir::PrefixExpr{
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             op: node.op,
             expr,
         }));
@@ -2008,7 +2159,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Postfix(hir::PostfixExpr{
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             op: node.op,
             expr,
         }));
@@ -2022,7 +2174,8 @@ impl Visitor for AstToHirLowering<'_> {
         let can_reorder = matches!(node.right, Expr::Infix(_));
 
         self.push_expr(hir::Expr::Infix(hir::InfixExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             left,
             op: node.op,
             right,
@@ -2043,7 +2196,8 @@ impl Visitor for AstToHirLowering<'_> {
         let left = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Inplace(hir::InplaceExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             left,
             right,
         }));
@@ -2056,7 +2210,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::TypeCast(hir::TypeCastExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
             ty,
         }));
@@ -2069,7 +2224,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::TypeCheck(hir::TypeCheckExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
             ty,
         }));
@@ -2085,7 +2241,8 @@ impl Visitor for AstToHirLowering<'_> {
         exprs.reverse();
 
         self.push_expr(hir::Expr::Tuple(hir::TupleExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             exprs,
         }))
     }
@@ -2100,7 +2257,8 @@ impl Visitor for AstToHirLowering<'_> {
         exprs.reverse();
 
         self.push_expr(hir::Expr::Array(hir::ArrayExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             exprs,
         }))
     } 
@@ -2116,24 +2274,29 @@ impl Visitor for AstToHirLowering<'_> {
                     let expr = self.expr_stack.pop().unwrap();
 
                     args.push(hir::StructArg {
+                        span: *span,
                         name: *name,
                         expr,
                     });
                 },
                 StructArg::Name{ span ,name } => {
                     let expr = Box::new(hir::Expr::Path(hir::PathExpr::Named { 
+                        span: *span,
+                        node_id: node.node_id,
                         iden: hir::Identifier {
+                            span: *span,
                             name: *name,
                             gen_args: None,
                         }
                      }));
 
                      args.push(hir::StructArg {
+                        span: *span,
                         name: *name,
                         expr,
                      });
                 },
-                StructArg::Complete{ span, expr:_ } => if complete.is_none() {
+                StructArg::Complete{ .. } => if complete.is_none() {
                     let expr = self.expr_stack.pop().unwrap();
                     complete = Some(expr);
                 } else {
@@ -2149,7 +2312,8 @@ impl Visitor for AstToHirLowering<'_> {
         let path = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Struct(hir::StructExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             path,
             args,
             complete
@@ -2163,7 +2327,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Index(hir::IndexExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_opt: node.is_opt,
             expr,
             index,
@@ -2201,7 +2366,8 @@ impl Visitor for AstToHirLowering<'_> {
         };
 
         self.push_expr(hir::Expr::TupleIndex(hir::TupleIndexExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
             index,
         }))
@@ -2212,27 +2378,32 @@ impl Visitor for AstToHirLowering<'_> {
 
         let mut args = Vec::new();
         for arg in &node.args {
-            let (label, expr) = match arg {
-                FnArg::Expr{ span, expr } => {
+            match arg {
+                FnArg::Expr{ span, .. } => {
                     let expr = self.expr_stack.pop().unwrap();
-                    (None, expr)
+                    args.push(hir::FnArg {
+                        span: *span,
+                        label: None,
+                        expr,
+                    })
                 },
                 FnArg::Labeled { span, label, expr: _ } => {
                     let expr = self.expr_stack.pop().unwrap();
-                    (Some(*label), expr)
+                    args.push(hir::FnArg {
+                        span: *span,
+                        label: Some(*label),
+                        expr,
+                    })
                 },
-            };
-             args.push(hir::FnArg {
-                label,
-                expr,
-            })
+            }
         }
         args.reverse();
 
         let func = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::FnCall(hir::FnCallExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             func,
             args,
         }))
@@ -2243,20 +2414,24 @@ impl Visitor for AstToHirLowering<'_> {
 
         let mut args = Vec::new();
         for arg in &node.args {
-            let (label, expr) = match arg {
-                FnArg::Expr{ span, expr } => {
+            match arg {
+                FnArg::Expr{ span, .. } => {
                     let expr = self.expr_stack.pop().unwrap();
-                    (None, expr)
+                    args.push(hir::FnArg {
+                        span: *span,
+                        label: None,
+                        expr,
+                    })
                 },
-                FnArg::Labeled { span, label, expr: _ } => {
+                FnArg::Labeled { span, label, .. } => {
                     let expr = self.expr_stack.pop().unwrap();
-                    (Some(*label), expr)
+                    args.push(hir::FnArg {
+                        span: *span,
+                        label: Some(*label),
+                        expr,
+                    })
                 },
-            };
-             args.push(hir::FnArg {
-                label,
-                expr,
-            })
+            }
         }
         args.reverse();
 
@@ -2264,7 +2439,8 @@ impl Visitor for AstToHirLowering<'_> {
         let receiver = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::MethodCall(hir::MethodCallExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             receiver,
             method: node.method,
             gen_args,
@@ -2281,7 +2457,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::FieldAccess(hir::FieldAccessExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
             field: node.field,
             gen_args,
@@ -2297,7 +2474,8 @@ impl Visitor for AstToHirLowering<'_> {
         // TODO``
 
         self.push_expr(hir::Expr::Closure(hir::ClosureExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_moved: node.is_moved,
             params: todo!(),
             ret: todo!(),
@@ -2306,7 +2484,10 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_full_range_expr(&mut self, node: &AstNodeRef<FullRangeExpr>) where Self: Sized {
-        self.push_expr(hir::Expr::FullRange)
+        self.push_expr(hir::Expr::FullRange(hir::FullRangeExpr {
+            span: node.span,
+            node_id: node.node_id,
+        }))
     }
 
     fn visit_let_binding_expr(&mut self, node: &AstNodeRef<LetBindingExpr>) where Self: Sized {
@@ -2322,7 +2503,10 @@ impl Visitor for AstToHirLowering<'_> {
         let else_body = if node.else_body.is_some() {
             self.expr_stack.pop().unwrap()
         } else {
-            Box::new(hir::Expr::Unit)
+            Box::new(hir::Expr::Unit(hir::UnitExpr {
+                span: SpanId::INVALID,
+                node_id: node.node_id,
+            }))
         };
         let body = self.expr_stack.pop().unwrap();
 
@@ -2330,17 +2514,19 @@ impl Visitor for AstToHirLowering<'_> {
             hir::MatchBranch {
                 label: None,
                 pattern: Box::new(hir::Pattern::Literal(hir::LiteralPattern {
-                    node_id: node.node_id().index() as u32,
+                    span: node.cond.span(),
+                    node_id: node.node_id,
                     literal: hir::LiteralValue::Bool(true),
                     lit_op: None
                 })),
                 guard: None,
-                body
+                body,
             },
             hir::MatchBranch {
                 label: None,
                 pattern: Box::new(hir::Pattern::Literal(hir::LiteralPattern {
-                    node_id: node.node_id().index() as u32,
+                    span: node.cond.span(),
+                    node_id: node.node_id,
                     literal: hir::LiteralValue::Bool(false),
                     lit_op: None
                 })),
@@ -2352,10 +2538,12 @@ impl Visitor for AstToHirLowering<'_> {
         let cond = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Match(hir::MatchExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: None,
             scrutinee: cond,
             branches,
+            bool_cond: true,
         }))
     }
 
@@ -2367,7 +2555,8 @@ impl Visitor for AstToHirLowering<'_> {
         let body = Box::new(block);
 
         self.push_expr(hir::Expr::Loop(hir::LoopExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: node.label,
             body,
         }))
@@ -2407,14 +2596,15 @@ impl Visitor for AstToHirLowering<'_> {
         let inc = node.inc.as_ref().map(|_| self.expr_stack.pop().unwrap());
         let cond = self.expr_stack.pop().unwrap();
 
-        let (true_pat, false_pat) = self.create_true_false_patterns(node.node_id().index() as u32);
+        let (true_pat, false_pat) = self.create_true_false_patterns(node.cond.span(), node.node_id);
 
         // (3)
         let hir::Expr::Block(mut body) = *body else { unreachable!() };
         let end_expr = mem::take(&mut body.block.expr);
         if let Some(expr) = end_expr {
             body.block.stmts.push(Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                node_id: node.node_id().index() as u32,
+                span: expr.span(),
+                node_id: node.node_id,
                 expr,
             })));
         }
@@ -2424,21 +2614,22 @@ impl Visitor for AstToHirLowering<'_> {
             label
         } else {
             let span = self.spans[node.span()];
-
             let label_name = format!("__label_{}_{}", span.row, span.column);
             self.names.add(&label_name)
         };
 
         // (5)
         let loop_break = hir::BreakExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: Some(label),
             value: None,
         };
 
         // (4)
         let end_cond = hir::Expr::Match(hir::MatchExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.cond.span(),
+            node_id: node.node_id,
             label: None,
             scrutinee: cond.clone(),
             branches: vec![
@@ -2446,7 +2637,10 @@ impl Visitor for AstToHirLowering<'_> {
                     label: None,
                     pattern: true_pat.clone(),
                     guard: None,
-                    body: Box::new(hir::Expr::Unit)
+                    body: Box::new(hir::Expr::Unit(hir::UnitExpr {
+                        span: SpanId::INVALID,
+                        node_id: node.node_id,
+                    }))
                 },
                 // (5)
                 hir::MatchBranch {
@@ -2456,18 +2650,22 @@ impl Visitor for AstToHirLowering<'_> {
                     body: Box::new(hir::Expr::Break(loop_break))
                 },
             ],
+            bool_cond: true,
         });
         let end_cond = Box::new(end_cond);
 
         
         let mut loop_body =  hir::Block {
+            span: node.body.span,
             stmts: vec![
                 Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                    node_id: node.node_id().index() as u32,
+                    span: SpanId::INVALID,
+                    node_id: node.node_id,
                     expr: body
                 })),
                 Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                    node_id: node.node_id().index() as u32,
+                    span: SpanId::INVALID,
+                    node_id: node.node_id,
                     expr: end_cond,
                 }))
             ],
@@ -2477,25 +2675,31 @@ impl Visitor for AstToHirLowering<'_> {
         // (6)
         if let Some(inc) = inc {
             loop_body.stmts.push(Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                node_id: node.node_id().index() as u32,
+                span: inc.span(),
+                node_id: node.node_id,
                 expr: inc,
             })));
         }
 
         // (2)
         let loop_expr = hir::Expr::Loop(hir::LoopExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: Some(label),
             body: Box::new(loop_body),
         });
         let loop_expr = Box::new(loop_expr);
 
         // (7)
-        let else_body = else_expr.unwrap_or(Box::new(hir::Expr::Unit));
+        let else_body = else_expr.unwrap_or(Box::new(hir::Expr::Unit(hir::UnitExpr {
+            span: SpanId::INVALID,
+            node_id: node.node_id,
+        })));
 
         // (1)
         self.push_expr(hir::Expr::Match(hir::MatchExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: None,
             scrutinee: cond,
             branches: vec![
@@ -2513,6 +2717,7 @@ impl Visitor for AstToHirLowering<'_> {
                     body: else_body,
                 },
             ],
+            bool_cond: true,
         }));
     }
 
@@ -2545,14 +2750,15 @@ impl Visitor for AstToHirLowering<'_> {
         let body = self.expr_stack.pop().unwrap();
         let cond = self.expr_stack.pop().unwrap();
 
-        let (true_pat, false_pat) = self.create_true_false_patterns(node.node_id().index() as u32);
+        let (true_pat, false_pat) = self.create_true_false_patterns(node.cond.span(), node.node_id);
 
-        // (3)
+        // (2)
         let hir::Expr::Block(mut body) = *body else { unreachable!() };
         let end_expr = mem::take(&mut body.block.expr);
         if let Some(expr) = end_expr {
             body.block.stmts.push(Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                node_id: node.node_id().index() as u32,
+                span: expr.span(),
+                node_id: node.node_id,
                 expr,
             })));
         }
@@ -2569,14 +2775,16 @@ impl Visitor for AstToHirLowering<'_> {
 
         // (4)
         let loop_break = hir::BreakExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.body.span,
+            node_id: node.node_id,
             label: Some(label),
             value: None,
         };
 
         // (3)
         let end_cond = hir::Expr::Match(hir::MatchExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.cond.span(),
+            node_id: node.node_id,
             label: None,
             scrutinee: cond.clone(),
             branches: vec![
@@ -2584,7 +2792,10 @@ impl Visitor for AstToHirLowering<'_> {
                     label: None,
                     pattern: true_pat.clone(),
                     guard: None,
-                    body: Box::new(hir::Expr::Unit)
+                    body: Box::new(hir::Expr::Unit(hir::UnitExpr {
+                        span: SpanId::INVALID,
+                        node_id: node.node_id,
+                    }))
                 },
                 // (5)
                 hir::MatchBranch {
@@ -2594,18 +2805,22 @@ impl Visitor for AstToHirLowering<'_> {
                     body: Box::new(hir::Expr::Break(loop_break))
                 },
             ],
+            bool_cond: true,
         });
         let end_cond = Box::new(end_cond);
 
         
         let loop_body =  hir::Block {
+            span: node.body.span,
             stmts: vec![
                 Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                    node_id: node.node_id().index() as u32,
+                    span: node.body.span,
+                    node_id: node.node_id,
                     expr: body
                 })),
                 Box::new(hir::Stmt::Expr(hir::ExprStmt {
-                    node_id: node.node_id().index() as u32,
+                    span: end_cond.span(),
+                    node_id: node.node_id,
                     expr: end_cond,
                 }))
             ],
@@ -2613,7 +2828,8 @@ impl Visitor for AstToHirLowering<'_> {
         };
         // (1)
         self.push_expr(hir::Expr::Loop(hir::LoopExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: Some(label),
             body: Box::new(loop_body),
         }));
@@ -2673,10 +2889,12 @@ impl Visitor for AstToHirLowering<'_> {
         let scrutinee = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Match(hir::MatchExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: node.label,
             scrutinee,
             branches,
+            bool_cond: false,
         }))
     }
 
@@ -2686,7 +2904,8 @@ impl Visitor for AstToHirLowering<'_> {
         let value = node.value.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
         self.push_expr(hir::Expr::Break(hir::BreakExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: node.label,
             value,
         }));
@@ -2694,14 +2913,16 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_continue_expr(&mut self, node: &AstNodeRef<ContinueExpr>) where Self: Sized {
         self.push_expr(hir::Expr::Continue(hir::ContinueExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: node.label,
         }));
     }
 
     fn visit_fallthrough_expr(&mut self, node: &AstNodeRef<FallthroughExpr>) where Self: Sized {
         self.push_expr(hir::Expr::Fallthrough(hir::FallthroughExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             label: node.label,
         }));
     }
@@ -2715,13 +2936,17 @@ impl Visitor for AstToHirLowering<'_> {
         };
 
         self.push_expr(hir::Expr::Return(hir::ReturnExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             value,
         }));
     }
 
     fn visit_underscore_expr(&mut self, node: &AstNodeRef<UnderscoreExpr>) where Self: Sized {
-        self.push_expr(hir::Expr::Underscore);
+        self.push_expr(hir::Expr::Underscore(hir::UnderscoreExpr {
+            span: node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_throw_expr(&mut self, node: &AstNodeRef<ThrowExpr>) where Self: Sized {
@@ -2730,7 +2955,8 @@ impl Visitor for AstToHirLowering<'_> {
         let expr = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::Throw(hir::ThrowExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             expr,
         }));
     }
@@ -2745,7 +2971,8 @@ impl Visitor for AstToHirLowering<'_> {
         exprs.reverse();
 
         self.push_expr(hir::Expr::Comma(hir::CommaExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             exprs,
         }))
     }
@@ -2767,7 +2994,8 @@ impl Visitor for AstToHirLowering<'_> {
         let cond = self.expr_stack.pop().unwrap();
 
         self.push_expr(hir::Expr::When(hir::WhenExpr {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             cond,
             body,
             else_body,
@@ -2796,7 +3024,8 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         self.push_pattern(hir::Pattern::Literal(hir::LiteralPattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             literal,
             lit_op,
         }))
@@ -2808,7 +3037,8 @@ impl Visitor for AstToHirLowering<'_> {
         let bound = node.bound.as_ref().map(|_| self.pattern_stack.pop().unwrap());
 
         self.push_pattern(hir::Pattern::Iden(hir::IdenPattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_ref: node.is_ref,
             is_mut: node.is_mut,
             name: node.name,
@@ -2822,49 +3052,51 @@ impl Visitor for AstToHirLowering<'_> {
         let path = self.path_stack.pop().unwrap();
 
         self.push_pattern(hir::Pattern::Path(hir::PathPattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             path,
         }));
     }
 
     fn visit_wildcard_pattern(&mut self, node: &AstNodeRef<WildcardPattern>) where Self: Sized {
-        self.push_pattern(hir::Pattern::Wildcard);
+        self.push_pattern(hir::Pattern::Wildcard(hir::WildcardPattern {
+            span: node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_rest_pattern(&mut self, node: &AstNodeRef<RestPattern>) where Self: Sized {
-        self.push_pattern(hir::Pattern::Rest);
+        self.push_pattern(hir::Pattern::Rest(hir::RestPattern {
+            span: node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_range_pattern(&mut self, node: &AstNodeRef<RangePattern>) where Self: Sized {
         helpers::visit_range_pattern(self, node);
 
         let pattern = match &**node {
-            RangePattern::Exclusive { .. } => {
-                let node_id = node.node_id().index() as u32;
+            RangePattern::Exclusive { span, node_id, .. } => {
                 let end = self.pattern_stack.pop().unwrap();
                 let begin = self.pattern_stack.pop().unwrap();
-                hir::RangePattern::Exclusive { node_id, begin, end }
+                hir::RangePattern::Exclusive { span: *span, node_id: *node_id, begin, end }
             },
-            RangePattern::Inclusive { .. } => {
-                let node_id = node.node_id().index() as u32;
+            RangePattern::Inclusive { span, node_id, .. } => {
                 let end = self.pattern_stack.pop().unwrap();
                 let begin = self.pattern_stack.pop().unwrap();
-                hir::RangePattern::Inclusive { node_id, begin, end }
+                hir::RangePattern::Inclusive { span: *span, node_id: *node_id, begin, end }
             },
-            RangePattern::From { .. } => {
-                let node_id = node.node_id().index() as u32;
+            RangePattern::From { span, node_id, .. } => {
                 let begin = self.pattern_stack.pop().unwrap();
-                hir::RangePattern::From { node_id, begin }
+                hir::RangePattern::From { span: *span, node_id: *node_id, begin }
             },
-            RangePattern::To { .. } => {
-                let node_id = node.node_id().index() as u32;
+            RangePattern::To { span, node_id, .. } => {
                 let end = self.pattern_stack.pop().unwrap();
-                hir::RangePattern::To { node_id, end }
+                hir::RangePattern::To { span: *span, node_id: *node_id, end }
             },
-            RangePattern::InclusiveTo { .. } => {
-                let node_id = node.node_id().index() as u32;
+            RangePattern::InclusiveTo { span, node_id, .. } => {
                 let end = self.pattern_stack.pop().unwrap();
-                hir::RangePattern::InclusiveTo { node_id, end }
+                hir::RangePattern::InclusiveTo { span: *span, node_id: *node_id, end }
             },
         };
         self.push_pattern(hir::Pattern::Range(pattern));
@@ -2876,7 +3108,8 @@ impl Visitor for AstToHirLowering<'_> {
         let pattern = self.pattern_stack.pop().unwrap();
 
         self.push_pattern(hir::Pattern::Reference(hir::ReferencePattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_mut: node.is_mut,
             pattern,
         }));
@@ -2885,11 +3118,11 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_struct_pattern(&mut self, node: &AstNodeRef<StructPattern>) where Self: Sized {
         helpers::visit_struct_pattern(self, node);
 
-        let (path, ast_fields) = match &**node {
-            StructPattern::Inferred { span, node_id, fields } => (None, fields),
+        let (span, node_id, path, ast_fields) = match &**node {
+            StructPattern::Inferred { span, node_id, fields } => (*span, *node_id, None, fields),
             StructPattern::Path { span, node_id, path: _, fields } => {
                 let path = self.path_stack.pop().unwrap();
-                (Some(path), fields)
+                (*span, *node_id, Some(path), fields)
             },
         };
 
@@ -2899,7 +3132,8 @@ impl Visitor for AstToHirLowering<'_> {
                 StructPatternField::Named { span, name, pattern: _ } => {
                     let pattern = self.pattern_stack.pop().unwrap();
                     fields.push(hir::StructPatternField::Named {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id,
                         name: *name,
                         pattern,
                     });
@@ -2933,7 +3167,8 @@ impl Visitor for AstToHirLowering<'_> {
                     };
 
                     fields.push(hir::StructPatternField::TupleIndex {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id,
                         index,
                         pattern,
                     })
@@ -2942,7 +3177,8 @@ impl Visitor for AstToHirLowering<'_> {
                     let bound = bound.as_ref().map(|_| self.pattern_stack.pop().unwrap());
 
                     fields.push(hir::StructPatternField::Iden {
-                        node_id: node.node_id().index() as u32,
+                        span: *span,
+                        node_id,
                         is_ref: *is_ref,
                         is_mut: *is_mut,
                         iden: *iden,
@@ -2955,7 +3191,8 @@ impl Visitor for AstToHirLowering<'_> {
         fields.reverse();
 
         self.push_pattern(hir::Pattern::Struct(hir::StructPattern {
-            node_id: node.node_id().index() as u32,
+            span,
+            node_id,
             path,
             fields,
         }));
@@ -2964,11 +3201,11 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_tuple_struct_pattern(&mut self, node: &AstNodeRef<TupleStructPattern>) where Self: Sized {
         helpers::visit_tuple_struct_pattern(self, node);
 
-        let (path, ast_patterns) = match &**node {
-            TupleStructPattern::Inferred { span, node_id, patterns } => (None, patterns),
+        let (span, node_id, path, ast_patterns) = match &**node {
+            TupleStructPattern::Inferred { span, node_id, patterns } => (*span, *node_id, None, patterns),
             TupleStructPattern::Named { span, node_id, path: _, patterns } => {
                 let path = self.path_stack.pop().unwrap();
-                (Some(path), patterns)
+                (*span, *node_id, Some(path), patterns)
             },
         };
 
@@ -2979,7 +3216,8 @@ impl Visitor for AstToHirLowering<'_> {
         patterns.reverse();
 
         self.push_pattern(hir::Pattern::TupleStruct(hir::TupleStructPattern {
-            node_id: node.node_id().index() as u32,
+            span,
+            node_id,
             path,
             patterns,
         }));
@@ -2995,7 +3233,8 @@ impl Visitor for AstToHirLowering<'_> {
         patterns.reverse();
 
         self.push_pattern(hir::Pattern::Tuple(hir::TuplePattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             patterns,
         }));
     }
@@ -3016,14 +3255,16 @@ impl Visitor for AstToHirLowering<'_> {
         patterns.reverse();
 
         self.push_pattern(hir::Pattern::Slice(hir::SlicePattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             patterns,
         }));
     }
 
     fn visit_enum_member_pattern(&mut self, node: &AstNodeRef<EnumMemberPattern>) where Self: Sized {
         self.push_pattern(hir::Pattern::EnumMember(hir::EnumMemberPattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             name: node.name,
         }));
     }
@@ -3038,7 +3279,8 @@ impl Visitor for AstToHirLowering<'_> {
         patterns.reverse();
 
         self.push_pattern(hir::Pattern::Alternative(hir::AlternativePattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             patterns,
         }));
     }
@@ -3049,7 +3291,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ty = self.type_stack.pop().unwrap();
 
         self.push_pattern(hir::Pattern::TypeCheck(hir::TypeCheckPattern {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             ty,
         }));
     }
@@ -3070,17 +3313,24 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_primitive_type(&mut self, node: &AstNodeRef<PrimitiveType>) where Self: Sized {
         self.push_type(hir::Type::Primitive(hir::PrimitiveType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             ty: node.ty
         }));
     }
 
     fn visit_unit_type(&mut self, node: &AstNodeRef<UnitType>) where Self: Sized {
-        self.push_type(hir::Type::Unit);
+        self.push_type(hir::Type::Unit(hir::UnitType {
+            span:    node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_never_type(&mut self, node: &AstNodeRef<NeverType>) where Self: Sized {
-        self.push_type(hir::Type::Never);
+        self.push_type(hir::Type::Never(hir::NeverType {
+            span:    node.span,
+            node_id: node.node_id,
+        }));
     }
 
     fn visit_path_type(&mut self, node: &AstNodeRef<PathType>) where Self: Sized {
@@ -3089,7 +3339,8 @@ impl Visitor for AstToHirLowering<'_> {
         let path = self.type_path_stack.pop().unwrap();
         
         self.push_type(hir::Type::Path(hir::PathType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             path,
         }));
     }
@@ -3103,7 +3354,8 @@ impl Visitor for AstToHirLowering<'_> {
         types.reverse();
 
         self.push_type(hir::Type::Tuple(hir::TupleType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             types
         }));
     }
@@ -3116,7 +3368,8 @@ impl Visitor for AstToHirLowering<'_> {
         let size = self.expr_stack.pop().unwrap();
 
         self.push_type(hir::Type::Array(hir::ArrayType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             size,
             sentinel,
             ty,
@@ -3130,7 +3383,8 @@ impl Visitor for AstToHirLowering<'_> {
         let sentinel = node.sentinel.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
         self.push_type(hir::Type::Slice(hir::SliceType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             sentinel,
             ty,
         }));
@@ -3139,7 +3393,8 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_string_slice_type(&mut self, node: &AstNodeRef<StringSliceType>) where Self: Sized {
         let slice_ty = node.ty;
         self.push_type(hir::Type::StringSlice(hir::StringSliceType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             ty: slice_ty,
         }));
     }
@@ -3151,7 +3406,8 @@ impl Visitor for AstToHirLowering<'_> {
         let sentinel = node.sentinel.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
         self.push_type(hir::Type::Pointer(hir::PointerType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_multi: node.is_multi,
             is_mut: node.is_mut,
             ty,
@@ -3165,7 +3421,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ty = self.type_stack.pop().unwrap();
 
         self.push_type(hir::Type::Reference(hir::ReferenceType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_mut: node.is_mut,
             ty,
         }))
@@ -3175,9 +3432,10 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_optional_type(self, node);
 
         let ty = self.type_stack.pop().unwrap();
-
+ 
         self.push_type(hir::Type::Optional(hir::OptionalType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             ty,
         }));
     }
@@ -3222,7 +3480,8 @@ impl Visitor for AstToHirLowering<'_> {
         };
 
         self.push_type(hir::Type::Fn(hir::FnType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             is_unsafe: node.is_unsafe,
             abi,
             params,
@@ -3253,7 +3512,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ast_ctx = self.ctx.get_node_for(node);
 
         self.hir.add_struct(ast_ctx.scope.clone(), hir::Struct {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs: vec![self.comp_gen_attr.clone()],
             vis: hir::Visibility::Priv,
             is_mut: true,
@@ -3265,13 +3525,15 @@ impl Visitor for AstToHirLowering<'_> {
             uses,
         });
 
-        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.node_id().index() as u32);
+        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);
         path.segments.push(hir::TypePathSegment::Plain {
+            span: node.span,
             name
         });
 
         self.push_type(hir::Type::Path(hir::PathType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             path,
         }))
     }
@@ -3294,7 +3556,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ast_ctx = self.ctx.get_node_for(node);
 
         self.hir.add_adt_enum(ast_ctx.scope.clone(), hir::AdtEnum {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             attrs: vec![self.comp_gen_attr.clone()],
             vis: hir::Visibility::Priv,
             is_mut: true,
@@ -3305,13 +3568,15 @@ impl Visitor for AstToHirLowering<'_> {
             variants,
         });
 
-        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.node_id().index() as u32);
+        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);
         path.segments.push(hir::TypePathSegment::Plain {
+            span: node.span,
             name
         });
 
         self.push_type(hir::Type::Path(hir::PathType {
-            node_id: node.node_id().index() as u32,
+            span: node.span,
+            node_id: node.node_id,
             path,
         }))
     }
@@ -3322,13 +3587,17 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_visibility(self, node);
 
         let vis = match &**node {
-            Visibility::Pub{ .. }     => hir::Visibility::Pub,
-            Visibility::Super{ .. }   => hir::Visibility::Super,
-            Visibility::Lib{ .. }     => hir::Visibility::Lib,
-            Visibility::Package{ .. } => hir::Visibility::Package,
-            Visibility::Path{ .. }    => {
+            Visibility::Pub{ span, node_id }     => hir::Visibility::Pub { span: *span, node_id: *node_id },
+            Visibility::Super{ span, node_id }   => hir::Visibility::Super { span: *span, node_id: *node_id },
+            Visibility::Lib{ span, node_id }     => hir::Visibility::Lib { span: *span, node_id: *node_id },
+            Visibility::Package{ span, node_id } => hir::Visibility::Package { span: *span, node_id: *node_id },
+            Visibility::Path{ span, node_id, .. }    => {
                 let path = self.simple_path_stack.pop().unwrap();
-                hir::Visibility::Path(path)
+                hir::Visibility::Path {
+                    span: *span,
+                    node_id: *node_id,
+                    path
+                }
             },
         };
         self.vis_stack.push(vis);
@@ -3359,16 +3628,18 @@ impl Visitor for AstToHirLowering<'_> {
     }
 }
 
-fn base_type_path_from_scope(scope: &Scope, names: &mut NameTable, node_id: u32) -> hir::TypePath {
+fn base_type_path_from_scope(scope: &Scope, names: &mut NameTable, span: SpanId, node_id: NodeId) -> hir::TypePath {
     let mut segments = Vec::new();
     for segment in scope.segments() {
         let name = names.add(&segment.name);
         segments.push(hir::TypePathSegment::Plain {
+            span,
             name
         });
     }
 
     hir::TypePath {
+        span,
         node_id,
         segments,
     }

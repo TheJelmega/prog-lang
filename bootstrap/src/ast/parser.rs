@@ -844,7 +844,7 @@ impl Parser<'_> {
                 let ty = self.parse_type()?;
 
                 let span = self.get_span_to_current(begin);
-                FnReceiver::SelfTyped{ span, node_id: NodeId::default(), is_mut, ty }
+                FnReceiver::SelfTyped{ span, is_mut, ty }
             } else {
                 let begin = self.get_cur_span();
 
@@ -853,7 +853,7 @@ impl Parser<'_> {
                 self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
 
                 let span = self.get_span_to_current(begin);
-                FnReceiver::SelfReceiver { span, node_id: NodeId::default(), is_ref, is_mut }
+                FnReceiver::SelfReceiver { span, is_ref, is_mut }
             };
 
             let has_possible_params = self.try_consume(Token::Punctuation(Punctuation::Comma));
@@ -973,7 +973,7 @@ impl Parser<'_> {
             while !self.try_end_scope() {
                 let mut names = Vec::new();
                 loop {
-                    names.push(self.consume_name()?);
+                    names.push(self.consume_name_and_span()?);
                     if !self.try_consume(Token::Punctuation(Punctuation::Comma)) {
                         break;
                     }
@@ -2184,9 +2184,11 @@ impl Parser<'_> {
     fn parse_name_var_decl(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<VarDecl>, ParserErr> {
         let begin = self.get_cur_span();
         let names = self.parse_punct_separated(Punctuation::Comma, |parser| {
+            let begin = parser.get_cur_span();
             let is_mut = parser.try_consume(Token::StrongKw(StrongKeyword::Mut));
             let name = parser.consume_name()?;
-            Ok((is_mut, name))
+            let span = parser.get_span_to_current(begin);
+            Ok((is_mut, name, span))
         })?;
 
         self.consume_punct(Punctuation::ColonEquals)?;

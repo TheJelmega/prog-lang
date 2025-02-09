@@ -21,12 +21,20 @@ pub use parser::{Parser, ParserErr};
 mod visitor;
 pub use visitor::{Visitor, helpers};
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct NodeId(usize);
 
 impl NodeId {
+    pub const INVALID: Self = Self(usize::MAX);
+
     pub fn index(self) -> usize {
         self.0
+    }
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -728,13 +736,11 @@ impl AstNodeParseHelper for Function {
 pub enum FnReceiver {
     SelfReceiver{
         span:    SpanId,
-        node_id: NodeId,
         is_ref:  bool,
         is_mut:  bool,
     },
     SelfTyped{
         span:    SpanId,
-        node_id: NodeId,
         is_mut:  bool,
         ty:      Type,  
     },
@@ -743,11 +749,11 @@ pub enum FnReceiver {
 impl FnReceiver {
     pub fn log(&self, logger: &mut AstLogger) {
         match self {
-            FnReceiver::SelfReceiver { span, node_id, is_ref, is_mut } => logger.log_indented("Self Receiver", |logger| {
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => logger.log_indented("Self Receiver", |logger| {
                 logger.prefixed_log_fmt(format_args!("Is Ref: {is_ref}\n"));
                 logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
             }),
-            FnReceiver::SelfTyped{ span, node_id, is_mut, ty } => logger.log_indented("Typed Receiver", |logger| {
+            FnReceiver::SelfTyped{ span, is_mut, ty } => logger.log_indented("Typed Receiver", |logger| {
                 logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                 logger.set_last_at_indent();
                 logger.log_indented_node("Type", ty);
@@ -802,7 +808,7 @@ pub enum FnReturn {
     },
     Named{
         span: SpanId,
-        vars: Vec<(Vec<NameId>, Type)>
+        vars: Vec<(Vec<(NameId, SpanId)>, Type)>
     }
 }
 
@@ -812,7 +818,7 @@ impl FnReturn {
             FnReturn::Type{ span, ty } => logger.log_indented_node("Typed Function Return", ty),
             FnReturn::Named{ span, vars } => logger.log_indented_slice("Named Function Return", vars, |logger, (names, ty)| {
                 logger.log_indented("Return", |logger| {
-                    logger.log_indented_slice("Names", &names, |logger, name| {
+                    logger.log_indented_slice("Names", &names, |logger, (name, _)| {
                         logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                     });
 
@@ -2155,7 +2161,7 @@ pub enum VarDecl {
         span:    SpanId,
         node_id: NodeId,
         attrs:   Vec<AstNodeRef<Attribute>>,
-        names:   Vec<(bool, NameId)>,
+        names:   Vec<(bool, NameId, SpanId)>,
         expr:    Expr,
     },
     Let {
@@ -2188,7 +2194,7 @@ impl AstNode for VarDecl {
         match self {
             VarDecl::Named { span, node_id, attrs, names, expr } => logger.log_ast_node("Named Variable Declaration", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.log_indented_slice("Names", names, |logger, (is_mut, name)| {
+                logger.log_indented_slice("Names", names, |logger, (is_mut, name, _)| {
                     logger.log_indented("Name", |logger| {
                         logger.prefixed_log_fmt(format_args!("Is Mut: {is_mut}\n"));
                         logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));

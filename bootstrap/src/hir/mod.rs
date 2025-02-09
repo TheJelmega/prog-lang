@@ -7,7 +7,12 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    common::{Abi, NameId, OpType, Scope, SymbolRef}, error_warning::{LexErrorCode, HirErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
+    common::{Abi, NameId, OpType, Scope, SpanId, SymbolRef},
+    error_warning::{HirErrorCode, LexErrorCode},
+    lexer::Punctuation,
+    literals::LiteralId,
+    ast,
+    type_system,
 };
 
 mod visitor;
@@ -27,7 +32,7 @@ pub use passes::Pass;
 // =============================================================================================================================
 
 pub struct HirError {
-    pub node_id: u32,
+    pub node_id: ast::NodeId,
     pub err:     HirErrorCode
 }
 
@@ -42,13 +47,16 @@ impl fmt::Display for HirError {
 #[derive(Clone)]
 pub enum TypePathSegment {
     Plain {
+        span:     SpanId,
         name:     NameId
     },
     GenArg {
+        span:     SpanId,
         name:     NameId,
         gen_args: Box<GenericArgs>,
     },
     Fn {
+        span:     SpanId,
         name:     NameId,
         params:   Vec<Box<Type>>,
         ret:      Option<Box<Type>>,
@@ -57,32 +65,37 @@ pub enum TypePathSegment {
 
 #[derive(Clone)]
 pub struct TypePath {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub segments: Vec<TypePathSegment>
 }
 
 #[derive(Clone)]
 pub struct SimplePath {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub names:   Vec<NameId>,
 }
 
 #[derive(Clone)]
 pub struct Identifier {
+    pub span:     SpanId,
     pub name:     NameId,
     pub gen_args: Option<Box<GenericArgs>>,
 }
 
 #[derive(Clone)]
 pub struct Path {
-    pub node_id:     u32,
+    pub span:        SpanId,
+    pub node_id:     ast::NodeId,
     pub is_inferred: bool,
     pub idens:       Vec<Identifier>,
 }
 
 #[derive(Clone)]
 pub struct QualifiedPath {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub ty:       Box<Type>,
     pub bound:    Option<TypePath>,
     pub sub_path: Vec<Identifier>,
@@ -91,7 +104,8 @@ pub struct QualifiedPath {
 // =============================================================================================================================
 
 pub struct Function {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_const:     bool,
@@ -107,7 +121,8 @@ pub struct Function {
 }
 
 pub struct Method {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_const:     bool,
@@ -123,7 +138,8 @@ pub struct Method {
 }
 
 pub struct ExternFunctionNoBody {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_unsafe:    bool,
@@ -137,7 +153,8 @@ pub struct ExternFunctionNoBody {
 }
 
 pub struct TraitFunction {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_override:  bool,
@@ -156,10 +173,12 @@ pub struct TraitFunction {
 pub enum FnReceiver {
     None,
     SelfReceiver {
+        span:   SpanId,
         is_ref: bool,
         is_mut: bool,
     },
     SelfTyped {
+        span:   SpanId,
         is_mut: bool,
         ty:     Box<Type>,
     }
@@ -168,12 +187,14 @@ pub enum FnReceiver {
 #[derive(Clone)]
 pub enum FnParam {
     Param {
+        span:    SpanId,
         attrs:   Vec<Box<Attribute>>,
         label:   Option<NameId>,
         pattern: Box<Pattern>,
         ty:      Box<Type>,
     },
     Opt {
+        span:    SpanId,
         attrs:   Vec<Box<Attribute>>,
         label:   Option<NameId>,
         pattern: Box<Pattern>,
@@ -181,6 +202,7 @@ pub enum FnParam {
         def:     Box<Expr>,
     },
     Variadic {
+        span:    SpanId,
         attrs:   Vec<Box<Attribute>>,
         name:    NameId,
         ty:      Box<Type>,
@@ -188,7 +210,8 @@ pub enum FnParam {
 }
 
 pub struct TypeAlias {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub attrs:    Vec<Box<Attribute>>,
     pub vis:      Visibility,
     pub name:     NameId,
@@ -197,14 +220,16 @@ pub struct TypeAlias {
 }
 
 pub struct TraitTypeAlias {
-    pub node_id:    u32,
-    pub attrs:      Vec<Box<Attribute>>,
-    pub name:       NameId,
-    pub generics:   Option<Box<GenericParams>>,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
+    pub attrs:    Vec<Box<Attribute>>,
+    pub name:     NameId,
+    pub generics: Option<Box<GenericParams>>,
 }
 
 pub struct DistinctType {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub attrs:    Vec<Box<Attribute>>,
     pub vis:      Visibility,
     pub name:     NameId,
@@ -213,7 +238,8 @@ pub struct DistinctType {
 }
 
 pub struct OpaqueType {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub name:    NameId,
@@ -221,7 +247,8 @@ pub struct OpaqueType {
 }
 
 pub struct Struct {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_mut:       bool,
@@ -235,6 +262,7 @@ pub struct Struct {
 
 #[derive(Clone)]
 pub struct StructField {
+    pub span:    SpanId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub is_mut:  bool,
@@ -245,6 +273,7 @@ pub struct StructField {
 
 #[derive(Clone)]
 pub struct StructUse {
+    pub span:   SpanId,
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
@@ -252,7 +281,8 @@ pub struct StructUse {
 }
 
 pub struct TupleStruct {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_mut:       bool,
@@ -265,6 +295,7 @@ pub struct TupleStruct {
 
 #[derive(Clone)]
 pub struct TupleStructField {
+    pub span:  SpanId,
     pub attrs: Vec<Box<Attribute>>,
     pub vis:   Visibility,
     pub ty:    Box<Type>,
@@ -272,14 +303,16 @@ pub struct TupleStructField {
 }
 
 pub struct UnitStruct {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub name:    NameId,
 }
 
 pub struct Union {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_mut:       bool,
@@ -290,6 +323,7 @@ pub struct Union {
 }
 
 pub struct UnionField {
+    pub span:   SpanId,
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
@@ -298,7 +332,8 @@ pub struct UnionField {
 }
 
 pub struct AdtEnum {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_mut:       bool,
@@ -312,6 +347,7 @@ pub struct AdtEnum {
 #[derive(Clone)]
 pub enum AdtEnumVariant {
     Struct {
+        span:         SpanId,
         attrs:        Vec<Box<Attribute>>,
         is_mut:       bool,
         name:         NameId,
@@ -319,6 +355,7 @@ pub enum AdtEnumVariant {
         discriminant: Option<Box<Expr>>,
     },
     Tuple {
+        span:         SpanId,
         attrs:        Vec<Box<Attribute>>,
         is_mut:       bool,
         name:         NameId,
@@ -326,6 +363,7 @@ pub enum AdtEnumVariant {
         discriminant: Option<Box<Expr>>,
     },
     Fieldless {
+        span:         SpanId,
         attrs:        Vec<Box<Attribute>>,
         name:         NameId,
         discriminant: Option<Box<Expr>>,
@@ -333,7 +371,8 @@ pub enum AdtEnumVariant {
 }
 
 pub struct FlagEnum {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub attrs:    Vec<Box<Attribute>>,
     pub vis:      Visibility,
     pub name:     NameId,
@@ -341,13 +380,15 @@ pub struct FlagEnum {
 }
 
 pub struct FlagEnumVariant {
-    pub attrs:         Vec<Box<Attribute>>,
+    pub span:         SpanId,
+    pub attrs:        Vec<Box<Attribute>>,
     pub name:         NameId,
     pub discriminant: Option<Box<Expr>>,
 }
 
 pub struct Bitfield {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_mut:       bool,
@@ -360,6 +401,7 @@ pub struct Bitfield {
 }
 
 pub struct BitfieldField {
+    pub span:   SpanId,
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
@@ -370,6 +412,7 @@ pub struct BitfieldField {
 }
 
 pub struct BitfieldUse {
+    pub span:   SpanId,
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
@@ -378,7 +421,8 @@ pub struct BitfieldUse {
 }
 
 pub struct Const {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub name:    NameId,
@@ -387,7 +431,8 @@ pub struct Const {
 }
 
 pub struct Static {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub name:    NameId,
@@ -396,7 +441,8 @@ pub struct Static {
 }
 
 pub struct TlsStatic {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub is_mut:  bool,
@@ -406,7 +452,8 @@ pub struct TlsStatic {
 }
 
 pub struct ExternStatic {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub vis:     Visibility,
     pub abi:     Abi,
@@ -416,19 +463,21 @@ pub struct ExternStatic {
 }
 
 pub struct Property {
-    pub node_id:     u32,
-    pub attrs:       Vec<Box<Attribute>>,
-    pub vis:         Visibility,
-    pub is_unsafe:   bool,
-    pub name:        NameId,
-    pub get:         Option<Box<Expr>>,
-    pub ref_get:     Option<Box<Expr>>,
-    pub mut_get:     Option<Box<Expr>>,
-    pub set:         Option<Box<Expr>>,
+    pub span:      SpanId,
+    pub node_id:   ast::NodeId,
+    pub attrs:     Vec<Box<Attribute>>,
+    pub vis:       Visibility,
+    pub is_unsafe: bool,
+    pub name:      NameId,
+    pub get:       Option<Box<Expr>>,
+    pub ref_get:   Option<Box<Expr>>,
+    pub mut_get:   Option<Box<Expr>>,
+    pub set:       Option<Box<Expr>>,
 }
 
 pub struct TraitProperty {
-    pub node_id:     u32,
+    pub span:        SpanId,
+    pub node_id:     ast::NodeId,
     pub attrs:       Vec<Box<Attribute>>,
     pub vis:         Visibility,
     pub is_unsafe:   bool,
@@ -440,7 +489,8 @@ pub struct TraitProperty {
 }
 
 pub struct Trait {
-    pub node_id:    u32,
+    pub span:       SpanId,
+    pub node_id:    ast::NodeId,
     pub attrs:      Vec<Box<Attribute>>,
     pub vis:        Visibility,
     pub is_unsafe:  bool,
@@ -450,7 +500,8 @@ pub struct Trait {
 }
 
 pub struct Impl {
-    pub node_id:      u32,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
     pub vis:          Visibility,
     pub is_unsafe:    bool,
@@ -461,7 +512,8 @@ pub struct Impl {
 }
 
 pub struct OpTrait {
-    pub node_id:    u32,
+    pub span:       SpanId,
+    pub node_id:    ast::NodeId,
     pub attrs:      Vec<Box<Attribute>>,
     pub vis:        Visibility,
     pub name:       NameId,
@@ -470,7 +522,8 @@ pub struct OpTrait {
 }
 
 pub struct OpFunction {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub op_ty:   OpType,
     pub op:      Punctuation, 
     pub name:    NameId,
@@ -479,14 +532,16 @@ pub struct OpFunction {
 }
 
 pub struct OpSpecialization {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub op_ty:   OpType,
     pub op:      Punctuation,
     pub def:     Box<Expr>,
 }
 
 pub struct OpContract {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
 }
 
@@ -494,6 +549,7 @@ pub struct OpContract {
 
 #[derive(Clone)]
 pub struct Block {
+    pub span:  SpanId,
     pub stmts: Vec<Box<Stmt>>,
     pub expr:  Option<Box<Expr>>,
 }
@@ -511,7 +567,8 @@ pub enum Stmt {
 
 #[derive(Clone)]
 pub struct VarDecl {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub is_mut:  bool,
     pub name:    NameId,
@@ -521,7 +578,8 @@ pub struct VarDecl {
 
 #[derive(Clone)]
 pub struct UninitVarDecl {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub is_mut:  bool,
     pub name:    NameId,
@@ -530,14 +588,16 @@ pub struct UninitVarDecl {
 
 #[derive(Clone)]
 pub struct DeferStmt {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub expr:    Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct ErrorDeferStmt {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
     pub rec:     Option<ErrorDeferReceiver>,
     pub expr:    Box<Expr>,
@@ -545,13 +605,15 @@ pub struct ErrorDeferStmt {
 
 #[derive(Clone)]
 pub struct ErrorDeferReceiver { 
+    pub span:    SpanId,
     pub is_mut:  bool,
     pub name:    NameId,
 }
 
 #[derive(Clone)]
 pub struct ExprStmt {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
 }
 
@@ -560,9 +622,9 @@ pub struct ExprStmt {
 
 #[derive(Clone)]
 pub enum Expr {
-    Unit,
-    FullRange,
-    Underscore,
+    Unit(UnitExpr),
+    FullRange(FullRangeExpr),
+    Underscore(UnderscoreExpr),
     Literal(LiteralExpr),
     Path(PathExpr),
     Block(BlockExpr),
@@ -595,6 +657,62 @@ pub enum Expr {
     Irrefutable,
 }
 
+impl Expr {
+    pub fn span(&self) -> SpanId {
+        match self {
+            Expr::Unit(node) => node.span,
+            Expr::FullRange(node) => node.span,
+            Expr::Underscore(node) => node.span,
+            Expr::Literal(node) => node.span,
+            Expr::Path(node) => node.span(),
+            Expr::Block(node) => node.span,
+            Expr::Prefix(node) => node.span,
+            Expr::Postfix(node) => node.span,
+            Expr::Infix(node) => node.span,
+            Expr::Inplace(node) => node.span,
+            Expr::TypeCast(node) => node.span,
+            Expr::TypeCheck(node) => node.span,
+            Expr::Tuple(node) => node.span,
+            Expr::Array(node) => node.span,
+            Expr::Struct(node) => node.span,
+            Expr::Index(node) => node.span,
+            Expr::TupleIndex(node) => node.span,
+            Expr::FnCall(node) => node.span,
+            Expr::MethodCall(node) => node.span,
+            Expr::FieldAccess(node) => node.span,
+            Expr::Closure(node) => node.span,
+            Expr::Loop(node) => node.span,
+            Expr::Match(node) => node.span,
+            Expr::Break(node) => node.span,
+            Expr::Continue(node) => node.span,
+            Expr::Fallthrough(node) => node.span,
+            Expr::Return(node) => node.span,
+            Expr::Throw(node) => node.span,
+            Expr::Comma(node) => node.span,
+            Expr::When(node) => node.span,
+            Expr::Irrefutable => todo!(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct UnitExpr {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
+#[derive(Clone)]
+pub struct FullRangeExpr {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
+#[derive(Clone)]
+pub struct UnderscoreExpr {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
 #[derive(Clone)]
 pub enum LiteralValue {
     Lit(LiteralId),
@@ -610,7 +728,8 @@ pub enum LiteralOp {
 
 #[derive(Clone)]
 pub struct LiteralExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub literal: LiteralValue,
     pub lit_op:  Option<LiteralOp>,
 }
@@ -618,14 +737,34 @@ pub struct LiteralExpr {
 #[derive(Clone)]
 pub enum PathExpr {
     Named {
-        iden: Identifier,
+        span:    SpanId,
+        node_id: ast::NodeId,
+        iden:    Identifier,
     },
     Inferred {
-        iden: Identifier,
+        span:    SpanId,
+        node_id: ast::NodeId,
+        iden:    Identifier,
     },
-    SelfPath,
+    SelfPath {
+        span:    SpanId,
+        node_id: ast::NodeId,
+    },
     Qualified {
-        path: QualifiedPath,
+        span:    SpanId,
+        node_id: ast::NodeId,
+        path:    QualifiedPath,
+    }
+}
+
+impl PathExpr {
+    pub fn span(&self) -> SpanId {
+        match self {
+            PathExpr::Named { span, .. } => *span,
+            PathExpr::Inferred { span, .. } => *span,
+            PathExpr::SelfPath { span, .. } => *span,
+            PathExpr::Qualified { span, .. } => *span,
+        }
     }
 }
 
@@ -641,28 +780,32 @@ pub enum BlockKind {
 
 #[derive(Clone)]
 pub struct BlockExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub kind:    BlockKind,
     pub block:   Block,
 }
 
 #[derive(Clone)]
 pub struct PrefixExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub op:      Punctuation,
     pub expr:    Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct PostfixExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub op:      Punctuation,
     pub expr:    Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct InfixExpr {
-    pub node_id:     u32,
+    pub span:        SpanId,
+    pub node_id:     ast::NodeId,
     pub left:        Box<Expr>,
     pub op:          Punctuation,
     pub right:       Box<Expr>,
@@ -671,46 +814,53 @@ pub struct InfixExpr {
 
 #[derive(Clone)]
 pub struct InplaceExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub left:    Box<Expr>,
     pub right:   Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct TypeCastExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
     pub ty:      Box<Type>,
 }
 
 #[derive(Clone)]
 pub struct TypeCheckExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
     pub ty:      Box<Type>,
 }
 
 #[derive(Clone)]
 pub struct TupleExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub exprs:   Vec<Box<Expr>>,
 }
 
 #[derive(Clone)]
 pub struct ArrayExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub exprs:   Vec<Box<Expr>>
 }
 
 #[derive(Clone)]
 pub struct StructArg {
+    pub span: SpanId,
     pub name: NameId,
     pub expr: Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct StructExpr {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub path:     Box<Expr>,
     pub args:     Vec<StructArg>,
     pub complete: Option<Box<Expr>>,
@@ -718,7 +868,8 @@ pub struct StructExpr {
 
 #[derive(Clone)]
 pub struct IndexExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub is_opt:  bool,
     pub expr:    Box<Expr>,
     pub index:   Box<Expr>,
@@ -726,27 +877,31 @@ pub struct IndexExpr {
 
 #[derive(Clone)]
 pub struct TupleIndexExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
     pub index:   usize,
 }
 
 #[derive(Clone)]
 pub struct FnArg {
+    pub span:  SpanId,
     pub label: Option<NameId>,
     pub expr:  Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct FnCallExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub func:    Box<Expr>,
     pub args:    Vec<FnArg>,
 }
 
 #[derive(Clone)]
 pub struct MethodCallExpr { 
-    pub node_id:        u32,
+    pub span:           SpanId,
+    pub node_id:        ast::NodeId,
     pub receiver:       Box<Expr>,
     pub method:         NameId,
     pub gen_args:       Option<Box<GenericArgs>>,
@@ -756,7 +911,8 @@ pub struct MethodCallExpr {
 
 #[derive(Clone)]
 pub struct FieldAccessExpr {
-    pub node_id:        u32,
+    pub span:           SpanId,
+    pub node_id:        ast::NodeId,
     pub expr:           Box<Expr>,
     pub field:          NameId,
     pub gen_args:       Option<Box<GenericArgs>>,
@@ -766,7 +922,8 @@ pub struct FieldAccessExpr {
 // TODO: This is not correct yet
 #[derive(Clone)]
 pub struct ClosureExpr {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub is_moved: bool,
     pub params:   Vec<FnParam>,
     pub ret:      Option<Box<Type>>,
@@ -775,67 +932,78 @@ pub struct ClosureExpr {
 
 #[derive(Clone)]
 pub struct LoopExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub label:   Option<NameId>,
     pub body:    Box<Block>,
 }
 
 #[derive(Clone)]
 pub struct MatchBranch {
-    pub label:   Option<NameId>,
-    pub pattern: Box<Pattern>,
-    pub guard:   Option<Box<Expr>>,
-    pub body:    Box<Expr>,
+    pub label:     Option<NameId>,
+    pub pattern:   Box<Pattern>,
+    pub guard:     Option<Box<Expr>>,
+    pub body:      Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct MatchExpr {
-    pub node_id:   u32,
+    pub span:      SpanId,
+    pub node_id:   ast::NodeId,
     pub label:     Option<NameId>,
     pub scrutinee: Box<Expr>,
     pub branches:  Vec<MatchBranch>,
+    // Does this match require a bool, i.e. converted `if` or `while`
+    pub bool_cond: bool,
 }
 
 #[derive(Clone)]
 pub struct BreakExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub label:   Option<NameId>,
     pub value:   Option<Box<Expr>>,
 }
 
 #[derive(Clone)]
 pub struct ContinueExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub label:   Option<NameId>
 }
 
 #[derive(Clone)]
 pub struct FallthroughExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub label:   Option<NameId>,
 }
 
 #[derive(Clone)]
 pub struct ReturnExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub value:   Option<Box<Expr>>,
 }
 
 #[derive(Clone)]
 pub struct ThrowExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
 }
 
 #[derive(Clone)]
 pub struct CommaExpr {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub exprs:   Vec<Box<Expr>>,
 }
 
 #[derive(Clone)]
 pub struct WhenExpr {
-    pub node_id:   u32,
+    pub span:      SpanId,
+    pub node_id:   ast::NodeId,
     pub cond:      Box<Expr>,
     pub body:      Box<Block>,
     pub else_body: Option<Box<Block>>
@@ -845,8 +1013,8 @@ pub struct WhenExpr {
 
 #[derive(Clone)]
 pub enum Pattern {
-    Wildcard,
-    Rest,
+    Wildcard(WildcardPattern),
+    Rest(RestPattern),
     Literal(LiteralPattern),
     Iden(IdenPattern),
     Path(PathPattern),
@@ -861,40 +1029,111 @@ pub enum Pattern {
     TypeCheck(TypeCheckPattern),
 }
 
+impl Pattern {
+    pub fn span(&self) -> SpanId {
+        match self {
+            Pattern::Wildcard(node) => node.span,
+            Pattern::Rest(node) => node.span,
+            Pattern::Literal(node) => node.span,
+            Pattern::Iden(node) => node.span,
+            Pattern::Path(node) => node.span,
+            Pattern::Range(node) => node.span(),
+            Pattern::Reference(node) => node.span,
+            Pattern::Struct(node) => node.span,
+            Pattern::TupleStruct(node) => node.span,
+            Pattern::Tuple(node) => node.span,
+            Pattern::Slice(node) => node.span,
+            Pattern::EnumMember(node) => node.span,
+            Pattern::Alternative(node) => node.span,
+            Pattern::TypeCheck(node) => node.span,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct WildcardPattern {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
+#[derive(Clone)]
+pub struct RestPattern {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
 #[derive(Clone)]
 pub struct LiteralPattern {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub literal: LiteralValue,
     pub lit_op:  Option<LiteralOp>,
 }
 
 #[derive(Clone)]
 pub struct IdenPattern {
-    pub node_id: u32,
-    pub is_ref: bool,
-    pub is_mut: bool,
-    pub name:   NameId,
-    pub bound:  Option<Box<Pattern>>
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub is_ref:  bool,
+    pub is_mut:  bool,
+    pub name:    NameId,
+    pub bound:   Option<Box<Pattern>>
 }
 
 #[derive(Clone)]
 pub struct PathPattern {
-    pub node_id: u32,
-    pub path: Path,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub path:    Path,
 }
 
 #[derive(Clone)]
 pub enum RangePattern {
-    Exclusive{ node_id: u32, begin: Box<Pattern>, end: Box<Pattern> },
-    Inclusive{ node_id: u32, begin: Box<Pattern>, end: Box<Pattern> },
-    From{ node_id: u32, begin: Box<Pattern> },
-    To{ node_id: u32, end: Box<Pattern> },
-    InclusiveTo{ node_id: u32, end: Box<Pattern> },
+    Exclusive{
+        span: SpanId,
+        node_id: ast::NodeId,
+        begin: Box<Pattern>,
+        end: Box<Pattern>
+    },
+    Inclusive{
+        span: SpanId,
+        node_id: ast::NodeId,
+        begin: Box<Pattern>,
+        end: Box<Pattern>
+    },
+    From{
+        span: SpanId,
+        node_id: ast::NodeId,
+        begin: Box<Pattern>
+    },
+    To{
+        span: SpanId,
+        node_id: ast::NodeId,
+        end: Box<Pattern>
+    },
+    InclusiveTo{
+        span: SpanId,
+        node_id: ast::NodeId,
+        end: Box<Pattern>
+    },
+}
+
+impl RangePattern {
+    pub fn span(&self) -> SpanId {
+        match self {
+            RangePattern::Exclusive { span, .. } => *span,
+            RangePattern::Inclusive { span, .. } => *span,
+            RangePattern::From { span, .. } => *span,
+            RangePattern::To { span, .. } => *span,
+            RangePattern::InclusiveTo { span, .. } => *span,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct ReferencePattern {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub is_mut:  bool,
     pub pattern: Box<Pattern>,
 }
@@ -902,17 +1141,20 @@ pub struct ReferencePattern {
 #[derive(Clone)]
 pub enum StructPatternField {
     Named {
-        node_id: u32,
+        span:    SpanId,
+        node_id: ast::NodeId,
         name:    NameId,
         pattern: Box<Pattern>,
     },
     TupleIndex {
-        node_id: u32,
+        span:    SpanId,
+        node_id: ast::NodeId,
         index:   usize,
         pattern: Box<Pattern>,
     },
     Iden {
-        node_id: u32,
+        span:    SpanId,
+        node_id: ast::NodeId,
         is_ref:  bool,
         is_mut:  bool,
         iden:    NameId,
@@ -923,45 +1165,52 @@ pub enum StructPatternField {
 
 #[derive(Clone)]
 pub struct StructPattern {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub path:    Option<Path>,
     pub fields:  Vec<StructPatternField>,
 }
 
 #[derive(Clone)]
 pub struct TupleStructPattern {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub path:     Option<Path>,
     pub patterns: Vec<Box<Pattern>>,
 }
 
 #[derive(Clone)]
 pub struct TuplePattern {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub patterns: Vec<Box<Pattern>>,
 }
 
 #[derive(Clone)]
 pub struct SlicePattern {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub patterns: Vec<Box<Pattern>>,
 }
 
 #[derive(Clone)]
 pub struct EnumMemberPattern {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub name:    NameId
 }
 
 #[derive(Clone)]
 pub struct AlternativePattern {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub patterns: Vec<Box<Pattern>>,
 }
 
 #[derive(Clone)]
 pub struct TypeCheckPattern {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub ty:      Box<Type>,
 }
 
@@ -969,8 +1218,8 @@ pub struct TypeCheckPattern {
 
 #[derive(Clone)]
 pub enum Type {
-    Unit,
-    Never,
+    Unit(UnitType),
+    Never(NeverType),
     Primitive(PrimitiveType),
     Path(PathType),
     Tuple(TupleType),
@@ -983,28 +1232,44 @@ pub enum Type {
     Fn(FnType),
 }
 
+#[derive(Clone)]
+pub struct UnitType {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
+#[derive(Clone)]
+pub struct NeverType {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+}
+
 
 #[derive(Clone)]
 pub struct PrimitiveType {
-    pub node_id: u32,
-    pub ty: type_system::PrimitiveType,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub ty:      type_system::PrimitiveType,
 }
 
 #[derive(Clone)]
 pub struct PathType {
-    pub node_id: u32,
-    pub path: TypePath,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub path:    TypePath,
 }
 
 #[derive(Clone)]
 pub struct TupleType {
-    pub node_id: u32,
-    pub types: Vec<Box<Type>>
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub types:   Vec<Box<Type>>
 }
 
 #[derive(Clone)]
 pub struct ArrayType {
-    pub node_id: u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub size:     Box<Expr>,
     pub sentinel: Option<Box<Expr>>,
     pub ty:       Box<Type>,
@@ -1012,20 +1277,23 @@ pub struct ArrayType {
 
 #[derive(Clone)]
 pub struct SliceType {
-    pub node_id: u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub sentinel: Option<Box<Expr>>,
     pub ty:       Box<Type>,
 }
 
 #[derive(Clone)]
 pub struct StringSliceType {
-    pub node_id: u32,
-    pub ty: type_system::StringSliceType
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub ty:      type_system::StringSliceType
 }
 
 #[derive(Clone)]
 pub struct PointerType {
-    pub node_id:  u32,
+    pub span:     SpanId,
+    pub node_id:  ast::NodeId,
     pub is_multi: bool,
     pub is_mut:   bool,
     pub ty:       Box<Type>,
@@ -1034,20 +1302,23 @@ pub struct PointerType {
 
 #[derive(Clone)]
 pub struct ReferenceType {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub is_mut:  bool,
     pub ty:      Box<Type>,
 }
 
 #[derive(Clone)]
 pub struct OptionalType {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub ty:      Box<Type>,
 }
 
 #[derive(Clone)]
 pub struct FnType {
-    pub node_id:   u32,
+    pub span:      SpanId,
+    pub node_id:   ast::NodeId,
     pub is_unsafe: bool,
     pub abi:       Abi,
     pub params:    Vec<(NameId, Box<Type>)>,
@@ -1088,18 +1359,35 @@ pub struct Contract {
 #[derive(Clone)]
 pub enum Visibility {
     Priv,
-    Pub,
-    Lib,
-    Package,
-    Super,
-    Path(SimplePath),
+    Pub {
+        span:    SpanId,
+        node_id: ast::NodeId,
+    },
+    Lib {
+        span:    SpanId,
+        node_id: ast::NodeId,
+    },
+    Package {
+        span:    SpanId,
+        node_id: ast::NodeId,
+    },
+    Super {
+        span:    SpanId,
+        node_id: ast::NodeId,
+    },
+    Path {
+        span:    SpanId,
+        node_id: ast::NodeId,
+        path:    SimplePath,
+    },
 }
 
 // =============================================================================================================================
 
 #[derive(Clone)]
 pub struct Attribute {
-    pub node_id: u32,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
     pub path:    Vec<NameId>,
     pub meta:    AttrMeta,
 }
@@ -1107,9 +1395,16 @@ pub struct Attribute {
 #[derive(Clone)]
 pub enum AttrMeta {
     None,
-    Expr{ expr: Expr },
-    Assign { expr: Expr },
-    Meta { 
+    Expr{
+        span: SpanId,
+        expr: Expr
+    },
+    Assign {
+        span: SpanId,
+        expr: Expr
+    },
+    Meta {
+        span: SpanId,
         metas: Vec<AttrMeta>,
     }
 }

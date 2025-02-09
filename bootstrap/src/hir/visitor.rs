@@ -243,9 +243,9 @@ pub trait Visitor: Sized {
         helpers::visit_expr(self, expr);
     }
 
-    fn visit_unit_expr(&mut self) {}
-    fn visit_fullrange_expr(&mut self) {}
-    fn visit_underscore_expr(&mut self) {}
+    fn visit_unit_expr(&mut self, node: &mut UnitExpr) {}
+    fn visit_fullrange_expr(&mut self, node: &mut FullRangeExpr) {}
+    fn visit_underscore_expr(&mut self, node: &mut UnderscoreExpr) {}
 
     fn visit_literal_expr(&mut self, node: &mut LiteralExpr) {}
 
@@ -356,8 +356,8 @@ pub trait Visitor: Sized {
         helpers::visit_pattern(self, node);
     }
 
-    fn visit_wildcard_pattern(&mut self) {}
-    fn visit_rest_pattern(&mut self) {}
+    fn visit_wildcard_pattern(&mut self, node: &mut WildcardPattern) {}
+    fn visit_rest_pattern(&mut self, node: &mut RestPattern) {}
 
     fn visit_literal_pattern(&mut self, node: &mut LiteralPattern) {}
     fn visit_iden_pattern(&mut self, node: &mut IdenPattern) {}
@@ -406,8 +406,8 @@ pub trait Visitor: Sized {
         helpers::visit_type(self, node)
     }
 
-    fn visit_unit_type(&mut self) {}
-    fn visit_never_type(&mut self) {}
+    fn visit_unit_type(&mut self, node: &mut UnitType) {}
+    fn visit_never_type(&mut self, node: &mut NeverType) {}
 
     fn visit_primitive_type(&mut self, node: &mut PrimitiveType) {}
 
@@ -703,14 +703,14 @@ pub(crate) mod helpers {
 
     pub fn visit_fn_param<T: Visitor>(visitor: &mut T, param: &mut FnParam) {
         match param {
-            FnParam::Param { attrs, label, pattern, ty } => {
+            FnParam::Param { attrs, label, pattern, ty, .. } => {
                 for attr in attrs {
                     visitor.visit_attribute(attr);
                 }
                 visitor.visit_pattern(pattern);
                 visitor.visit_type(ty);
             },
-            FnParam::Opt { attrs, label, pattern, ty, def } => {
+            FnParam::Opt { attrs, label, pattern, ty, def, .. } => {
                 for attr in attrs {
                     visitor.visit_attribute(attr);
                 }
@@ -718,7 +718,7 @@ pub(crate) mod helpers {
                 visitor.visit_type(ty);
                 visitor.visit_expr(def);
             },
-            FnParam::Variadic { attrs, name, ty } => {
+            FnParam::Variadic { attrs, name, ty, .. } => {
                 for attr in attrs {
                     visitor.visit_attribute(attr);
                 }
@@ -730,11 +730,11 @@ pub(crate) mod helpers {
     fn visit_type_path<T: Visitor>(visitor: &mut T, path: &mut TypePath) {
         for segment in &mut path.segments {
             match segment {
-                TypePathSegment::Plain { name } => (),
-                TypePathSegment::GenArg { name, gen_args } => {
+                TypePathSegment::Plain { .. } => (),
+                TypePathSegment::GenArg { gen_args, .. } => {
                     visitor.visit_gen_args(gen_args);
                 },
-                TypePathSegment::Fn { name, params, ret } => {
+                TypePathSegment::Fn { params, ret, .. } => {
                     for param in params {
                         visitor.visit_type(param);
                     }
@@ -807,7 +807,7 @@ pub(crate) mod helpers {
         match &mut node.receiver {
             FnReceiver::None => (),
             FnReceiver::SelfReceiver { .. } => (),
-            FnReceiver::SelfTyped { is_mut: _, ty } => visitor.visit_type(ty),
+            FnReceiver::SelfTyped { ty, .. } => visitor.visit_type(ty),
         }
 
         for param in &mut node.params {
@@ -865,7 +865,7 @@ pub(crate) mod helpers {
         match &mut node.receiver {
             FnReceiver::None => (),
             FnReceiver::SelfReceiver { .. } => (),
-            FnReceiver::SelfTyped { is_mut: _, ty } => visitor.visit_type(ty),
+            FnReceiver::SelfTyped { ty, .. } => visitor.visit_type(ty),
         }
 
         for param in &mut node.params {
@@ -1021,7 +1021,7 @@ pub(crate) mod helpers {
 
         for variant in &mut node.variants {
             match variant {
-                AdtEnumVariant::Struct { attrs, is_mut, name, fields, discriminant } => {
+                AdtEnumVariant::Struct { attrs, is_mut, name, fields, discriminant, .. } => {
                     for attr in attrs {
                         visitor.visit_attribute(attr);
                     }
@@ -1032,7 +1032,7 @@ pub(crate) mod helpers {
                         visitor.visit_expr(discriminant);
                     }
                 },
-                AdtEnumVariant::Tuple { attrs, is_mut, name, fields, discriminant } => {
+                AdtEnumVariant::Tuple { attrs, is_mut, name, fields, discriminant, .. } => {
                     for attr in attrs {
                         visitor.visit_attribute(attr);
                     }
@@ -1043,7 +1043,7 @@ pub(crate) mod helpers {
                         visitor.visit_expr(discriminant);
                     }
                 },
-                AdtEnumVariant::Fieldless { attrs, name, discriminant } => {
+                AdtEnumVariant::Fieldless { attrs, name, discriminant, .. } => {
                     for attr in attrs {
                         visitor.visit_attribute(attr);
                     }
@@ -1271,9 +1271,9 @@ pub(crate) mod helpers {
 
     pub fn visit_expr<T: Visitor>(visitor: &mut T, node: &mut Expr) {
         match node {
-            Expr::Unit              => visitor.visit_unit_expr(),
-            Expr::FullRange         => visitor.visit_fullrange_expr(),
-            Expr::Underscore        => visitor.visit_underscore_expr(),
+            Expr::Unit(expr)        => visitor.visit_unit_expr(expr),
+            Expr::FullRange(expr)   => visitor.visit_fullrange_expr(expr),
+            Expr::Underscore(expr)  => visitor.visit_underscore_expr(expr),
             Expr::Literal(expr)     => visitor.visit_literal_expr(expr),
             Expr::Path(expr)        => visitor.visit_path_expr(expr),
             Expr::Block(expr)       => visitor.visit_block_expr(expr),
@@ -1307,18 +1307,18 @@ pub(crate) mod helpers {
 
     pub fn visit_path_expr<T: Visitor>(visitor: &mut T, node: &mut PathExpr) {
         match node {
-            PathExpr::Named { iden } => {
+            PathExpr::Named { iden, .. } => {
                 if let Some(gen_args) = &mut iden.gen_args {
                     visitor.visit_gen_args(gen_args)
                 }
             },
-            PathExpr::Inferred { iden } => {
+            PathExpr::Inferred { iden, .. } => {
                 if let Some(gen_args) = &mut iden.gen_args {
                     visitor.visit_gen_args(gen_args)
                 }
             },
-            PathExpr::SelfPath => (),
-            PathExpr::Qualified { path } => {
+            PathExpr::SelfPath{ .. } => (),
+            PathExpr::Qualified { path, .. } => {
                 visitor.visit_qual_path(path);
             },
         }
@@ -1471,8 +1471,8 @@ pub(crate) mod helpers {
 
     pub fn visit_pattern<T: Visitor>(visitor: &mut T, node: &mut Pattern) {
         match node {
-            Pattern::Wildcard             => visitor.visit_wildcard_pattern(),
-            Pattern::Rest                 => visitor.visit_rest_pattern(),
+            Pattern::Wildcard(pattern)    => visitor.visit_wildcard_pattern(pattern),
+            Pattern::Rest(pattern)        => visitor.visit_rest_pattern(pattern),
             Pattern::Literal(pattern)     => visitor.visit_literal_pattern(pattern),
             Pattern::Iden(pattern)        => visitor.visit_iden_pattern(pattern),
             Pattern::Path(pattern)        => visitor.visit_path_pattern(pattern),
@@ -1500,21 +1500,21 @@ pub(crate) mod helpers {
 
     pub fn visit_range_pattern<T: Visitor>(visitor: &mut T, node: &mut RangePattern) {
         match node {
-            RangePattern::Exclusive { node_id, begin, end } => {
+            RangePattern::Exclusive { begin, end, .. } => {
                 visitor.visit_pattern(begin);
                 visitor.visit_pattern(end);
             },
-            RangePattern::Inclusive { node_id, begin, end } => {
+            RangePattern::Inclusive { begin, end, .. } => {
                 visitor.visit_pattern(begin);
                 visitor.visit_pattern(end);
             },
-            RangePattern::From { node_id, begin } => {
+            RangePattern::From { begin, .. } => {
                 visitor.visit_pattern(begin);
             },
-            RangePattern::To { node_id, end } => {
+            RangePattern::To { end, .. } => {
                 visitor.visit_pattern(end);
             },
-            RangePattern::InclusiveTo { node_id, end } => {
+            RangePattern::InclusiveTo { end, .. } => {
                 visitor.visit_pattern(end);
             },
         }
@@ -1530,13 +1530,13 @@ pub(crate) mod helpers {
         }
         for field in &mut node.fields {
             match field {
-                StructPatternField::Named { node_id, name, pattern } => {
+                StructPatternField::Named { pattern, .. } => {
                     visitor.visit_pattern(pattern);
                 },
-                StructPatternField::TupleIndex { node_id, index, pattern } => {
+                StructPatternField::TupleIndex { pattern, .. } => {
                     visitor.visit_pattern(pattern);
                 },
-                StructPatternField::Iden { node_id, is_ref, is_mut, iden, bound } => if let Some(bound) = bound {
+                StructPatternField::Iden { bound, .. } => if let Some(bound) = bound {
                     visitor.visit_pattern(bound);
                 },
                 StructPatternField::Rest => {},
@@ -1579,8 +1579,8 @@ pub(crate) mod helpers {
 
     pub fn visit_type<T: Visitor>(visitor: &mut T, node: &mut Type) {
         match node {
-            Type::Unit            => visitor.visit_unit_type(),
-            Type::Never           => visitor.visit_never_type(),
+            Type::Unit(ty)        => visitor.visit_unit_type(ty),
+            Type::Never(ty)       => visitor.visit_never_type(ty),
             Type::Primitive(ty)   => visitor.visit_primitive_type(ty),
             Type::Path(ty)        => visitor.visit_path_type(ty),
             Type::Tuple(ty)       => visitor.visit_tuple_type(ty),
