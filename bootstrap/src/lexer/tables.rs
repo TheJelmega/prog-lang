@@ -1,8 +1,6 @@
 use core::ops::Index;
 use std::fmt::Display;
 
-use super::WeakKeyword;
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct PunctuationId(u32);
 

@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
 
-use crate::common::NameId;
-
 use super::Logger;
 
 #[derive(Clone)]
@@ -187,7 +185,7 @@ impl PrecedenceDAG {
     }
 
     pub fn log_unordered(&self) {
-        let mut logger = Logger::new();
+        let logger = Logger::new();
 
         for (id, node) in self.nodes.iter().enumerate() {
             logger.log_fmt(format_args!("Precedence {id}, path: {}\n", &node.name));

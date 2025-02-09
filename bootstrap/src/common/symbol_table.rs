@@ -4,26 +4,11 @@ use std::{
     path::PathBuf,
     sync::Arc
 };
-use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::RwLock;
 
 use super::{IndentLogger, LibraryPath, Scope, ScopeSegment, UseTable};
 
-pub struct SymbolPathIden {
-    name:   String,
-    params: Vec<String>,
-}
-
-pub struct SymbolPath {
-    idens: Vec<SymbolPathIden>
-}
-
-impl SymbolPath {
-    
-}
-
-
 // =============================================================
-
 
 pub enum Symbol {
     Module(ModuleSymbol),
@@ -44,22 +29,10 @@ pub enum Symbol {
     Impl(ImplSymbol),
 }
 
-impl Symbol {
-    fn get_sub_table(sym: &Symbol) -> Option<&SymbolTable> {
-        match sym {
-            Self::Module(sym) => Some(&sym.sub_table),
-            Self::Trait(sym)  => Some(&sym.sub_table),
-            Self::Impl(sym)   => Some(&sym.sub_table),
-            _ => None,
-        }
-    }
-}
-
 pub struct ModuleSymbol {
     pub scope:     Scope,
     pub name:      String,
     pub path:      PathBuf,
-    pub sub_table: SymbolTable
 }
 
 pub struct PrecedenceSymbol {
@@ -177,15 +150,11 @@ pub struct PropertySymbol {
 pub struct TraitSymbol {
     pub scope:     Scope,
     pub name:      String,
-
-    pub sub_table: SymbolTable,
 }
 
 pub struct ImplSymbol {
     pub scope:     Scope,
     pub name:      String,
-
-    pub sub_table: SymbolTable,
 }
 
 pub type SymbolRef = Arc<RwLock<Symbol>>;
@@ -203,147 +172,6 @@ impl SymbolTable {
         }
     }
 
-    // TODO: remove start
-    pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) -> SymbolRef {
-        let sym = Symbol::Module(ModuleSymbol{
-            scope: scope.clone(),
-            name: name.clone(),
-            path: file_path,
-            sub_table: SymbolTable::new(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_precedence(&mut self, scope: &Scope, name: String, id: u16) -> SymbolRef {
-        let sym = Symbol::Precedence(PrecedenceSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-            id,
-        }); 
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_function(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Function(FunctionSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-
-            sub_table: SymbolTable::new(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_type_alias(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::TypeAlias(TypeAliasSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_distinct_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::DistinctType(DistinctTypeSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_opaque_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_struct(&mut self, scope: &Scope, name: String, kind: StructKind) -> SymbolRef {
-        let sym = Symbol::Struct(StructSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-            kind,
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_union(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Union(UnionSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_adt_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::AdtEnum(AdtEnumSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_flag_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::FlagEnum(FlagEnumSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_bitfield(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Bitfield(BitfieldSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_const(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Const(ConstSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_static(&mut self, scope: &Scope, name: String, kind: StaticKind) -> SymbolRef {
-        let sym = Symbol::Static(StaticSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-            kind,
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_property(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Property(PropertySymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_trait(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Trait(TraitSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-
-            sub_table: SymbolTable::new(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-
-    pub fn add_impl(&mut self, scope: &Scope, name: String) -> SymbolRef {
-        let sym = Symbol::Impl(ImplSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
-
-            sub_table: SymbolTable::new(),
-        });
-        self.add_symbol(scope, &name, &[], sym)
-    }
-    // TODO: remove end
-
     fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
         let sym = Arc::new(RwLock::new(sym));
         self.add_symbol_(scope, name, params, sym.clone());
@@ -360,54 +188,6 @@ impl SymbolTable {
     pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
         let sub_table = self.get_sub_table(scope.segments())?;
         sub_table.get_symbol_from_name(name)
-    }
-
-    /// Get a symbol, while also searching all available scopes
-    /// 
-    /// * `cur_scope` - Scope of the symbol being processed
-    /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
-    /// * `sym_path` - Path of the symbol as it occurs within code
-    // TODO: lib path
-    pub fn get_symbol_with_uses(&self, use_table: &UseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
-        assert!(!sym_path.is_empty());
-
-        let sym_name = &sym_path.last().unwrap().name;
-        let sym_scope = sym_path.parent();
-
-        // Look into the current scope first
-        if let Some(local_sub_table) = self.get_sub_table(cur_scope.segments()) {
-            if let Some(sym) = local_sub_table.get_symbol(&sym_scope, &sym_name) {
-                return Some(sym);
-            }
-        }
-
-        // Then look into the use table
-        let mut use_loc_path = cur_scope.clone();
-        use_loc_path.extend(cur_sub_scope);
-        let mut found_sym = None;
-        use_table.with_uses(&use_loc_path, |use_path| {
-            let root = sym_path.root().unwrap();
-            let mut act_sym_path = use_path.path.clone();
-            if let Some(alias) = &use_path.alias {
-                if !root.params.is_empty() || root.name != *alias {
-                    return true;
-                }
-                act_sym_path.extend(&sym_path.sub_path());
-            } else {
-                act_sym_path.extend(sym_path);
-            };
-
-            if let Some(sym) = self.get_symbol(&act_sym_path.parent(), sym_name) {
-                if found_sym.is_some() {
-                    todo!("Error, ambiguous symbol");
-                }
-                found_sym = Some(sym);
-                return true;
-            }
-            false
-        });
-
-        found_sym
     }
 
     fn get_sub_table(&self, segments: &[ScopeSegment]) -> Option<&SymbolTable> {
@@ -447,12 +227,6 @@ impl SymbolTable {
             None
         }
     }
-
-
-    pub fn log(&self) {
-        let mut logger = IndentLogger::new("    ", "|   ", "+---");
-        SymbolTableLogger::log_table(&mut logger, self);
-    }
 }
 pub struct RootSymbolTable {
     cur_lib: LibraryPath,
@@ -476,7 +250,6 @@ impl RootSymbolTable {
             scope: scope.clone(),
             name: name.clone(),
             path: file_path,
-            sub_table: SymbolTable::new(),
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -594,8 +367,6 @@ impl RootSymbolTable {
         let sym = Symbol::Trait(TraitSymbol {
             scope: scope.clone(),
             name: name.clone(),
-
-            sub_table: SymbolTable::new(),
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -604,8 +375,6 @@ impl RootSymbolTable {
         let sym = Symbol::Impl(ImplSymbol {
             scope: scope.clone(),
             name: name.clone(),
-
-            sub_table: SymbolTable::new(),
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -674,7 +443,7 @@ impl RootSymbolTable {
 
         found_sym
     }
-    
+
     pub fn log(&self) {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
         for (lib_path, table) in &self.tables {

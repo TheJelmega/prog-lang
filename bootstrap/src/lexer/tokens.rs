@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self, Display, Write as _},
+    fmt::{self, Write as _},
     io
 };
 use super::{NameId, NameTable, PunctuationId, PuncutationTable, SpanId, SpanRegistry};

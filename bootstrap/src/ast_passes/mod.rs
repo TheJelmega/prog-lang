@@ -1,7 +1,7 @@
 use std::{fmt, path::PathBuf, sync::Arc};
 use crate::{
     ast::{Ast, AstNodeRef, AstNode, NodeId},
-    common::{LibraryPath, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope},
+    common::{LibraryPath, PrecedenceDAG, RootSymbolTable, Scope},
     error_warning::AstErrorCode
 };
 use parking_lot::{Mutex, RwLock};
