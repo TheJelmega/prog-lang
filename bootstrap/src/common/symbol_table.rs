@@ -6,7 +6,7 @@ use std::{
 };
 use parking_lot::RwLock;
 
-use super::{IndentLogger, LibraryPath, Scope, ScopeSegment, UseTable};
+use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, UseTable};
 
 // =============================================================
 
@@ -397,7 +397,7 @@ impl RootSymbolTable {
     /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
     /// * `sym_path` - Path of the symbol as it occurs within code
     // TODO: lib path
-    pub fn get_symbol_with_uses(&self, use_table: &UseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
+    pub fn get_symbol_with_uses(&self, use_table: &RootUseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
         assert!(!sym_path.is_empty());
 
         let sym_name = &sym_path.last().unwrap().name;

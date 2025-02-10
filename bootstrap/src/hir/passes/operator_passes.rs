@@ -2,20 +2,20 @@ use core::prelude;
 use std::{collections::VecDeque, mem};
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, Symbol, SymbolTable, UseTable},
+    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolTable, UseTable},
     hir::*, lexer::PuncutationTable
 };
 
-pub struct PrecedenceProcessing<'a> {
+pub struct OpPrecedenceProcessing<'a> {
     names:          &'a NameTable,
     precedence_dag: &'a PrecedenceDAG,
     sym_table:      &'a RootSymbolTable,
     op_table:       &'a mut OperatorTable,
-    use_table:      &'a UseTable,
+    use_table:      &'a RootUseTable,
 }
 
-impl<'a> PrecedenceProcessing<'a> {
-    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a RootSymbolTable, op_table: &'a mut OperatorTable, use_table: &'a UseTable) -> Self {
+impl<'a> OpPrecedenceProcessing<'a> {
+    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a RootSymbolTable, op_table: &'a mut OperatorTable, use_table: &'a RootUseTable) -> Self {
         Self {
             names,
             precedence_dag,
@@ -26,11 +26,11 @@ impl<'a> PrecedenceProcessing<'a> {
     }
 }
 
-impl Pass for PrecedenceProcessing<'_> {
+impl Pass for OpPrecedenceProcessing<'_> {
     const NAME: &'static str = "Op trait <-> precedence processing";
 }
 
-impl Visitor for PrecedenceProcessing<'_> {
+impl Visitor for OpPrecedenceProcessing<'_> {
     fn visit(&mut self, hir: &mut Hir, _flags: VisitFlags) {
         
         let mut to_process: VecDeque<usize> = (0..hir.op_traits.len()).collect();

@@ -534,7 +534,7 @@ pub struct UseItem {
     pub vis:     Option<AstNodeRef<Visibility>>,
     pub group:   Option<NameId>,
     pub package: Option<NameId>,
-    pub module:  Option<NameId>,
+    pub library:  Option<NameId>,
     pub path:    AstNodeRef<UsePath>,
 }
 
@@ -558,7 +558,7 @@ impl AstNode for UseItem {
             if let Some(package) = &self.package {
                 logger.prefixed_log_fmt(format_args!("Package: {}\n", logger.resolve_name(*package)));
             }
-            if let Some(module) = &self.module {
+            if let Some(module) = &self.library {
                 logger.prefixed_log_fmt(format_args!("Module: {}\n", logger.resolve_name(*module)));
             }
             

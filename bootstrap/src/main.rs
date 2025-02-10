@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, Scope, SpanRegistry, UseTable};
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanRegistry, UseTable};
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -282,7 +282,7 @@ fn main() {
 
     // TODO: External operator importing happens here
 
-    let mut use_table = UseTable::new();
+    let mut use_table = RootUseTable::new();
 
 
     let mut hir = hir::Hir::new();
@@ -418,7 +418,7 @@ pub struct HirProcessCtx<'a> {
     sym_table:      &'a mut RootSymbolTable,
     precedence_dag: &'a PrecedenceDAG,
     op_table:       &'a mut OperatorTable,
-    uses:           &'a UseTable,
+    uses:           &'a RootUseTable,
 
     lib_path:       LibraryPath,
     
@@ -432,7 +432,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut ctx
     do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx.sym_table, ctx.names));
     
     // Precedence and operators
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table, ctx.uses));
+    do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table, ctx.uses));
     do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx.names, ctx.op_table, ctx.lib_path.clone()));
     do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx.puncts, ctx.op_table, ctx.precedence_dag, &mut ctx.errors));
 

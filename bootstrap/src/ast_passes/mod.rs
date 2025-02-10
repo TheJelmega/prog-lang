@@ -21,8 +21,6 @@ pub use module_symbol_generation::*;
 mod precedence_passes;
 pub use precedence_passes::*;
 
-mod operator_passes;
-
 mod hir_lower;
 pub use hir_lower::*;
 

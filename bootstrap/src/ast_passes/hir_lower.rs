@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::*,
-    common::{uses, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry, UseTable},
+    common::{uses::{self, OpUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, OperatorImportPath, Scope, SpanId, SpanRegistry, UseTable},
     error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
@@ -49,13 +49,13 @@ pub struct AstToHirLowering<'a> {
     qual_path_stack:    Vec<hir::QualifiedPath>,
 
     hir:                &'a mut hir::Hir,
-    use_table:          &'a mut UseTable,
+    use_table:          &'a mut RootUseTable,
 
     lib_path:           LibraryPath,
 }
 
 impl<'a> AstToHirLowering<'a> {
-    pub fn new(ctx: &'a mut Context, names: &'a mut NameTable, literals: &'a LiteralTable, spans: &'a SpanRegistry, hir: &'a mut hir::Hir, use_table: &'a mut UseTable, lib_path: LibraryPath) -> Self {
+    pub fn new(ctx: &'a mut Context, names: &'a mut NameTable, literals: &'a LiteralTable, spans: &'a SpanRegistry, hir: &'a mut hir::Hir, use_table: &'a mut RootUseTable, lib_path: LibraryPath) -> Self {
 
         let comp_gen_name = names.add("compiler_generated");
 
@@ -499,6 +499,32 @@ impl AstToHirLowering<'_> {
         vis.map_or(self.default_vis.clone(), |_| self.vis_stack.pop().unwrap())
     }
 
+    fn get_lib_path(&self, group: Option<NameId>, package: Option<NameId>, library: Option<NameId>) -> LibraryPath {
+        if package.is_none() && library.is_none() {
+            return self.lib_path.clone();
+        }
+
+        let group = group.map(|group| self.names[group].to_string());
+
+        let package = if let Some(package) = package {
+            self.names[package].to_string()
+        } else {
+            self.lib_path.package.clone()
+        };
+
+        let library = if let Some(library) = library {
+            self.names[library].to_string()
+        } else {
+            package.clone()
+        };
+
+        LibraryPath {
+            group,
+            package,
+            library,
+        }
+    }
+
     fn get_use_subpaths(&mut self, use_path: &AstNodeRef<UsePath>, lib_path: LibraryPath, base_scope: Scope, paths: &mut Vec<uses::UsePath>) {
         match &**use_path {
             UsePath::SelfPath { span, node_id, alias } => {
@@ -685,7 +711,8 @@ impl Visitor for AstToHirLowering<'_> {
         let scope = ast_ctx.scope.clone();
 
         let mut paths = Vec::new();
-        self.get_use_subpaths(&node.path, self.lib_path.clone(), Scope::new(), &mut paths);
+        let lib_path = self.get_lib_path(node.group, node.package, node.library);
+        self.get_use_subpaths(&node.path, lib_path, Scope::new(), &mut paths);
 
         for path in paths {
             self.use_table.add_use(&scope, path);
@@ -1544,7 +1571,27 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
 
-    fn visit_op_use(&mut self, _node: &AstNodeRef<OpUse>) where Self: Sized {
+    fn visit_op_use(&mut self, node: &AstNodeRef<OpUse>) where Self: Sized {
+        // Check if we're a top level use
+        let scope = &self.ctx.get_node_for(node).scope;
+        if !scope.is_empty() {
+            self.ctx.add_error(AstError {
+                node_id: node.node_id,
+                err: AstErrorCode::NotTopLevel {
+                    path: scope.to_string(),
+                    info: "Operator use".to_string()
+                }
+            });
+            return;
+        }
+
+        let lib_path = self.get_lib_path(node.group, node.package, node.library);
+        for op in &node.operators {
+            self.use_table.add_op_use(OpUsePath {
+                lib_path: lib_path.clone(),
+                op: *op,
+            });
+        }
     }
 
     fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {

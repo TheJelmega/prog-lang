@@ -731,7 +731,7 @@ impl Parser<'_> {
         self.consume_punct(Punctuation::Colon)?;
 
         let peek = self.peek()?;
-        let module = match peek {
+        let library = match peek {
             Token::Punctuation(Punctuation::Dot) => None,
             Token::Name(name_id) => {
                 self.consume_single();
@@ -753,7 +753,7 @@ impl Parser<'_> {
             vis,
             group,
             package,
-            module,
+            library,
             path,
         })))
     }
