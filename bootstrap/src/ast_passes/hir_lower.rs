@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::*,
-    common::{uses, Abi, LibraryPath, NameTable, Scope, SpanId, SpanRegistry, UseTable},
+    common::{uses, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry, UseTable},
     error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
@@ -533,6 +533,12 @@ impl AstToHirLowering<'_> {
             },
         }
     }
+
+    fn gen_temp_name(&mut self, num: u32, span: SpanId) -> NameId {
+        let span = self.spans[span];
+        let name = format!("__tmp{num}_{}_{}", span.row, span.column);
+        self.names.add(&name)
+    }
 }
 
 // =============================================================================================================================
@@ -797,6 +803,7 @@ impl Visitor for AstToHirLowering<'_> {
                         is_mut: true,
                         name: *name,
                         ty: ty.clone(),
+                        allow_du: false,
                     })));
                 }
             }
@@ -991,6 +998,7 @@ impl Visitor for AstToHirLowering<'_> {
                     where_clause,
                     fields: hir_fields,
                     uses,
+                    allow_du: false,
                 })
             },
             Struct::Tuple { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
@@ -1114,6 +1122,7 @@ impl Visitor for AstToHirLowering<'_> {
                     generics,
                     where_clause,
                     variants: hir_variants,
+                    allow_du: false,
                 });
             },
             Enum::Flag { span, node_id, attrs, vis, name, variants } => {
@@ -1597,6 +1606,7 @@ impl Visitor for AstToHirLowering<'_> {
                         name,
                         ty: None,
                         expr,
+                        allow_du: false,
                     }));
                 } else {
                     match *expr {
@@ -1608,8 +1618,9 @@ impl Visitor for AstToHirLowering<'_> {
                                     attrs: attrs.clone(),
                                     is_mut: *is_mut,
                                     name: *name,
-                                    ty: None    ,
+                                    ty: None,
                                     expr,
+                                    allow_du: false,
                                 }));
                             }
                         },
@@ -1621,8 +1632,9 @@ impl Visitor for AstToHirLowering<'_> {
                                     attrs: attrs.clone(),
                                     is_mut: *is_mut,
                                     name: *name,
-                                    ty: None    ,
+                                    ty: None,
                                     expr,
+                                    allow_du: false,
                                 }));
                             }
                         },
@@ -1640,10 +1652,8 @@ impl Visitor for AstToHirLowering<'_> {
                             // let a = tmp_0_0.0;
                             // let b = tmp_0_0.1;
                             // ```
-
-                            let span_info = self.spans[node.span()];
-                            let tmp_name = format!("__tmp_{}_{}", span_info.row, span_info.column);
-                            let tmp_name = self.names.add(&tmp_name);
+                            
+                            let tmp_name = self.gen_temp_name(0, *span);
 
                             self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
                                 span: *span,
@@ -1653,6 +1663,7 @@ impl Visitor for AstToHirLowering<'_> {
                                 name: tmp_name,
                                 ty: None,
                                 expr,
+                                allow_du: true,
                             }));
                         
                             for (index, (is_mut, name, span)) in names.iter().enumerate() {
@@ -1681,6 +1692,7 @@ impl Visitor for AstToHirLowering<'_> {
                                     name: *name,
                                     ty: None,
                                     expr: tup_index,
+                                    allow_du: false,
                                 }))
                             }
                         }
@@ -1735,6 +1747,7 @@ impl Visitor for AstToHirLowering<'_> {
                                 is_mut,
                                 name,
                                 ty,
+                                allow_du: false,
                             }))
                         },
                         // `let (b, mut c): (ty0, ty1);`
@@ -1777,6 +1790,7 @@ impl Visitor for AstToHirLowering<'_> {
                                             is_mut,
                                             name,
                                             ty,
+                                            allow_du: false,
                                         }))
                                     },
                                     _ => {
@@ -1824,6 +1838,7 @@ impl Visitor for AstToHirLowering<'_> {
                         name,
                         ty,
                         expr,
+                        allow_du: false,
                     }));
                     return;
                 }
@@ -1864,9 +1879,7 @@ impl Visitor for AstToHirLowering<'_> {
                 let expr_span = expr.span();
                 let pattern_span = pattern.span();
 
-                let span_info = self.spans[node.span()];
-                let tmp0_name = format!("__tmp0_{}_{}", span_info.row, span_info.column);
-                let tmp0_name = self.names.add(&tmp0_name);
+                let tmp0_name = self.gen_temp_name(0, *span);
 
                 // Assignment for type check
                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
@@ -1877,6 +1890,7 @@ impl Visitor for AstToHirLowering<'_> {
                     name: tmp0_name,
                     ty,
                     expr,
+                    allow_du: true,
                 }));
 
 
@@ -1941,9 +1955,7 @@ impl Visitor for AstToHirLowering<'_> {
                 let tmp1_name = if bind_names.len() == 1 {
                     bind_names[0].name
                 } else {
-                    let span = self.spans[node.span()];
-                    let tmp_name = format!("__tmp_{}_{}", span.row, span.column);
-                    self.names.add(&tmp_name)
+                    self.gen_temp_name(1, *span)
                 };
 
                 self.push_stmt(hir::Stmt::VarDecl(hir::VarDecl {
@@ -1954,6 +1966,7 @@ impl Visitor for AstToHirLowering<'_> {
                     name: tmp1_name,
                     ty: None,
                     expr: match_expr,
+                    allow_du: true,
                 }));
 
                 let index_src = Box::new(hir::Expr::Path(hir::PathExpr::Named {
@@ -1983,6 +1996,7 @@ impl Visitor for AstToHirLowering<'_> {
                             name: name.name,
                             ty: None,
                             expr: index_expr,
+                            allow_du: false,
                         }));
                     }
                 }
@@ -3523,6 +3537,7 @@ impl Visitor for AstToHirLowering<'_> {
             where_clause: None,
             fields,
             uses,
+            allow_du: true,
         });
 
         let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);
@@ -3566,6 +3581,7 @@ impl Visitor for AstToHirLowering<'_> {
             generics: None,
             where_clause: None,
             variants,
+            allow_du: true,
         });
 
         let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);

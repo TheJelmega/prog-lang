@@ -258,6 +258,8 @@ pub struct Struct {
     pub where_clause: Option<Box<WhereClause>>,
     pub fields:       Vec<StructField>,
     pub uses:         Vec<StructUse>,
+    /// Allow double underscore names (compiler reserved)
+    pub allow_du:     bool,
 }
 
 #[derive(Clone)]
@@ -341,7 +343,9 @@ pub struct AdtEnum {
     pub name:         NameId,
     pub generics:     Option<Box<GenericParams>>,
     pub where_clause: Option<Box<WhereClause>>,
-    pub variants:     Vec<AdtEnumVariant>
+    pub variants:     Vec<AdtEnumVariant>,
+    /// Allow double underscore names (compiler reserved)
+    pub allow_du:     bool,
 }
 
 #[derive(Clone)]
@@ -574,6 +578,8 @@ pub struct VarDecl {
     pub name:    NameId,
     pub ty:      Option<Box<Type>>,
     pub expr:    Box<Expr>,
+    /// Allow double underscore names (compiler reserved)
+    pub allow_du: bool,
 }
 
 #[derive(Clone)]
@@ -584,6 +590,8 @@ pub struct UninitVarDecl {
     pub is_mut:  bool,
     pub name:    NameId,
     pub ty:      Box<Type>,
+    /// Allow double underscore names (compiler reserved)
+    pub allow_du: bool,
 }
 
 #[derive(Clone)]
