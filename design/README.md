@@ -5495,12 +5495,10 @@ The following specifiers are available:
 # 17. Attributes [↵](#tables-of-contents)
 
 ```
-<attribute> := '@' [ '!' ] '[' <attrib-meta> ']'
-<attrib-meta> := <simple-path> 
-               | <simple-path> '(' <inner-meta> ')'
-               | <simple-path> '=' <expression>
-<inner-meta> := <attrib-meta> { ',' <attrib-meta> } [ ',' ]
-              | <expression>
+<attribute> := '@' [ '!' ] <simple-path> [ '(' <attrib-meta> { ',' <attrib-meta> } [ ',' ] ')' ]
+<attrib-meta> := <ext-name>
+               | <ext-name> '=' <expr>
+               | <ext-name> '(' <attrib-meta> { ',' <attrib-meta> } [ ',' ] ')'
 ```
 
 An attribute is general metadata that is given to the compiler, the resulting action depends on the attribute itself.
@@ -5591,7 +5589,7 @@ The `deprecated` attributes allows items to marked as deprecated and will genera
 
 The `deprecated` attribute can be defined in multiple ways:
 - `deprecated`: issues a generic message
-- `deprecated = "message"`: includes the given string in the deprecation message
+- `deprecated("message")`: includes the given string in the deprecation message
 - `deprecated(...)`: includes the given attributes in the deprecation message
     - `msg`: The main message
     - `note`: Additional notes for the deprecated item, can be used for to specify alternatives, or additional info why it was deprecated
@@ -5605,7 +5603,7 @@ They can be defined on user-defined types and any kind of funtion.
 When applied to a user-defined type, any return of a value of this type will result a message.
 When applied to a function, if the return value of that function is not used, it will result in a message.
 
-The `must_use` can return a generic message, or can be supplied with a message (`must_use = "reason"`), which will print out the reason why the value must be used.
+The `must_use` can return a generic message, or can be supplied with a message (`must_use("reason")`), which will print out the reason why the value must be used.
 
 #### `diagnostics`
 
