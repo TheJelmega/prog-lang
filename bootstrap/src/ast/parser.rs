@@ -4050,12 +4050,14 @@ impl Parser<'_> {
                 break;
             };
 
+            let path = self.parse_simple_path(true)?;
             let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_attrib_meta)?;
             let span = self.get_span_to_current(begin);
             let attr = self.add_node(Attribute {
                 span,
                 node_id: NodeId::default(),
                 is_mod,
+                path,
                 metas,
             });
             attrs.push(attr);
@@ -4071,19 +4073,19 @@ impl Parser<'_> {
                 self.consume_punct(Punctuation::Equals)?;
                 let expr = self.parse_expr(ExprParseMode::General)?;
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Assign { span, node_id: NodeId::default(), path, expr })
+                Ok(AttribMeta::Assign { span, path, expr })
             } else if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
                 let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_attrib_meta)?;
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Meta { span, node_id: NodeId::default(), path, metas })
+                Ok(AttribMeta::Meta { span, path, metas })
             } else {
                 let span = self.get_span_to_current(begin);
-                Ok(AttribMeta::Simple { span, node_id: NodeId::default(), path })
+                Ok(AttribMeta::Simple { path })
             }
         } else {
             let expr = self.parse_expr(ExprParseMode::General)?;
             let span = self.get_span_to_current(begin);
-            Ok(AttribMeta::Expr { span, node_id: NodeId::default(), expr })
+            Ok(AttribMeta::Expr { expr })
         }
     }
 

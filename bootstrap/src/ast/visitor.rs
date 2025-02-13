@@ -1657,6 +1657,7 @@ pub mod helpers {
     }
 
     pub fn visit_attribute<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Attribute>) {
+        visitor.visit_simple_path(&node.path);
         for meta in &node.metas {
             visit_attribute_meta(visitor, meta);
         }
@@ -1664,13 +1665,13 @@ pub mod helpers {
 
     pub fn visit_attribute_meta<T: Visitor>(visitor: &mut T, meta: &AttribMeta) {
         match meta {
-            AttribMeta::Simple { span, node_id, path }       => visitor.visit_simple_path(path),
-            AttribMeta::Expr { span, node_id, expr }         => visitor.visit_expr(expr),
-            AttribMeta::Assign { span, node_id, path, expr } => {
+            AttribMeta::Simple { path }             => visitor.visit_simple_path(path),
+            AttribMeta::Expr { expr }               => visitor.visit_expr(expr),
+            AttribMeta::Assign { span, path, expr } => {
                 visitor.visit_simple_path(path);
                 visitor.visit_expr(expr);
             },
-            AttribMeta::Meta { span, node_id, path, metas }  => {
+            AttribMeta::Meta { span, path, metas }  => {
                 visitor.visit_simple_path(path);
                 for meta in metas {
                     visit_attribute_meta(visitor, meta);

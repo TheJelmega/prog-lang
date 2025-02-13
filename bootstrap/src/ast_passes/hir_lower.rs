@@ -62,8 +62,12 @@ impl<'a> AstToHirLowering<'a> {
         let comp_gen_attr = Box::new(hir::Attribute {
             span: SpanId::INVALID,
             node_id: NodeId::INVALID,
-            path: vec![comp_gen_name],
-            meta: hir::AttrMeta::None,
+            path: hir::SimplePath {
+                span: SpanId::INVALID,
+                node_id: NodeId::INVALID,
+                names: vec![comp_gen_name],
+            },
+            metas: Vec::new(),
         });
 
         Self {
@@ -564,6 +568,42 @@ impl AstToHirLowering<'_> {
         let span = self.spans[span];
         let name = format!("__tmp{num}_{}_{}", span.row, span.column);
         self.names.add(&name)
+    }
+
+    fn convert_attr_meta(&mut self, meta: &AttribMeta) -> hir::AttrMeta {
+        match meta {
+            AttribMeta::Simple { .. } => {
+                let path = self.simple_path_stack.pop().unwrap();
+                hir::AttrMeta::Simple { path }
+            },
+            AttribMeta::Expr { .. } => {
+                let expr = self.expr_stack.pop().unwrap();
+                hir::AttrMeta::Expr { expr }
+            },
+            AttribMeta::Assign { span, .. } => {
+                let expr = self.expr_stack.pop().unwrap();
+                let path = self.simple_path_stack.pop().unwrap();
+                hir::AttrMeta::Assign {
+                    span: *span,
+                    path,
+                    expr,
+                }
+            },
+            AttribMeta::Meta { span, metas, .. } => {
+                let mut hir_metas = Vec::new();
+                for meta in metas.iter().rev() {
+                    hir_metas.push(self.convert_attr_meta(meta))
+                }
+                hir_metas.reverse();
+
+                let path = self.simple_path_stack.pop().unwrap();
+                hir::AttrMeta::Meta {
+                    span: *span,
+                    path,
+                    metas: hir_metas,
+                }
+            },
+        }
     }
 }
 
@@ -3668,6 +3708,21 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_attribute(&mut self, node: &AstNodeRef<Attribute>) where Self: Sized {
         helpers::visit_attribute(self, node);
+
+        let mut metas = Vec::new();
+        for meta in node.metas.iter().rev() {
+            metas.push(self.convert_attr_meta(meta));
+        }
+        metas.reverse();
+
+        let path = self.simple_path_stack.pop().unwrap();
+
+        self.attr_stack.push(Box::new(hir::Attribute {
+            span: node.span,
+            node_id: node.node_id,
+            path: path,
+            metas,
+        }));
     }
 
     fn visit_contract(&mut self, node: &AstNodeRef<Contract>) where Self: Sized {

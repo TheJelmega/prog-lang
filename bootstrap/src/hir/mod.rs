@@ -1396,23 +1396,26 @@ pub enum Visibility {
 pub struct Attribute {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
-    pub path:    Vec<NameId>,
-    pub meta:    AttrMeta,
+    pub path:    SimplePath,
+    pub metas:   Vec<AttrMeta>,
 }
 
 #[derive(Clone)]
 pub enum AttrMeta {
-    None,
+    Simple {
+        path: SimplePath,
+    },
     Expr{
-        span: SpanId,
-        expr: Expr
+        expr: Box<Expr>
     },
     Assign {
         span: SpanId,
-        expr: Expr
+        path: SimplePath,
+        expr: Box<Expr>
     },
     Meta {
-        span: SpanId,
+        span:  SpanId,
+        path:  SimplePath,
         metas: Vec<AttrMeta>,
     }
 }

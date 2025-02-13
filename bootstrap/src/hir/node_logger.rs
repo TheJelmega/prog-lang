@@ -141,6 +141,22 @@ impl NodeLogger<'_> {
         }
     }
 
+    pub fn log_attr_meta(&mut self, attr_meta: &mut AttrMeta) {
+        match attr_meta {
+            AttrMeta::Simple { path } => self.log_indented("Simple Attribute Meta", |this| this.visit_simple_path(path)),
+            AttrMeta::Expr { expr } => self.log_indented("Expr Attribute Meta", |this| this.visit_expr(expr)),
+            AttrMeta::Assign { span, path, expr } => self.log_indented("Assign Attribute Meta", |this| {
+                this.log_indented("Path", |this| this.visit_simple_path(path));
+                this.logger.set_last_at_indent();
+                this.log_indented("Expr", |this| this.visit_expr(expr));
+            }),
+            AttrMeta::Meta { span, path, metas } => self.log_indented("Meta Attribute Meta", |this| {
+                this.log_indented("Path", |this| this.visit_simple_path(path));
+                this.logger.set_last_at_indent();
+                this.log_slice_indented("Metas", metas, |this, meta| this.log_attr_meta(meta));
+            }),
+        }
+    }
 
 
     pub fn log_trait(&mut self, hir: &mut Hir, idx: usize) {
@@ -1704,6 +1720,11 @@ impl Visitor for NodeLogger<'_> {
     }
 
     fn visit_attribute(&mut self, node: &mut Attribute) {
-
+        self.log_node("Attribute", node.node_id, |this| {
+            this.logger.set_last_at_indent_if(node.metas.is_empty());
+            this.log_indented("Path", |this| this.visit_simple_path(&mut node.path));
+            this.logger.set_last_at_indent();
+            this.log_slice_indented("Attributes", &mut node.metas, |this, meta| this.log_attr_meta(meta));
+        })
     }
 }

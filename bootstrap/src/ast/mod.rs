@@ -5292,6 +5292,7 @@ pub struct Attribute {
     pub span:    SpanId,
     pub node_id: NodeId,
     pub is_mod:  bool,
+    pub path:    AstNodeRef<SimplePath>,
     pub metas:   Vec<AttribMeta>,
 }
 
@@ -5307,6 +5308,8 @@ impl AstNode for Attribute {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Attribute", |logger| {
             logger.prefixed_log_fmt(format_args!("Is Module Attribute: {}\n", self.is_mod));
+            logger.set_last_at_indent_if(self.metas.is_empty());
+            logger.log_indented_node_ref("Path", &self.path);
             logger.set_last_at_indent();
             logger.log_indented_slice("Meta", &self.metas, |logger, meta| meta.log(logger));
         })
@@ -5321,24 +5324,18 @@ impl AstNodeParseHelper for Attribute {
 
 pub enum AttribMeta {
     Simple {
-        span:    SpanId,
-        node_id: NodeId,
         path:    AstNodeRef<SimplePath>,
     },
     Expr {
-        span:    SpanId,
-        node_id: NodeId,
         expr:    Expr,
     },
     Assign {
         span:    SpanId,
-        node_id: NodeId,
         path:    AstNodeRef<SimplePath>,
         expr:    Expr
     },
     Meta {
         span:    SpanId,
-        node_id: NodeId,
         path:    AstNodeRef<SimplePath>,
         metas:   Vec<AttribMeta>,
     }

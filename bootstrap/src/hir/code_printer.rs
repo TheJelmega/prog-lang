@@ -97,6 +97,29 @@ impl<'a> CodePrinter<'a> {
         self.logger.logln(",");
     }
 
+    pub fn log_attr_meta(&mut self, attr_meta: &mut AttrMeta) {
+        match attr_meta {
+            AttrMeta::Simple { path } => self.visit_simple_path(path),
+            AttrMeta::Expr { expr } => self.visit_expr(expr),
+            AttrMeta::Assign { span, path, expr } => {
+                self.visit_simple_path(path);
+                self.logger.log(" = ");
+                self.visit_expr(expr);
+            },
+            AttrMeta::Meta { span, path, metas } => {
+                self.visit_simple_path(path);
+                self.logger.log("(");
+                for (idx, meta) in metas.iter_mut().enumerate() {
+                    if idx != 0 {
+                        self.logger.log(", ");
+                        self.log_attr_meta(meta);
+                    }
+                }
+                self.logger.log(")");
+            },
+        }
+    }
+
     pub fn log_trait(&mut self, hir: &mut Hir, idx: usize) {
         let (trait_ref, trait_ctx) = &hir.traits[idx];
 
@@ -1861,6 +1884,18 @@ impl Visitor for CodePrinter<'_> {
     }
 
     fn visit_attribute(&mut self, node: &mut Attribute) {
-
+        self.logger.prefixed_log("@");
+        self.visit_simple_path(&mut node.path);
+        if !node.metas.is_empty() {
+            self.logger.log("(");
+            for (idx, meta) in node.metas.iter_mut().enumerate() {
+                if idx != 0 {
+                    self.logger.log(", ");
+                }
+                self.log_attr_meta(meta);
+            }
+            self.logger.log(")");
+        }
+        self.logger.logln("");
     }
 }
