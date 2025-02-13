@@ -314,11 +314,13 @@ Version: 0.0
         1. [Basic assignment](#1441-basic-assignment-)
         2. [Destructuring assignment](#1442-destructuring-assignment-)
         3. [Compound assignment](#1443-compound-assignment-)
+    5. [Operator scoping and use](#145-operator-scoping-and-use)
 15. [Precedence](#15-precedence-)
     1. [Built-in precedences](#151-built-in-precedences-)
     2. [User defined precedence](#152-user-defined-precedence-)
         1. [Precedence order](#1521-precendence-order-)
         2. [Associativity](#1522-associativity-)
+    3. [Precedence scoping and use](#153-precedence-scoping-and-use)
 16. [Visibility](#16-visibility)
 17. [Attributes](#17-attributes-)
     1. [Built-in attributes](#171-built-in-attributes-)
@@ -4651,7 +4653,7 @@ Generic parameters are defined within the scope of the item they are in, and can
 ```
 
 A generic type parameter defines a type which can be used inside of a generic item.
-By default, all type parameters have a `Sized` bound, which can be relazed using the `?Sized` bound.
+By default, all type parameters have a `Sized` bound, which can be relaxed using the `?Sized` bound.
 
 A type paramter may have bounds declared directly after the type.
 These are syntactic sugar for a bound in the while clause.
@@ -5330,13 +5332,13 @@ It will then set the value of the assignee to the value of perfroming the operat
 Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
 A mutable borrow to the assignee is automatically taken
 
-## 14.5. Precedence scoping and use
+## 14.5. Operator scoping and use
 
 ```
 <operator-use> := 'op' 'use' <use-root> [ '.' '{' <operator> { ',' <operator> }* [ ',' ] '}' ]
 ```
 
-Operators have some special scoping rules, as they are not scoped relative to the module that contains them, but they are exclusibly at the global.
+Operators have some special scoping rules, as they are not scoped relative to the module that contains them, but they are exclusivly at the global scope.
 Note that this only counts for operators and not their associated traits, as an `op trait` is a combined declaration of both operators in the global scope and their associated traits at the module scope.
 
 If a type implements multiple traits, which in their turn define the same operator, this will cause an ambiguous operator overload and will cause an error.
