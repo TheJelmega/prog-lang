@@ -698,7 +698,43 @@ impl Expr {
             Expr::Throw(node) => node.span,
             Expr::Comma(node) => node.span,
             Expr::When(node) => node.span,
-            Expr::Irrefutable => todo!(),
+            Expr::Irrefutable => SpanId::INVALID,
+        }
+    }
+
+    pub fn node_id(&self) -> NodeId {
+        match self {
+            Expr::Unit(node) => node.node_id,
+            Expr::FullRange(node) => node.node_id,
+            Expr::Underscore(node) => node.node_id,
+            Expr::Literal(node) => node.node_id,
+            Expr::Path(node) => node.node_id(),
+            Expr::Block(node) => node.node_id,
+            Expr::Prefix(node) => node.node_id,
+            Expr::Postfix(node) => node.node_id,
+            Expr::Infix(node) => node.node_id,
+            Expr::Inplace(node) => node.node_id,
+            Expr::TypeCast(node) => node.node_id,
+            Expr::TypeCheck(node) => node.node_id,
+            Expr::Tuple(node) => node.node_id,
+            Expr::Array(node) => node.node_id,
+            Expr::Struct(node) => node.node_id,
+            Expr::Index(node) => node.node_id,
+            Expr::TupleIndex(node) => node.node_id,
+            Expr::FnCall(node) => node.node_id,
+            Expr::MethodCall(node) => node.node_id,
+            Expr::FieldAccess(node) => node.node_id,
+            Expr::Closure(node) => node.node_id,
+            Expr::Loop(node) => node.node_id,
+            Expr::Match(node) => node.node_id,
+            Expr::Break(node) => node.node_id,
+            Expr::Continue(node) => node.node_id,
+            Expr::Fallthrough(node) => node.node_id,
+            Expr::Return(node) => node.node_id,
+            Expr::Throw(node) => node.node_id,
+            Expr::Comma(node) => node.node_id,
+            Expr::When(node) => node.node_id,
+            Expr::Irrefutable => NodeId::INVALID,
         }
     }
 }
@@ -772,6 +808,15 @@ impl PathExpr {
             PathExpr::Inferred { span, .. } => *span,
             PathExpr::SelfPath { span, .. } => *span,
             PathExpr::Qualified { span, .. } => *span,
+        }
+    }
+
+    pub fn node_id(&self) -> NodeId {
+        match self {
+            PathExpr::Named { node_id, .. } => *node_id,
+            PathExpr::Inferred { node_id, .. } => *node_id,
+            PathExpr::SelfPath { node_id, .. } => *node_id,
+            PathExpr::Qualified { node_id, .. } => *node_id,
         }
     }
 }
@@ -1649,10 +1694,6 @@ impl OpContractContext {
 
 // =============================================================================================================================
 
-pub type TraitRef = Arc<RwLock<Trait>>;
-pub type TraitContextRef = Arc<RwLock<TraitContext>>;
-pub type ImplRef = Arc<RwLock<Impl>>;
-pub type ImplContextRef = Arc<RwLock<ImplContext>>;
 pub type Ref<T> = Arc<RwLock<T>>;
 
 pub struct Hir {

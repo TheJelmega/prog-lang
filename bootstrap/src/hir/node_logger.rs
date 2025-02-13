@@ -844,7 +844,7 @@ impl Visitor for NodeLogger<'_> {
         // handled in log_trait
     }
 
-    fn visit_trait_function(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitFunction, ctx: &mut FunctionContext) {
+    fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
         let no_rec = if let FnReceiver::None = &node.receiver {
             true
         } else {
@@ -889,7 +889,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_trait_type_alias(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         self.log_node("Trait type alias", node.node_id, |this| {
             this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none());
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
@@ -900,7 +900,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_trait_const(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
         self.log_node("Trait const", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
@@ -911,7 +911,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_trait_static(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
         self.log_node("Trait static", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
@@ -922,7 +922,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_trait_property(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+    fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         self.log_node("Trait Property", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
@@ -941,7 +941,7 @@ impl Visitor for NodeLogger<'_> {
         // handled in log_impl
     }
 
-    fn visit_impl_function(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Function, ctx: &mut FunctionContext) {
+    fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         self.log_node("Impl function", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is const: {}\n", node.is_const));
@@ -959,7 +959,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_method(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Method, ctx: &mut FunctionContext) {
+    fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         self.log_node("Method", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is const: {}\n", node.is_const));
@@ -989,7 +989,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_impl_type_alias(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         self.log_node("Type Alias", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
@@ -1000,7 +1000,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_impl_const(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
         self.log_node("Impl const", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
@@ -1011,7 +1011,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_impl_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_impl_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Static, ctx: &mut StaticContext) {
         self.log_node("Impl static", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
@@ -1022,7 +1022,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_impl_tls_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TlsStatic, ctx: &mut StaticContext) {
+    fn visit_impl_tls_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TlsStatic, ctx: &mut StaticContext) {
         self.log_node("Impl TLS static", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is mut: {}\n", node.is_mut));
@@ -1034,7 +1034,7 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_property(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Property, ctx: &mut PropertyContext) {
+    fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
         self.log_node("Impl Property", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
