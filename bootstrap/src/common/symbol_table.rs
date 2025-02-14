@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::{
     collections::HashMap,
     fmt::{self, Write},
@@ -6,7 +8,8 @@ use std::{
 };
 use parking_lot::RwLock;
 
-use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, UseTable};
+use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment};
+
 
 // =============================================================
 

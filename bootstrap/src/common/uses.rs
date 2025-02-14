@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::lexer::Punctuation;
 
-use super::{IndentLogger, LibraryPath, NameId, Scope, ScopeSegment};
+use super::{IndentLogger, LibraryPath, Scope, ScopeSegment};
 
 
 pub struct UsePath {
@@ -13,13 +13,15 @@ pub struct UsePath {
     pub alias:    Option<String>,
 }
 
-
+#[allow(unused)]
 #[derive(Clone)]
 pub struct OpUsePath {
     pub lib_path: LibraryPath,
     pub op:       Punctuation,
 }
 
+#[allow(unused)]
+#[derive(Clone)]
 pub struct PrecedenceUsePath {
     pub lib_path:   LibraryPath,
     pub precedence: String,
@@ -192,11 +194,6 @@ impl UseTable {
         }
     }
 
-
-    pub fn add_use(&mut self, scope: &Scope, use_path: UsePath) {
-        self.add_use_(scope.segments(), use_path);
-    }
-
     fn add_use_(&mut self, scope: &[ScopeSegment], use_path: UsePath) {
         if scope.is_empty() {
             if use_path.wildcard {
@@ -214,12 +211,6 @@ impl UseTable {
             };
             sub_table.add_use_(&scope[1..], use_path);
         }
-    }
-
-    pub fn check_non_wildcard_ambiguity(&self) -> Vec<(Scope, String)> {
-        let mut ambiguities = Vec::new();
-        self.check_non_wildcard_ambiguity_(Scope::new(), &mut ambiguities);
-        ambiguities
     }
 
     pub fn check_non_wildcard_ambiguity_(&self, scope: Scope, ambiguities: &mut Vec<(Scope, String)>) {
@@ -249,13 +240,6 @@ impl UseTable {
         }
     }
 
-    pub fn with_uses<F>(&self, scope: &Scope, mut f: F) where 
-        F: FnMut(&UsePath) -> bool,
-    {
-        self.with_uses_(scope.segments(), &mut f);
-    }
-
-    
     fn with_uses_<F>(&self, scope: &[ScopeSegment], f: &mut F) -> bool where 
         F: FnMut(&UsePath) -> bool,
     {
@@ -280,12 +264,6 @@ impl UseTable {
         }
         
         found
-    }
-
-
-    pub fn log(&self) {
-        let mut logger = IndentLogger::new("    ", "|    ", "+---");
-        self.log_(&mut logger);
     }
 
     pub fn log_(&self, logger: &mut IndentLogger) {

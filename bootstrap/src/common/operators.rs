@@ -4,15 +4,6 @@ use crate::lexer::{Punctuation, PuncutationTable};
 
 use super::{LibraryPath, Logger, Scope};
 
-
-#[derive(Clone)]
-pub struct OperatorImportPath {
-    pub group:   Option<String>,
-    pub package: String,
-    pub library: String,
-    pub op:      Punctuation,
-}
-
 // TODO: Assign is infix, but special, so make sure we also look at it when looking for infix ops
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OpType {

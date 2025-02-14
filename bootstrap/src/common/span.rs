@@ -38,6 +38,7 @@ pub struct SpanRegistry {
     pub spans: Vec<Span>,
 }
 
+#[allow(unused)]
 impl SpanRegistry {
     pub fn new() -> Self {
         Self {

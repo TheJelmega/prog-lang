@@ -361,6 +361,7 @@ impl Punctuation {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OpenCloseSymbol {
     Paren,
@@ -369,6 +370,7 @@ pub enum OpenCloseSymbol {
     Custom(PunctuationId),
 }
 
+#[allow(unused)]
 impl OpenCloseSymbol {
     pub fn get_closing_char(ch: char) -> char {
         match ch {
@@ -422,6 +424,7 @@ pub enum Token {
 }
 
 impl Token {
+    #[allow(unused)]
     pub fn fmt_full(&self, f: &mut dyn fmt::Write, names: &NameTable, literals: &LiteralTable, punctuations: &PuncutationTable) -> fmt::Result {
         match self {
             Self::StrongKw(kw) => write!(f, "{}", kw.as_str()),
@@ -461,8 +464,6 @@ pub enum MetaElem {
 }
 
 pub struct TokenMetadata {
-    pub line:        u32, // TODO: remove
-    pub column:      u32, // TODO: remove
     pub span_id:     SpanId,
     pub meta_elems:  Vec<MetaElem>,
 }

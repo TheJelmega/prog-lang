@@ -31,6 +31,7 @@ pub struct Scope {
     segments: Vec<ScopeSegment>,
 }
 
+#[allow(unused)]
 impl Scope {
     pub fn new() -> Self {
         Self {

@@ -1,6 +1,6 @@
+#![allow(unused)]
+
 use std::fmt;
-
-
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

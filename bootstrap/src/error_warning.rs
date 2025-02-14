@@ -113,6 +113,7 @@ impl Display for LexErrorCode {
 #[derive(Debug)]
 #[repr(u16)]
 pub enum ParseErrorCode {
+    #[allow(unused)]
     InternalError(&'static str),
     // Not enough tokens
     NotEnoughTokens = 200,
@@ -184,6 +185,7 @@ impl Display for ParseErrorCode {
 // TODO: Better description of "param name"
 #[derive(Debug)]
 pub enum AstErrorCode {
+    #[allow(unused)]
     InternalError(&'static str),
 
     InvalidAttribute{ info: String },

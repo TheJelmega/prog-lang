@@ -2,25 +2,6 @@ use std::{collections::VecDeque, fmt};
 
 use super::Logger;
 
-#[derive(Clone)]
-pub struct PrecedenceImportPath {
-    pub group:   Option<String>,
-    pub package: String,
-    pub library: String,
-    pub name:    String,
-}
-
-impl PrecedenceImportPath {
-    pub fn new(group: Option<String>, package: String, library: String, name: String) -> Self {
-        Self {
-            group,
-            package,
-            library,
-            name,
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrecedenceAssocKind {
     None,

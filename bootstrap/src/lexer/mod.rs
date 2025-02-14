@@ -655,8 +655,6 @@ impl Lexer<'_> {
         });
 
         let metadata = TokenMetadata {
-            line: self.line,
-            column: self.columnn,
             span_id: span,
             meta_elems,
         };

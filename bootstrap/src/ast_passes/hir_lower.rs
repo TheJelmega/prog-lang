@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::*,
-    common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, OperatorImportPath, Scope, SpanId, SpanRegistry, UseTable},
+    common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry},
     error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
