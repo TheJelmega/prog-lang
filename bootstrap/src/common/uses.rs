@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::lexer::Punctuation;
 
-use super::{IndentLogger, LibraryPath, Scope, ScopeSegment};
+use super::{IndentLogger, LibraryPath, NameId, Scope, ScopeSegment};
 
 
 pub struct UsePath {
@@ -20,11 +20,17 @@ pub struct OpUsePath {
     pub op:       Punctuation,
 }
 
+pub struct PrecedenceUsePath {
+    pub lib_path:   LibraryPath,
+    pub precedence: String,
+}
+
 pub struct RootUseTable {
-    uses:       Vec<UsePath>,
-    wildcards:  Vec<UsePath>,
-    sub_tables: HashMap<ScopeSegment, UseTable>,
-    op_paths:   Vec<OpUsePath>,
+    uses:             Vec<UsePath>,
+    wildcards:        Vec<UsePath>,
+    sub_tables:       HashMap<ScopeSegment, UseTable>,
+    op_paths:         Vec<OpUsePath>,
+    precedence_paths: Vec<PrecedenceUsePath>
 }
 
 impl RootUseTable {
@@ -34,6 +40,7 @@ impl RootUseTable {
             wildcards: Vec::new(),
             sub_tables: HashMap::new(),
             op_paths: Vec::new(),
+            precedence_paths: Vec::new(),
         }
     }
 
@@ -129,7 +136,13 @@ impl RootUseTable {
     //==============================================================
 
     pub fn add_op_use(&mut self, use_path: OpUsePath) {
-        self.op_paths.push(use_path)
+        self.op_paths.push(use_path);
+    }
+
+    //==============================================================
+
+    pub fn add_precedence_us(&mut self, precedence_path: PrecedenceUsePath) {
+        self.precedence_paths.push(precedence_path);
     }
 
     //==============================================================

@@ -1086,6 +1086,28 @@ impl Visitor for NodeLogger<'_> {
         })
     }
 
+    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
+        self.log_node("Precedence", node.node_id, |this| {
+            this.log_visibility(&mut node.vis);
+            this.logger.prefixed_log_fmt(format_args!("Name: {}", &self.names[node.name]));
+            this.log_visibility(&mut node.vis);
+            this.logger.set_last_at_indent_if(node.higher_than.is_none() && node.lower_than.is_none() && node.assoc.is_none());
+            this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
+            this.logger.set_last_at_indent_if(node.lower_than.is_none() && node.assoc.is_none());
+            if let Some((higher_than, _)) = node.higher_than {
+                this.logger.prefixed_log_fmt(format_args!("Higher than: {}", &self.names[higher_than]))
+            }
+            this.logger.set_last_at_indent_if(node.assoc.is_none());
+            if let Some((lower_than, _)) = node.lower_than {
+                this.logger.prefixed_log_fmt(format_args!("Higher than: {}", &self.names[lower_than]))
+            }
+            this.logger.set_last_at_indent();
+            if let Some(assoc) = &node.assoc {
+                this.logger.prefixed_log_fmt(format_args!("Associativity: {}", assoc.kind))
+            }
+        })
+    }
+
     // =============================================================
 
     fn visit_block(&mut self, node: &mut Block) {

@@ -25,9 +25,4 @@ impl Visitor for ContextSetup<'_> {
             sym_path: Scope::new(),
         })
     }
-
-    fn visit_precedence(&mut self, node_id: &AstNodeRef<Precedence>) where Self: Sized {
-        let node = self.ctx.get_node_for_mut(node_id);
-        node.data = ContextNodeData::Precedence(u16::MAX);
-    }
 }

@@ -1183,6 +1183,26 @@ impl Visitor for CodePrinter<'_> {
         }
     }
 
+    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
+        for attr in &mut node.attrs {
+            self.visit_attribute(attr);
+        }
+        self.log_vis(&mut node.vis);
+        self.logger.log_fmt(format_args!("precedence: {} {{\n", &self.names[node.name]));
+        self.logger.push_indent();
+        if let Some((higher_than, _)) = node.higher_than {
+            self.logger.prefixed_log_fmt(format_args!("higher_than: {}\n", &self.names[higher_than]));
+        }
+        if let Some((lower_than, _)) = node.lower_than {
+            self.logger.prefixed_log_fmt(format_args!("lower_than: {}\n", &self.names[lower_than]));
+        }
+        if let Some(assoc) = &node.assoc {
+            self.logger.prefixed_log_fmt(format_args!("associativity: {}\n", assoc.kind));
+        }
+        self.logger.pop_indent();
+        self.logger.prefixed_logln("}");
+    }
+
     // =============================================================
 
     fn visit_block(&mut self, node: &mut Block) {

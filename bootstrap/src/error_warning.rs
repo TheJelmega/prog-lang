@@ -249,6 +249,9 @@ pub enum HirErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
 
+    PrecedenceUnsupportedAttrib { info: String },
+    PrecedenceInvalidOrder { info: String },
+
     OperatorDoesNotExist { op: String },
     OperatorNoPrecedence { op: String },
     OperatorNoOrder { op0: String, op1: String },
@@ -260,13 +263,16 @@ impl Display for HirErrorCode {
         write!(f, "E{code:04}: ")?;
 
         match self {
-            Self::InternalError(err)           => write!(f, "Internal compiler error: {err}"),
+            Self::InternalError(err)                   => write!(f, "Internal compiler error: {err}"),
 
-            Self::OperatorDoesNotExist { op }  => write!(f, "Operator does not exist: {op}"),
-            Self::OperatorNoPrecedence { op }  => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
-            Self::OperatorNoOrder { op0, op1 } => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+            Self::PrecedenceUnsupportedAttrib { info } => write!(f, "Unsupported precedence attribute: {info}"),
+            Self::PrecedenceInvalidOrder { info }      => write!(f, "Invalid precedence order: {info}"),
+
+            Self::OperatorDoesNotExist { op }          => write!(f, "Operator does not exist: {op}"),
+            Self::OperatorNoPrecedence { op }          => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
+            Self::OperatorNoOrder { op0, op1 }         => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
             #[allow(unreachable_patterns)]
-            _                                  => write!(f, "Unknown HIR error"),
+            _                                          => write!(f, "Unknown HIR error"),
         }
     }
 }

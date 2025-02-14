@@ -41,6 +41,8 @@ pub enum VisitFlags {
     OpFunction,
     OpSpecialization,
     OpContract,
+    
+    Precedence,
 }
 
 pub trait Visitor: Sized {
@@ -137,23 +139,23 @@ pub trait Visitor: Sized {
         helpers::visit_trait(self, node);
     }
 
-    fn visit_trait_function(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitFunction, ctx: &mut FunctionContext) {
+    fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
         helpers::visit_trait_function(self, node);
     }
 
-    fn visit_trait_type_alias(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         helpers::visit_trait_type_alias(self, node);
     }
 
-    fn visit_trait_const(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
         helpers::visit_const(self, node);
     }
 
-    fn visit_trait_static(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
         helpers::visit_static(self, node);
     }
 
-    fn visit_trait_property(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+    fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         helpers::visit_trait_property(self, node);
     }
 
@@ -161,31 +163,31 @@ pub trait Visitor: Sized {
         helpers::visit_impl(self, node);
     }
 
-    fn visit_impl_function(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Function, ctx: &mut FunctionContext) {
+    fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         helpers::visit_function(self, node);
     }
 
-    fn visit_method(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Method, ctx: &mut FunctionContext) {
+    fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         helpers::visit_method(self, node);
     }
 
-    fn visit_impl_type_alias(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         helpers::visit_type_alias(self, node);
     }
 
-    fn visit_impl_const(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
         helpers::visit_const(self, node);
     }
 
-    fn visit_impl_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_impl_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Static, ctx: &mut StaticContext) {
         helpers::visit_static(self, node);
     }
 
-    fn visit_impl_tls_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TlsStatic, ctx: &mut StaticContext) {
+    fn visit_impl_tls_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TlsStatic, ctx: &mut StaticContext) {
         helpers::visit_tls_static(self, node);
     }
 
-    fn visit_property(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Property, ctx: &mut PropertyContext) {
+    fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
         helpers::visit_propety(self, node);
     }
 
@@ -203,6 +205,10 @@ pub trait Visitor: Sized {
 
     fn visit_op_contract(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
         helpers::visit_op_contract(self, node, ctx);
+    }
+
+    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
+        helpers::visit_precedence(self, node)
     }
 
     // =============================================================
@@ -699,6 +705,11 @@ pub(crate) mod helpers {
             }
         }
 
+        if flags.contains(VisitFlags::Precedence) {
+            for (node, ctx) in &mut hir.precedences {
+                visitor.visit_precedence(node, ctx.clone());
+            }
+        }
     }
 
     pub fn visit_fn_param<T: Visitor>(visitor: &mut T, param: &mut FnParam) {
@@ -1207,6 +1218,12 @@ pub(crate) mod helpers {
 
     pub fn visit_op_contract<T: Visitor>(visitor: &mut T, node: &mut OpContract, ctx: &mut OpContractContext) {
         visitor.visit_expr(&mut node.expr);
+    }
+
+    pub fn visit_precedence<T: Visitor>(visitor: &mut T, node: &mut Precedence) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
     }
 
     // =============================================================

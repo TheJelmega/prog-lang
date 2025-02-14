@@ -18,9 +18,6 @@ pub use module_attrib_resolution::*;
 mod module_symbol_generation;
 pub use module_symbol_generation::*;
 
-mod precedence_passes;
-pub use precedence_passes::*;
-
 mod hir_lower;
 pub use hir_lower::*;
 
@@ -43,7 +40,6 @@ pub struct ModuleContextData {
 pub enum ContextNodeData {
     None,
     Module(ModuleContextData),
-    Precedence(u16),
 }
 
 pub struct ContextNode {

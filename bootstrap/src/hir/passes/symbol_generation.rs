@@ -143,35 +143,35 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_function(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitFunction, ctx: &mut FunctionContext) {
+    fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_function(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_type_alias(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_type_alias(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_const(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_const(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_static(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_static(&ctx.scope, name, StaticKind::Normal);
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_property(&mut self, trait_ref: TraitRef, trait_ctx: TraitContextRef, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+    fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_property(&ctx.scope, name);
@@ -186,49 +186,49 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
-    fn visit_impl_function(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Function, ctx: &mut FunctionContext) {
+    fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_function(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_method(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Method, ctx: &mut FunctionContext) {
+    fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_function(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_impl_type_alias(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+    fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_type_alias(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_impl_const(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_const(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 
-    fn visit_impl_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Static, ctx: &mut StaticContext) {
+    fn visit_impl_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Static, ctx: &mut StaticContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_static(&ctx.scope, name, StaticKind::Normal);
         ctx.sym = Some(sym);
     }
 
-    fn visit_impl_tls_static(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut TlsStatic, ctx: &mut StaticContext) {
+    fn visit_impl_tls_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TlsStatic, ctx: &mut StaticContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_static(&ctx.scope, name, StaticKind::Tls);
         ctx.sym = Some(sym);
     }
 
-    fn visit_property(&mut self, impl_ref: ImplRef, impl_ctx: ImplContextRef, node: &mut Property, ctx: &mut PropertyContext) {
+    fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_property(&ctx.scope, name);
@@ -246,6 +246,14 @@ impl Visitor for SymbolGeneration<'_> {
         let name = self.names[node.name].to_string();
 
         let sym = self.sym_table.add_function(&ctx.scope, name);
+        ctx.sym = Some(sym);
+    }
+
+    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
+        let name = self.names[node.name].to_string();
+
+        let mut ctx = ctx.write();
+        let sym = self.sym_table.add_precedence(&ctx.scope, name);
         ctx.sym = Some(sym);
     }
 

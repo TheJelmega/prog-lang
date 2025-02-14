@@ -254,11 +254,11 @@ impl RootSymbolTable {
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_precedence(&mut self, scope: &Scope, name: String, id: u16) -> SymbolRef {
+    pub fn add_precedence(&mut self, scope: &Scope, name: String) -> SymbolRef {
         let sym = Symbol::Precedence(PrecedenceSymbol {
             scope: scope.clone(),
             name: name.clone(),
-            id,
+            id: u16::MAX,
         }); 
         self.add_symbol(scope, &name, &[], sym)
     }

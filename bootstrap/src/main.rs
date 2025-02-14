@@ -156,7 +156,6 @@ fn main() {
                 Ok(_) => {},
                 Err(err) => {
                     let tok_meta = &tokens.metadata[err.tok_idx];
-                    let spans = span_registry.read();
                     println!("{}({}): {err}", input_file, FormatSpanLoc{ registry: &spans, span: tok_meta.span_id });
                     return;
                 },
@@ -239,35 +238,6 @@ fn main() {
 
     // Precedence
 
-    do_ast_for_all_passes(&cli, &mut stats, "Precedence Collection", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::PrecedenceCollection::new(ast_ctx, &name_table);
-        pass.visit(ast);
-    });
-
-    let mut imported_precedences = Vec::new();
-    do_ast_for_all_passes(&cli, &mut stats, "Precedence Import", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::PrecedenceImportCollection::new(ast_ctx, &name_table);
-        pass.visit(ast);
-
-        if !pass.imports.is_empty() {
-            imported_precedences = pass.imports;
-        }
-    });
-
-    // TODO: External precedences importing happens here
-
-    do_ast_for_all_passes(&cli, &mut stats, "Precedence Connection", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::PrecedenceConnection::new(ast_ctx, &name_table);
-        pass.visit(ast);
-    });
-
-    do_ast_for_all_passes(&cli, &mut stats, "Precedence Attribute", &mut asts, |ast, ast_ctx| {
-        let mut pass = ast_passes::PrecedenceAttribute::new(ast_ctx, &name_table, &literal_table);
-        pass.visit(ast);
-    });
-
-    precedences.write().precompute_order();
-
     // Operators
 
     // let mut imported_operators = Vec::new();
@@ -325,13 +295,14 @@ fn main() {
 
     {
         let mut sym_table = symbol_table.write();
-        let precedence_dag = precedences.read();
+        let mut precedence_dag = precedences.write();
         let mut op_table = operators.write();
         let ctx = HirProcessCtx {
             names: &name_table,
             puncts: &punct_table,
+            lits: &literal_table,
             sym_table: &mut sym_table,
-            precedence_dag: &precedence_dag,
+            precedence_dag: &mut precedence_dag,
             op_table: &mut op_table,
             uses: &mut use_table,
 
@@ -414,9 +385,10 @@ fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &st
 pub struct HirProcessCtx<'a> {
     names:          &'a NameTable,
     puncts:         &'a PuncutationTable,
+    lits:           &'a LiteralTable,
 
     sym_table:      &'a mut RootSymbolTable,
-    precedence_dag: &'a PrecedenceDAG,
+    precedence_dag: &'a mut PrecedenceDAG,
     op_table:       &'a mut OperatorTable,
     uses:           &'a RootUseTable,
 
@@ -430,8 +402,15 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut ctx
     
     // base passes
     do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx.sym_table, ctx.names));
+
+    // Precedences
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceAttrib::new(ctx.names, ctx.lits, &mut ctx.errors));
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceCollection::new(ctx.precedence_dag, ctx.names));
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceConnect::new(ctx.names, ctx.precedence_dag, &mut ctx.errors));
+    ctx.precedence_dag.precompute_order();
+
     
-    // Precedence and operators
+    // Operators
     do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table, ctx.uses));
     do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx.names, ctx.op_table, ctx.lib_path.clone()));
     do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx.puncts, ctx.op_table, ctx.precedence_dag, &mut ctx.errors));

@@ -1967,13 +1967,13 @@ impl Parser<'_> {
                 Token::WeakKw(WeakKeyword::HigherThan) => {
                     parser.consume_single();
                     parser.consume_punct(Punctuation::Colon)?;
-                    higher_than = Some(parser.consume_name()?);
+                    higher_than = Some(parser.consume_name_and_span()?);
                     Ok(())
                 },
                 Token::WeakKw(WeakKeyword::LowerThan) => {
                     parser.consume_single();
                     parser.consume_punct(Punctuation::Colon)?;
-                    lower_than = Some(parser.consume_name()?);
+                    lower_than = Some(parser.consume_name_and_span()?);
                     Ok(())
                 },
                 Token::WeakKw(WeakKeyword::Associativity) => {
@@ -1982,9 +1982,9 @@ impl Parser<'_> {
                     parser.consume_punct(Punctuation::Colon)?;
                     let name_id = parser.consume_name()?;
                     let kind = match &parser.names[name_id] {
-                        "none" => PrecedenceAssociativityKind::None,
-                        "left" => PrecedenceAssociativityKind::Left,
-                        "right" => PrecedenceAssociativityKind::Right,
+                        "none" => PrecedenceAssocKind::None,
+                        "left" => PrecedenceAssocKind::Left,
+                        "right" => PrecedenceAssocKind::Right,
                         _ => return Err(parser.gen_error(ParseErrorCode::InvalidPrecedenceAssoc{ name: parser.names[name_id].to_string() }))
                     };
                     

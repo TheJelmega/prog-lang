@@ -7,12 +7,7 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    common::{Abi, NameId, OpType, Scope, SpanId, SymbolRef},
-    error_warning::{HirErrorCode, LexErrorCode},
-    lexer::Punctuation,
-    literals::LiteralId,
-    ast,
-    type_system,
+    ast::{self, NodeId}, common::{Abi, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SymbolRef}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -547,6 +542,22 @@ pub struct OpContract {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
+}
+
+pub struct PrecedenceAssoc {
+    pub span: SpanId,
+    pub kind: PrecedenceAssocKind,
+}
+
+pub struct Precedence {
+    pub span:        SpanId,
+    pub node_id:     ast::NodeId,
+    pub attrs:       Vec<Box<Attribute>>,
+    pub vis:         Visibility,
+    pub name:        NameId,
+    pub higher_than: Option<(NameId, SpanId)>,
+    pub lower_than:  Option<(NameId, SpanId)>,
+    pub assoc:       Option<PrecedenceAssoc>,
 }
 
 // =============================================================================================================================
@@ -1692,6 +1703,24 @@ impl OpContractContext {
     }
 }
 
+pub struct PrecedenceContext {
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub is_highest: bool,
+    pub is_lowest:  bool,
+}
+
+impl PrecedenceContext {
+    pub fn new(scope: Scope) -> Self {
+        Self {
+            scope,
+            sym: None,
+            is_highest: false,
+            is_lowest: false,
+        }
+    }
+}
+
 // =============================================================================================================================
 
 pub type Ref<T> = Arc<RwLock<T>>;
@@ -1736,6 +1765,8 @@ pub struct Hir {
     pub op_functions:             Vec<(usize, OpFunction, OpFunctionContext)>,
     pub op_specializations:       Vec<(usize, OpSpecialization, OpSpecializationContext)>,
     pub op_contracts:             Vec<(usize, OpContract, OpContractContext)>,
+
+    pub precedences:              Vec<(Precedence, Ref<PrecedenceContext>)>,
 }
 
 impl Hir {
@@ -1777,6 +1808,8 @@ impl Hir {
             op_functions:             Vec::new(),
             op_specializations:       Vec::new(),
             op_contracts:             Vec::new(),
+
+            precedences:              Vec::new(),
         }
     }
 
@@ -1950,5 +1983,10 @@ impl Hir {
         let op_idx = self.op_traits.len() - 1;
         let ctx = OpContractContext::new(scope);
         self.op_contracts.push((op_idx, item, ctx));
+    }
+
+    pub fn add_precedence(&mut self, scope: Scope, item: Precedence) {
+        let ctx = Arc::new(RwLock::new(PrecedenceContext::new(scope)));
+        self.precedences.push((item, ctx));
     }
 }

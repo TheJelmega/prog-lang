@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    common::{IndentLogger, NameId, NameTable, OpType, SpanId},
+    common::{IndentLogger, NameId, NameTable, OpType, PrecedenceAssocKind, SpanId},
     lexer::{Punctuation, PunctuationId, PuncutationTable, StrongKeyword, TokenStore, WeakKeyword},
     literals::{LiteralId, LiteralTable}, type_system,
 };
@@ -1967,25 +1967,17 @@ impl AstNodeParseHelper for OpUse {
     }
 }
 
-// TODO: May be moved into separate fill
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PrecedenceAssociativityKind {
-    None,
-    Left,
-    Right,
-}
-
 pub struct PrecedenceAssociativity {
     pub span: SpanId,
-    pub kind: PrecedenceAssociativityKind
+    pub kind: PrecedenceAssocKind
 }
 
 impl fmt::Display for PrecedenceAssociativity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            PrecedenceAssociativityKind::None  => write!(f, "none"),
-            PrecedenceAssociativityKind::Left  => write!(f, "left"),
-            PrecedenceAssociativityKind::Right => write!(f, "right"),
+            PrecedenceAssocKind::None  => write!(f, "none"),
+            PrecedenceAssocKind::Left  => write!(f, "left"),
+            PrecedenceAssocKind::Right => write!(f, "right"),
         }
     }
 }
@@ -1996,8 +1988,8 @@ pub struct Precedence {
     pub attrs:         Vec<AstNodeRef<Attribute>>,
     pub vis:           Option<AstNodeRef<Visibility>>,
     pub name:          NameId,
-    pub higher_than:   Option<NameId>,
-    pub lower_than:    Option<NameId>,
+    pub higher_than:   Option<(NameId, SpanId)>,
+    pub lower_than:    Option<(NameId, SpanId)>,
     pub associativity: Option<PrecedenceAssociativity>
 }
 
@@ -2020,11 +2012,11 @@ impl AstNode for Precedence {
             
             logger.set_last_at_indent_if(self.lower_than.is_none() && self.associativity.is_none());
             logger.log_opt(&self.higher_than, |logger, name| {
-                logger.prefixed_log_fmt(format_args!("Higher Than: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Higher Than: {}\n", logger.resolve_name(name.0)));
             });
             logger.set_last_at_indent_if(self.associativity.is_none());
             logger.log_opt(&self.lower_than, |logger, name| {
-                logger.prefixed_log_fmt(format_args!("Lower Than: {}\n", logger.resolve_name(*name)));
+                logger.prefixed_log_fmt(format_args!("Lower Than: {}\n", logger.resolve_name(name.0)));
             });
             logger.set_last_at_indent();
             logger.log_opt(&self.associativity, |logger, assoc| {

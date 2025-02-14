@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt};
 
 use super::Logger;
 
@@ -17,6 +17,23 @@ impl PrecedenceImportPath {
             package,
             library,
             name,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PrecedenceAssocKind {
+    None,
+    Left,
+    Right,
+}
+
+impl fmt::Display for PrecedenceAssocKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrecedenceAssocKind::None  => write!(f, "none"),
+            PrecedenceAssocKind::Left  => write!(f, "left"),
+            PrecedenceAssocKind::Right => write!(f, "right"),
         }
     }
 }

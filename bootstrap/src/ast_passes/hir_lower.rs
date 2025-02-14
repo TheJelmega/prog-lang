@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::*,
-    common::{uses::{self, OpUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, OperatorImportPath, Scope, SpanId, SpanRegistry, UseTable},
+    common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, OperatorImportPath, Scope, SpanId, SpanRegistry, UseTable},
     error_warning::AstErrorCode,
     hir::{self, Identifier, Visitor as _},
     literals::{LiteralId, LiteralTable},
@@ -1636,9 +1636,51 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {
         helpers::visit_precedence(self, node);
+
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+
+        let assoc = node.associativity.as_ref().map(|assoc| hir::PrecedenceAssoc {
+            span: assoc.span,
+            kind: assoc.kind,
+        });
+
+        let scope = &self.ctx.get_node_for(node).scope;
+        self.hir.add_precedence(scope.clone(), hir::Precedence {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            name: node.name,
+            higher_than: node.higher_than,
+            lower_than: node.lower_than,
+            assoc,
+        })
     }
 
-    fn visit_precedence_use(&mut self, _node: &AstNodeRef<PrecedenceUse>) where Self: Sized {
+    fn visit_precedence_use(&mut self, node: &AstNodeRef<PrecedenceUse>) where Self: Sized {
+        // Check if we're a top level use
+        let scope = &self.ctx.get_node_for(node).scope;
+        if !scope.is_empty() {
+            self.ctx.add_error(AstError {
+                node_id: node.node_id,
+                err: AstErrorCode::NotTopLevel {
+                    path: scope.to_string(),
+                    info: "Precedence use".to_string()
+                }
+            });
+            return;
+        }
+
+        let lib_path = self.get_lib_path(node.group, node.package, node.library);
+
+        for precedence in &node.precedences {
+            let precedence = self.names[*precedence].to_string();
+            self.use_table.add_precedence_us(PrecedenceUsePath {
+                lib_path: lib_path.clone(),
+                precedence,
+            })
+        }
     }
 
     // =============================================================
