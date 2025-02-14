@@ -4051,7 +4051,12 @@ impl Parser<'_> {
             };
 
             let path = self.parse_simple_path(true)?;
-            let metas = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_attrib_meta)?;
+            let metas = if self.try_peek() == Some(Token::OpenSymbol(OpenCloseSymbol::Paren)) {
+                self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_attrib_meta)?
+            } else {
+                Vec::new()
+            };
+
             let span = self.get_span_to_current(begin);
             let attr = self.add_node(Attribute {
                 span,
