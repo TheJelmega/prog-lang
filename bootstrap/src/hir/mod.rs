@@ -655,6 +655,7 @@ pub enum Expr {
     TypeCheck(TypeCheckExpr),
     Tuple(TupleExpr),
     Array(ArrayExpr),
+    Slice(SliceExpr),
     Struct(StructExpr),
     Index(IndexExpr),
     TupleIndex(TupleIndexExpr),
@@ -692,7 +693,8 @@ impl Expr {
             Expr::TypeCast(node) => node.span,
             Expr::TypeCheck(node) => node.span,
             Expr::Tuple(node) => node.span,
-            Expr::Array(node) => node.span,
+            Expr::Array(node) => node.span, 
+            Expr::Slice(node) => node.span, 
             Expr::Struct(node) => node.span,
             Expr::Index(node) => node.span,
             Expr::TupleIndex(node) => node.span,
@@ -729,6 +731,7 @@ impl Expr {
             Expr::TypeCheck(node) => node.node_id,
             Expr::Tuple(node) => node.node_id,
             Expr::Array(node) => node.node_id,
+            Expr::Slice(node) => node.node_id,
             Expr::Struct(node) => node.node_id,
             Expr::Index(node) => node.node_id,
             Expr::TupleIndex(node) => node.node_id,
@@ -909,6 +912,14 @@ pub struct TupleExpr {
 
 #[derive(Clone)]
 pub struct ArrayExpr {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub value:   Box<Expr>,
+    pub count:   Box<Expr>,
+}
+
+#[derive(Clone)]
+pub struct SliceExpr {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub exprs:   Vec<Box<Expr>>

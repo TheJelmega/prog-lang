@@ -1307,18 +1307,29 @@ impl Visitor for NodeLogger<'_> {
 
     fn visit_tuple_expr(&mut self, node: &mut TupleExpr) {
         self.log_node("Tuple expression", node.node_id, |this| {
+            this.logger.set_last_at_indent();
+            this.log_slice(&mut node.exprs, |this, expr| this.visit_expr(expr));
+        });
+    }
+
+    fn visit_slice_expr(&mut self, node: &mut SliceExpr) {
+        self.log_node("Slice expression", node.node_id, |this| {
+            this.logger.set_last_at_indent();
             this.log_slice(&mut node.exprs, |this, expr| this.visit_expr(expr));
         });
     }
 
     fn visit_array_expr(&mut self, node: &mut ArrayExpr) {
         self.log_node("Array expression", node.node_id, |this| {
-            this.log_slice(&mut node.exprs, |this, expr| this.visit_expr(expr));
+            this.log_indented("Value", |this| this.visit_expr(&mut node.value));
+            this.logger.set_last_at_indent();
+            this.log_indented("Value", |this| this.visit_expr(&mut node.count));
         });
     }
 
     fn visit_struct_expr(&mut self, node: &mut StructExpr) {
         self.log_node("Struct expression", node.node_id, |this| {
+            this.logger.set_last_at_indent();
             this.log_single_indented("Struct path", |this| this.visit_expr(&mut node.path))
         });
     }

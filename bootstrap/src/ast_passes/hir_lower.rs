@@ -2393,18 +2393,35 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_array_expr(&mut self, node: &AstNodeRef<ArrayExpr>) where Self: Sized {
         helpers::visit_array_expr(self, node);
 
-        let mut exprs = Vec::new();
-        for _ in node.exprs.iter().rev() {
-            exprs.push(self.expr_stack.pop().unwrap());
-        }
-        exprs.reverse();
+        match &**node {
+            ArrayExpr::Slice { span, node_id, exprs } => {
+                let mut hir_exprs = Vec::new();
+                for _ in exprs.iter().rev() {
+                    hir_exprs.push(self.expr_stack.pop().unwrap());
+                }
+                hir_exprs.reverse();
+        
+                self.push_expr(hir::Expr::Slice(hir::SliceExpr {
+                    span: *span,
+                    node_id: *node_id,
+                    exprs: hir_exprs,
+                }));
+            },
+            ArrayExpr::Count { span, node_id, .. } => {
+                let count = self.expr_stack.pop().unwrap();
+                let value = self.expr_stack.pop().unwrap();
 
-        self.push_expr(hir::Expr::Array(hir::ArrayExpr {
-            span: node.span,
-            node_id: node.node_id,
-            exprs,
-        }))
-    } 
+                self.push_expr(hir::Expr::Array(hir::ArrayExpr {
+                    span: *span,
+                    node_id: *node_id,
+                    value,
+                    count,
+                }))
+            },
+        }
+
+        
+    }
 
     fn visit_struct_expr(&mut self, node: &AstNodeRef<StructExpr>) where Self: Sized {
         helpers::visit_struct_expr(self, node);

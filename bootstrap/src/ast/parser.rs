@@ -2809,13 +2809,38 @@ impl Parser<'_> {
 
     fn parse_array_expr(&mut self) -> Result<Expr, ParserErr> {
         let begin = self.get_cur_span();
-        let exprs = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, |parser| parser.parse_expr(ExprParseMode::General))?;
-        let span = self.get_span_to_current(begin);
-        Ok(Expr::Array(self.add_node(ArrayExpr {
-            span,
-            node_id: NodeId::default(),
-            exprs,
-        })))
+        self.begin_scope(OpenCloseSymbol::Brace)?;
+        let val = self.parse_expr(ExprParseMode::General)?;
+        if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
+            let count = self.parse_expr(ExprParseMode::General)?;
+            self.end_scope()?;
+            let span = self.get_span_to_current(begin);
+            Ok(Expr::Array(self.add_node(ArrayExpr::Count {
+                span,
+                node_id: NodeId::default(),
+                val,
+                count,
+            })))
+        } else {
+            let exprs = if self.try_consume(Token::Punctuation(Punctuation::Comma)) {
+                let mut exprs = vec![val];
+                while !self.try_end_scope() {
+                    exprs.push(self.parse_expr(ExprParseMode::General)?);
+                    if !self.try_consume(Token::Punctuation(Punctuation::Comma)) {
+                        break;
+                    }
+                }
+                exprs
+            } else {
+                vec![val]
+            };
+            let span = self.get_span_to_current(begin);
+            Ok(Expr::Array(self.add_node(ArrayExpr::Slice {
+                span,
+                node_id: NodeId::default(),
+                exprs,
+            })))
+        }
     }
 
     fn parse_struct_expr(&mut self, path: Expr, allow: bool) -> Result<Expr, ParserErr> {

@@ -1420,12 +1420,20 @@ impl Visitor for CodePrinter<'_> {
         self.logger.log(")");
     }
 
-    fn visit_array_expr(&mut self, node: &mut ArrayExpr) {
+    fn visit_slice_expr(&mut self, node: &mut SliceExpr) {
         self.logger.log("[");
         for expr in &mut node.exprs {
             self.visit_expr(expr);
             self.logger.log(", ");
         }
+        self.logger.log("]");
+    }
+
+    fn visit_array_expr(&mut self, node: &mut ArrayExpr) {
+        self.logger.log("[");
+        self.visit_expr(&mut node.value);
+        self.logger.log(";");
+        self.visit_expr(&mut node.count);
         self.logger.log("]");
     }
 

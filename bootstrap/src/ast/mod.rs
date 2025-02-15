@@ -2990,36 +2990,60 @@ impl AstNodeParseHelper for TupleExpr {
 }
 
 // Add support for [expr; size]
-pub struct ArrayExpr {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub exprs:   Vec<Expr>
+pub enum ArrayExpr {
+    Slice {
+        span:    SpanId,
+        node_id: NodeId,
+        exprs:   Vec<Expr>
+    },
+    Count {
+        span: SpanId,
+        node_id: NodeId,
+        val:     Expr,
+        count:   Expr,
+    }
 }
 
 impl AstNode for ArrayExpr {
     fn span(&self) -> SpanId {
-        self.span
+        match self {
+            ArrayExpr::Slice { span, .. } => *span,
+            ArrayExpr::Count { span, .. } => *span,
+        }
     }
 
     fn node_id(&self) -> NodeId {
-        self.node_id
+        match self {
+            ArrayExpr::Slice { node_id, .. } => *node_id,
+            ArrayExpr::Count { node_id, .. } => *node_id,
+        }
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Array Expression", |logger| {
-            for (idx, expr) in self.exprs.iter().enumerate() {
-                if idx == self.exprs.len() - 1 {
-                    logger.set_last_at_indent();
+        match self {
+            ArrayExpr::Slice { span, node_id, exprs } => logger.log_ast_node("Slice Array Expression", |logger| {
+                for (idx, expr) in exprs.iter().enumerate() {
+                    if idx == exprs.len() - 1 {
+                        logger.set_last_at_indent();
+                    }
+                    logger.log_node(expr);
                 }
-                logger.log_node(expr);
-            }
-        });
+            }),
+            ArrayExpr::Count { span, node_id, val, count } => logger.log_ast_node("Count Array Expression", |logger| {
+                logger.log_indented_node("Value", val);
+                logger.set_last_at_indent();
+                logger.log_indented_node("Count", count);
+            }),
+        }
     }
 }
 
 impl AstNodeParseHelper for ArrayExpr {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
+    fn set_node_id(&mut self, ast_node_id: NodeId) {
+        match self {
+            ArrayExpr::Slice { node_id, .. } => *node_id = ast_node_id,
+            ArrayExpr::Count { node_id, .. } => *node_id = ast_node_id,
+        }
     }
 }
 

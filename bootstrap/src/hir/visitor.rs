@@ -291,6 +291,10 @@ pub trait Visitor: Sized {
         helpers::visit_tuple_expr(self, node);
     }
 
+    fn visit_slice_expr(&mut self, node: &mut SliceExpr) {
+        helpers::visit_slice_expr(self, node);
+    }
+
     fn visit_array_expr(&mut self, node: &mut ArrayExpr) {
         helpers::visit_array_expr(self, node);
     }
@@ -1301,6 +1305,7 @@ pub(crate) mod helpers {
             Expr::TypeCast(expr)    => visitor.visit_type_cast_expr(expr),
             Expr::TypeCheck(expr)   => visitor.visit_type_check_expr(expr),
             Expr::Tuple(expr)       => visitor.visit_tuple_expr(expr),
+            Expr::Slice(expr)       => visitor.visit_slice_expr(expr),
             Expr::Array(expr)       => visitor.visit_array_expr(expr),
             Expr::Struct(expr)      => visitor.visit_struct_expr(expr),
             Expr::Index(expr)       => visitor.visit_index_expr(expr),
@@ -1389,10 +1394,15 @@ pub(crate) mod helpers {
         }
     }
 
-    pub fn visit_array_expr<T: Visitor>(visitor: &mut T, node: &mut ArrayExpr) {
+    pub fn visit_slice_expr<T: Visitor>(visitor: &mut T, node: &mut SliceExpr) {
         for expr in &mut node.exprs {
             visitor.visit_expr(expr);
         }
+    }
+
+    pub fn visit_array_expr<T: Visitor>(visitor: &mut T, node: &mut ArrayExpr) {
+        visitor.visit_expr(&mut node.value);
+        visitor.visit_expr(&mut node.count);
     }
 
     pub fn visit_index_expr<T: Visitor>(visitor: &mut T, node: &mut IndexExpr) {

@@ -1288,8 +1288,16 @@ pub mod helpers {
     }
 
     pub fn visit_array_expr<T: Visitor>(visitor: &mut T, node: &AstNodeRef<ArrayExpr>) {
-        for expr in &node.exprs {
-            visitor.visit_expr(expr);
+        match &**node {
+            ArrayExpr::Slice { span, node_id, exprs } => {
+                for expr in exprs {
+                    visitor.visit_expr(expr);
+                }
+            },
+            ArrayExpr::Count { span, node_id, val, count } => {
+                visitor.visit_expr(val);
+                visitor.visit_expr(count);
+            },
         }
     }
 
