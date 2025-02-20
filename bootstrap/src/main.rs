@@ -27,7 +27,6 @@ mod type_system;
 
 mod lexer;
 mod ast;
-mod ast_passes;
 
 mod hir;
 
@@ -182,7 +181,7 @@ fn main() {
 
         let ast_start = time::Instant::now();
     
-        let mut ast_ctx = ast_passes::Context::new(
+        let mut ast_ctx = ast::passes::Context::new(
             library_path.clone(),
             symbol_table.clone(),
             base_scope.clone(),
@@ -191,17 +190,17 @@ fn main() {
         );
 
         do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {
-            let mut pass = ast_passes::ContextSetup::new(&mut ast_ctx);
+            let mut pass = ast::passes::ContextSetup::new(&mut ast_ctx);
             pass.visit(&ast);
         });
 
         do_ast_pass(&cli, &mut stats, &input_file, "Module Scoping", || {
-            let mut pass = ast_passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &name_table);
+            let mut pass = ast::passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &name_table);
             pass.visit(&ast);
         });
         
         do_ast_pass(&cli, &mut stats, &input_file, "Module Attribute Resolve", || {
-            let mut pass = ast_passes::ModuleAttributeResolver::new(&mut ast_ctx, &name_table, &literal_table);
+            let mut pass = ast::passes::ModuleAttributeResolver::new(&mut ast_ctx, &name_table, &literal_table);
             pass.visit(&ast);
         });
 
@@ -209,7 +208,7 @@ fn main() {
         do_ast_pass(&cli, &mut stats, &input_file, "Module Symbol Generation + Path Collection", || {
             let mut input_path = PathBuf::from(input_file.clone());
             input_path.pop();
-            let mut pass = ast_passes::ModulePathResolution::new(&mut ast_ctx, &name_table, input_path);
+            let mut pass = ast::passes::ModulePathResolution::new(&mut ast_ctx, &name_table, input_path);
             pass.visit(&ast);
 
             sub_paths = pass.collected_paths;
@@ -242,7 +241,7 @@ fn main() {
 
     // let mut imported_operators = Vec::new();
     // do_ast_for_all_passes(&cli, &mut stats, "Operator Import", &mut asts, |ast, ast_ctx| {
-    //     let mut pass = ast_passes::OperatorImport::new(ast_ctx, &name_table);
+    //     let mut pass = ast::passes::OperatorImport::new(ast_ctx, &name_table);
     //     pass.visit(ast);
 
     //     if !pass.imports.is_empty() {
@@ -258,7 +257,7 @@ fn main() {
     let mut hir = hir::Hir::new();
     do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
         let spans = span_registry.read();
-        let mut pass = ast_passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &spans, &mut hir, &mut use_table, library_path.clone());
+        let mut pass = ast::passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &spans, &mut hir, &mut use_table, library_path.clone());
         pass.visit(ast);
     });
     stats.add_ast_hir_lower(&hir);
@@ -365,8 +364,8 @@ fn do_ast_pass<F>(cli: &Cli, stats: &mut CompilerStats, input_file: &str, pass_n
     }
 }
 
-fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &str, asts: &mut Vec<(ast::Ast, ast_passes::Context)>, mut f: F) where
-    F: FnMut(&ast::Ast, &mut ast_passes::Context)
+fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &str, asts: &mut Vec<(ast::Ast, ast::passes::Context)>, mut f: F) where
+    F: FnMut(&ast::Ast, &mut ast::passes::Context)
 {
     for (ast, ctx) in asts {
         let start = time::Instant::now();

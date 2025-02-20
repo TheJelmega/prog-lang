@@ -21,6 +21,8 @@ pub use parser::{Parser, ParserErr};
 mod visitor;
 pub use visitor::{Visitor, helpers};
 
+pub mod passes;
+
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct NodeId(usize);
 
