@@ -974,9 +974,15 @@ impl Visitor for CodePrinter<'_> {
         self.logger.log(";");
     }
 
-    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
-        // Reuse visit_const
-        self.visit_const(node, ctx);
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
+        for attr in &mut node.attrs {
+            self.visit_attribute(attr);
+        }
+        self.log_vis(&mut node.vis);
+        self.logger.prefixed_log_fmt(format_args!("const {}", &self.names[node.name]));
+        self.logger.log(" : ");
+        self.visit_type(&mut node.ty);
+        self.logger.logln(";");
     }
 
     fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {

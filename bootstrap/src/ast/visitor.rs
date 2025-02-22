@@ -100,6 +100,10 @@ pub trait Visitor {
         helpers::visit_const(self, node);
     }
     
+    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
+        helpers::visit_trait_const(self, node);
+    }
+    
     fn visit_static(&mut self, node: &AstNodeRef<Static>) where Self: Sized {
         helpers::visit_static(self, node);
     }
@@ -547,7 +551,7 @@ pub mod helpers {
         match item {
             TraitItem::Function(node)  => visitor.visit_function(node),
             TraitItem::TypeAlias(node) => visitor.visit_type_alias(node),
-            TraitItem::Const(node)     => visitor.visit_const(node),
+            TraitItem::Const(node)     => visitor.visit_trait_const(node),
             TraitItem::Property(node)  => visitor.visit_property(node),
         }
     }
@@ -953,6 +957,16 @@ pub mod helpers {
             visitor.visit_type(ty);
         }
         visitor.visit_expr(&node.val)
+    }
+
+    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConst>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(vis) = &node.vis {
+            visitor.visit_visibility(vis);
+        }
+        visitor.visit_type(&node.ty);
     }
 
     pub fn visit_static<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Static>) {

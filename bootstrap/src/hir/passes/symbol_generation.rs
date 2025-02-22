@@ -157,7 +157,7 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
-    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_const(&ctx.scope, name);

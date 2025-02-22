@@ -147,8 +147,8 @@ pub trait Visitor: Sized {
         helpers::visit_trait_type_alias(self, node);
     }
 
-    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
-        helpers::visit_const(self, node);
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
+        helpers::visit_trait_const(self, node);
     }
 
     fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
@@ -1128,6 +1128,13 @@ pub(crate) mod helpers {
             visitor.visit_type(ty);
         }
         visitor.visit_expr(&mut node.val);
+    }
+
+    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &mut TraitConst) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        visitor.visit_type(&mut node.ty);
     }
 
     pub fn visit_static<T: Visitor>(visitor: &mut T, node: &mut Static) {

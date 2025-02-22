@@ -1321,11 +1321,27 @@ impl Visitor for AstToHirLowering<'_> {
             ty,
             val,
         };
-        if self.in_trait {
-            self.hir.add_trait_const(ast_ctx.scope.clone(), item);
-        } else {
-            self.hir.add_const(self.in_impl, ast_ctx.scope.clone(), item);
-        }
+        self.hir.add_const(self.in_impl, ast_ctx.scope.clone(), item);
+    }
+
+    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
+        helpers::visit_trait_const(self, node);
+
+        let ty = self.type_stack.pop().unwrap();
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+
+
+        let ast_ctx = self.ctx.get_node_for(node );
+        let item = hir::TraitConst {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            name: node.name,
+            ty,
+        };
+        self.hir.add_trait_const(ast_ctx.scope.clone(), item);
     }
 
     fn visit_static(&mut self, node: &AstNodeRef<Static>) where Self: Sized {

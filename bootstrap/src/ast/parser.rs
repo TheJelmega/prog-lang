@@ -590,7 +590,7 @@ impl Parser<'_> {
                 {
                     self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item))
                 } else {
-                    self.parse_const_item(attrs, vis).map(|item| TraitItem::Const(item))
+                    self.parse_trait_const_item(attrs, vis).map(|item| TraitItem::Const(item))
                 }
             }
             Token::StrongKw(StrongKeyword::Unsafe) => {
@@ -1481,6 +1481,24 @@ impl Parser<'_> {
             name,
             ty,
             val,
+        }))
+    }
+
+    fn parse_trait_const_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<TraitConst>, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_strong_kw(StrongKeyword::Const)?;
+        let name = self.consume_name()?;
+        let ty = self.parse_type()?;
+        self.consume_punct(Punctuation::Semicolon)?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitConst {
+            span,
+            node_id: NodeId::default(),
+            attrs,
+            vis,
+            name,
+            ty,
         }))
     }
 

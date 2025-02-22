@@ -391,7 +391,7 @@ impl AstNode for Item {
 pub enum TraitItem {
     Function(AstNodeRef<Function>),
     TypeAlias(AstNodeRef<TypeAlias>),
-    Const(AstNodeRef<Const>),
+    Const(AstNodeRef<TraitConst>),
     Property(AstNodeRef<Property>),
 }
 
@@ -1469,6 +1469,39 @@ impl AstNode for Const {
 }
 
 impl AstNodeParseHelper for Const {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitConst {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub attrs:   Vec<AstNodeRef<Attribute>>,
+    pub vis:     Option<AstNodeRef<Visibility>>,
+    pub name:    NameId,
+    pub ty:      Type,
+}
+
+impl AstNode for TraitConst {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Const Item", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.set_last_at_indent();
+            logger.log_indented_node("Type", &self.ty);
+        });
+    }
+}
+
+impl AstNodeParseHelper for TraitConst {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }

@@ -900,14 +900,13 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
-    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Const, ctx: &mut ConstContext) {
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         self.log_node("Trait const", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.log_visibility(&mut node.vis);
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.log_opt_indented("Type", &mut node.ty, |this, ty| this.visit_type(ty));
             this.logger.set_last_at_indent();
-            this.log_single_indented("Value", |this| this.visit_expr(&mut node.val));
+            this.log_indented("Type", |this| this.visit_type(&mut node.ty));
         });
     }
 

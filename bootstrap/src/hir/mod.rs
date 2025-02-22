@@ -429,6 +429,15 @@ pub struct Const {
     pub val:     Box<Expr>,
 }
 
+pub struct TraitConst {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub attrs:   Vec<Box<Attribute>>,
+    pub vis:     Visibility,
+    pub name:    NameId,
+    pub ty:      Box<Type>,
+}
+
 pub struct Static {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
@@ -1757,7 +1766,7 @@ pub struct Hir {
     // trait items store the index into the traits array, as it cannot have any traits removed
     pub traits:                   Vec<(Ref<Trait>, Ref<TraitContext>)>,
     pub trait_type_alias:         Vec<(usize, TraitTypeAlias, TypeAliasContext)>,
-    pub trait_consts:             Vec<(usize, Const, ConstContext)>,
+    pub trait_consts:             Vec<(usize, TraitConst, ConstContext)>,
     pub trait_functions:          Vec<(usize, TraitFunction, FunctionContext)>,
     pub trait_properties:         Vec<(usize, TraitProperty, PropertyContext)>,
     
@@ -1916,7 +1925,7 @@ impl Hir {
         }
     }
 
-    pub fn add_trait_const(&mut self, scope: Scope, item: Const) {
+    pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
         let ctx = ConstContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_consts.push((trait_idx, item, ctx));
