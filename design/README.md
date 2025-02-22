@@ -1325,7 +1325,8 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 ### 7.3.1. Parameters [↵](#73-function-)
 
 ```
-<fn-params> := [ <receiver-param> ] [  <fn-param> { ',' <fn-param> }* ] [  <opt-fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
+<fn-params> := [  <fn-param> { ',' <fn-param> }* ] [ [ ',' ] <opt-fn-param> { ',' <opt-fn-param> }* ]  [ [ ',' ] [ <variadic-param> ] ]
+             | <receiver-param> [ ',' <fn-param> { ',' <fn-param> }* ] [ ','  <opt-fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
 
 
 <receiver-param> := <simple-receiver> | <typed-receiver>
@@ -4052,7 +4053,7 @@ It can also not be the type of a variable declaration, a field, or appear inside
 ### 11.1.19. Record types [↵](#111-types-)
 
 ```
-<record-type> := '{' <record-members> '}'
+<record-type> := 'struct' '{' <record-members> '}'
 <record-members> := <record-member> { ',' <record-member> }* [ ',' ]
 <record-member> := { <attribute> }* <ext-name> { ',' <ext-name> }* ':' <type>
 ```
@@ -4637,7 +4638,7 @@ The operand of any extending expression has its temporary scope extended.
 <generic-param> := <generic-type-param> | <generic-value-param>
 ```
 
-A subset of items may be paramterized by types and constants.
+A subset of items may be parameterized by types and constants.
 These parameters generally follow the name of the item defined, but for an `impl`, these must be defined after the keyword.
 Type and value paramters may come in any order, if a parameter pack it used, it must come as the last value in the declaration.
 
@@ -4648,14 +4649,14 @@ Generic parameters are defined within the scope of the item they are in, and can
 ## 12.1. Type generics [↵](#12-generics-)
 
 ```
-<generic-type-param> := <name> [ 'is' <generic-bounds> ] [ '=' <type> ]
+<generic-type-param> := <name> [ 'is' <generic-type-bounds> ] [ '=' <type> ]
                       | 'is!' <type>
 ```
 
 A generic type parameter defines a type which can be used inside of a generic item.
 By default, all type parameters have a `Sized` bound, which can be relaxed using the `?Sized` bound.
 
-A type paramter may have bounds declared directly after the type.
+A type parameter may have bounds declared directly after the type.
 These are syntactic sugar for a bound in the while clause.
 
 Type generics can also be given a default value, which will be used as the type if no explicit type is passed.
@@ -4682,18 +4683,35 @@ Value generics can also have a default value, which will be used as the value if
 
 If the generics is a block, this is a specialization of the generics.
 
-## 12.3. Paramter packs [↵](#12-generics-)
+## 12.3. Parameter packs [↵](#12-generics-)
 
 ```
-<parameter-pack> := <name> '...' [ 'is' <generic bounds> ] [ '=' <type> { ',' <type> }* ]
+<parameter-pack> := <name> '...' [':' <parameter-pack-desc>] [ '=' <parameter-pack-def> { ',' <parameter-pack-def> } ]
+                  | '(' <name> [ ',' <name> ] ')' '...' ':' '(' parameter-pack-desc { ',' <parameter-pack-desc> }* ')' [ '=' <parameter-pack-def> { ',' <parameter-pack-def> } ]
+<parameter-pack-desc> := 'type' 
+                       | 'is' <generic-type-bounds>
+                       | <type>
+<parameter-pack-def> := <type> | '{' <expr> '}'
 ```
 
-A parameter pack represents a set of 0 or more types, of which the count and types are only known during monomorphization.
-They can be thought of as a tuple of generic types, and use the same constraitns as those of types.
+A parameter pack is a set of 0 or more groups of generic parameters, of which the number and values are only known during monomorphization.
+A parameter pack is only allowed as the last generic parameter, anything following this will be interpreted as part of the parameter pack definition.
+Each group within a parameter pack, can exist out of a one or more generic parameters, which can be either type or constant parameters.
 
-A parameter pack must always be at the end of any generic parameters declaration, using this fact, the default value of the parameter pack is represented as a comma separated list of types.
+When not using parameter groups, the parameter description is optional, it is defaulted to `type`.
 
-_TODO: figure out ergonomics, i.e. number of params, looping over them, etc_
+When using groups with multiple parameters, they are defined withing parentheses, followed by a set of descriptions defining what each parameter is.
+The number of descriptions need to match the number of parameters.
+
+The parameter description can be any of the following:
+- `type`: represents a type parameter
+- `is ...`: represents a type parameter with inline type bounds
+- `<type>`: represents a constant paramter with a given type
+
+In addition, since the parameter pack needs to be the last generic parameter, the parameter pack can then be followed by a comma separated list of default arguments, if no parameters that would represent the parameter pack are present at the call site.
+If the parameter pack is a group of multiple elements, the number of arguments must be a multiple of the group size, and the values need to be compatible with the parameters in the group.
+
+_TODO: figure out ergonomics, i.e. number of params, looping over them, etc. Likely something using macros once they have been figured out_
 
 ## 12.4. Constraints [↵](#12-generics-)
 
@@ -4701,13 +4719,16 @@ _TODO: figure out ergonomics, i.e. number of params, looping over them, etc_
 <constraint-item> := { <attribute> }* [ <vis> ] 'constraint' <name> [ <generic-params> ] '{' <constraint-members> '}'
 <inline-constraint> := 'constraint' '{' <constraint-members> '}'
 <constraint-member> := <contraint-function> | <contraint-method> | <contraint-property> | <constraint-type> | <constraint-const>
-<contraint-function> := 'fn' <name> '(' [ <constrait-params> ] ')' [ '->' <type> ] ';'
-<contraint-method> := [ '&' [ 'mut' ] ] `self` '.' <name> '(' [ <constrait-params> ] ')' [ '->' <type> ] ';'
+
+<contraint-function> := 'fn' <name> '(' [ <constraint-fn-params> ] ')' [ '->' <type> ] ';'
+<constraint-fn-params> := <constraint-params> { ',' <constraint-param> }
+                        | <receiver-param> [ ',' <constraint-params> { ',' <constraint-param> } ]
+
 <contraint-property> := <trait-property>
-<constraint-type> := 'type' <name> ';'
-<constraint-const> := 'const' <name> ':' <type> ';'
-<constrait-params> := <constraint-param> { ',' <constraint-param> }* [ ',' ]
-<constrait-param> := [ <name> ':' ] <type>
+<constraint-type> := <assoc-trait-type>
+<constraint-const> := <assoc-const>
+<constrait-params> := <constraint-param> { ',' <constraiant-param> }* [ ',' ]
+<constrait-param> := [ <name> { ',' <name> } ':' ] <type>
 ```
 
 A constraint is an item used to a arbitrary restriction to a given type without requiring the to implement a given interface, this can be used as a form of duck-typing.
@@ -4735,7 +4756,7 @@ A value may be consttrained using a value bound.
                       | <generic-explicit-bound>
 <generic-trait-bound> := <type> 'is' <trait-constraint-bounds>
 <trait-constraint-bounds> := <trait-constraint-bound> [ '&' <trait-constraint-bound> ]
-<trait-constraint-bound> := <name> | <inline-constraint>
+<trait-constraint-bound> := <type-path> | <inline-constraint>
 ```
 
 A type bound limits a both what types can be used when monomorphization, and what functionality is available inside of the the generic item. 
@@ -4743,7 +4764,7 @@ A type bound limits a both what types can be used when monomorphization, and wha
 #### Trait bounds
 
 ```
-<trait-bound> := <name> { '&' <name> }*
+<trait-bound> := <type-path> { '&' <type-path> }*
 ```
 
 A trait bound limits a type to only types implementing the given traits.
