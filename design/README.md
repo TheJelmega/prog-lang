@@ -4650,7 +4650,7 @@ Generic parameters are defined within the scope of the item they are in, and can
 
 ```
 <generic-type-param> := <name> [ 'is' <generic-type-bounds> ] [ '=' <type> ]
-                      | 'is!' <type>
+                      | 'is' <type>
 ```
 
 A generic type parameter defines a type which can be used inside of a generic item.
@@ -4661,7 +4661,7 @@ These are syntactic sugar for a bound in the while clause.
 
 Type generics can also be given a default value, which will be used as the type if no explicit type is passed.
 
-If the paramters starts with `is!`, this is a specialized generic.
+If the paramters starts with `is`, this is a specialized generic.
 
 ## 12.2. Value generics [↵](#12-generics-)
 
@@ -4772,7 +4772,7 @@ A trait bound limits a type to only types implementing the given traits.
 #### Explicit bounds
 
 ```
-<generic-explicit-bound> := <type> 'is!' <explicit-bound>
+<generic-explicit-bound> := <type> 'in' <explicit-bound>
 <explicit-bound> := <type> { '|' <type> }*
 ```
 
@@ -4815,7 +4815,7 @@ The value passed to a value argument, must be a value that can be evaluated at c
 Specialization is the ability to have an multiple versions of the same generic item, but changing the behavior based on the types being passed.
 To be able to specialize a generic, there has to be a shared common denominator which will be the fallback when a specialization cannot be found.
 
-Any type paramters that starts with `is!` or a value parameter with a block, is a specialization, this is similar to this being the bound for the generics in a where clause.
+Any type paramters that starts with `is` or a value parameter with a block, is a specialization, this is similar to this being the bound for the generics in a where clause.
 Value generic specialization is required to return a matching type to the value being requested and cannot be inferred automatically.
 
 ### 12.7.1. Resolution [↵](#127-specialization-)
