@@ -21,7 +21,6 @@ pub struct AstToHirLowering<'a> {
     num_nodes_gen:      usize,
     comp_gen_attr:      Box<hir::Attribute>,
     named_ret_expr:     Option<Box<hir::Expr>>,
-    in_trait:           bool,
     in_impl:            bool,
 
     default_vis:        hir::Visibility,
@@ -79,7 +78,6 @@ impl<'a> AstToHirLowering<'a> {
             num_nodes_gen:      0,
             comp_gen_attr,
             named_ret_expr:     None,
-            in_trait:           false,
             in_impl:            false,
 
             default_vis:        hir::Visibility::Priv,
@@ -249,6 +247,98 @@ impl AstToHirLowering<'_> {
         }
         params.reverse();
         params
+    }
+
+    fn convert_fn_receiver(&mut self, receiver: &FnReceiver) -> hir::FnReceiver {
+        match receiver {
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => {
+                hir::FnReceiver::SelfReceiver {
+                    span: *span,
+                    is_ref: *is_ref,
+                    is_mut: *is_mut,
+                }
+            },
+            FnReceiver::SelfTyped { span, is_mut, ty: _ } => {
+                let ty = self.type_stack.pop().unwrap();
+                hir::FnReceiver::SelfTyped {
+                    span: *span,
+                    is_mut: *is_mut,
+                    ty,
+                }
+            },
+        }
+    }
+
+    fn convert_fn_body(&mut self, body: &AstNodeRef<Block>, returns: Option<&FnReturn>, return_ty: Option<&Box<hir::Type>>) -> Box<hir::Block> {
+        if let Some(FnReturn::Named{ span, vars }) = returns {
+            // convert:
+            //
+            // ```
+            // fn foo() -> (a, b: u32, c: f32) { ... /* body */ }
+            // ```
+            // to: 
+            // ```
+            // fn foo() -> (u32, u32, f32) {
+            //     let mut a: u32;
+            //     let mut b: u32;
+            //     let mut c: f32;
+            //     ... // body
+            //      (a, b, c)
+            // }
+            // ```
+
+            let Some(ret_ty) = &return_ty else { unreachable!() };
+            let hir::Type::Tuple(hir::TupleType{ types, .. }) = ret_ty.as_ref() else { unreachable!() };
+
+            let mut ret_exprs = Vec::new();
+            for (names, _) in vars {
+                for (name, span) in names {
+                    ret_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                        span: *span,
+                        node_id: body.node_id,
+                        iden: Identifier {
+                            span: *span,
+                            name: *name,
+                            gen_args: None,
+                        },
+                    })));
+                }
+            }
+            let ret_tup_expr = Box::new(hir::Expr::Tuple(hir::TupleExpr {
+                span: *span,
+                node_id: body.node_id,
+                exprs: ret_exprs,
+            }));
+            self.named_ret_expr = Some(ret_tup_expr.clone());
+            self.visit_block(body);
+            self.named_ret_expr = None;
+
+            let mut block = self.block_stack.pop().unwrap();
+            
+            for (idx, (names, _)) in vars.iter().enumerate() {
+                let ty = &types[idx];
+                for (name, span) in names {
+                    block.stmts.push(Box::new(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
+                        span: *span,
+                        node_id: body.node_id,
+                        attrs: Vec::new(),
+                        is_mut: true,
+                        name: *name,
+                        ty: ty.clone(),
+                        allow_du: false,
+                    })));
+                }
+            }
+
+            if block.expr.is_none() {
+                block.expr = Some(ret_tup_expr)
+            }
+
+            Box::new(block)
+        } else {
+            self.visit_block(body);
+            Box::new(self.block_stack.pop().unwrap())
+        }
     }
 
     fn convert_reg_struct_field(&mut self, field: &RegStructField) -> (Vec<hir::StructField>, Vec<hir::StructUse>) {
@@ -726,7 +816,7 @@ impl Visitor for AstToHirLowering<'_> {
         // Don't have to do anything here
     }
 
-    fn visit_assoc_item(&mut self, item: &AssocItem) where Self: Sized {
+    fn visit_assoc_item(&mut self, item: &ImplItem) where Self: Sized {
         helpers::visit_assoc_item(self, item);
 
         // Don't have to do anything here
@@ -788,161 +878,32 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         let params = self.convert_fn_params(&node.params, node.node_id());
-
-        let receiver = node.receiver.as_ref().map_or(hir::FnReceiver::None, |rec| match rec {
-            FnReceiver::SelfReceiver { span, is_ref, is_mut } => {
-                hir::FnReceiver::SelfReceiver {
-                    span: *span,
-                    is_ref: *is_ref,
-                    is_mut: *is_mut,
-                }
-            },
-            FnReceiver::SelfTyped { span, is_mut, ty: _ } => {
-                let ty = self.type_stack.pop().unwrap();
-                hir::FnReceiver::SelfTyped {
-                    span: *span,
-                    is_mut: *is_mut,
-                    ty,
-                }
-            },
-        });
-
         let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
-
         let abi = self.convert_abi(node.abi, node.node_id());
-
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
-
-
-        let body = node.body.as_ref().map(|body| if let Some(FnReturn::Named{ span, vars }) = &node.returns {
-            // convert:
-            //
-            // ```
-            // fn foo() -> (a, b: u32, c: f32) { ... /* body */ }
-            // ```
-            // to: 
-            // ```
-            // fn foo() -> (u32, u32, f32) {
-            //     let mut a: u32;
-            //     let mut b: u32;
-            //     let mut c: f32;
-            //     ... // body
-            //      (a, b, c)
-            // }
-            // ```
-
-            let Some(ret_ty) = &return_ty else { unreachable!() };
-            let hir::Type::Tuple(hir::TupleType{ types, .. }) = ret_ty.as_ref() else { unreachable!() };
-
-            let mut ret_exprs = Vec::new();
-            for (names, _) in vars {
-                for (name, span) in names {
-                    ret_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
-                        span: *span,
-                        node_id: node.node_id,
-                        iden: Identifier {
-                            span: *span,
-                            name: *name,
-                            gen_args: None,
-                        },
-                    })));
-                }
-            }
-            let ret_tup_expr = Box::new(hir::Expr::Tuple(hir::TupleExpr {
-                span: *span,
-                node_id: node.node_id,
-                exprs: ret_exprs,
-            }));
-            self.named_ret_expr = Some(ret_tup_expr.clone());
-            self.visit_block(body);
-            self.named_ret_expr = None;
-
-            let mut block = self.block_stack.pop().unwrap();
-            
-            for (idx, (names, _)) in vars.iter().enumerate() {
-                let ty = &types[idx];
-                for (name, span) in names {
-                    block.stmts.push(Box::new(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
-                        span: *span,
-                        node_id: node.node_id,
-                        attrs: Vec::new(),
-                        is_mut: true,
-                        name: *name,
-                        ty: ty.clone(),
-                        allow_du: false,
-                    })));
-                }
-            }
-
-            if block.expr.is_none() {
-                block.expr = Some(ret_tup_expr)
-            }
-
-            Box::new(block)
-        } else {
-            self.visit_block(body);
-            Box::new(self.block_stack.pop().unwrap())
-        });
+        let body = node.body.as_ref().map(|body| self.convert_fn_body(body, node.returns.as_ref(), return_ty.as_ref()));
 
         let node_ctx = self.ctx.get_node_for(node);
 
-        if self.in_trait {
-            self.hir.add_trait_function(node_ctx.scope.clone(), hir::TraitFunction {
+        if let Some(body) = body {
+            // function, external function
+            self.hir.add_function(self.in_impl, node_ctx.scope.clone(), hir::Function {
                 span: node.span,
                 node_id: node.node_id,
                 attrs,
                 vis,
-                is_override: node.is_override,
                 is_const: node.is_const,
                 is_unsafe: node.is_unsafe,
+                abi,
                 name: node.name,
                 generics,
-                receiver,
                 params,
                 return_ty,
                 where_clause,
                 contracts,
                 body,
             });
-        } else if let Some(body) = body {
-            if let hir::FnReceiver::None = receiver {
-                // function, external function
-                self.hir.add_function(self.in_impl, node_ctx.scope.clone(), hir::Function {
-                    span: node.span,
-                    node_id: node.node_id,
-                    attrs,
-                    vis,
-                    is_const: node.is_const,
-                    is_unsafe: node.is_unsafe,
-                    abi,
-                    name: node.name,
-                    generics,
-                    params,
-                    return_ty,
-                    where_clause,
-                    contracts,
-                    body,
-                });
-            } else {
-                // method
-                self.hir.add_method(node_ctx.scope.clone(), hir::Method {
-                    span: node.span,
-                    node_id: node.node_id,
-                    attrs,
-                    vis,
-                    is_const: node.is_const,
-                    is_unsafe: node.is_unsafe,
-                    name: node.name,
-                    generics,
-                    receiver,
-                    params,
-                    return_ty,
-                    where_clause,
-                    contracts,
-                    body,
-                })
-            }
         } else {
             // extern
             self.hir.add_extern_function(node_ctx.scope.clone(), hir::ExternFunctionNoBody {
@@ -962,71 +923,116 @@ impl Visitor for AstToHirLowering<'_> {
         }
     }
 
+    fn visit_method(&mut self, node: &AstNodeRef<Method>) where Self: Sized {
+        helpers::visit_method(self, node, false);
+        
+        let mut contracts = Vec::new();
+        contracts.reverse();
+
+        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
+        let return_ty = node.returns.as_ref().map(|rets| match rets {
+            FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
+            FnReturn::Named{ span, vars } => {
+                let mut types = Vec::new();
+                for _ in vars {
+                    types.push(self.type_stack.pop().unwrap());
+                }
+                Box::new(hir::Type::Tuple(hir::TupleType {
+                    span: *span,
+                    node_id: node.node_id,
+                    types,
+                }))
+            },
+        });
+
+        let params = self.convert_fn_params(&node.params, node.node_id());
+        let receiver = self.convert_fn_receiver(&node.receiver);
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+        let body = self.convert_fn_body(&node.body, node.returns.as_ref(), return_ty.as_ref());
+
+        let node_ctx = self.ctx.get_node_for(node);
+
+        self.hir.add_method(node_ctx.scope.clone(), hir::Method {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            is_const: node.is_const,
+            is_unsafe: node.is_unsafe,
+            name: node.name,
+            generics,
+            receiver,
+            params,
+            return_ty,
+            where_clause,
+            contracts,
+            body,
+        })
+    }
+
     fn visit_type_alias(&mut self, node: &AstNodeRef<TypeAlias>) where Self: Sized {
         helpers::visit_type_alias(self, node);
 
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
-        match &**node {
-            TypeAlias::Normal { span, node_id, attrs, vis, name, generics, ty: _ } => {
-                let ty = self.type_stack.pop().unwrap();
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
-                let vis = self.get_vis(vis.as_ref());
-                let attrs = self.get_attribs(attrs);
+        let ty = self.type_stack.pop().unwrap();
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
 
-                self.hir.add_type_alias(scope, hir::TypeAlias {
-                    span: *span,
-                    node_id: *node_id,
-                    attrs,
-                    vis,
-                    name: *name,
-                    generics,
-                    ty,
-                });
-            },
-            TypeAlias::Distinct { span, node_id, attrs, vis, name, generics, ty: _ } => {
-                let ty = self.type_stack.pop().unwrap();
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
-                let vis = self.get_vis(vis.as_ref());
-                let attrs = self.get_attribs(attrs);
+        self.hir.add_type_alias(scope, hir::TypeAlias {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            name: node.name,
+            generics,
+            ty,
+        });
+    }
 
-                self.hir.add_distinct_type(scope, hir::DistinctType {
-                    span: *span,
-                    node_id: *node_id,
-                    attrs,
-                    vis,
-                    name: *name,
-                    generics,
-                    ty,
-                });
-            },
-            TypeAlias::Trait { span, node_id, attrs, name, generics } => {
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
-                let attrs = self.get_attribs(attrs);
+    fn visit_distinct_type(&mut self, node: &AstNodeRef<DistinctType>) where Self: Sized {
+        helpers::visit_distinct_type(self, node);
 
-                self.hir.add_trait_type_alias(scope, hir::TraitTypeAlias {
-                    span: *span,
-                    node_id: *node_id,
-                    attrs,
-                    name: *name,
-                    generics,
-                })
-            },
-            TypeAlias::Opaque { span, node_id, attrs, vis, name, size } => {
-                let size = size.as_ref().map(|_| self.expr_stack.pop().unwrap());
-                let vis = self.get_vis(vis.as_ref());
-                let attrs = self.get_attribs(attrs);
+        let node_ctx = self.ctx.get_node_for(node);
+        let scope = node_ctx.scope.clone();
 
-                self.hir.add_opaque_type(scope, hir::OpaqueType {
-                    span: *span,
-                    node_id: *node_id,
-                    attrs,
-                    vis,
-                    name: *name,
-                    size,
-                })
-            },
-        }
+        let ty = self.type_stack.pop().unwrap();
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+
+        self.hir.add_distinct_type(scope, hir::DistinctType {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            name: node.name,
+            generics,
+            ty,
+        });
+    }
+
+    fn visit_opaque_type(&mut self, node: &AstNodeRef<OpaqueType>) where Self: Sized {
+        helpers::visit_opaque_type(self, node);
+
+        let node_ctx = self.ctx.get_node_for(node);
+        let scope = node_ctx.scope.clone();
+
+        let size = node.size.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+
+        self.hir.add_opaque_type(scope, hir::OpaqueType {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            name: node.name,
+            size,
+        });
     }
 
     fn visit_struct(&mut self, node: &AstNodeRef<Struct>) where Self: Sized {
@@ -1324,26 +1330,6 @@ impl Visitor for AstToHirLowering<'_> {
         self.hir.add_const(self.in_impl, ast_ctx.scope.clone(), item);
     }
 
-    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
-        helpers::visit_trait_const(self, node);
-
-        let ty = self.type_stack.pop().unwrap();
-        let vis = self.get_vis(node.vis.as_ref());
-        let attrs = self.get_attribs(&node.attrs);
-
-
-        let ast_ctx = self.ctx.get_node_for(node );
-        let item = hir::TraitConst {
-            span: node.span,
-            node_id: node.node_id,
-            attrs,
-            vis,
-            name: node.name,
-            ty,
-        };
-        self.hir.add_trait_const(ast_ctx.scope.clone(), item);
-    }
-
     fn visit_static(&mut self, node: &AstNodeRef<Static>) where Self: Sized {
         helpers::visit_static(self, node);
 
@@ -1404,54 +1390,7 @@ impl Visitor for AstToHirLowering<'_> {
         }
     }
 
-    fn visit_property(&mut self, node: &AstNodeRef<Property>) where Self: Sized {
-        helpers::visit_property(self, node);
-
-        let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
-
-        match &node.body {
-            PropertyBody::Assoc { get, ref_get, mut_get, set } => {
-                let set = set.as_ref().map(|_| self.expr_stack.pop().unwrap());
-                let mut_get = mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-                let ref_get = ref_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-                let get = get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-
-                let vis = self.get_vis(node.vis.as_ref());
-                let attrs = self.get_attribs(&node.attrs);
-
-                self.hir.add_property(scope, hir::Property {
-                    span: node.span,
-                    node_id: node.node_id,
-                    attrs,
-                    vis,
-                    is_unsafe: node.is_unsafe,
-                    name: node.name,
-                    get,
-                    ref_get,
-                    mut_get,
-                    set,
-                });
-            },
-            PropertyBody::Trait { has_get, has_ref_get, has_mut_get, has_set } => {
-                let vis = self.get_vis(node.vis.as_ref());
-                let attrs = self.get_attribs(&node.attrs);
-
-                self.hir.add_trait_property(scope, hir::TraitProperty {
-                    span: node.span,
-                    node_id: node.node_id,
-                    attrs,
-                    vis,
-                    is_unsafe: node.is_unsafe,
-                    name: node.name,
-                    has_get: has_get.is_some(),
-                    has_ref_get: has_ref_get.is_some(),
-                    has_mut_get: has_mut_get.is_some(),
-                    has_set: has_set.is_some(),
-                })
-            },
-        }
-    }
+    //--------------------------------------------------------------
 
     fn visit_trait(&mut self, node: &AstNodeRef<Trait>) where Self: Sized {
         for attr in &node.attrs {
@@ -1480,12 +1419,312 @@ impl Visitor for AstToHirLowering<'_> {
             bounds,
         });
 
-        self.in_trait = true;
         for item in &node.assoc_items {
             self.visit_trait_item(item);
         }
-        self.in_trait = false;
     }
+
+    fn visit_trait_function(&mut self, node: &AstNodeRef<TraitFunction>) where Self: Sized {
+        helpers::visit_trait_function(self, node, false);
+        
+        let mut contracts = Vec::new();
+        contracts.reverse();
+
+        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
+        let return_ty = node.returns.as_ref().map(|rets| match rets {
+            FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
+            FnReturn::Named{ span, vars } => {
+                let mut types = Vec::new();
+                for _ in vars {
+                    types.push(self.type_stack.pop().unwrap());
+                }
+                Box::new(hir::Type::Tuple(hir::TupleType {
+                    span: *span,
+                    node_id: node.node_id,
+                    types,
+                }))
+            },
+        });
+
+        let params = self.convert_fn_params(&node.params, node.node_id());
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let attrs = self.get_attribs(&node.attrs);
+
+
+        let body = node.body.as_ref().map(|body| if let Some(FnReturn::Named{ span, vars }) = &node.returns {
+            // convert:
+            //
+            // ```
+            // fn foo() -> (a, b: u32, c: f32) { ... /* body */ }
+            // ```
+            // to: 
+            // ```
+            // fn foo() -> (u32, u32, f32) {
+            //     let mut a: u32;
+            //     let mut b: u32;
+            //     let mut c: f32;
+            //     ... // body
+            //      (a, b, c)
+            // }
+            // ```
+
+            let Some(ret_ty) = &return_ty else { unreachable!() };
+            let hir::Type::Tuple(hir::TupleType{ types, .. }) = ret_ty.as_ref() else { unreachable!() };
+
+            let mut ret_exprs = Vec::new();
+            for (names, _) in vars {
+                for (name, span) in names {
+                    ret_exprs.push(Box::new(hir::Expr::Path(hir::PathExpr::Named {
+                        span: *span,
+                        node_id: node.node_id,
+                        iden: Identifier {
+                            span: *span,
+                            name: *name,
+                            gen_args: None,
+                        },
+                    })));
+                }
+            }
+            let ret_tup_expr = Box::new(hir::Expr::Tuple(hir::TupleExpr {
+                span: *span,
+                node_id: node.node_id,
+                exprs: ret_exprs,
+            }));
+            self.named_ret_expr = Some(ret_tup_expr.clone());
+            self.visit_block(body);
+            self.named_ret_expr = None;
+
+            let mut block = self.block_stack.pop().unwrap();
+            
+            for (idx, (names, _)) in vars.iter().enumerate() {
+                let ty = &types[idx];
+                for (name, span) in names {
+                    block.stmts.push(Box::new(hir::Stmt::UninitVarDecl(hir::UninitVarDecl {
+                        span: *span,
+                        node_id: node.node_id,
+                        attrs: Vec::new(),
+                        is_mut: true,
+                        name: *name,
+                        ty: ty.clone(),
+                        allow_du: false,
+                    })));
+                }
+            }
+
+            if block.expr.is_none() {
+                block.expr = Some(ret_tup_expr)
+            }
+
+            Box::new(block)
+        } else {
+            self.visit_block(body);
+            Box::new(self.block_stack.pop().unwrap())
+        });
+
+        let node_ctx = self.ctx.get_node_for(node);
+
+        self.hir.add_trait_function(node_ctx.scope.clone(), hir::TraitFunction {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            is_override: node.is_override,
+            is_const: node.is_const,
+            is_unsafe: node.is_unsafe,
+            name: node.name,
+            generics,
+            params,
+            return_ty,
+            where_clause,
+            contracts,
+            body,
+        });
+    }
+
+    fn visit_trait_method(&mut self, node: &AstNodeRef<TraitMethod>) where Self: Sized {
+        helpers::visit_trait_method(self, node, false);
+        
+        let mut contracts = Vec::new();
+        contracts.reverse();
+
+        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
+        let return_ty = node.returns.as_ref().map(|rets| match rets {
+            FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
+            FnReturn::Named{ span, vars } => {
+                let mut types = Vec::new();
+                for _ in vars {
+                    types.push(self.type_stack.pop().unwrap());
+                }
+                Box::new(hir::Type::Tuple(hir::TupleType {
+                    span: *span,
+                    node_id: node.node_id,
+                    types,
+                }))
+            },
+        });
+
+        let params = self.convert_fn_params(&node.params, node.node_id());
+        let receiver = self.convert_fn_receiver(&node.receiver);
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let attrs = self.get_attribs(&node.attrs);
+        let body = node.body.as_ref().map(|body| self.convert_fn_body(body, node.returns.as_ref(), return_ty.as_ref()));
+
+        let node_ctx = self.ctx.get_node_for(node);
+
+        self.hir.add_trait_method(node_ctx.scope.clone(), hir::TraitMethod {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            is_override: node.is_override,
+            is_const: node.is_const,
+            is_unsafe: node.is_unsafe,
+            name: node.name,
+            generics,
+            receiver,
+            params,
+            return_ty,
+            where_clause,
+            contracts,
+            body,
+        });
+    }
+
+    fn visit_trait_type_alias(&mut self, node: &AstNodeRef<TraitTypeAlias>) where Self: Sized {
+        helpers::visit_trait_type_alias(self, node);
+
+        let node_ctx = self.ctx.get_node_for(node);
+        let scope = node_ctx.scope.clone();
+
+        let def = node.def.as_ref().map(|_| self.type_stack.pop().unwrap());
+        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
+        let bounds = Vec::new(); // TODO
+        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
+        let attrs = self.get_attribs(&node.attrs);
+
+        self.hir.add_trait_type_alias(scope, hir::TraitTypeAlias {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            name: node.name,
+            generics,
+            bounds,
+            where_clause,
+            def,
+        })
+    }
+
+    fn visit_trait_type_alias_override(&mut self, node: &AstNodeRef<TraitTypeAliasOverride>) where Self: Sized {
+        helpers::visit_trait_type_alias_override(self, node);
+
+        let node_ctx = self.ctx.get_node_for(node);
+        let scope = node_ctx.scope.clone();
+
+        let ty = self.type_stack.pop().unwrap();
+
+        self.hir.add_trait_type_alias_override(scope, hir::TraitTypeAliasOverride {
+            span: node.span,
+            node_id: node.node_id,
+            name: node.name,
+            ty,
+        })
+    }
+
+    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
+        helpers::visit_trait_const(self, node);
+
+        let def = node.def.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let ty = self.type_stack.pop().unwrap();
+        let attrs = self.get_attribs(&node.attrs);
+
+        let ast_ctx = self.ctx.get_node_for(node );
+        let item = hir::TraitConst {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            name: node.name,
+            ty,
+            def,
+        };
+        self.hir.add_trait_const(ast_ctx.scope.clone(), item);
+    }
+
+    fn visit_trait_property(&mut self, node: &AstNodeRef<TraitProperty>) where Self: Sized {
+        helpers::visit_trait_property(self, node);
+
+        let ast_ctx = self.ctx.get_node_for(node);
+        let scope = ast_ctx.scope.clone();
+
+        let set = match &node.set {
+            None    => hir::TraitPropertyMember::None,
+            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
+            Some((span, Some(_))) => {
+                let expr = self.expr_stack.pop().unwrap();
+                hir::TraitPropertyMember::Def(*span, expr)
+            },
+        };
+        let mut_get = match &node.mut_get {
+            None    => hir::TraitPropertyMember::None,
+            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
+            Some((span, Some(_))) => {
+                let expr = self.expr_stack.pop().unwrap();
+                hir::TraitPropertyMember::Def(*span, expr)
+            },
+        };
+        let ref_get = match &node.ref_get {
+            None    => hir::TraitPropertyMember::None,
+            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
+            Some((span, Some(_))) => {
+                let expr = self.expr_stack.pop().unwrap();
+                hir::TraitPropertyMember::Def(*span, expr)
+            },
+        };
+        let get = match &node.get {
+            None    => hir::TraitPropertyMember::None,
+            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
+            Some((span, Some(_))) => {
+                let expr = self.expr_stack.pop().unwrap();
+                hir::TraitPropertyMember::Def(*span, expr)
+            },
+        };
+
+
+        let attrs = self.get_attribs(&node.attrs);
+    
+        self.hir.add_trait_property(scope, hir::TraitProperty {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            is_unsafe: node.is_unsafe,
+            name: node.name,
+            get,
+            ref_get,
+            mut_get,
+            set,
+        })
+    }
+
+    fn visit_trait_property_override(&mut self, node: &AstNodeRef<TraitPropertyOverride>) where Self: Sized {
+        helpers::visit_trait_property_override(self, node);
+
+        let ast_ctx = self.ctx.get_node_for(node);
+        let scope = ast_ctx.scope.clone();
+
+        let set = node.set.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let mut_get = node.mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let ref_get = node.ref_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let get = node.get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+
+        self.hir.add_trait_property_override(scope, hir::TraitPropertyOverride {
+            span: node.span,
+            node_id: node.node_id,
+            name: node.name,
+            get,
+            ref_get,
+            mut_get,
+            set,
+        })
+    }
+
+    //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &AstNodeRef<Impl>) where Self: Sized {
         for attr in &node.attrs {
@@ -1532,6 +1771,36 @@ impl Visitor for AstToHirLowering<'_> {
         self.in_impl = false;
     }
 
+    fn visit_property(&mut self, node: &AstNodeRef<Property>) where Self: Sized {
+        helpers::visit_property(self, node);
+
+        let ast_ctx = self.ctx.get_node_for(node);
+        let scope = ast_ctx.scope.clone();
+
+        let set = node.set.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let mut_get = node.mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let ref_get = node.ref_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+        let get = node.get.as_ref().map(|_| self.expr_stack.pop().unwrap());
+
+        let vis = self.get_vis(node.vis.as_ref());
+        let attrs = self.get_attribs(&node.attrs);
+
+        self.hir.add_property(scope, hir::Property {
+            span: node.span,
+            node_id: node.node_id,
+            attrs,
+            vis,
+            is_unsafe: node.is_unsafe,
+            name: node.name,
+            get,
+            ref_get,
+            mut_get,
+            set,
+        });
+    }
+
+    //--------------------------------------------------------------
+
     fn visit_extern_block(&mut self, node: &AstNodeRef<ExternBlock>) where Self: Sized {
         helpers::visit_extern_block(self, node);
         
@@ -1554,6 +1823,8 @@ impl Visitor for AstToHirLowering<'_> {
         self.default_vis = hir::Visibility::Priv;
         self.extern_attrs.clear();
     }
+
+    //--------------------------------------------------------------
 
     fn visit_op_trait(&mut self, node: &AstNodeRef<OpTrait>) where Self: Sized {
         //helpers::visit_op_trait(self, node);
@@ -1649,6 +1920,8 @@ impl Visitor for AstToHirLowering<'_> {
             });
         }
     }
+
+    //--------------------------------------------------------------
 
     fn visit_precedence(&mut self, node: &AstNodeRef<Precedence>) where Self: Sized {
         helpers::visit_precedence(self, node);

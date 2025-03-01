@@ -147,7 +147,7 @@ pub struct ExternFunctionNoBody {
     pub contracts:    Vec<Box<Contract>>,
 }
 
-pub struct TraitFunction {
+pub struct ConstraintFunction {
     pub span:         SpanId,
     pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
@@ -212,14 +212,6 @@ pub struct TypeAlias {
     pub name:     NameId,
     pub generics: Option<Box<GenericParams>>,
     pub ty:       Box<Type>,
-}
-
-pub struct TraitTypeAlias {
-    pub span:     SpanId,
-    pub node_id:  ast::NodeId,
-    pub attrs:    Vec<Box<Attribute>>,
-    pub name:     NameId,
-    pub generics: Option<Box<GenericParams>>,
 }
 
 pub struct DistinctType {
@@ -429,7 +421,7 @@ pub struct Const {
     pub val:     Box<Expr>,
 }
 
-pub struct TraitConst {
+pub struct ConstraintConst {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub attrs:   Vec<Box<Attribute>>,
@@ -470,6 +462,147 @@ pub struct ExternStatic {
     pub ty:      Box<Type>,
 }
 
+pub struct ConstraintProperty {
+    pub span:        SpanId,
+    pub node_id:     ast::NodeId,
+    pub attrs:       Vec<Box<Attribute>>,
+    pub vis:         Visibility,
+    pub is_unsafe:   bool,
+    pub name:        NameId,
+    pub has_get:     bool,
+    pub has_ref_get: bool,
+    pub has_mut_get: bool,
+    pub has_set:     bool,
+}
+
+//--------------------------------------------------------------
+
+pub struct Trait {
+    pub span:       SpanId,
+    pub node_id:    ast::NodeId,
+    pub attrs:      Vec<Box<Attribute>>,
+    pub vis:        Visibility,
+    pub is_unsafe:  bool,
+    pub is_sealed:  bool,
+    pub name:       NameId,
+    pub bounds:     Option<Box<TraitBounds>>,
+}
+
+pub struct TraitFunction {
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
+    pub attrs:        Vec<Box<Attribute>>,
+    pub is_override:  bool,
+    pub is_const:     bool,
+    pub is_unsafe:    bool,
+    pub name:         NameId,
+    pub generics:     Option<Box<GenericParams>>,
+    pub params:       Vec<FnParam>,
+    pub return_ty:    Option<Box<Type>>,
+    pub where_clause: Option<Box<WhereClause>>,
+    pub contracts:    Vec<Box<Contract>>,
+    pub body:         Option<Box<Block>>,
+}
+
+pub struct TraitMethod {
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
+    pub attrs:        Vec<Box<Attribute>>,
+    pub is_override:  bool,
+    pub is_const:     bool,
+    pub is_unsafe:    bool,
+    pub name:         NameId,
+    pub generics:     Option<Box<GenericParams>>,
+    pub receiver:     FnReceiver,
+    pub params:       Vec<FnParam>,
+    pub return_ty:    Option<Box<Type>>,
+    pub where_clause: Option<Box<WhereClause>>,
+    pub contracts:    Vec<Box<Contract>>,
+    pub body:         Option<Box<Block>>,
+}
+
+pub struct TraitTypeAlias {
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
+    pub attrs:        Vec<Box<Attribute>>,
+    pub name:         NameId,
+    pub generics:     Option<Box<GenericParams>>,
+    pub bounds:       Vec<()>,
+    pub where_clause: Option<Box<WhereClause>>,
+    pub def:          Option<Box<Type>>,
+}
+
+pub struct TraitTypeAliasOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub ty:      Box<Type>,
+}
+
+pub struct TraitConst {
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub attrs:   Vec<Box<Attribute>>,
+    pub name:    NameId,
+    pub ty:      Box<Type>,
+    pub def:     Option<Box<Expr>>,
+}
+
+pub struct TraitConstOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub expr:    Box<Expr>,
+}
+
+pub enum TraitPropertyMember {
+    None,
+    HasProp(SpanId),
+    Def(SpanId, Box<Expr>)
+}
+
+impl TraitPropertyMember {
+    pub fn is_none(&self) -> bool {
+        matches!(self, TraitPropertyMember::None)
+    }
+}
+
+pub struct TraitProperty {
+    pub span:      SpanId,
+    pub node_id:   ast::NodeId,
+    pub attrs:     Vec<Box<Attribute>>,
+    pub is_unsafe: bool,
+    pub name:      NameId,
+    pub get:       TraitPropertyMember,
+    pub ref_get:   TraitPropertyMember,
+    pub mut_get:   TraitPropertyMember,
+    pub set:       TraitPropertyMember,
+}
+
+pub struct TraitPropertyOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub get:     Option<Box<Expr>>,
+    pub ref_get: Option<Box<Expr>>,
+    pub mut_get: Option<Box<Expr>>,
+    pub set:     Option<Box<Expr>>,
+}
+
+//--------------------------------------------------------------
+
+pub struct Impl {
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
+    pub attrs:        Vec<Box<Attribute>>,
+    pub vis:          Visibility,
+    pub is_unsafe:    bool,
+    pub generics:     Option<Box<GenericParams>>,
+    pub ty:           Box<Type>,
+    pub impl_trait:   Option<TypePath>,
+    pub where_clause: Option<Box<WhereClause>>,
+}
+
 pub struct Property {
     pub span:      SpanId,
     pub node_id:   ast::NodeId,
@@ -483,41 +616,7 @@ pub struct Property {
     pub set:       Option<Box<Expr>>,
 }
 
-pub struct TraitProperty {
-    pub span:        SpanId,
-    pub node_id:     ast::NodeId,
-    pub attrs:       Vec<Box<Attribute>>,
-    pub vis:         Visibility,
-    pub is_unsafe:   bool,
-    pub name:        NameId,
-    pub has_get:     bool,
-    pub has_ref_get: bool,
-    pub has_mut_get: bool,
-    pub has_set:     bool,
-}
-
-pub struct Trait {
-    pub span:       SpanId,
-    pub node_id:    ast::NodeId,
-    pub attrs:      Vec<Box<Attribute>>,
-    pub vis:        Visibility,
-    pub is_unsafe:  bool,
-    pub is_sealed:  bool,
-    pub name:       NameId,
-    pub bounds:     Option<Box<TraitBounds>>,
-}
-
-pub struct Impl {
-    pub span:         SpanId,
-    pub node_id:      ast::NodeId,
-    pub attrs:        Vec<Box<Attribute>>,
-    pub vis:          Visibility,
-    pub is_unsafe:    bool,
-    pub generics:     Option<Box<GenericParams>>,
-    pub ty:           Box<Type>,
-    pub impl_trait:   Option<TypePath>,
-    pub where_clause: Option<Box<WhereClause>>,
-}
+//--------------------------------------------------------------
 
 pub struct OpTrait {
     pub span:       SpanId,
@@ -552,6 +651,8 @@ pub struct OpContract {
     pub node_id: ast::NodeId,
     pub expr:    Box<Expr>,
 }
+
+//--------------------------------------------------------------
 
 pub struct PrecedenceAssoc {
     pub span: SpanId,
@@ -1746,90 +1847,104 @@ impl PrecedenceContext {
 pub type Ref<T> = Arc<RwLock<T>>;
 
 pub struct Hir {
-    pub functions:                Vec<(Function, FunctionContext)>,
-    pub extern_functions_no_body: Vec<(ExternFunctionNoBody, FunctionContext)>,
-    pub type_aliases:             Vec<(TypeAlias, TypeAliasContext)>,
-    pub distinct_types:           Vec<(DistinctType, TypeAliasContext)>,
-    pub opaque_types:             Vec<(OpaqueType, TypeAliasContext)>,
-    pub structs:                  Vec<(Struct, StructContext)>,
-    pub tuple_structs:            Vec<(TupleStruct, StructContext)>,
-    pub unit_structs:             Vec<(UnitStruct, StructContext)>,
-    pub unions:                   Vec<(Union, UnionContext)>,
-    pub adt_enums:                Vec<(AdtEnum, AdtEnumContext)>,
-    pub flag_enums:               Vec<(FlagEnum, FlagEnumContext)>,
-    pub bitfields:                Vec<(Bitfield, BitfieldContext)>,
-    pub consts:                   Vec<(Const, ConstContext)>,
-    pub statics:                  Vec<(Static, StaticContext)>,
-    pub tls_statics:              Vec<(TlsStatic, StaticContext)>,
-    pub extern_statics:           Vec<(ExternStatic, StaticContext)>,
+    pub functions:                 Vec<(Function, FunctionContext)>,
+    pub extern_functions_no_body:  Vec<(ExternFunctionNoBody, FunctionContext)>,
+    pub type_aliases:              Vec<(TypeAlias, TypeAliasContext)>,
+    pub distinct_types:            Vec<(DistinctType, TypeAliasContext)>,
+    pub opaque_types:              Vec<(OpaqueType, TypeAliasContext)>,
+    pub structs:                   Vec<(Struct, StructContext)>,
+    pub tuple_structs:             Vec<(TupleStruct, StructContext)>,
+    pub unit_structs:              Vec<(UnitStruct, StructContext)>,
+    pub unions:                    Vec<(Union, UnionContext)>,
+    pub adt_enums:                 Vec<(AdtEnum, AdtEnumContext)>,
+    pub flag_enums:                Vec<(FlagEnum, FlagEnumContext)>,
+    pub bitfields:                 Vec<(Bitfield, BitfieldContext)>,
+    pub consts:                    Vec<(Const, ConstContext)>,
+    pub statics:                   Vec<(Static, StaticContext)>,
+    pub tls_statics:               Vec<(TlsStatic, StaticContext)>,
+    pub extern_statics:            Vec<(ExternStatic, StaticContext)>,
     
     // trait items store the index into the traits array, as it cannot have any traits removed
-    pub traits:                   Vec<(Ref<Trait>, Ref<TraitContext>)>,
-    pub trait_type_alias:         Vec<(usize, TraitTypeAlias, TypeAliasContext)>,
-    pub trait_consts:             Vec<(usize, TraitConst, ConstContext)>,
-    pub trait_functions:          Vec<(usize, TraitFunction, FunctionContext)>,
-    pub trait_properties:         Vec<(usize, TraitProperty, PropertyContext)>,
+    pub traits:                    Vec<(Ref<Trait>, Ref<TraitContext>)>,
+    pub trait_functions:           Vec<(usize, TraitFunction, FunctionContext)>,
+    pub trait_methods:             Vec<(usize, TraitMethod, FunctionContext)>,
+    pub trait_type_alias:          Vec<(usize, TraitTypeAlias, TypeAliasContext)>,
+    pub trait_type_alias_override: Vec<(usize, TraitTypeAliasOverride, TypeAliasContext)>,
+    pub trait_consts:              Vec<(usize, TraitConst, ConstContext)>,
+    pub trait_const_overrides:     Vec<(usize, TraitConstOverride, ConstContext)>,
+    pub trait_properties:          Vec<(usize, TraitProperty, PropertyContext)>,
+    pub trait_property_overides:   Vec<(usize, TraitPropertyOverride, PropertyContext)>,
     
     // assoc items store the index into the impls array, as it cannot have any impl removed
-    pub impls:                    Vec<(Ref<Impl>, Ref<ImplContext>)>,
-    pub impl_functions:           Vec<(usize, Function, FunctionContext)>,
-    pub methods:                  Vec<(usize, Method, FunctionContext)>,
-    pub impl_type_aliases:        Vec<(usize, TypeAlias, TypeAliasContext)>,
-    pub impl_consts:              Vec<(usize, Const, ConstContext)>,
-    pub impl_statics:             Vec<(usize, Static, StaticContext)>,
-    pub impl_tls_statics:         Vec<(usize, TlsStatic, StaticContext)>,
-    pub properties:               Vec<(usize, Property, PropertyContext)>,
+    pub impls:                     Vec<(Ref<Impl>, Ref<ImplContext>)>,
+    pub impl_functions:            Vec<(usize, Function, FunctionContext)>,
+    pub methods:                   Vec<(usize, Method, FunctionContext)>,
+    pub impl_type_aliases:         Vec<(usize, TypeAlias, TypeAliasContext)>,
+    pub impl_consts:               Vec<(usize, Const, ConstContext)>,
+    pub impl_statics:              Vec<(usize, Static, StaticContext)>,
+    pub impl_tls_statics:          Vec<(usize, TlsStatic, StaticContext)>,
+    pub properties:                Vec<(usize, Property, PropertyContext)>,
 
     // op items store the index into the op_traits array, as it cannot have any op_trait removed
-    pub op_traits:                Vec<(Ref<OpTrait>, Ref<OpTraitContext>)>,
-    pub op_functions:             Vec<(usize, OpFunction, OpFunctionContext)>,
-    pub op_specializations:       Vec<(usize, OpSpecialization, OpSpecializationContext)>,
-    pub op_contracts:             Vec<(usize, OpContract, OpContractContext)>,
+    pub op_traits:                 Vec<(Ref<OpTrait>, Ref<OpTraitContext>)>,
+    pub op_functions:              Vec<(usize, OpFunction, OpFunctionContext)>,
+    pub op_specializations:        Vec<(usize, OpSpecialization, OpSpecializationContext)>,
+    pub op_contracts:              Vec<(usize, OpContract, OpContractContext)>,
 
-    pub precedences:              Vec<(Precedence, Ref<PrecedenceContext>)>,
+    pub precedences:               Vec<(Precedence, Ref<PrecedenceContext>)>,
+
+    pub constraints:               Vec<Ref<Constraint>>,
+    pub constraint_func:           Vec<(usize, ConstraintFunction)>,
+    pub constraint_type_alias:     Vec<(usize, ConstraintTypeAlias)>,
+    pub constraint_const:          Vec<(usize, ConstraintConst)>,
+    pub constraint_property:       Vec<(usize, ConstraintProperty)>,
 }
 
 impl Hir {
     pub fn new() -> Self {
         Self {
-            functions:                Vec::new(),
-            extern_functions_no_body: Vec::new(),
-            type_aliases:             Vec::new(),
-            distinct_types:           Vec::new(),
-            opaque_types:             Vec::new(),
-            structs:                  Vec::new(),
-            tuple_structs:            Vec::new(),
-            unit_structs:             Vec::new(),
-            unions:                   Vec::new(),
-            adt_enums:                Vec::new(),
-            flag_enums:               Vec::new(),
-            bitfields:                Vec::new(),
-            consts:                   Vec::new(),
-            statics:                  Vec::new(),
-            tls_statics:              Vec::new(),
-            extern_statics:           Vec::new(),
+            functions:                 Vec::new(),
+            extern_functions_no_body:  Vec::new(),
+            type_aliases:              Vec::new(),
+            distinct_types:            Vec::new(),
+            opaque_types:              Vec::new(),
+            structs:                   Vec::new(),
+            tuple_structs:             Vec::new(),
+            unit_structs:              Vec::new(),
+            unions:                    Vec::new(),
+            adt_enums:                 Vec::new(),
+            flag_enums:                Vec::new(),
+            bitfields:                 Vec::new(),
+            consts:                    Vec::new(),
+            statics:                   Vec::new(),
+            tls_statics:               Vec::new(),
+            extern_statics:            Vec::new(),
             
-            traits:                   Vec::new(),
-            trait_type_alias:         Vec::new(),
-            trait_consts:             Vec::new(),
-            trait_functions:          Vec::new(),
-            trait_properties:         Vec::new(),
+            traits:                    Vec::new(),
+            trait_functions:           Vec::new(),
+            trait_methods:             Vec::new(),
+            trait_type_alias:          Vec::new(),
+            trait_type_alias_override: Vec::new(),
+            trait_consts:              Vec::new(),
+            trait_const_overrides:     Vec::new(),
+            trait_properties:          Vec::new(),
+            trait_property_overides:   Vec::new(),
             
-            impls:                    Vec::new(),
-            impl_functions:           Vec::new(),
-            methods:                  Vec::new(),
-            impl_type_aliases:        Vec::new(),
-            impl_consts:              Vec::new(),
-            impl_statics:             Vec::new(),
-            impl_tls_statics:         Vec::new(),
-            properties:               Vec::new(),
+            impls:                     Vec::new(),
+            impl_functions:            Vec::new(),
+            methods:                   Vec::new(),
+            impl_type_aliases:         Vec::new(),
+            impl_consts:               Vec::new(),
+            impl_statics:              Vec::new(),
+            impl_tls_statics:          Vec::new(),
+            properties:                Vec::new(),
 
-            op_traits:                Vec::new(),
-            op_functions:             Vec::new(),
-            op_specializations:       Vec::new(),
-            op_contracts:             Vec::new(),
+            op_traits:                 Vec::new(),
+            op_functions:              Vec::new(),
+            op_specializations:        Vec::new(),
+            op_contracts:              Vec::new(),
 
-            precedences:              Vec::new(),
+            precedences:               Vec::new(),
         }
     }
 
@@ -1853,21 +1968,9 @@ impl Hir {
         todo!();
     }
 
-    pub fn add_trait_function(&mut self, scope: Scope, item: TraitFunction) {
-        let ctx = FunctionContext::new(scope);
-        let trait_idx = self.traits.len() - 1;
-        self.trait_functions.push((trait_idx, item, ctx));
-    }
-
     pub fn add_type_alias(&mut self, scope: Scope, item: TypeAlias) {
         let ctx = TypeAliasContext::new(scope);
         self.type_aliases.push((item, ctx));
-    }
-
-    pub fn add_trait_type_alias(&mut self, scope: Scope, item: TraitTypeAlias) {
-        let ctx = TypeAliasContext::new(scope);
-        let trait_idx = self.traits.len() - 1;
-        self.trait_type_alias.push((trait_idx, item, ctx));
     }
 
     pub fn add_distinct_type(&mut self, scope: Scope, item: DistinctType) {
@@ -1925,12 +2028,6 @@ impl Hir {
         }
     }
 
-    pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
-        let ctx = ConstContext::new(scope);
-        let trait_idx = self.traits.len() - 1;
-        self.trait_consts.push((trait_idx, item, ctx));
-    }
-
     pub fn add_static(&mut self, in_impl: bool, scope: Scope, item: Static) {
         let ctx = StaticContext::new(scope);
         if in_impl {
@@ -1963,11 +2060,7 @@ impl Hir {
         self.properties.push((impl_idx, item, ctx));
     }
 
-    pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
-        let trait_idx = self.traits.len() - 1;
-        let ctx = PropertyContext::new(scope);
-        self.trait_properties.push((trait_idx, item, ctx));
-    }
+    //--------------------------------------------------------------
 
     pub fn add_trait(&mut self, scope: Scope, item: Trait) {
         let item = Arc::new(RwLock::new(item));
@@ -1975,12 +2068,64 @@ impl Hir {
         self.traits.push((item, ctx));
     }
 
+    pub fn add_trait_function(&mut self, scope: Scope, item: TraitFunction) {
+        let ctx = FunctionContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_functions.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_method(&mut self, scope: Scope, item: TraitMethod) {
+        let ctx = FunctionContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_methods.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_type_alias(&mut self, scope: Scope, item: TraitTypeAlias) {
+        let ctx = TypeAliasContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_type_alias.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_type_alias_override(&mut self, scope: Scope, item: TraitTypeAliasOverride) {
+        let ctx = TypeAliasContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_type_alias_override.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
+        let ctx = ConstContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_consts.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_const_override(&mut self, scope: Scope, item: TraitConstOverride) {
+        let ctx = ConstContext::new(scope);
+        let trait_idx = self.traits.len() - 1;
+        self.trait_const_overrides.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
+        let trait_idx = self.traits.len() - 1;
+        let ctx = PropertyContext::new(scope);
+        self.trait_properties.push((trait_idx, item, ctx));
+    }
+
+    pub fn add_trait_property_override(&mut self, scope: Scope, item: TraitPropertyOverride) {
+        let trait_idx = self.traits.len() - 1;
+        let ctx = PropertyContext::new(scope);
+        self.trait_property_overides.push((trait_idx, item, ctx));
+    }
+
+    //--------------------------------------------------------------
+    
     pub fn add_impl(&mut self, scope: Scope, item: Impl) {
         let item = Arc::new(RwLock::new(item));
         let ctx = Arc::new(RwLock::new(ImplContext::new(scope)));
         self.impls.push((item, ctx));
     }
 
+    //--------------------------------------------------------------
+    
     pub fn add_op_trait(&mut self, scope: Scope, item: OpTrait) {
         let item = Arc::new(RwLock::new(item));
         let ctx = Arc::new(RwLock::new(OpTraitContext::new(scope)));
@@ -2004,6 +2149,8 @@ impl Hir {
         let ctx = OpContractContext::new(scope);
         self.op_contracts.push((op_idx, item, ctx));
     }
+
+    //--------------------------------------------------------------
 
     pub fn add_precedence(&mut self, scope: Scope, item: Precedence) {
         let ctx = Arc::new(RwLock::new(PrecedenceContext::new(scope)));

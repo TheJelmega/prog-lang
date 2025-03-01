@@ -32,7 +32,7 @@ impl Visitor for ModuleScopePass<'_> {
         helpers::visit_trait_item(self, item);
     }
 
-    fn visit_assoc_item(&mut self, item: &AssocItem) where Self: Sized {
+    fn visit_assoc_item(&mut self, item: &ImplItem) where Self: Sized {
         let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
         ctx.scope = self.scope.clone();
         helpers::visit_assoc_item(self, item);

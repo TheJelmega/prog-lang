@@ -301,6 +301,8 @@ pub enum Item {
     Use(AstNodeRef<UseItem>),
     Function(AstNodeRef<Function>),
     TypeAlias(AstNodeRef<TypeAlias>),
+    DistinctType(AstNodeRef<DistinctType>),
+    OpaqueType(AstNodeRef<OpaqueType>),
     Struct(AstNodeRef<Struct>),
     Union(AstNodeRef<Union>),
     Enum(AstNodeRef<Enum>),
@@ -324,6 +326,8 @@ impl AstNode for Item {
             Item::Module(item)        => item.span(),
             Item::Function(item)      => item.span(),
             Item::TypeAlias(item)     => item.span(),
+            Item::DistinctType(item)  => item.span(),
+            Item::OpaqueType(item)    => item.span(),
             Item::Struct(item)        => item.span(),
             Item::Union(item)         => item.span(),
             Item::Enum(item)          => item.span(),
@@ -347,6 +351,8 @@ impl AstNode for Item {
             Item::Module(item)        => item.node_id(),
             Item::Function(item)      => item.node_id(),
             Item::TypeAlias(item)     => item.node_id(),
+            Item::DistinctType(item)  => item.node_id(),
+            Item::OpaqueType(item)    => item.node_id(),
             Item::Struct(item)        => item.node_id(),
             Item::Union(item)         => item.node_id(),
             Item::Enum(item)          => item.node_id(),
@@ -370,6 +376,8 @@ impl AstNode for Item {
             Self::Use(item)           => logger.log_node_ref(item),
             Self::Function(item)      => logger.log_node_ref(item),
             Self::TypeAlias(item)     => logger.log_node_ref(item),
+            Self::DistinctType(item)  => logger.log_node_ref(item),
+            Self::OpaqueType(item)    => logger.log_node_ref(item),
             Self::Struct(item)        => logger.log_node_ref(item),
             Self::Union(item)         => logger.log_node_ref(item),
             Self::Enum(item)          => logger.log_node_ref(item),
@@ -384,83 +392,7 @@ impl AstNode for Item {
             Self::OpUse(item)         => logger.log_node_ref(item),
             Self::Precedence(item)    => logger.log_node_ref(item),
             Self::PrecedenceUse(item) => logger.log_node_ref(item),
-        }
-    }
-}
-
-pub enum TraitItem {
-    Function(AstNodeRef<Function>),
-    TypeAlias(AstNodeRef<TypeAlias>),
-    Const(AstNodeRef<TraitConst>),
-    Property(AstNodeRef<Property>),
-}
-
-impl AstNode for TraitItem {
-    fn span(&self) -> SpanId {
-        match self {
-            TraitItem::Function(item)  => item.span(),
-            TraitItem::TypeAlias(item) => item.span(),
-            TraitItem::Const(item)     => item.span(),
-            TraitItem::Property(item)  => item.span(),
-        }
-    }
-    
-    fn node_id(&self) -> NodeId {
-        match self {
-            TraitItem::Function(item)  => item.node_id(),
-            TraitItem::TypeAlias(item) => item.node_id(),
-            TraitItem::Const(item)     => item.node_id(),
-            TraitItem::Property(item)  => item.node_id(),
-        }
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        match self {
-            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
-            Self::TypeAlias(type_alias)   => logger.log_node_ref(type_alias),
-            Self::Const(const_item)       => logger.log_node_ref(const_item),
-            Self::Property(prop_item)     => logger.log_node_ref(prop_item),
-        }
-    }
-}
-
-
-pub enum AssocItem {
-    Function(AstNodeRef<Function>),
-    TypeAlias(AstNodeRef<TypeAlias>),
-    Const(AstNodeRef<Const>),
-    Static(AstNodeRef<Static>),
-    Property(AstNodeRef<Property>),
-}
-
-impl AstNode for AssocItem {
-    fn span(&self) -> SpanId {
-        match self {
-            AssocItem::Function(item)  => item.span(),
-            AssocItem::TypeAlias(item) => item.span(),
-            AssocItem::Const(item)     => item.span(),
-            AssocItem::Static(item)    => item.span(),
-            AssocItem::Property(item)  => item.span(),
-        }
-    }
-
-    fn node_id(&self) -> NodeId {
-        match self {
-            AssocItem::Function(item)  => item.node_id(),
-            AssocItem::TypeAlias(item) => item.node_id(),
-            AssocItem::Const(item)     => item.node_id(),
-            AssocItem::Static(item)    => item.node_id(),
-            AssocItem::Property(item)  => item.node_id(),
-        }
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        match self {
-            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
-            Self::TypeAlias(type_alias)   => logger.log_node_ref(type_alias),
-            Self::Const(const_item)       => logger.log_node_ref(const_item),
-            Self::Static(static_item)     => logger.log_node_ref(static_item),
-            Self::Property(prop_item)     => logger.log_node_ref(prop_item),
+            Item::Constraint(item)    => logger.log_node_ref(item),
         }
     }
 }
@@ -675,13 +607,11 @@ pub struct Function {
     pub node_id:      NodeId,
     pub attrs:        Vec<AstNodeRef<Attribute>>,
     pub vis:          Option<AstNodeRef<Visibility>>,
-    pub is_override:  bool,
     pub is_const:     bool,
     pub is_unsafe:    bool,
     pub abi:          Option<LiteralId>,
     pub name:         NameId,
     pub generics:     Option<AstNodeRef<GenericParams>>,
-    pub receiver:     Option<FnReceiver>,
     pub params:       Vec<FnParam>,
     pub returns:      Option<FnReturn>,
     pub where_clause: Option<AstNodeRef<WhereClause>>,
@@ -703,21 +633,17 @@ impl AstNode for Function {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
 
-            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
             logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
             logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             if let Some(abi) = self.abi {
                 logger.prefixed_log_fmt(format_args!("ABI: {}\n", logger.resolve_name(self.name)));
             }
-            logger.set_last_at_indent_if(self.generics.is_none() && self.generics.is_none() && self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
             
            
-            logger.set_last_at_indent_if(self.generics.is_none() && self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
+            logger.set_last_at_indent_if(self.params.is_empty() && self.returns.is_none() && self.body.is_none());
             logger.log_opt_node_ref(&self.generics);
-            logger.set_last_at_indent_if(self.receiver.is_none() && self.params.is_empty() && self.body.is_none());
-            logger.log_opt(&self.receiver, |logger, rec| rec.log(logger));
-            logger.set_last_at_indent_if(self.params.is_empty() && self.body.is_none());
+            logger.set_last_at_indent_if(self.returns.is_none() && self.body.is_none());
             logger.log_indented_slice("Params", &self.params, |logger, param| param.log(logger));
             logger.set_last_at_indent_if(self.body.is_none());
             logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
@@ -733,19 +659,6 @@ impl AstNodeParseHelper for Function {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
-}
-
-pub enum FnReceiver {
-    SelfReceiver{
-        span:    SpanId,
-        is_ref:  bool,
-        is_mut:  bool,
-    },
-    SelfTyped{
-        span:    SpanId,
-        is_mut:  bool,
-        ty:      Type,  
-    },
 }
 
 impl FnReceiver {
@@ -832,103 +745,176 @@ impl FnReturn {
     }
 }
 
-pub enum TypeAlias {
-    Normal {
-        span:     SpanId,
-        node_id:  NodeId,
-        attrs:    Vec<AstNodeRef<Attribute>>,
-        vis:      Option<AstNodeRef<Visibility>>,
-        name:     NameId,
-        generics: Option<AstNodeRef<GenericParams>>,
-        ty:       Type,
-    },
-    Distinct {
-        span:     SpanId,
-        node_id:  NodeId,
-        attrs:    Vec<AstNodeRef<Attribute>>,
-        vis:      Option<AstNodeRef<Visibility>>,
-        name:     NameId,
-        generics: Option<AstNodeRef<GenericParams>>,
-        ty:       Type,
-    },
-    Trait {
-        span:     SpanId,
-        node_id:  NodeId,
-        attrs:    Vec<AstNodeRef<Attribute>>,
-        name:     NameId,
-        generics: Option<AstNodeRef<GenericParams>>,
-    },
-    Opaque {
-        span:     SpanId,
-        node_id : NodeId,
-        attrs:    Vec<AstNodeRef<Attribute>>,
-        vis:      Option<AstNodeRef<Visibility>>,
-        name:     NameId,
-        size:     Option<Expr>,
+pub struct Method {
+    pub span:         SpanId,
+    pub node_id:      NodeId,
+    pub attrs:        Vec<AstNodeRef<Attribute>>,
+    pub vis:          Option<AstNodeRef<Visibility>>,
+    pub is_const:     bool,
+    pub is_unsafe:    bool,
+    pub name:         NameId,
+    pub generics:     Option<AstNodeRef<GenericParams>>,
+    pub receiver:     FnReceiver,
+    pub params:       Vec<FnParam>,
+    pub returns:      Option<FnReturn>,
+    pub where_clause: Option<AstNodeRef<WhereClause>>,
+    pub contracts:    Vec<AstNodeRef<Contract>>,
+    pub body:         AstNodeRef<Block>,
+}
+
+impl AstNode for Method {
+    fn span(&self) -> SpanId {
+        self.span
     }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Method", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.log_opt_node_ref(&self.vis);
+
+            logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            
+            logger.log_opt_node_ref(&self.generics);
+            self.receiver.log(logger);
+            logger.set_last_at_indent_if(self.returns.is_none());
+            logger.log_indented_slice("Params", &self.params, |logger, param| param.log(logger));
+            logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
+            logger.set_last_at_indent();
+            logger.log_node_ref(&self.body);
+        })
+    }
+}
+
+impl AstNodeParseHelper for Method {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub enum FnReceiver {
+    SelfReceiver{
+        span:    SpanId,
+        is_ref:  bool,
+        is_mut:  bool,
+    },
+    SelfTyped{
+        span:    SpanId,
+        is_mut:  bool,
+        ty:      Type,  
+    },
+}
+
+pub struct TypeAlias {
+    pub span:     SpanId,
+    pub node_id:  NodeId,
+    pub attrs:    Vec<AstNodeRef<Attribute>>,
+    pub vis:      Option<AstNodeRef<Visibility>>,
+    pub name:     NameId,
+    pub generics: Option<AstNodeRef<GenericParams>>,
+    pub ty:       Type,
 }
 
 impl AstNode for TypeAlias {
     fn span(&self) -> SpanId {
-        match self {
-            TypeAlias::Normal { span, .. }   => *span,
-            TypeAlias::Distinct { span, .. } => *span,
-            TypeAlias::Trait { span, .. }    => *span,
-            TypeAlias::Opaque { span, .. }   => *span,
-        }    
+        self.span
     }
 
     fn node_id(&self) -> NodeId {
-        match self {
-            TypeAlias::Normal { node_id, .. }   => *node_id,
-            TypeAlias::Distinct { node_id, .. } => *node_id,
-            TypeAlias::Trait { node_id, .. }    => *node_id,
-            TypeAlias::Opaque { node_id, .. }   => *node_id,
-        }    
+        self.node_id
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        match self {
-            TypeAlias::Normal { span, node_id, attrs, vis, name, generics, ty } => logger.log_ast_node("Typealias", |logger| {
-                logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.log_opt_node_ref(vis);
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.log_opt_node_ref(generics);
-                logger.set_last_at_indent();
-                logger.log_indented_node("Type", ty);
-            }),
-            TypeAlias::Distinct { span, node_id, attrs, vis, name, generics, ty } => logger.log_ast_node("Distinct Typealias", |logger| {
-                logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.log_opt_node_ref(vis);
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.log_opt_node_ref(generics);
-                logger.set_last_at_indent();
-                logger.log_indented_node("Type", ty);
-            }),
-            TypeAlias::Trait { span, node_id, attrs, name, generics } => logger.log_ast_node("Trait Typealias", |logger| {
-                logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.set_last_at_indent();
-                logger.log_opt_node_ref(generics);
-            }),
-            TypeAlias::Opaque { span, node_id, attrs, vis, name, size } => logger.log_ast_node("Opaque Typealias", |logger| {
-                logger.log_indented_node_ref_slice("Attributes", attrs);
-                logger.log_opt_node_ref(vis);
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                logger.log_indented_opt_node("Size", size);
-            }),
-        }
+        logger.log_ast_node("Typealias", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.log_opt_node_ref(&self.vis);
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.log_opt_node_ref(&self.generics);
+            logger.set_last_at_indent();
+            logger.log_indented_node("Type", &self.ty);
+        })
     }
 }
 
 impl AstNodeParseHelper for TypeAlias {
-    fn set_node_id(&mut self, ast_node_id: NodeId) {
-        match self {
-            TypeAlias::Normal { node_id, .. }   => *node_id = ast_node_id,
-            TypeAlias::Distinct { node_id, .. } => *node_id = ast_node_id,
-            TypeAlias::Trait { node_id, .. }    => *node_id = ast_node_id,
-            TypeAlias::Opaque { node_id, .. }   => *node_id = ast_node_id,
-        }
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct DistinctType {
+    pub span:     SpanId,
+    pub node_id:  NodeId,
+    pub attrs:    Vec<AstNodeRef<Attribute>>,
+    pub vis:      Option<AstNodeRef<Visibility>>,
+    pub name:     NameId,
+    pub generics: Option<AstNodeRef<GenericParams>>,
+    pub ty:       Type,
+}
+
+impl AstNode for DistinctType {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Distinct Typealias", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.log_opt_node_ref(&self.vis);
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.log_opt_node_ref(&self.generics);
+            logger.set_last_at_indent();
+            logger.log_indented_node("Type", &self.ty);
+        })
+    }
+}
+
+impl AstNodeParseHelper for DistinctType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct OpaqueType {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub attrs:   Vec<AstNodeRef<Attribute>>,
+    pub vis:     Option<AstNodeRef<Visibility>>,
+    pub name:    NameId,
+    pub size:    Option<Expr>,
+}
+
+impl AstNode for OpaqueType {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Opaque Typealias", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.log_opt_node_ref(&self.vis);
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.log_indented_opt_node("Size", &self.size);
+        });
+    }
+}
+
+impl AstNodeParseHelper for OpaqueType {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
     }
 }
 
@@ -1474,39 +1460,6 @@ impl AstNodeParseHelper for Const {
     }
 }
 
-pub struct TraitConst {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub attrs:   Vec<AstNodeRef<Attribute>>,
-    pub vis:     Option<AstNodeRef<Visibility>>,
-    pub name:    NameId,
-    pub ty:      Type,
-}
-
-impl AstNode for TraitConst {
-    fn span(&self) -> SpanId {
-        self.span
-    }
-
-    fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Const Item", |logger| {
-            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            logger.set_last_at_indent();
-            logger.log_indented_node("Type", &self.ty);
-        });
-    }
-}
-
-impl AstNodeParseHelper for TraitConst {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
-    }
-}
-
 pub enum Static {
     Static {
         span:    SpanId,
@@ -1605,23 +1558,10 @@ pub struct Property {
     pub vis:       Option<AstNodeRef<Visibility>>,
     pub is_unsafe: bool,
     pub name:      NameId,
-    pub body:      PropertyBody,
-}
-
-
-pub enum PropertyBody {
-    Assoc {
-        get:       Option<(SpanId, Expr)>,
-        ref_get:   Option<(SpanId, Expr)>,
-        mut_get:   Option<(SpanId, Expr)>,
-        set:       Option<(SpanId, Expr)>,
-    },
-    Trait {
-        has_get:     Option<SpanId>,
-        has_ref_get: Option<SpanId>,
-        has_mut_get: Option<SpanId>,
-        has_set:     Option<SpanId>,
-    }
+    pub get:       Option<(SpanId, Expr)>,
+    pub ref_get:   Option<(SpanId, Expr)>,
+    pub mut_get:   Option<(SpanId, Expr)>,
+    pub set:       Option<(SpanId, Expr)>,
 }
 
 impl AstNode for Property {
@@ -1634,17 +1574,19 @@ impl AstNode for Property {
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        let header = if self.is_trait_property() {
-            "Trait Property"
-        } else {
-            "Assoc Property"
-        };
-        logger.log_ast_node(&header, |logger| {
+        logger.log_ast_node("Property", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.log_opt_node_ref(&self.vis);
             logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            self.body.log(logger);
+            logger.set_last_at_indent_if(self.ref_get.is_none() && self.mut_get.is_none() && self.set.is_none());
+            logger.log_indented_opt("Get", &self.get, |logger, (_, get)| get.log(logger));
+            logger.set_last_at_indent_if(self.mut_get.is_none() && self.set.is_none());
+            logger.log_indented_opt("ref Get", &self.ref_get, |logger, (_, ref_get)| ref_get.log(logger));
+            logger.set_last_at_indent_if(self.set.is_none());
+            logger.log_indented_opt("Mut Get", &self.mut_get, |logger, (_, mut_get)| mut_get.log(logger));
+            logger.set_last_at_indent();
+            logger.log_indented_opt("Set", &self.set, |logger, (_, set)| set.log(logger));
         });
     }
 }
@@ -1655,60 +1597,7 @@ impl AstNodeParseHelper for Property {
     }
 }
 
-impl Property {
-    pub fn is_trait_property(&self) -> bool {
-        matches!(self.body, PropertyBody::Trait{ .. })
-    }
-
-    pub fn has_get(&self) -> bool {
-        match &self.body {
-            PropertyBody::Assoc { get, .. } => get.is_some(),
-            PropertyBody::Trait { has_get, .. } => has_get.is_some(),
-        }
-    }
-    pub fn has_ref_get(&self) -> bool {
-        match &self.body {
-            PropertyBody::Assoc { ref_get, .. } => ref_get.is_some(),
-            PropertyBody::Trait { has_ref_get, .. } => has_ref_get.is_some(),
-        }
-    }
-    pub fn has_mut_get(&self) -> bool {
-        match &self.body {
-            PropertyBody::Assoc { mut_get, .. } => mut_get.is_some(),
-            PropertyBody::Trait { has_mut_get, .. } => has_mut_get.is_some(),
-        }
-    }
-    pub fn has_set(&self) -> bool {
-        match &self.body {
-            PropertyBody::Assoc { set, .. } => set.is_some(),
-            PropertyBody::Trait { has_set, .. } => has_set.is_some(),
-        }
-    }
-}
-
-impl PropertyBody {
-    fn log(&self, logger: &mut AstLogger) {
-        match self {
-            PropertyBody::Assoc { get, ref_get, mut_get, set } => {
-                logger.set_last_at_indent_if(ref_get.is_none() && mut_get.is_none() && set.is_none());
-                logger.log_indented_opt("Get", get, |logger, (_, get)| get.log(logger));
-                logger.set_last_at_indent_if(mut_get.is_none() && set.is_none());
-                logger.log_indented_opt("Ref Get", ref_get, |logger, (_, ref_get)| ref_get.log(logger));
-                logger.set_last_at_indent_if(set.is_none());
-                logger.log_indented_opt("Mut Get", mut_get, |logger, (_, mut_get)| mut_get.log(logger));
-                logger.set_last_at_indent();
-                logger.log_indented_opt("Set", set, |logger, (_, set)| set.log(logger));
-            },
-            PropertyBody::Trait { has_get, has_ref_get, has_mut_get, has_set } => {
-                logger.prefixed_log_fmt(format_args!("Has Get: {}\n", has_get.is_some()));
-                logger.prefixed_log_fmt(format_args!("Has Ref Get: {}\n", has_ref_get.is_some()));
-                logger.prefixed_log_fmt(format_args!("Has Mut Get: {}\n", has_mut_get.is_some()));
-                logger.prefixed_log_fmt(format_args!("Has Set: {}\n", has_set.is_some()));
-            },
-        }
-    }
-}
-
+//--------------------------------------------------------------
 
 pub struct Trait {
     pub span:        SpanId,
@@ -1753,6 +1642,406 @@ impl AstNodeParseHelper for Trait {
     }
 }
 
+pub enum TraitItem {
+    Function(AstNodeRef<TraitFunction>),
+    Method(AstNodeRef<TraitMethod>),
+    TypeAlias(AstNodeRef<TraitTypeAlias>),
+    TypeAliasOverride(AstNodeRef<TraitTypeAliasOverride>),
+    Const(AstNodeRef<TraitConst>),
+    ConstOverride(AstNodeRef<TraitConstOverride>),
+    Property(AstNodeRef<TraitProperty>),
+    PropertyOverride(AstNodeRef<TraitPropertyOverride>),
+}
+
+impl AstNode for TraitItem {
+    fn span(&self) -> SpanId {
+        match self {
+            TraitItem::Function(item)          => item.span(),
+            TraitItem::Method(item)            => item.span(),
+            TraitItem::TypeAlias(item)         => item.span(),
+            TraitItem::TypeAliasOverride(item) => item.span(),
+            TraitItem::Const(item)             => item.span(),
+            TraitItem::ConstOverride(item)     => item.span(),
+            TraitItem::Property(item)          => item.span(),
+            TraitItem::PropertyOverride(item)  => item.span(),
+        }
+    }
+    
+    fn node_id(&self) -> NodeId {
+        match self {
+            TraitItem::Function(item)          => item.node_id(),
+            TraitItem::Method(item)            => item.node_id(),
+            TraitItem::TypeAlias(item)         => item.node_id(),
+            TraitItem::TypeAliasOverride(item) => item.node_id(),
+            TraitItem::Const(item)             => item.node_id(),
+            TraitItem::ConstOverride(item)     => item.node_id(),
+            TraitItem::Property(item)          => item.node_id(),
+            TraitItem::PropertyOverride(item)  => item.node_id(),
+        }
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            Self::Function(fn_item)             => logger.log_node_ref(fn_item),
+            Self::Method(method)                => logger.log_node_ref(method),
+            Self::TypeAlias(type_alias)         => logger.log_node_ref(type_alias),
+            Self::TypeAliasOverride(type_alias) => logger.log_node_ref(type_alias),
+            Self::Const(const_item)             => logger.log_node_ref(const_item),
+            Self::ConstOverride(const_item)     => logger.log_node_ref(const_item),
+            Self::Property(prop_item)           => logger.log_node_ref(prop_item),
+            Self::PropertyOverride(prop_item)   => logger.log_node_ref(prop_item),
+        }
+    }
+}
+
+pub struct TraitFunction {
+    pub span:         SpanId,
+    pub node_id:      NodeId,
+    pub attrs:        Vec<AstNodeRef<Attribute>>,
+    pub is_override:  bool,
+    pub is_const:     bool,
+    pub is_unsafe:    bool,
+    pub name:         NameId,
+    pub generics:     Option<AstNodeRef<GenericParams>>,
+    pub params:       Vec<FnParam>,
+    pub returns:      Option<FnReturn>,
+    pub where_clause: Option<AstNodeRef<WhereClause>>,
+    pub contracts:    Vec<AstNodeRef<Contract>>,
+    pub body:         Option<AstNodeRef<Block>>,
+}
+
+impl AstNode for TraitFunction {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Function", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+
+            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
+            logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            
+           
+            logger.set_last_at_indent_if(self.params.is_empty() && self.returns.is_none() && self.body.is_none());
+            logger.log_opt_node_ref(&self.generics);
+            logger.set_last_at_indent_if(self.returns.is_none() && self.body.is_none());
+            logger.log_indented_slice("Params", &self.params, |logger, param| param.log(logger));
+            logger.set_last_at_indent_if(self.body.is_none());
+            logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
+            logger.set_last_at_indent();
+            if let Some(body) = &self.body {
+                logger.log_node_ref(body);
+            }
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitFunction {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitMethod {
+    pub span:         SpanId,
+    pub node_id:      NodeId,
+    pub attrs:        Vec<AstNodeRef<Attribute>>,
+    pub is_override:  bool,
+    pub is_const:     bool,
+    pub is_unsafe:    bool,
+    pub name:         NameId,
+    pub generics:     Option<AstNodeRef<GenericParams>>,
+    pub receiver:     FnReceiver,
+    pub params:       Vec<FnParam>,
+    pub returns:      Option<FnReturn>,
+    pub where_clause: Option<AstNodeRef<WhereClause>>,
+    pub contracts:    Vec<AstNodeRef<Contract>>,
+    pub body:         Option<AstNodeRef<Block>>,
+}
+
+impl AstNode for TraitMethod {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Method", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+
+            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
+            logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            
+            logger.set_last_at_indent_if(self.params.is_empty() && self.returns.is_none() && self.body.is_none());
+            logger.log_opt_node_ref(&self.generics);
+            self.receiver.log(logger);
+            logger.set_last_at_indent_if(self.returns.is_none() && self.body.is_none());
+            logger.log_indented_slice("Params", &self.params, |logger, param| param.log(logger));
+            logger.set_last_at_indent_if(self.body.is_none());
+            logger.log_opt(&self.returns, |logger, ret| ret.log(logger));
+            logger.set_last_at_indent();
+            if let Some(body) = &self.body {
+                logger.log_node_ref(body);
+            }
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitMethod {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitTypeAlias {
+    pub span:         SpanId,
+    pub node_id:      NodeId,
+    pub attrs:        Vec<AstNodeRef<Attribute>>,
+    pub name:         NameId,
+    pub generics:     Option<AstNodeRef<GenericParams>>,
+    pub bounds:       Vec<GenericTypeBound>,
+    pub where_clause: Option<AstNodeRef<WhereClause>>,
+    pub def:          Option<Type>,
+}
+
+impl AstNode for TraitTypeAlias {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Typealias", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.set_last_at_indent_if(self.where_clause.is_none() && self.def.is_none());
+            logger.log_opt_node_ref(&self.generics);
+            logger.set_last_at_indent_if(self.def.is_none());
+            logger.log_opt_node_ref(&self.where_clause);
+            logger.set_last_at_indent();
+            logger.log_indented_opt_node("Default Type", &self.def);
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitTypeAlias {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id
+    }
+}
+
+pub struct TraitTypeAliasOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub ty:      Type,
+}
+
+impl AstNode for TraitTypeAliasOverride {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Type Alias Override", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
+            logger.set_last_at_indent();
+            logger.log_node(&self.ty);
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitTypeAliasOverride {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitConst {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub attrs:   Vec<AstNodeRef<Attribute>>,
+    pub name:    NameId,
+    pub ty:      Type,
+    pub def:     Option<Expr>,
+}
+
+impl AstNode for TraitConst {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Constant", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.set_last_at_indent_if(self.def.is_none());
+            logger.log_indented_node("Type", &self.ty);
+            logger.set_last_at_indent();
+            logger.log_indented_opt_node("Default Value", &self.def);
+        });
+    }
+}
+
+impl AstNodeParseHelper for TraitConst {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitConstOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub expr:    Expr,
+}
+
+impl AstNode for TraitConstOverride {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Constant Override", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
+            logger.set_last_at_indent();
+            logger.log_node(&self.expr);
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitConstOverride {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitProperty {
+    pub span:      SpanId,
+    pub node_id:   NodeId,
+    pub attrs:     Vec<AstNodeRef<Attribute>>,
+    pub is_unsafe: bool,
+    pub name:      NameId,
+    pub get:       Option<(SpanId, Option<Expr>)>,
+    pub ref_get:   Option<(SpanId, Option<Expr>)>,
+    pub mut_get:   Option<(SpanId, Option<Expr>)>,
+    pub set:       Option<(SpanId, Option<Expr>)>,
+}
+
+impl AstNode for TraitProperty {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+    
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Property", |logger| {
+            logger.log_indented_node_ref_slice("Attributes", &self.attrs);
+            logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+
+            match &self.get {
+                Some((_, Some(expr))) => logger.log_indented_node("Get", expr),
+                Some((_, None)) => logger.prefixed_logln("Has Get: true"),
+                None => logger.prefixed_logln("Has Get: false"),
+            }
+            match &self.ref_get {
+                Some((_, Some(expr))) => logger.log_indented_node("Ref Get", expr),
+                Some((_, None)) => logger.prefixed_logln("Has Ref Get: true"),
+                None => logger.prefixed_logln("Has Ref Get: false"),
+            }
+            match &self.mut_get {
+                Some((_, Some(expr))) => logger.log_indented_node("Mut Get", expr),
+                Some((_, None)) => logger.prefixed_logln("Has Mut Get: true"),
+                None => logger.prefixed_logln("Has Mut Get: false"),
+            }
+            match &self.set {
+                Some((_, Some(expr))) => logger.log_indented_node("Set", expr),
+                Some((_, None)) => logger.prefixed_logln("Has Set: true"),
+                None => logger.prefixed_logln("Has Set: false"),
+            }
+        });
+    }
+}
+
+impl AstNodeParseHelper for TraitProperty {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitPropertyOverride {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub get:     Option<Expr>,
+    pub ref_get: Option<Expr>,
+    pub mut_get: Option<Expr>,
+    pub set:     Option<Expr>,
+}
+
+impl AstNode for TraitPropertyOverride {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+    
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Property", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.set_last_at_indent_if(self.ref_get.is_none() && self.mut_get.is_none() && self.set.is_none());
+            logger.log_opt_node(&self.get);
+            logger.set_last_at_indent_if(self.mut_get.is_none() && self.set.is_none());
+            logger.log_opt_node(&self.ref_get);
+            logger.set_last_at_indent_if(self.set.is_none());
+            logger.log_opt_node(&self.mut_get);
+            logger.set_last_at_indent();
+            logger.log_opt_node(&self.set);
+        });
+    }
+}
+
+impl AstNodeParseHelper for TraitPropertyOverride {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+//--------------------------------------------------------------
+
 pub struct Impl {
     pub span:         SpanId,
     pub node_id:      NodeId,
@@ -1763,7 +2052,7 @@ pub struct Impl {
     pub ty:           Type,
     pub impl_trait:   Option<AstNodeRef<TypePath>>,
     pub where_clause: Option<AstNodeRef<WhereClause>>,
-    pub assoc_items:  Vec<AssocItem>,
+    pub assoc_items:  Vec<ImplItem>,
 }
 
 impl AstNode for Impl {
@@ -1802,6 +2091,52 @@ impl AstNodeParseHelper for Impl {
     }
 }
 
+pub enum ImplItem {
+    Function(AstNodeRef<Function>),
+    Method(AstNodeRef<Method>),
+    TypeAlias(AstNodeRef<TypeAlias>),
+    Const(AstNodeRef<Const>),
+    Static(AstNodeRef<Static>),
+    Property(AstNodeRef<Property>),
+}
+
+impl AstNode for ImplItem {
+    fn span(&self) -> SpanId {
+        match self {
+            ImplItem::Function(item)  => item.span(),
+            ImplItem::Method(item)    => item.span(),
+            ImplItem::TypeAlias(item) => item.span(),
+            ImplItem::Const(item)     => item.span(),
+            ImplItem::Static(item)    => item.span(),
+            ImplItem::Property(item)  => item.span(),
+        }
+    }
+
+    fn node_id(&self) -> NodeId {
+        match self {
+            ImplItem::Function(item)  => item.node_id(),
+            ImplItem::Method(item)    => item.node_id(),
+            ImplItem::TypeAlias(item) => item.node_id(),
+            ImplItem::Const(item)     => item.node_id(),
+            ImplItem::Static(item)    => item.node_id(),
+            ImplItem::Property(item)  => item.node_id(),
+        }
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            Self::Function(fn_item)       => logger.log_node_ref(fn_item),
+            Self::Method(method)          => logger.log_node_ref(method),
+            Self::TypeAlias(type_alias)   => logger.log_node_ref(type_alias),
+            Self::Const(const_item)       => logger.log_node_ref(const_item),
+            Self::Static(static_item)     => logger.log_node_ref(static_item),
+            Self::Property(prop_item)     => logger.log_node_ref(prop_item),
+        }
+    }
+}
+
+//--------------------------------------------------------------
+
 pub struct ExternBlock {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -1837,6 +2172,8 @@ impl AstNodeParseHelper for ExternBlock {
         self.node_id = node_id;
     }
 }
+
+//--------------------------------------------------------------
 
 pub enum OpTrait {
     Base {
@@ -2001,6 +2338,8 @@ impl AstNodeParseHelper for OpUse {
         self.node_id = node_id;
     }
 }
+
+//--------------------------------------------------------------
 
 pub struct PrecedenceAssociativity {
     pub span: SpanId,

@@ -23,10 +23,14 @@ pub enum VisitFlags {
     ExternStatic,
     
     Trait,
-    TraitTypeAlias,
-    TraitConst,
-    TraitProperty,
     TraitFunction,
+    TraitMethod,
+    TraitTypeAlias,
+    TraitTypeAliasOverride,
+    TraitConst,
+    TraitConstOverride,
+    TraitProperty,
+    TraitPropertyOverride,
     
     Impl,
     ImplFunction,
@@ -135,6 +139,8 @@ pub trait Visitor: Sized {
         helpers::visit_extern_static(self, node);
     }
 
+    //--------------------------------------------------------------
+
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
         helpers::visit_trait(self, node);
     }
@@ -143,21 +149,35 @@ pub trait Visitor: Sized {
         helpers::visit_trait_function(self, node);
     }
 
+    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        helpers::visit_trait_method(self, node);
+    }
+
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         helpers::visit_trait_type_alias(self, node);
+    }
+
+    fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
+        helpers::visit_trait_type_alias_override(self, node);
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         helpers::visit_trait_const(self, node);
     }
 
-    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
-        helpers::visit_static(self, node);
+    fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
+        helpers::visit_trait_const_override(self, node);
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         helpers::visit_trait_property(self, node);
     }
+
+    fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
+        helpers::visit_trait_property_override(self, node);
+    }
+
+    //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
         helpers::visit_impl(self, node);
@@ -191,6 +211,8 @@ pub trait Visitor: Sized {
         helpers::visit_propety(self, node);
     }
 
+    //--------------------------------------------------------------
+
     fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
         helpers::visit_op_trait(self, node, ctx);
     }
@@ -206,6 +228,8 @@ pub trait Visitor: Sized {
     fn visit_op_contract(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
         helpers::visit_op_contract(self, node, ctx);
     }
+
+    //--------------------------------------------------------------
 
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
         helpers::visit_precedence(self, node)
@@ -602,10 +626,24 @@ pub(crate) mod helpers {
             }
         }
 
+        if flags.contains(VisitFlags::TraitMethod) {
+            for (trait_idx, node, ctx) in &mut hir.trait_methods {
+                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
+                visitor.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+            }
+        }
+
         if flags.contains(VisitFlags::TraitTypeAlias) {
             for (trait_idx, node, ctx) in &mut hir.trait_type_alias {
                 let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
                 visitor.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+            }
+        }
+
+        if flags.contains(VisitFlags::TraitTypeAliasOverride) {
+            for (trait_idx, node, ctx) in &mut hir.trait_type_alias_override {
+                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
+                visitor.visit_trait_type_alias_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
             }
         }
 
@@ -616,10 +654,24 @@ pub(crate) mod helpers {
             }
         }
 
+        if flags.contains(VisitFlags::TraitConstOverride) {
+            for (trait_idx, node, ctx) in &mut hir.trait_const_overrides {
+                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
+                visitor.visit_trait_const_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+            }
+        }
+
         if flags.contains(VisitFlags::TraitProperty) {
             for (trait_idx, node, ctx) in &mut hir.trait_properties {
                 let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
                 visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+            }
+        }
+
+        if flags.contains(VisitFlags::TraitPropertyOverride) {
+            for (trait_idx, node, ctx) in &mut hir.trait_property_overides {
+                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
+                visitor.visit_trait_property_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
             }
         }
 
@@ -868,41 +920,6 @@ pub(crate) mod helpers {
         }
     }
 
-    pub fn visit_trait_function<T: Visitor>(visitor: &mut T, node: &mut TraitFunction) {
-        for attr in &mut node.attrs {
-            visitor.visit_attribute(attr);
-        }
-
-        if let Some(generics) = &mut node.generics {
-            visitor.visit_gen_params(generics);
-        }
-
-        match &mut node.receiver {
-            FnReceiver::None => (),
-            FnReceiver::SelfReceiver { .. } => (),
-            FnReceiver::SelfTyped { ty, .. } => visitor.visit_type(ty),
-        }
-
-        for param in &mut node.params {
-            helpers::visit_fn_param(visitor, param);
-        }
-
-        if let Some(ret_ty) = &mut node.return_ty {
-            visitor.visit_type(ret_ty);
-        }
-        if let Some(where_clause) = &mut node.where_clause {
-            visitor.visit_where_clause(where_clause);
-        }
-
-        for contract in &mut node.contracts {
-            visitor.visit_contract(contract);
-        }
-
-        if let Some(body) = &mut node.body {
-            visitor.visit_block(body);
-        }
-    }
-
     pub fn visit_type_alias<T: Visitor>(visitor: &mut T, node: &mut TypeAlias) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
@@ -914,11 +931,6 @@ pub(crate) mod helpers {
         visitor.visit_type(&mut node.ty);
     }
 
-    pub fn visit_trait_type_alias<T: Visitor>(visitor: &mut T, node: &mut TraitTypeAlias) {
-        for attr in &mut node.attrs {
-            visitor.visit_attribute(attr);
-        }
-    }
     pub fn visit_distinct_type<T: Visitor>(visitor: &mut T, node: &mut DistinctType) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
@@ -926,7 +938,6 @@ pub(crate) mod helpers {
         if let Some(generics) = &mut node.generics {
             visitor.visit_gen_params(generics);
         }
-
         visitor.visit_type(&mut node.ty);
     }
 
@@ -1130,13 +1141,6 @@ pub(crate) mod helpers {
         visitor.visit_expr(&mut node.val);
     }
 
-    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &mut TraitConst) {
-        for attr in &mut node.attrs {
-            visitor.visit_attribute(attr);
-        }
-        visitor.visit_type(&mut node.ty);
-    }
-
     pub fn visit_static<T: Visitor>(visitor: &mut T, node: &mut Static) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
@@ -1182,28 +1186,155 @@ pub(crate) mod helpers {
         }
     }
 
-    pub fn visit_trait_property<T: Visitor>(visitor: &mut T, node: &mut TraitProperty) {
-        for attr in &mut node.attrs {
-            visitor.visit_attribute(attr);
-        }
-
-
-    }
+    //--------------------------------------------------------------
 
     pub fn visit_trait<T: Visitor>(visitor: &mut T, node: &mut Trait) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
         }
-
-
+        if let Some(bounds) = &mut node.bounds {
+            visitor.visit_trait_bounds(bounds);
+        }
     }
+
+    pub fn visit_trait_function<T: Visitor>(visitor: &mut T, node: &mut TraitFunction) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+
+        if let Some(generics) = &mut node.generics {
+            visitor.visit_gen_params(generics);
+        }
+
+        for param in &mut node.params {
+            helpers::visit_fn_param(visitor, param);
+        }
+
+        if let Some(ret_ty) = &mut node.return_ty {
+            visitor.visit_type(ret_ty);
+        }
+        if let Some(where_clause) = &mut node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+
+        for contract in &mut node.contracts {
+            visitor.visit_contract(contract);
+        }
+
+        if let Some(body) = &mut node.body {
+            visitor.visit_block(body);
+        }
+    }
+
+    pub fn visit_trait_method<T: Visitor>(visitor: &mut T, node: &mut TraitMethod) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+
+        if let Some(generics) = &mut node.generics {
+            visitor.visit_gen_params(generics);
+        }
+
+        match &mut node.receiver {
+            FnReceiver::None => (),
+            FnReceiver::SelfReceiver { .. } => (),
+            FnReceiver::SelfTyped { ty, .. } => visitor.visit_type(ty),
+        }
+
+        for param in &mut node.params {
+            helpers::visit_fn_param(visitor, param);
+        }
+
+        if let Some(ret_ty) = &mut node.return_ty {
+            visitor.visit_type(ret_ty);
+        }
+        if let Some(where_clause) = &mut node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+
+        for contract in &mut node.contracts {
+            visitor.visit_contract(contract);
+        }
+
+        if let Some(body) = &mut node.body {
+            visitor.visit_block(body);
+        }
+    }
+
+    pub fn visit_trait_type_alias<T: Visitor>(visitor: &mut T, node: &mut TraitTypeAlias) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(def) = &mut node.def {
+            visitor.visit_type(def);
+        }
+    }
+
+    pub fn visit_trait_type_alias_override<T: Visitor>(visitor: &mut T, node: &mut TraitTypeAliasOverride) {
+        visitor.visit_type(&mut node.ty);
+    }
+
+    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &mut TraitConst) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        visitor.visit_type(&mut node.ty);
+        if let Some(def) = &mut node.def {
+            visitor.visit_expr(def);
+        }
+    }
+
+    pub fn visit_trait_const_override<T: Visitor>(visitor: &mut T, node: &mut TraitConstOverride) {
+        visitor.visit_expr(&mut node.expr);
+    }
+
+    pub fn visit_trait_property<T: Visitor>(visitor: &mut T, node: &mut TraitProperty) {
+        for attr in &mut node.attrs {
+            visitor.visit_attribute(attr);
+        }
+
+        match &mut node.get {
+            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
+            _ => (),
+        }
+        match &mut node.ref_get {
+            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
+            _ => (),
+        }
+        match &mut node.mut_get {
+            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
+            _ => (),
+        }
+        match &mut node.set {
+            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
+            _ => (),
+        }
+    }
+
+    pub fn visit_trait_property_override<T: Visitor>(visitor: &mut T, node: &mut TraitPropertyOverride) {
+        if let Some(expr) = &mut node.get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &mut node.ref_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &mut node.mut_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &mut node.set {
+            visitor.visit_expr(expr);
+        }
+    }
+
+    //--------------------------------------------------------------
 
     pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &mut Impl) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
         }
-
     }
+
+    //--------------------------------------------------------------
 
     pub fn visit_op_trait<T: Visitor>(visitor: &mut T, node: &mut OpTrait, ctx: &mut OpTraitContext) {
         for attr in &mut node.attrs {
@@ -1230,6 +1361,8 @@ pub(crate) mod helpers {
     pub fn visit_op_contract<T: Visitor>(visitor: &mut T, node: &mut OpContract, ctx: &mut OpContractContext) {
         visitor.visit_expr(&mut node.expr);
     }
+
+    //--------------------------------------------------------------
 
     pub fn visit_precedence<T: Visitor>(visitor: &mut T, node: &mut Precedence) {
         for attr in &mut node.attrs {

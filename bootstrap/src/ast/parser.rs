@@ -511,7 +511,7 @@ impl Parser<'_> {
                 self.parse_precedence(attrs, vis)
             },
             Token::StrongKw(StrongKeyword::Type)     |
-            Token::WeakKw(WeakKeyword::Distinct)     => self.parse_type_alias(attrs, vis).map(|item| Item::TypeAlias(item)),
+            Token::WeakKw(WeakKeyword::Distinct)     => self.parse_type_item(attrs, vis),
             Token::WeakKw(WeakKeyword::Op)           => if self.try_peek() == Some(Token::StrongKw(StrongKeyword::Use)) {
                 self.parse_op_use(attrs, vis)
             } else {
@@ -569,45 +569,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_trait_item(&mut self) -> Result<TraitItem, ParserErr> {
-        self.push_meta_frame();
-
-        let attrs = self.parse_attributes()?;
-        let vis = self.parse_visibility()?;
-
-        let peek = self.peek()?;
-        match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item)),
-            Token::StrongKw(StrongKeyword::Const) => {
-                let peek_1 = self.try_peek_at(1);
-                let peek_2 = self.try_peek_at(2);
-                let peek_4 = self.try_peek_at(4);
-                let peek_5 = self.try_peek_at(5); 
-                if  peek_1 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const fn..
-                    peek_2 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const unsafe fn..
-                    peek_4 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const extern "abi" fn.. (invalid)
-                    peek_5 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe extenr "abi" fn... (invalid)
-                {
-                    self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item))
-                } else {
-                    self.parse_trait_const_item(attrs, vis).map(|item| TraitItem::Const(item))
-                }
-            }
-            Token::StrongKw(StrongKeyword::Unsafe) => {
-                let peek = self.peek_at(1)?;
-                if peek == Token::WeakKw(WeakKeyword::Property) {
-                    self.parse_property(attrs, vis, true).map(|item| TraitItem::Property(item))
-                } else {
-                    self.parse_function(attrs, vis, false, true).map(|item| TraitItem::Function(item))
-                }
-            },
-            Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| TraitItem::TypeAlias(item)),
-            Token::WeakKw(WeakKeyword::Property) => self.parse_property(attrs, vis, true).map(|item| TraitItem::Property(item)),
-            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
-        }
-    }
-
-    fn parse_assoc_item(&mut self) -> Result<AssocItem, ParserErr> {
+    fn parse_impl_item(&mut self) -> Result<ImplItem, ParserErr> {
         self.push_meta_frame();
         
         let attrs = self.parse_attributes()?;
@@ -615,7 +577,7 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item)),
             Token::StrongKw(StrongKeyword::Const) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -626,20 +588,20 @@ impl Parser<'_> {
                     peek_4 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const extern "abi" fn.. (invalid)
                     peek_5 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe extenr "abi" fn... (invalid)
                 {
-                    self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item))
                 } else {
-                    self.parse_const_item(attrs, vis).map(|item| AssocItem::Const(item))
+                    self.parse_const_item(attrs, vis).map(|item| ImplItem::Const(item))
                 }
             }
             Token::StrongKw(StrongKeyword::Unsafe) => {
                 let peek_1 = self.peek_at(1)?;
                 if peek_1 == Token::WeakKw(WeakKeyword::Property) {
-                    self.parse_property(attrs, vis, false).map(|item| AssocItem::Property(item))
+                    self.parse_property(attrs, vis, false).map(|item| ImplItem::Property(item))
                 } else {
-                    self.parse_function(attrs, vis, false, false).map(|item| AssocItem::Function(item))
+                    self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item))
                 }
             },
-            Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| AssocItem::TypeAlias(item)),
+            Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| ImplItem::TypeAlias(item)),
             Token::StrongKw(StrongKeyword::Mut) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -648,14 +610,14 @@ impl Parser<'_> {
                     peek_2 == Some(Token::StrongKw(StrongKeyword::Static)) ||
                     peek_3 == Some(Token::StrongKw(StrongKeyword::Static))
                 {
-                    self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item))
+                    self.parse_static_item(attrs, vis).map(|item| ImplItem::Static(item))
                 } else {
                     Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
                 }
             },
-            Token::StrongKw(StrongKeyword::Static) => self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item)),
-            Token::WeakKw(WeakKeyword::Tls) => self.parse_static_item(attrs, vis).map(|item| AssocItem::Static(item)),
-            Token::WeakKw(WeakKeyword::Property) => self.parse_property(attrs, vis, false).map(|item| AssocItem::Property(item)),
+            Token::StrongKw(StrongKeyword::Static) => self.parse_static_item(attrs, vis).map(|item| ImplItem::Static(item)),
+            Token::WeakKw(WeakKeyword::Tls) => self.parse_static_item(attrs, vis).map(|item| ImplItem::Static(item)),
+            Token::WeakKw(WeakKeyword::Property) => self.parse_property(attrs, vis, false).map(|item| ImplItem::Property(item)),
 
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" }))
         }
@@ -814,7 +776,6 @@ impl Parser<'_> {
 
     fn parse_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>, in_extern: bool, in_trait: bool) -> Result<AstNodeRef<Function>, ParserErr> {
         let begin = self.get_cur_span();
-        let is_override = self.try_consume(Token::WeakKw(WeakKeyword::Override));
         let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
 
@@ -827,47 +788,11 @@ impl Parser<'_> {
         self.consume_strong_kw(StrongKeyword::Fn)?;
         let name = self.consume_name()?;
         let generics = self.parse_generic_params()?;
+        let (receiver, params) = self.parse_fn_receiver_and_params()?;
 
-        self.begin_scope(OpenCloseSymbol::Paren)?;
-        let (receiver, has_possible_params) = if self.peek()? == Token::StrongKw(StrongKeyword::SelfName) ||
-            self.peek_at(1)? == Token::StrongKw(StrongKeyword::SelfName) ||
-            self.peek_at(2)? == Token::StrongKw(StrongKeyword::SelfName)
-        {
-            let res = if self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) ||
-                self.peek_at(2)? == Token::Punctuation(Punctuation::Colon)
-            {
-                let begin = self.get_cur_span();
-
-                let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
-                self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
-                self.consume_punct(Punctuation::Colon)?;
-                let ty = self.parse_type()?;
-
-                let span = self.get_span_to_current(begin);
-                FnReceiver::SelfTyped{ span, is_mut, ty }
-            } else {
-                let begin = self.get_cur_span();
-
-                let is_ref = self.try_consume(Token::Punctuation(Punctuation::Ampersand));
-                let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
-                self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
-
-                let span = self.get_span_to_current(begin);
-                FnReceiver::SelfReceiver { span, is_ref, is_mut }
-            };
-
-            let has_possible_params = self.try_consume(Token::Punctuation(Punctuation::Comma));
-            (Some(res), has_possible_params)
-        } else {
-            (None, true)
-        };
-
-        let mut params = if has_possible_params {
-            self.parse_punct_separated_end(Punctuation::Comma, Token::CloseSymbol(OpenCloseSymbol::Paren), Self::parse_function_param)?
-        } else {
-            Vec::new()
-        };
-        self.end_scope()?;
+        if receiver.is_some() {
+            return Err(self.gen_error(ParseErrorCode::ReceiverInFreeFunction));
+        }
 
         let returns = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
             Some(self.parse_func_return()?)
@@ -901,24 +826,72 @@ impl Parser<'_> {
         };
 
         let span = self.get_span_to_current(begin);
+
         Ok(self.add_node(Function {
             span,
             node_id: NodeId::default(),
             attrs,
             vis,
-            is_override,
             is_const,
             is_unsafe,
             abi,
             name,
             generics,
-            receiver,
             params,
             returns,
             where_clause,
             contracts,
             body,
         }))
+    }
+
+    fn parse_fn_receiver_and_params(&mut self) -> Result<(Option<FnReceiver>, Vec<FnParam>), ParserErr> {
+        self.begin_scope(OpenCloseSymbol::Paren)?;
+        let (receiver, has_possible_params) = self.parse_fn_receiver()?;
+
+        let mut params = if has_possible_params {
+            self.parse_punct_separated_end(Punctuation::Comma, Token::CloseSymbol(OpenCloseSymbol::Paren), Self::parse_function_param)?
+        } else {
+            Vec::new()
+        };
+        self.end_scope()?;
+
+        Ok((receiver, params))
+    }
+
+    fn parse_fn_receiver(&mut self) -> Result<(Option<FnReceiver>, bool), ParserErr> {
+        if self.peek()? == Token::StrongKw(StrongKeyword::SelfName) ||
+            self.peek_at(1)? == Token::StrongKw(StrongKeyword::SelfName) ||
+            self.peek_at(2)? == Token::StrongKw(StrongKeyword::SelfName)
+        {
+            let res = if self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) ||
+                self.peek_at(2)? == Token::Punctuation(Punctuation::Colon)
+            {
+                let begin = self.get_cur_span();
+
+                let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
+                self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
+                self.consume_punct(Punctuation::Colon)?;
+                let ty = self.parse_type()?;
+
+                let span = self.get_span_to_current(begin);
+                FnReceiver::SelfTyped{ span, is_mut, ty }
+            } else {
+                let begin = self.get_cur_span();
+
+                let is_ref = self.try_consume(Token::Punctuation(Punctuation::Ampersand));
+                let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
+                self.consume(Token::StrongKw(StrongKeyword::SelfName))?;
+
+                let span = self.get_span_to_current(begin);
+                FnReceiver::SelfReceiver { span, is_ref, is_mut }
+            };
+
+            let has_possible_params = self.try_consume(Token::Punctuation(Punctuation::Comma));
+            Ok((Some(res), has_possible_params))
+        } else {
+            Ok((None, true))
+        }
     }
 
     fn parse_function_param(&mut self) -> Result<FnParam, ParserErr> {
@@ -997,7 +970,7 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_type_alias(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<TypeAlias>, ParserErr> {
+    fn parse_type_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
 
         if self.try_consume(Token::WeakKw(WeakKeyword::Distinct)) {
@@ -1009,7 +982,7 @@ impl Parser<'_> {
             let ty = self.parse_type()?;
             self.consume_punct(Punctuation::Semicolon)?;
             let span = self.get_span_to_current(begin);
-            return Ok(self.add_node(TypeAlias::Distinct {
+            return Ok(Item::DistinctType(self.add_node(DistinctType {
                 span,
                 node_id: NodeId::default(),
                 attrs,
@@ -1017,7 +990,7 @@ impl Parser<'_> {
                 name,
                 generics,
                 ty,
-            }));
+            })));
         }
 
 
@@ -1025,17 +998,6 @@ impl Parser<'_> {
         self.consume_strong_kw(StrongKeyword::Type)?;
         let name = self.consume_name()?;
         let generics = self.parse_generic_params()?;
-
-        if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
-            let span = self.get_span_to_current(begin);
-            return Ok(self.add_node(TypeAlias::Trait {
-                span,
-                node_id: NodeId::default(),
-                attrs,
-                name,
-                generics,
-            }));
-        }
 
         self.consume_punct(Punctuation::Equals)?;
 
@@ -1050,14 +1012,14 @@ impl Parser<'_> {
             self.consume_punct(Punctuation::Semicolon)?;
 
             let span = self.get_span_to_current(begin);
-            Ok(self.add_node(TypeAlias::Opaque {
+            Ok(Item::OpaqueType(self.add_node(OpaqueType {
                 span,
                 node_id: NodeId::default(),
                 attrs,
                 vis,
                 name,
                 size,
-            }))
+            })))
         } else {   
             let ty = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
                 Some(self.parse_type()?)
@@ -1068,7 +1030,7 @@ impl Parser<'_> {
             let ty = self.parse_type()?;
             self.consume_punct(Punctuation::Semicolon)?;
             let span = self.get_span_to_current(begin);
-            Ok(self.add_node(TypeAlias::Normal {
+            Ok(Item::TypeAlias(self.add_node(TypeAlias {
                 span,
                 node_id: NodeId::default(),
                 attrs,
@@ -1076,8 +1038,38 @@ impl Parser<'_> {
                 name,
                 generics,
                 ty,
-            }))
+            })))
         }
+    }
+
+    fn parse_type_alias(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<TypeAlias>, ParserErr> {
+        let begin = self.get_cur_span();
+
+        let is_distinct = self.try_consume(Token::WeakKw(WeakKeyword::Distinct));
+        self.consume_strong_kw(StrongKeyword::Type)?;
+        let name = self.consume_name()?;
+        let generics = self.parse_generic_params()?;
+
+        self.consume_punct(Punctuation::Equals)?;
+  
+        let ty = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let ty = self.parse_type()?;
+        self.consume_punct(Punctuation::Semicolon)?;
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TypeAlias {
+            span,
+            node_id: NodeId::default(),
+            attrs,
+            vis,
+            name,
+            generics,
+            ty,
+        }))
     }
 
     fn parse_struct(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
@@ -1484,24 +1476,6 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_trait_const_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<TraitConst>, ParserErr> {
-        let begin = self.get_cur_span();
-        self.consume_strong_kw(StrongKeyword::Const)?;
-        let name = self.consume_name()?;
-        let ty = self.parse_type()?;
-        self.consume_punct(Punctuation::Semicolon)?;
-
-        let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TraitConst {
-            span,
-            node_id: NodeId::default(),
-            attrs,
-            vis,
-            name,
-            ty,
-        }))
-    }
-
     fn parse_static_item(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<AstNodeRef<Static>, ParserErr> {
         let begin = self.get_cur_span();
         if self.try_consume(Token::StrongKw(StrongKeyword::Extern)) {
@@ -1571,151 +1545,76 @@ impl Parser<'_> {
         self.consume_weak_kw(WeakKeyword::Property)?;
         let name = self.consume_name()?;
 
-        let body = if is_trait {
-            let mut has_get = None;
-            let mut has_ref_get = None;
-            let mut has_mut_get = None;
-            let mut has_set = None;
-
-            self.begin_scope(OpenCloseSymbol::Brace)?;
-            while !self.try_end_scope() {
+        let mut get = None;
+        let mut ref_get = None;
+        let mut mut_get = None;
+        let mut set = None;
+        
+        self.begin_scope(OpenCloseSymbol::Brace)?;
+        while !self.try_end_scope() {
                 let peek = self.peek()?;
                 match peek {
-                    Token::WeakKw(WeakKeyword::Get) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
+                Token::WeakKw(WeakKeyword::Get) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    let expr = self.parse_expr(ExprParseMode::General)?;
+                    if !expr.has_block() {
                         self.consume_punct(Punctuation::Semicolon)?;
-                        if has_get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
-                        }
-                        
-                        let span = self.get_span_to_current(begin);
-                        has_get = Some(span);
-                    },
-                    Token::StrongKw(StrongKeyword::Ref) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        self.consume_weak_kw(WeakKeyword::Get)?;
-                        self.consume_punct(Punctuation::Semicolon)?;
-                        if has_ref_get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
-                        }
-
-                        let span = self.get_span_to_current(begin);
-                        has_ref_get = Some(span);
-                    },
-                    Token::StrongKw(StrongKeyword::Mut) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        self.consume_weak_kw(WeakKeyword::Get)?;
-                        self.consume_punct(Punctuation::Semicolon)?;
-                        if has_mut_get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
-                        }
-                        
-                        let span = self.get_span_to_current(begin);
-                        has_mut_get = Some(span);
-                    },
-                    Token::WeakKw(WeakKeyword::Set) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        self.consume_punct(Punctuation::Semicolon)?;
-                        if has_set.is_some() {
-                           return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
-                        }
+                    }
+                    if get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
+                    }
                     
-                        let span = self.get_span_to_current(begin);
-                        has_set = Some(span);
-                    },
-                    _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
-                }
-            }
-
-            PropertyBody::Trait {
-                has_get,
-                has_ref_get,
-                has_mut_get,
-                has_set,
-            }
-        } else {
-            let mut get = None;
-            let mut ref_get = None;
-            let mut mut_get = None;
-            let mut set = None;
-            
-            self.begin_scope(OpenCloseSymbol::Brace)?;
-            while !self.try_end_scope() {
-                let peek = self.peek()?;
-                match peek {
-                    Token::WeakKw(WeakKeyword::Get) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        let expr = self.parse_expr(ExprParseMode::General)?;
-                        if !expr.has_block() {
-                            self.consume_punct(Punctuation::Semicolon)?;
-                        }
-                        if get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
-                        }
-                        
-                        let span = self.get_span_to_current(begin);
-                        get = Some((span, expr))
-                    },
-                    Token::StrongKw(StrongKeyword::Ref) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        self.consume_weak_kw(WeakKeyword::Get)?;
-                        let expr = self.parse_expr(ExprParseMode::General)?;
-                        if !expr.has_block() {
-                            self.consume_punct(Punctuation::Semicolon)?;
-                        }
-                        if ref_get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
-                        }
-
-                        let span = self.get_span_to_current(begin);
-                        ref_get = Some((span, expr))
-                    },
-                    Token::StrongKw(StrongKeyword::Mut) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        self.consume_weak_kw(WeakKeyword::Get)?;
-                        let expr = self.parse_expr(ExprParseMode::General)?;
-                        if !expr.has_block() {
-                            self.consume_punct(Punctuation::Semicolon)?;
-                        }
-                        if mut_get.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
-                        }
-                        
-                         let span = self.get_span_to_current(begin);
-                        mut_get = Some((span, expr))
-                    },
-                    Token::WeakKw(WeakKeyword::Set) => {
-                        let begin = self.get_cur_span();
-                        self.consume_single();
-                        let expr = self.parse_expr(ExprParseMode::General)?;
-                        if !expr.has_block() {
-                            self.consume_punct(Punctuation::Semicolon)?;
-                        }
-                        if set.is_some() {
-                            return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
-                        }
-
-                        let span = self.get_span_to_current(begin);
-                        set = Some((span, expr))
+                    let span = self.get_span_to_current(begin);
+                    get = Some((span, expr))
                 },
-                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
-                }
+                Token::StrongKw(StrongKeyword::Ref) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+                    let expr = self.parse_expr(ExprParseMode::General)?;
+                    if !expr.has_block() {
+                        self.consume_punct(Punctuation::Semicolon)?;
+                    }
+                    if ref_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
+                    }
+                
+                    let span = self.get_span_to_current(begin);
+                    ref_get = Some((span, expr))
+                },
+                Token::StrongKw(StrongKeyword::Mut) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+                    let expr = self.parse_expr(ExprParseMode::General)?;
+                    if !expr.has_block() {
+                        self.consume_punct(Punctuation::Semicolon)?;
+                    }
+                    if mut_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
+                    }
+                    
+                     let span = self.get_span_to_current(begin);
+                    mut_get = Some((span, expr))
+                },
+                Token::WeakKw(WeakKeyword::Set) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    let expr = self.parse_expr(ExprParseMode::General)?;
+                    if !expr.has_block() {
+                        self.consume_punct(Punctuation::Semicolon)?;
+                    }
+                    if set.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
+                    }
+                
+                    let span = self.get_span_to_current(begin);
+                    set = Some((span, expr))
+            },
+            _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
             }
-
-            PropertyBody::Assoc {
-                get,
-                ref_get,
-                mut_get,
-                set,
-            }
-        };
+        }
 
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(Property {
@@ -1725,9 +1624,26 @@ impl Parser<'_> {
             vis,
             is_unsafe,
             name,
-            body,
+            get,
+            ref_get,
+            mut_get,
+            set,
         }))
     }
+
+    pub fn parse_property_expr(&mut self) -> Result<Option<Expr>, ParserErr> {
+        if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            let expr = self.parse_expr(ExprParseMode::General)?;
+            self.consume_punct(Punctuation::Semicolon)?;
+            Ok(Some(expr))
+        } else if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Brace) {
+            Ok(Some(self.parse_expr(ExprParseMode::General)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    //--------------------------------------------------------------
 
     fn parse_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
@@ -1762,6 +1678,418 @@ impl Parser<'_> {
         })))
     }
 
+    fn parse_trait_item(&mut self) -> Result<TraitItem, ParserErr> {
+        self.push_meta_frame();
+
+        let attrs = self.parse_attributes()?;
+
+        let peek = self.peek()?;
+        match peek {
+            Token::StrongKw(StrongKeyword::Fn) => self.parse_trait_function(attrs),
+            Token::StrongKw(StrongKeyword::Const) => {
+                let peek_1 = self.try_peek_at(1);
+                let peek_2 = self.try_peek_at(2);
+                if  peek_1 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const fn..
+                    peek_2 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe fn..
+                {
+                    self.parse_trait_function(attrs)
+                } else {
+                    self.parse_trait_const(attrs).map(|item| TraitItem::Const(item))
+                }
+            }
+            Token::StrongKw(StrongKeyword::Unsafe) => {
+                let peek = self.peek_at(1)?;
+                if peek == Token::WeakKw(WeakKeyword::Property) {
+                    self.parse_trait_property(attrs).map(|item| TraitItem::Property(item))
+                } else {
+                    self.parse_trait_function(attrs)
+                }
+            },
+            Token::StrongKw(StrongKeyword::Type) => self.parse_trait_type_alias(attrs).map(|item| TraitItem::TypeAlias(item)),
+            Token::WeakKw(WeakKeyword::Property) => self.parse_trait_property(attrs).map(|item| TraitItem::Property(item)),
+            Token::WeakKw(WeakKeyword::Override) => match self.peek()? {
+                Token::StrongKw(StrongKeyword::Fn) => self.parse_trait_function(attrs),
+                Token::StrongKw(StrongKeyword::Const) => {
+                    let peek_1 = self.try_peek_at(1);
+                    let peek_2 = self.try_peek_at(2);
+                    if  peek_1 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const fn..
+                        peek_2 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe fn..
+                    {
+                        self.parse_trait_function(attrs)
+                    } else {
+                        if !attrs.is_empty() {
+                            return Err(self.gen_error(ParseErrorCode::AttrsNotAllowed { for_reason: "Trait constant overrides" }));
+                        }
+                        self.parse_trait_const_override().map(|item| TraitItem::ConstOverride(item))
+                    }
+                },
+                Token::StrongKw(StrongKeyword::Type) => {
+                    if !attrs.is_empty() {
+                        return Err(self.gen_error(ParseErrorCode::AttrsNotAllowed { for_reason: "Trait constant overrides" }));
+                    }
+                    self.parse_trait_const_override().map(|item| TraitItem::ConstOverride(item))
+                },
+                Token::WeakKw(WeakKeyword::Property) => self.parse_trait_property_override().map(|item| TraitItem::PropertyOverride(item)),
+                _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" })),
+            }
+            _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" })),
+        }
+    }
+
+    fn parse_trait_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<TraitItem, ParserErr> {
+        let begin = self.get_cur_span();
+        let is_override = self.try_consume(Token::WeakKw(WeakKeyword::Override));
+        let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
+        let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
+
+        self.consume_strong_kw(StrongKeyword::Fn)?;
+        let name = self.consume_name()?;
+        let generics = self.parse_generic_params()?;
+        let (receiver, params) = self.parse_fn_receiver_and_params()?;
+        let returns = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
+            Some(self.parse_func_return()?)
+        } else {
+            None
+        };
+
+        let where_clause = self.parse_where_clause()?;
+
+        let contracts = if self.peek()? != Token::OpenSymbol(OpenCloseSymbol::Brace) {
+            let mut contracts = Vec::new();
+            while self.peek()? != Token::OpenSymbol(OpenCloseSymbol::Brace) {
+                contracts.push(self.parse_contract()?)
+            }
+            contracts
+        } else {
+            Vec::new()
+        };
+
+        let body = if self.try_consume(Token::Punctuation(Punctuation::Semicolon)) {
+            None
+        } else {
+            Some(self.parse_block()?)
+        };
+
+        let span = self.get_span_to_current(begin);
+        if let Some(receiver) = receiver {
+            Ok(TraitItem::Method(self.add_node(TraitMethod {
+                span,
+                node_id: NodeId::default(),
+                attrs,
+                is_override,
+                is_const,
+                is_unsafe,
+                name,
+                generics,
+                receiver,
+                params,
+                returns,
+                where_clause,
+                contracts,
+                body,
+            })))
+        } else {
+            Ok(TraitItem::Function(self.add_node(TraitFunction {
+                span,
+                node_id: NodeId::default(),
+                attrs,
+                is_override,
+                is_const,
+                is_unsafe,
+                name,
+                generics,
+                params,
+                returns,
+                where_clause,
+                contracts,
+                body,
+            })))
+        }
+    }
+
+    fn parse_trait_type_alias(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<TraitTypeAlias>, ParserErr> {
+        let begin = self.get_cur_span();
+
+        self.consume_strong_kw(StrongKeyword::Type)?;
+        let name = self.consume_name()?;
+        let generics = self.parse_generic_params()?;
+
+        let bounds = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            self.parse_punct_separated(Punctuation::Ampersand, Self::parse_generic_type_bound)?
+        } else {
+            Vec::new()
+        };
+        let where_clause = self.parse_where_clause()?;
+
+        self.consume_punct(Punctuation::Equals)?;
+
+        let ty = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.consume_punct(Punctuation::Semicolon)?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitTypeAlias {
+            span,
+            node_id: NodeId::default(),
+            attrs,
+            name,
+            generics,
+            bounds,
+            where_clause,
+            def,
+        }))
+    }
+
+    fn parse_trait_type_alias_override(&mut self) -> Result<AstNodeRef<TraitTypeAliasOverride>, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_weak_kw(WeakKeyword::Override)?;
+        self.consume_strong_kw(StrongKeyword::Type)?;
+        let name = self.consume_name()?;
+        self.consume_punct(Punctuation::Equals);
+        let ty = self.parse_type()?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitTypeAliasOverride {
+            span,
+            node_id: NodeId::default(),
+            name,
+            ty,
+        }))
+    }
+
+    fn parse_trait_const(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<TraitConst>, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_strong_kw(StrongKeyword::Const)?;
+        let name = self.consume_name()?;
+        let ty = self.parse_type()?;
+        let def = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            Some(self.parse_expr(ExprParseMode::General)?)
+        } else {
+            None
+        };
+        self.consume_punct(Punctuation::Semicolon)?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitConst {
+            span,
+            node_id: NodeId::default(),
+            attrs,
+            name,
+            ty,
+            def,
+        }))
+    }
+
+    fn parse_trait_const_override(&mut self) -> Result<AstNodeRef<TraitConstOverride>, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_weak_kw(WeakKeyword::Override)?;
+        self.consume_strong_kw(StrongKeyword::Const)?;
+        let name = self.consume_name()?;
+        self.consume_punct(Punctuation::Equals);
+        let expr = self.parse_expr(ExprParseMode::General)?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitConstOverride {
+            span,
+            node_id: NodeId::default(),
+            name,
+            expr,
+        }))
+    }
+
+    fn parse_trait_property(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<TraitProperty>, ParserErr> {
+        let begin = self.get_cur_span();
+        let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
+        self.consume_weak_kw(WeakKeyword::Property)?;
+        let name = self.consume_name()?;
+
+        let mut get = None;
+        let mut ref_get = None;
+        let mut mut_get = None;
+            let mut set = None;
+            
+            self.begin_scope(OpenCloseSymbol::Brace)?;
+            while !self.try_end_scope() {
+                let peek = self.peek()?;
+                match peek {
+                Token::WeakKw(WeakKeyword::Get) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    let expr = self.parse_property_expr()?;
+                    if get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
+                    }
+                    
+                    let span = self.get_span_to_current(begin);
+                    get = Some((span, expr));
+                },
+                Token::StrongKw(StrongKeyword::Ref) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+                    let expr = self.parse_property_expr()?;
+                    if ref_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
+                    }
+
+                    let span = self.get_span_to_current(begin);
+                    ref_get = Some((span, expr));
+                },
+                Token::StrongKw(StrongKeyword::Mut) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+                    let expr = self.parse_property_expr()?;
+                    if mut_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
+                    }
+                    
+                    let span = self.get_span_to_current(begin);
+                    mut_get = Some((span, expr));
+                },
+                Token::WeakKw(WeakKeyword::Set) => {
+                    let begin = self.get_cur_span();
+                    self.consume_single();
+                    let expr = self.parse_property_expr()?;
+                    if set.is_some() {
+                       return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
+                    }
+                
+                    let span = self.get_span_to_current(begin);
+                    set = Some((span, expr));
+                },
+                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
+            }
+        }
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitProperty {
+            span,
+            node_id: NodeId::default(),
+            attrs,
+            is_unsafe,
+            name,
+            get,
+            ref_get,
+            mut_get,
+            set,
+        }))
+    }
+
+    fn parse_trait_property_override(&mut self) -> Result<AstNodeRef<TraitPropertyOverride>, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_weak_kw(WeakKeyword::Override)?;
+        self.consume_weak_kw(WeakKeyword::Property)?;
+        let name = self.consume_name()?;
+
+        let mut get = None;
+        let mut ref_get = None;
+        let mut mut_get = None;
+        let mut set = None;
+
+        self.begin_scope(OpenCloseSymbol::Brace)?;
+        while !self.try_end_scope() {
+            let peek = self.peek()?;
+            match peek {
+                Token::WeakKw(WeakKeyword::Get) => {
+                    self.consume_single();
+                    self.consume_punct(Punctuation::Equals);
+                    self.parse_expr(ExprParseMode::General)?;
+
+                    let expr = match self.parse_property_expr()? {
+                        Some(expr) => expr,
+                        None => {
+                            let found = self.peek()?;
+                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
+                        },
+                    };
+
+                    if get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
+                    }
+                    
+                    get = Some(expr);
+                },
+                Token::StrongKw(StrongKeyword::Ref) => {
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+
+                    let expr = match self.parse_property_expr()? {
+                        Some(expr) => expr,
+                        None => {
+                            let found = self.peek()?;
+                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
+                        },
+                    };
+
+                    if ref_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
+                    }
+
+                    ref_get = Some(expr);
+                },
+                Token::StrongKw(StrongKeyword::Mut) => {
+                    self.consume_single();
+                    self.consume_weak_kw(WeakKeyword::Get)?;
+
+                    let expr = match self.parse_property_expr()? {
+                        Some(expr) => expr,
+                        None => {
+                            let found = self.peek()?;
+                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
+                        },
+                    };
+
+                    if mut_get.is_some() {
+                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
+                    }
+                    
+                    mut_get = Some(expr);
+                },
+                Token::WeakKw(WeakKeyword::Set) => {
+                    self.consume_single();
+
+                    let expr = match self.parse_property_expr()? {
+                        Some(expr) => expr,
+                        None => {
+                            let found = self.peek()?;
+                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
+                        },
+                    };
+
+                    if set.is_some() {
+                       return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
+                    }
+                
+                    set = Some(expr);
+                },
+                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
+            }
+        }
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitPropertyOverride {
+            span,
+            node_id: NodeId::INVALID,
+            name,
+            get,
+            ref_get,
+            mut_get,
+            set,
+        }))
+    }
+
+    //--------------------------------------------------------------
+
     fn parse_impl(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
@@ -1778,7 +2106,7 @@ impl Parser<'_> {
         let mut assoc_items = Vec::new();
         self.begin_scope(OpenCloseSymbol::Brace);
         while !self.try_end_scope() {
-            assoc_items.push(self.parse_assoc_item()?);
+            assoc_items.push(self.parse_impl_item()?);
         }
 
         let span = self.get_span_to_current(begin);
@@ -1795,6 +2123,75 @@ impl Parser<'_> {
             assoc_items,
         })))
     }
+
+    fn parse_impl_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>, in_extern: bool, in_trait: bool) -> Result<ImplItem, ParserErr> {
+        let begin = self.get_cur_span();
+        let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
+        let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
+
+        self.consume_strong_kw(StrongKeyword::Fn)?;
+        let name = self.consume_name()?;
+        let generics = self.parse_generic_params()?;
+        let (receiver, params) = self.parse_fn_receiver_and_params()?;
+        let returns = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
+            Some(self.parse_func_return()?)
+        } else {
+            None
+        };
+
+        let where_clause = self.parse_where_clause()?;
+
+        let contracts = if self.peek()? != Token::OpenSymbol(OpenCloseSymbol::Brace) {
+            let mut contracts = Vec::new();
+            while self.peek()? != Token::OpenSymbol(OpenCloseSymbol::Brace) {
+                contracts.push(self.parse_contract()?)
+            }
+            contracts
+        } else {
+            Vec::new()
+        };
+
+        let body = self.parse_block()?;
+
+        let span = self.get_span_to_current(begin);
+        if let Some(receiver) = receiver {
+            Ok(ImplItem::Method(self.add_node(Method {
+                span,
+                node_id: NodeId::default(),
+                attrs,
+                vis,
+                is_const,
+                is_unsafe,
+                name,
+                generics,
+                receiver,
+                params,
+                returns,
+                where_clause,
+                contracts,
+                body,
+            })))
+        } else {
+            Ok(ImplItem::Function(self.add_node(Function {
+                span,
+                node_id: NodeId::default(),
+                attrs,
+                vis,
+                is_const,
+                is_unsafe,
+                abi: None,
+                name,
+                generics,
+                params,
+                returns,
+                where_clause,
+                contracts,
+                body: Some(body),
+            })))
+        }
+    }
+
+    //--------------------------------------------------------------
 
     fn parse_extern_block(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
@@ -1817,6 +2214,8 @@ impl Parser<'_> {
             items,
         })))
     }
+
+    //--------------------------------------------------------------
 
     fn parse_op_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
@@ -1969,6 +2368,8 @@ impl Parser<'_> {
             operators,
         })))
     }
+
+    //--------------------------------------------------------------
 
     fn parse_precedence(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();

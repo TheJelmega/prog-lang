@@ -150,6 +150,13 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
+    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        let name = self.names[node.name].to_string();
+        
+        let sym = self.sym_table.add_function(&ctx.scope, name);
+        ctx.sym = Some(sym);
+    }
+
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         let name = self.names[node.name].to_string();
         
@@ -161,13 +168,6 @@ impl Visitor for SymbolGeneration<'_> {
         let name = self.names[node.name].to_string();
         
         let sym = self.sym_table.add_const(&ctx.scope, name);
-        ctx.sym = Some(sym);
-    }
-
-    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
-        let name = self.names[node.name].to_string();
-        
-        let sym = self.sym_table.add_static(&ctx.scope, name, StaticKind::Normal);
         ctx.sym = Some(sym);
     }
 

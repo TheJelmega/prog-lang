@@ -840,27 +840,43 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
+    //--------------------------------------------------------------
+
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
         // handled in log_trait
     }
 
     fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
-        let no_rec = if let FnReceiver::None = &node.receiver {
-            true
-        } else {
-            false
-        };
-
         self.log_node("Trait Function", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is override: {}\n", node.is_override));
             this.logger.prefixed_log_fmt(format_args!("Is const: {}\n", node.is_const));
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
-            this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none() && no_rec && node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
-            this.log_visibility(&mut node.vis);
-            this.logger.set_last_at_indent_if(node.generics.is_none() && no_rec && node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.logger.set_last_at_indent_if(node.generics.is_none() && node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.logger.set_last_at_indent_if(no_rec && node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.logger.set_last_at_indent_if(node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
+            this.logger.set_last_at_indent_if(node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.logger.set_last_at_indent_if(node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.log_slice_indented("Params", &mut node.params, |this, param| this.log_fn_param(param));
+            this.logger.set_last_at_indent_if(node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.log_opt_indented("Return Type", &mut node.return_ty, |this, ty| this.visit_type(ty));
+            this.logger.set_last_at_indent_if(node.contracts.is_empty() && node.body.is_none());
+            this.log_opt_indented("Where Clause", &mut node.where_clause, |this, where_clause| this.visit_where_clause(where_clause));
+            this.logger.set_last_at_indent_if(node.body.is_none());
+            this.log_slice_indented("Contracts", &mut node.contracts, |this, contract| this.visit_contract(contract));
+            this.logger.set_last_at_indent();
+            this.log_opt_indented("Body", &mut node.body, |this, body| this.visit_block(body));
+        });
+    }
+
+    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        self.log_node("Trait Function", node.node_id, |this| {
+            this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
+            this.logger.prefixed_log_fmt(format_args!("Is override: {}\n", node.is_override));
+            this.logger.prefixed_log_fmt(format_args!("Is const: {}\n", node.is_const));
+            this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
+            this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
             this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
             this.logger.set_last_at_indent_if(node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
             match &mut node.receiver {
@@ -890,51 +906,84 @@ impl Visitor for NodeLogger<'_> {
     }
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
-        self.log_node("Trait type alias", node.node_id, |this| {
-            this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none());
+        self.log_node("Trait Type Alias", node.node_id, |this| {
+            this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none() && node.bounds.is_empty() && node.def.is_none());
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
-            this.logger.set_last_at_indent_if(node.generics.is_none());
+            this.logger.set_last_at_indent_if(node.generics.is_none() && node.bounds.is_empty() && node.def.is_none());
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.logger.set_last_at_indent();
+            this.logger.set_last_at_indent_if(node.bounds.is_empty() && node.def.is_none());
             this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
+            this.logger.set_last_at_indent_if(node.def.is_none());
+            this.logger.set_last_at_indent();
+            this.log_opt_indented("Default Type", &mut node.def, |logger, ty| logger.visit_type(ty));
+        });
+    }
+
+    fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
+        self.log_node("Trait Type Alias Override", node.node_id, |this| {
+            this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
+            this.logger.set_last_at_indent();
+            this.log_indented("Type", |this| this.visit_type(&mut node.ty));
         });
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         self.log_node("Trait const", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
-            this.log_visibility(&mut node.vis);
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
             this.logger.set_last_at_indent();
             this.log_indented("Type", |this| this.visit_type(&mut node.ty));
         });
     }
 
-    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
-        self.log_node("Trait static", node.node_id, |this| {
+    fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
+        self.log_node("Trait Constant Override", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
-            this.log_visibility(&mut node.vis);
-            this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.log_opt_indented("Type", &mut node.ty, |this, ty| this.visit_type(ty));
             this.logger.set_last_at_indent();
-            this.log_single_indented("Value", |this| this.visit_expr(&mut node.val));
+            this.log_indented("Expr", |this| this.visit_expr(&mut node.expr));
         });
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+        let log_prop = |this: &mut Self, name: &str, prop: &mut TraitPropertyMember| {
+            match prop {
+                TraitPropertyMember::None => {},
+                TraitPropertyMember::HasProp(_) => this.logger.prefixed_log_fmt(format_args!("Has {name}: {}\n", node.is_unsafe)),
+                TraitPropertyMember::Def(_, expr) => this.log_indented(name, |this| this.visit_expr(expr)),
+            }
+        };
+
         self.log_node("Trait Property", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
-            this.logger.prefixed_log_fmt(format_args!("Has get: {}\n", node.has_get));
-            this.logger.prefixed_log_fmt(format_args!("Has ref get: {}\n", node.has_ref_get));
-            this.logger.prefixed_log_fmt(format_args!("Has mut get: {}\n", node.has_mut_get));
-            this.logger.prefixed_log_fmt(format_args!("Has set: {}\n", node.has_set));
             this.logger.set_last_at_indent_if(node.attrs.is_empty());
-            this.log_visibility(&mut node.vis);
-            this.logger.set_last_at_indent();
+            this.logger.set_last_at_indent_if(node.get.is_none() && node.ref_get.is_none() && node.mut_get.is_none() && node.set.is_none());
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
+            this.logger.set_last_at_indent_if(node.ref_get.is_none() && node.mut_get.is_none() && node.set.is_none());
+            log_prop(this, "Get", &mut node.get);
+            this.logger.set_last_at_indent_if(node.mut_get.is_none() && node.set.is_none());
+            log_prop(this, "Ref Get", &mut node.ref_get);
+            this.logger.set_last_at_indent_if(node.set.is_none());
+            log_prop(this, "Mut Get", &mut node.mut_get);
+            this.logger.set_last_at_indent();
+            log_prop(this, "Set", &mut node.set);
         });
     }
+
+    fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
+        self.log_node("Trait Property Overrride", node.node_id, |this| {
+            this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
+            this.log_opt_indented("Get", &mut node.get, |this, expr| this.visit_expr(expr));
+            this.logger.set_last_at_indent_if(node.mut_get.is_none() && node.set.is_none());
+            this.log_opt_indented("Ref Get", &mut node.ref_get, |this, expr| this.visit_expr(expr));
+            this.logger.set_last_at_indent_if(node.get.is_none());
+            this.log_opt_indented("Mut Get", &mut node.mut_get, |this, expr| this.visit_expr(expr));
+            this.logger.set_last_at_indent();
+            this.log_opt_indented("Set", &mut node.set, |this, expr| this.visit_expr(expr));
+        });
+    }
+
+    //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
         // handled in log_impl
@@ -1052,6 +1101,8 @@ impl Visitor for NodeLogger<'_> {
         });
     }
 
+    //--------------------------------------------------------------
+
     fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
         // handled in log_op_trait
     }
@@ -1084,6 +1135,8 @@ impl Visitor for NodeLogger<'_> {
             this.visit_expr(&mut node.expr);
         })
     }
+
+    //--------------------------------------------------------------
 
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
         self.log_node("Precedence", node.node_id, |this| {

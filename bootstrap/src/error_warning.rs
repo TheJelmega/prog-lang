@@ -149,6 +149,9 @@ pub enum ParseErrorCode {
     AmbiguousOperators,
 
     EmptyStmtWithAttrs,
+    AttrsNotAllowed{ for_reason: &'static str },
+
+    ReceiverInFreeFunction,
 }
 
 impl Display for ParseErrorCode {
@@ -172,9 +175,11 @@ impl Display for ParseErrorCode {
             Self::InvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
             Self::AmbiguousOperators                   => write!(f, "Ambiguous operators, cannot figure out which operators is infix"),
             Self::EmptyStmtWithAttrs                   => write!(f, "An empty statement cannot have attributes applied to it"),
+            Self::AttrsNotAllowed{ for_reason }        => write!(f, "Attributes are not allowed for {for_reason}"),
+            Self::ReceiverInFreeFunction               => write!(f, "Free functions are not allowed to have a receiver"),
 
             #[allow(unreachable_patterns)]
-            _                                               => write!(f, "Unknown Parse error"),
+            _                                          => write!(f, "Unknown Parse error"),
         }
     }
 }

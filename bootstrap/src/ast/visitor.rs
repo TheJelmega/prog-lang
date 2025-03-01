@@ -36,7 +36,7 @@ pub trait Visitor {
         helpers::visit_trait_item(self, item);
     }
 
-    fn visit_assoc_item(&mut self, item: &AssocItem) where Self: Sized {
+    fn visit_assoc_item(&mut self, item: &ImplItem) where Self: Sized {
         helpers::visit_assoc_item(self, item);
     }
 
@@ -60,8 +60,20 @@ pub trait Visitor {
         helpers::visit_function(self, node, true);
     }
 
+    fn visit_method(&mut self, node: &AstNodeRef<Method>) where Self: Sized {
+        helpers::visit_method(self, node, true);
+    }
+
     fn visit_type_alias(&mut self, node: &AstNodeRef<TypeAlias>) where Self: Sized {
         helpers::visit_type_alias(self, node);
+    }
+
+    fn visit_distinct_type(&mut self, node: &AstNodeRef<DistinctType>) where Self: Sized {
+        helpers::visit_distinct_type(self, node);
+    }
+
+    fn visit_opaque_type(&mut self, node: &AstNodeRef<OpaqueType>) where Self: Sized {
+        helpers::visit_opaque_type(self, node);
     }
 
     fn visit_struct(&mut self, node: &AstNodeRef<Struct>) where Self: Sized {
@@ -100,10 +112,6 @@ pub trait Visitor {
         helpers::visit_const(self, node);
     }
     
-    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
-        helpers::visit_trait_const(self, node);
-    }
-    
     fn visit_static(&mut self, node: &AstNodeRef<Static>) where Self: Sized {
         helpers::visit_static(self, node);
     }
@@ -112,18 +120,58 @@ pub trait Visitor {
         helpers::visit_property(self, node);
     }
     
+//--------------------------------------------------------------
+
     fn visit_trait(&mut self, node: &AstNodeRef<Trait>) where Self: Sized {
         helpers::visit_trait(self, node);
     }
     
+    fn visit_trait_function(&mut self, node: &AstNodeRef<TraitFunction>) where Self: Sized {
+        helpers::visit_trait_function(self, node, true);
+    }
+
+    fn visit_trait_method(&mut self, node: &AstNodeRef<TraitMethod>) where Self: Sized {
+        helpers::visit_trait_method(self, node, true);
+    }
+
+    fn visit_trait_type_alias(&mut self, node: &AstNodeRef<TraitTypeAlias>) where Self: Sized {
+        helpers::visit_trait_type_alias(self, node);
+    }
+
+    fn visit_trait_type_alias_override(&mut self, node: &AstNodeRef<TraitTypeAliasOverride>) where Self: Sized {
+        helpers::visit_trait_type_alias_override(self, node);
+    }
+
+    fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
+        helpers::visit_trait_const(self, node);
+    }
+
+    fn visit_trait_const_override(&mut self, node: &AstNodeRef<TraitConstOverride>) where Self: Sized {
+        helpers::visit_trait_const_override(self, node);
+    }
+
+    fn visit_trait_property(&mut self, node: &AstNodeRef<TraitProperty>) where Self: Sized {
+        helpers::visit_trait_property(self, node);
+    }
+
+    fn visit_trait_property_override(&mut self, node: &AstNodeRef<TraitPropertyOverride>) where Self: Sized {
+        helpers::visit_trait_property_override(self, node);
+    }
+
+//--------------------------------------------------------------
+
     fn visit_impl(&mut self, node: &AstNodeRef<Impl>) where Self: Sized {
         helpers::visit_impl(self, node);
     }
     
+//--------------------------------------------------------------
+
     fn visit_extern_block(&mut self, node: &AstNodeRef<ExternBlock>) where Self: Sized {
         helpers::visit_extern_block(self, node);
     }
     
+//--------------------------------------------------------------
+
     fn visit_op_trait(&mut self, node: &AstNodeRef<OpTrait>) where Self: Sized {
         helpers::visit_op_trait(self, node);
     }
@@ -530,6 +578,8 @@ pub mod helpers {
             Item::Use(node)           => visitor.visit_use(node),
             Item::Function(node)      => visitor.visit_function(node),
             Item::TypeAlias(node)     => visitor.visit_type_alias(node),
+            Item::DistinctType(node)  => visitor.visit_distinct_type(node),
+            Item::OpaqueType(node)    => visitor.visit_opaque_type(node),
             Item::Struct(node)        => visitor.visit_struct(node),
             Item::Union(node)         => visitor.visit_union(node),
             Item::Enum(node)          => visitor.visit_enum(node),
@@ -549,20 +599,25 @@ pub mod helpers {
 
     pub fn visit_trait_item<T: Visitor>(visitor: &mut T, item: &TraitItem) {
         match item {
-            TraitItem::Function(node)  => visitor.visit_function(node),
-            TraitItem::TypeAlias(node) => visitor.visit_type_alias(node),
-            TraitItem::Const(node)     => visitor.visit_trait_const(node),
-            TraitItem::Property(node)  => visitor.visit_property(node),
+            TraitItem::Function(node)          => visitor.visit_trait_function(node),
+            TraitItem::Method(node)            => visitor.visit_trait_method(node),
+            TraitItem::TypeAlias(node)         => visitor.visit_trait_type_alias(node),
+            TraitItem::TypeAliasOverride(node) => visitor.visit_trait_type_alias_override(node),
+            TraitItem::Const(node)             => visitor.visit_trait_const(node),
+            TraitItem::ConstOverride(node)     => visitor.visit_trait_const_override(node),
+            TraitItem::Property(node)          => visitor.visit_trait_property(node),
+            TraitItem::PropertyOverride(node)  => visitor.visit_trait_property_override(node),
         }
     }
 
-    pub fn visit_assoc_item<T: Visitor>(visitor: &mut T, item: &AssocItem) {
+    pub fn visit_assoc_item<T: Visitor>(visitor: &mut T, item: &ImplItem) {
         match item {
-            AssocItem::Function(node)  => visitor.visit_function(node),
-            AssocItem::TypeAlias(node) => visitor.visit_type_alias(node),
-            AssocItem::Const(node)     => visitor.visit_const(node),
-            AssocItem::Static(node)    => visitor.visit_static(node),
-            AssocItem::Property(node)  => visitor.visit_property(node),
+            ImplItem::Function(node)  => visitor.visit_function(node),
+            ImplItem::Method(node)    => visitor.visit_method(node),
+            ImplItem::TypeAlias(node) => visitor.visit_type_alias(node),
+            ImplItem::Const(node)     => visitor.visit_const(node),
+            ImplItem::Static(node)    => visitor.visit_static(node),
+            ImplItem::Property(node)  => visitor.visit_property(node),
         }
     }
 
@@ -617,10 +672,6 @@ pub mod helpers {
             visitor.visit_generic_params(generics);
         }
 
-        if let Some(FnReceiver::SelfTyped { span, is_mut, ty }) = &node.receiver {
-            visitor.visit_type(ty);
-        }
-
         for param in &node.params {
             visit_fn_param(visitor, param);
         }
@@ -666,51 +717,76 @@ pub mod helpers {
         }
     }
 
+    pub fn visit_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Method>, do_body: bool) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(vis) = &node.vis {
+            visitor.visit_visibility(vis);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+
+        if let FnReceiver::SelfTyped { span, is_mut, ty } = &node.receiver {
+            visitor.visit_type(ty);
+        }
+
+        for param in &node.params {
+            visit_fn_param(visitor, param);
+        }
+
+        if let Some(ret) = &node.returns {
+            visit_fn_return(visitor, ret);
+        }
+
+        if let Some(where_clause) = &node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+        for contract in &node.contracts {
+            visitor.visit_contract( contract);
+        }
+
+        if do_body {
+            visitor.visit_block(&node.body);
+        }
+    }
+
     pub fn visit_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TypeAlias>) {
-        match &**node {
-            TypeAlias::Normal { span, node_id, attrs, vis, name, generics, ty } => {
-                for attr in attrs {
-                    visitor.visit_attribute(attr);
-                }
-                if let Some(vis) = vis {
-                    visitor.visit_visibility(vis);
-                }
-                if let Some(generics) = generics {
-                    visitor.visit_generic_params(generics);
-                }
-                visitor.visit_type(ty);
-            },
-            TypeAlias::Distinct { span, node_id, attrs, vis, name, generics, ty } => {
-                for attr in attrs {
-                    visitor.visit_attribute(attr);
-                }
-                if let Some(vis) = vis {
-                    visitor.visit_visibility(vis);
-                }
-                if let Some(generics) = generics {
-                    visitor.visit_generic_params(generics);
-                }
-                visitor.visit_type(ty);
-            },
-            TypeAlias::Trait { span, node_id, attrs, name, generics } => {
-                for attr in attrs {
-                    visitor.visit_attribute(attr);
-                }
-                if let Some(generics) = generics {
-                    visitor.visit_generic_params(generics);
-                }
-            },
-            TypeAlias::Opaque { span, node_id, attrs, vis, name, size } => {
-                for attr in attrs {
-                    visitor.visit_attribute(attr);
-                }
-                if let Some(vis) = vis {
-                    visitor.visit_visibility(vis);
-                }
-                if let Some(size) = size {
-                    visitor.visit_expr(size);
-                }
-            },
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(vis) = &node.vis {
+            visitor.visit_visibility(vis);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+        visitor.visit_type(&node.ty);
+    }
+
+    pub fn visit_distinct_type<T: Visitor>(visitor: &mut T, node: &AstNodeRef<DistinctType>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(vis) = &node.vis {
+            visitor.visit_visibility(vis);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+        visitor.visit_type(&node.ty);
+    }
+
+    pub fn visit_opaque_type<T: Visitor>(visitor: &mut T, node: &AstNodeRef<OpaqueType>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(vis) = &node.vis {
+            visitor.visit_visibility(vis);
+        }
+        if let Some(size) = &node.size {
+            visitor.visit_expr(size);
         }
     }
 
@@ -959,16 +1035,6 @@ pub mod helpers {
         visitor.visit_expr(&node.val)
     }
 
-    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConst>) {
-        for attr in &node.attrs {
-            visitor.visit_attribute(attr);
-        }
-        if let Some(vis) = &node.vis {
-            visitor.visit_visibility(vis);
-        }
-        visitor.visit_type(&node.ty);
-    }
-
     pub fn visit_static<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Static>) {
         match &**node {
             Static::Static { span, node_id, attrs, vis, name, ty, val } => {
@@ -1014,24 +1080,22 @@ pub mod helpers {
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        match &node.body {
-            PropertyBody::Assoc { get, ref_get, mut_get, set } => {
-                if let Some((_, get)) = get {
-                    visitor.visit_expr(get);
-                }
-                if let Some((_, ref_get)) = ref_get {
-                    visitor.visit_expr(ref_get);
-                }
-                if let Some((_, mut_get)) = mut_get {
-                    visitor.visit_expr(mut_get);
-                }
-                if let Some((_, set)) = set {
-                    visitor.visit_expr(set);
-                }
-            },
-            PropertyBody::Trait { has_get, has_ref_get, has_mut_get, has_set } => {},
+        if let Some((_, get)) = &node.get {
+            visitor.visit_expr(get);
+        }
+        if let Some((_, ref_get)) = &node.ref_get {
+            visitor.visit_expr(ref_get);
+        }
+        if let Some((_, mut_get)) = &node.mut_get {
+            visitor.visit_expr(mut_get);
+        }
+        if let Some((_, set)) = &node.set {
+            visitor.visit_expr(set);
         }
     }
+
+//--------------------------------------------------------------
+// <T: Visitor>(visitor: &mut T, node: &AstNodeRef<>)
 
     pub fn visit_trait<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Trait>) {
         for attr in &node.attrs {
@@ -1047,6 +1111,144 @@ pub mod helpers {
             visitor.visit_trait_item(item);
         }
     }
+
+    pub fn visit_trait_function<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitFunction>, do_body: bool) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+
+        for param in &node.params {
+            visit_fn_param(visitor, param);
+        }
+
+        if let Some(ret) = &node.returns {
+            visit_fn_return(visitor, ret);
+        }
+
+        if let Some(where_clause) = &node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+        for contract in &node.contracts {
+            visitor.visit_contract( contract);
+        }
+
+        if do_body {
+            if let Some(body) = &node.body {
+                visitor.visit_block(body);
+            }
+        }
+    }
+
+    pub fn visit_trait_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitMethod>, do_body: bool) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+
+        if let FnReceiver::SelfTyped { ty, .. } = &node.receiver {
+            visitor.visit_type(ty);
+        }
+
+        for param in &node.params {
+            visit_fn_param(visitor, param);
+        }
+
+        if let Some(ret) = &node.returns {
+            visit_fn_return(visitor, ret);
+        }
+
+        if let Some(where_clause) = &node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+        for contract in &node.contracts {
+            visitor.visit_contract( contract);
+        }
+
+        if do_body {
+            if let Some(body) = &node.body {
+                visitor.visit_block(body);
+            }
+        }
+    }
+
+    pub fn visit_trait_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitTypeAlias>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some(generics) = &node.generics {
+            visitor.visit_generic_params(generics);
+        }
+        for bound in &node.bounds {
+            match bound {
+                GenericTypeBound::Type(path) => visitor.visit_type_path(path),
+                GenericTypeBound::InlineConstraint(constraint) => visitor.visit_inline_constraint(constraint),
+            }
+        }
+        if let Some(where_clause) = &node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
+        if let Some(def) = &node.def {
+            visitor.visit_type(def);
+        }
+    }
+
+    pub fn visit_trait_type_alias_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitTypeAliasOverride>) {
+        visitor.visit_type(&node.ty);
+    }
+
+    pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConst>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        visitor.visit_type(&node.ty);
+        if let Some(def) = &node.def {
+            visitor.visit_expr(def);
+        }
+    }
+
+    pub fn visit_trait_const_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConstOverride>) {
+        visitor.visit_expr(&node.expr);
+    }
+
+    pub fn visit_trait_property<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitProperty>) {
+        for attr in &node.attrs {
+            visitor.visit_attribute(attr);
+        }
+        if let Some((_, Some(expr))) = &node.get {
+            visitor.visit_expr(expr);
+        }
+        if let Some((_, Some(expr))) = &node.ref_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some((_, Some(expr))) = &node.mut_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some((_, Some(expr))) = &node.set {
+            visitor.visit_expr(expr);
+        }
+    }
+
+    pub fn visit_trait_property_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitPropertyOverride>) {
+        if let Some(expr) = &node.get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &node.ref_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &node.mut_get {
+            visitor.visit_expr(expr);
+        }
+        if let Some(expr) = &node.set {
+            visitor.visit_expr(expr);
+        }
+    }
+
+//--------------------------------------------------------------
 
     pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Impl>) {
         for attr in &node.attrs {
@@ -1070,6 +1272,8 @@ pub mod helpers {
         }
     }
 
+//--------------------------------------------------------------
+
     pub fn visit_extern_block<T: Visitor>(visitor: &mut T, node: &AstNodeRef<ExternBlock>) {
         let node = &**node;
         for attr in &node.attrs {
@@ -1082,6 +1286,8 @@ pub mod helpers {
             visitor.visit_extern_item(item);
         }
     }
+
+//--------------------------------------------------------------
 
     pub fn visit_op_trait<T: Visitor>(visitor: &mut T, node: &AstNodeRef<OpTrait>) {
         match &**node {

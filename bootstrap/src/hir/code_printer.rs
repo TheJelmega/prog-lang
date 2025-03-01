@@ -900,6 +900,8 @@ impl Visitor for CodePrinter<'_> {
         self.logger.logln(";");
     }
 
+    //--------------------------------------------------------------
+
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
         // handled in log_trait
     }
@@ -908,7 +910,49 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.log_vis(&mut node.vis);
+        self.logger.log_fmt(format_args!("{}{}{}fn {}", 
+            if node.is_override { "override " } else { "" },
+            if node.is_const { "const " } else { "" },
+            if node.is_unsafe { "unsafe " } else { "" },
+            &self.names[node.name]
+        ));
+        if let Some(generics) = &mut node.generics {
+            self.visit_gen_params(generics);
+        }
+        self.logger.log("(");
+        if !node.params.is_empty() {
+            self.logger.logln("");
+            self.logger.push_indent();
+
+            for param in &mut node.params {
+                self.log_fn_param(param);
+            }
+            self.logger.pop_indent();
+        }
+        self.logger.log(")");
+        if let Some(where_clause) = &mut node.where_clause {
+            self.visit_where_clause(where_clause);
+        }
+        if !node.contracts.is_empty() {
+            for contract in &mut node.contracts {
+                self.visit_contract(contract);
+            }
+            self.logger.write_prefix();
+        } else {
+            self.logger.logln(" ");
+        }
+        if let Some(body) = &mut node.body {
+            self.visit_block(body);
+            self.logger.logln("");
+        } else {
+            self.logger.logln(";");
+        }
+    }
+
+    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        for attr in &mut node.attrs {
+            self.visit_attribute(attr);
+        }
         self.logger.log_fmt(format_args!("{}{}{}fn {}", 
             if node.is_override { "override " } else { "" },
             if node.is_const { "const " } else { "" },
@@ -971,6 +1015,19 @@ impl Visitor for CodePrinter<'_> {
         if let Some(generics) = &mut node.generics {
             self.visit_gen_params(generics);
         }
+        for bound in &mut node.bounds {
+            todo!()   
+        }
+        if let Some(def) = &mut node.def {
+            self.logger.log(" = ");
+            self.visit_type(def);
+        }
+        self.logger.log(";");
+    }
+
+    fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
+        self.logger.log_fmt(format_args!("override type {} = ", &self.names[node.name]));
+        self.visit_type(&mut node.ty);
         self.logger.log(";");
     }
 
@@ -978,42 +1035,85 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.log_vis(&mut node.vis);
         self.logger.prefixed_log_fmt(format_args!("const {}", &self.names[node.name]));
         self.logger.log(" : ");
         self.visit_type(&mut node.ty);
+        if let Some(def) = &mut node.def {
+            self.logger.log(" = ");
+            self.visit_expr(def);
+        }
         self.logger.logln(";");
     }
-
-    fn visit_trait_static(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut Static, ctx: &mut StaticContext) {
-        // Reuse visit_static
-        self.visit_static(node, ctx);
+    
+    fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
+        self.logger.log_fmt(format_args!("override const {} = ", &self.names[node.name]));
+        self.visit_expr(&mut node.expr);
+        self.logger.logln(";");
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.log_vis(&mut node.vis);
         self.logger.log_fmt(format_args!("{}property {} {{\n", 
             if node.is_unsafe { "unsafe " } else { "" },
             &self.names[node.name]
         ));
-        if node.has_get {
-            self.logger.prefixed_logln("get;");
-        }
-        if node.has_ref_get {
-            self.logger.prefixed_logln("ref get;");
-        }
-        if node.has_mut_get {
-            self.logger.prefixed_logln("mut get;");
-        }
-        if node.has_set {
-            self.logger.prefixed_logln("set;");
-        }
+
+        let mut log_mem = |name: &str, mem: &mut TraitPropertyMember| {
+            match mem {
+                TraitPropertyMember::None => (),
+                TraitPropertyMember::HasProp(_) => self.logger.prefixed_logln("get;"),
+                TraitPropertyMember::Def(_, expr) => {
+                    self.logger.prefixed_log(name);
+                    if !matches!(&**expr, Expr::Block(_)) {
+                        self.logger.log(" = ");
+                    }
+                    self.visit_expr(expr);
+                    if !matches!(&**expr, Expr::Block(_)) {
+                        self.logger.logln(";");
+                    } else {
+                        self.logger.logln("");
+                    }
+                },
+            }
+        };
+
+        log_mem("get", &mut node.get);
+        log_mem("ref get", &mut node.ref_get);
+        log_mem("mut get", &mut node.mut_get);
+        log_mem("set", &mut node.set);
 
         self.logger.prefixed_logln("}");
     }
+
+    fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
+        self.logger.log_fmt(format_args!("override property {} {{\n", &self.names[node.name]));
+
+        let mut log_mem = |name: &str, mem: Option<&mut Box<Expr>>| {
+            let Some(expr) = mem else { return; };
+
+            self.logger.prefixed_log(name);
+            if !matches!(&**expr, Expr::Block(_)) {
+                self.logger.log(" = ");
+            }
+            self.visit_expr(expr);
+            if !matches!(&**expr, Expr::Block(_)) {
+                self.logger.logln(";");
+            } else {
+                self.logger.logln("");
+            }
+        };
+
+        log_mem("get", node.get.as_mut());
+        log_mem("ref get", node.ref_get.as_mut());
+        log_mem("mut get", node.mut_get.as_mut());
+        log_mem("set", node.set.as_mut());
+
+        self.logger.prefixed_logln("}");
+    }
+
+    //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
         // handled in log_impl
@@ -1147,6 +1247,8 @@ impl Visitor for CodePrinter<'_> {
         self.logger.prefixed_logln("}");
     }
 
+    //--------------------------------------------------------------
+
     fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
         // handled in log_op_trait
     }
@@ -1188,6 +1290,8 @@ impl Visitor for CodePrinter<'_> {
             self.logger.prefixed_logln("}");
         }
     }
+
+    //--------------------------------------------------------------
 
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
         for attr in &mut node.attrs {
