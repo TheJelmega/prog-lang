@@ -37,7 +37,7 @@ Version: 0.0
         1. [String coninuation sequence](#641-string-continuation-sequence-)
     5. [Literal operators](#65-literal-operators-)
 7. [Items](#7-items-)
-    1. [Module item](#71-module-item-)
+    1. [Module item](#71-module-item-)ccccc
         1. [Inline modules](#711-inline-modules-)
         2. [File modules](#712-file-modules-)
         3. [Path attibute](#713-path-attribute-)
@@ -49,12 +49,14 @@ Version: 0.0
         2. [Returns](#732-returns-)
         3. [Pseudo-function overloading](#733-pseudo-function-overloading-)
         4. [Const function](#734-const-function-)
-        5. [Trait function](#735-trait-function-)
+        5. [Method](#735-method)
+        6. [Trait function & Method](#736-trait-function--method-)
             - [Trait function override resolution](#trait-function-override-resolution)
-        6. [External function qualifier](#736-external-function-qualifier-)
+        7. [External function qualifier](#737-external-function-qualifier-)
     4. [Type aliases](#74-type-aliases-)
         1. [Distinct types](#741-distinct-types-)
-        3. [Opaque types](#742-opaque-types-)
+        2. [Opaque types](#742-opaque-types-)
+        3. [Trait type alias](#743-trait-type-alias)
     5. [Structs](#75-structs-)
         1. [Regular structs](#751-regular-structure-)
             - [Use fields](#use-fields)
@@ -74,30 +76,27 @@ Version: 0.0
         3. [Flag enum](#773-flag-enum-)
     8. [Bitfield](#78-bitfield-)
     9. [Const item](#79-const-item-)
-        1. [Associated trait constant](#791-associated-trait-constant-)
+        1. [Trait constant](#791-trait-constant-)
     10. [Static item](#710-static-item-)
         1. [Thread local storage](#7101-thread-local-storage-)
         2. [Statics and generics](#7102-statics-and-generics-)
         3. [External statics](#7103-external-statics-)
     11. [Properties](#711-properties-)
         1. [Getters & setter](#7111-getters--setters-)
-        2. [Internal representation](#7121-object-safety-)
+            - [Internal representation](#internal-representation)
+        2. [Trait properties](#7112-trait-properties-)
     12. [Traits](#712-trait-)
         1. [Object safety](#7121-object-safety-)
         2. [Supertraits](#7122-supertraits-)
         3. [Usafe traits](#7123-unsafe-traits-)
         4. [Visibility](#7124-visibility-)
+        5. [Trait Items](#7125-trait-items-)
     13. [Implementation](#713-implementation-)
         1. [Inherent implementation](#7131-inherent-implementation-)
         2. [Trait implementation](#7132-trait-implementation-)
             - [Coherence](#coherence)
-    14. [Associated items](#714-associated-items-)
-        1. [Associated types](#7141-associated-types-)
-            - [Associated trait type](#associated-trait-type)
-        2. [Associated constants](#7142-associated-constants-)
-        3. [Associated properties](#7143-associated-properties-)
-        4. [Associated functions](#7144-associated-functions-)
-    15. [External block](#715-external-block-)
+        3. [Impl items](#7133-impl-items-)
+    14. [External block](#714-external-block-)
 8. [Statements](#8-statements-)
     1. [Item statement](#81-item-statement-)
     2. [Variable declaration](#82-variable-declaration-)
@@ -1049,6 +1048,8 @@ Raw string also don't allow any escape codes, as they will just be interpreted a
 to define a raw string, the prefix `r` is used, followed by any number of `#`s, and then a `"`.
 The text in the string will now run until the next encounter of a `"`, followed with as many `#`s as proceeed the string's starting `"`.
 
+_TODO: like C#, multiline strings should be indent aware_
+
 ### 6.4.1. String continuation sequence [↵](#64-string-literals-)
 
 ```
@@ -1310,7 +1311,7 @@ This is particularly useful to import a trait so that its methods may be used wi
 ## 7.3 Function [↵](#7-items-)
 
 ```
-<fn-item> := { <attribute> }* [ <vis> ] [ 'const ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
+<fn-item> := { <attribute> }* [ <vis> ] [ 'const' ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
 <fn-body> := <block-with-return>
            | <block-no-return>
            | ';'
@@ -1325,13 +1326,9 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 ### 7.3.1. Parameters [↵](#73-function-)
 
 ```
-<fn-params> := [  <fn-param> { ',' <fn-param> }* ] [ [ ',' ] <opt-fn-param> { ',' <opt-fn-param> }* ]  [ [ ',' ] [ <variadic-param> ] ]
-             | <receiver-param> [ ',' <fn-param> { ',' <fn-param> }* ] [ ','  <opt-fn-param> { ',' <opt-fn-param> }* ]  [ ',' [ <variadic-param> ] ]
-
-
-<receiver-param> := <simple-receiver> | <typed-receiver>
-<simple-receiver> := [ '&' [ 'mut' ] ] 'self'
-<typed-receiver> := 'self' ':' <type>
+<fn-params> := <fn-param> { ',' <fn-param> }*
+             | [ <fn-param> { ',' <fn-param> }* ',' ] <opt-fn-param> { ',' <opt-fn-param> }
+             | [ <fn-param> { ',' <fn-param> }* ',' ] [ <opt-fn-param> { ',' <opt-fn-param> } ',' ] <variadic-param>
 
 <fn-param> := { <attribute> }* <fn-param-name> { ',' <fn-param-name> }* ':' <type>
 <opt-fn-param> := [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt> ':' <type> '=' <expr>
@@ -1344,18 +1341,6 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 
 Function parameters consists out of a label, a pattern, and a type.
 A label can be optional if the pattern is an identifier pattern.
-
-The first parameter can be a special receiver parameter, which indicates that this function is a method, and can therefore only be declared within an implementation block.
-The receiver has an implicit `_` label, and can be any of the following types:
-- `Self`
-- `&Self`
-- `&mut Self`
-- any `T` that implements `Deref<Target = Self>`. _TODO: might need an additional `Dispatch` bound_
-
-The receiver can also be defined as a simple receiver, which results in a receiver with the following types:
-- `self`: `self: Self`
-- `&self`: `self: &Self`
-- `&mut self`: `self: &mut Self`
 
 Any other parameter is a normal parameters.
 If an explicit label is provided, it can be either
@@ -1479,67 +1464,51 @@ fn foo(a: i32, b: i32 = 1, c: i32...)
 
 A const function allows the function to be called at compile-time.
 
-### 7.3.5. Trait function [↵](#73-function-)
+### 7.3.5. Method
 
 ```
-<assoc-fn> := <fn-item> | <assoc-override-fn>
-<assoc-override-fn> := [ 'override' ] 'fn' <name> [ <generic-params> ] '(' <fn-params> ')' [ <effects> ] [ '->' <fn-return> ] <fn-body>
-<assoc-fn-body> := ';' | <fn-body>
+<method> := { <attribute> }* [ <vis> ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '(' [ <receiver-param> ] [ ',' <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
+
+<receiver-param> := <simple-receiver> | <typed-receiver>
+<simple-receiver> := [ '&' [ 'mut' ] ] 'self'
+<typed-receiver> := 'self' ':' <type>
 ```
-An associated function is allowed to leave out a body, if this is done, the function must be implemented (either down the trait bounded by the current trait), or by the type that implements the trait.
-If an associated function has its body defined, this definition will act as the default definition of the function.
+
+A method is a special type of associated function which takes a receiver, allowing a function to be called directly on a value of a given type.
+Methocs can need to be associated with a type, trait, or a constraint. The later 2 have slightly different syntaxes.
+
+The first parameter is a special receiver parameter, which indicates that this function is a method.
+The receiver has an implicit `_` label, and can be any of the following types:
+- `Self`
+- `&Self`
+- `&mut Self`
+- any `T` that implements `Deref<Target = Self>`. _TODO: might need an additional `Dispatch` bound_
+
+The receiver can also be defined as a simple receiver, which results in a receiver with the following types:
+- `self`: `self: Self`
+- `&self`: `self: &Self`
+- `&mut self`: `self: &mut Self`
+
+
+### 7.3.6. Trait function & method [↵](#73-function-)
+
+```
+<trait-fn> := { <attribute> }* [ 'override' ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
+<trait-method> := { <attribute> }* [ 'override' ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '('<receiver-param> [ ',' <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
+<trait-fn-body> := ';' | <fn-body>
+```
+A trait function or method declares a signature for impl function or impl method implementation.
+They are similar to a normal function or method, but can be overwritten by an implementation.
 
 Any function that in the base interface may have its default implementation overwritten by the current interface, for this the weak keyword `override` can be used.
-As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#7122-function-override-resolution).
+As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#trait-function-override-resolution).
+
+If an associated function has its body defined, this definition will act as the default definition of the function.
+The default implementation can be provided which will be used when no explicit type alias is defined within an implementation.
 
 > _Note_: Overridden functions do not define a function with the same name for the current trait, but instead exclusively overwrites a default implementation.
 
-#### Trait function override resolution
-
-As traits can override the default implementation of a supertrait without inserting a new function into the current trait, there is a possiblity for these overrides to incur the so-called "diamond problem".
-Imagine a trait `A`, defining a function foo (with or without a default implementation).
-2 traits, `B` and `C` both have `A` as a supertrait and overide the default implementation.
-Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
-
-The trait hierachy is now:
-```
- A
-/ \
-B C
-\ /
- D
-```
-
-Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
-
-This example is illustrated in the following code:
-```
-trait A {
-    fn foo() -> i32;
-}
-
-trait B: A { 
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 1 }
-}
-
-trait C: A {
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 2 }
-}
-
-trait D: B, C {
-    // Override 'foo' to resolve the conflicting default implementations from B and C
-    // Removing this override will result in a compile error
-    override fn foo() -> i32 { C.foo() }
-}
-```
-
-This is somewhat similar to the resolution for conflicting generic specializations.
-
-_TODO: How to decide what base interface we are overriding here_
-
-### 7.3.6. External function qualifier [↵](#73-function-)
+### 7.3.7. External function qualifier [↵](#73-function-)
 
 The `extern` qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
 
@@ -1549,8 +1518,8 @@ If it has a body, then this is a function that gets exported so it can be used f
 ## 7.4 Type aliases [↵](#7-items-)
 
 ```
-<type-alias-item> := { <attribute*> } [ <vis> ] ( <alias-type> | <new-type> | <opaque-type> )
-<alias-type> := 'type' <name> [ <generic-params> ] '=' <type> ';'
+<type-alias-item> := { <attribute*> } [ <vis> ] ( <type-alias> | <new-type> | <opaque-type> )
+<type-alias> := 'type' <name> [ <generic-params> ] '=' <type> [ <where-clause> ] ';'
 <new-type> := 'distinct' 'type' <name> [ <generic-params> ] '=' <type> ';'
 <opaque-type> := 'type' <name> '=' 'opaque' [ '[' <expr> ']' ]
 ```
@@ -1578,6 +1547,24 @@ If a size is set, the size expression must be able to be evaluated at compile ti
 Internally, an opaque type is represented as:
 - When sized, it is represented by `[N]T`, where `N` is the size of the opaque type
 - When unsized, it is represented by `dyn ?Sized`.
+
+### 7.4.3. Trait type alias
+```
+<trait-type-alias> := <trait-type-alias-def> | <trait-type-alias-override>
+<trait-type-alias-def> := 'type' <name> [ <generic-params> ] [ ':' <generic-type-bounds> ] [ '=' <type> ] [ <where-clause> ] ';'
+<trait-type-alias-override> := `override` `type` <name> = <type> ';'
+```
+
+A trait type alias definition declared a signature for an impl type alias implementation.
+They are similar to normal type aliases, but can be overwritten by an implementation.
+
+In addition, a trait bound can also be declared on the type alias.
+When a trait bound is defined, it requires any type which can be used as the associated type to implement those traits.
+An implicit `Sized` trait is applied on the type alias, but can be relaxed using the `?Sized` bound.
+
+A default type can be provided which will be used when no explicit type alias is defined within an implementation.
+
+An override for a type alias in a base trait is also supported, this only allows a new default type to be defined (which needs to be compatible with the base's bounds).
 
 ## 7.5. Structs [↵](#7-items-)
 
@@ -1903,13 +1890,20 @@ Constants may be of types that have a destructor, and will be dropped when the c
 
 When defined inside of an implementation, the const item will be an associated with that type.
 
-### 7.9.1. Associated trait constant [↵](#79-const-item-)
+### 7.9.1. trait constant [↵](#79-const-item-)
 
 ```
-<assoc-trait-const> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
+<trait-const> := <trait-const-def> | <trait-const-override>
+<trait-const-def> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
+<trait-const-override> := 'override' 'const' <name> '=' <expr> ';'
 ```
 
-An associated trait constant declares a signature for an associated constant implementation, i.e. it declares both the name and the type the associated constant should have.
+An trait constant declares a signature for an associated constant implementation, i.e. it declares both the name and the type the associated constant should have.
+
+A default value can be provided which will be used when no explicit constant is defined within an implementation.
+
+An override for a const in a base trait is also supported, this only allows a new default value to be defined (which needs to be compatible with the base's type).
+
 
 ## 7.10. Static item [↵](#7-items-)
 
@@ -1961,7 +1955,7 @@ When declaring a static within a external block, `extern` has to be left out.
 ## 7.11. Properties [↵](#7-items-)
 
 ```
-<prop-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
+<property> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
 <prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
 <prop-get> := 'get' <expr-no-block> ';'
             | 'get' <expr-with-block>
@@ -1970,18 +1964,6 @@ When declaring a static within a external block, `extern` has to be left out.
 <prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
                 | 'mut' 'get' <expr-with-block>
 <prop-get> := 'set' <expr-no-block> ';'
-            | 'set' <expr-with-block>
-
-
-<assoc-prop-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <assoc-prop-get-set> }[1,4] '}'
-<assoc-prop-get-set> := <assoc-prop-get> | <assoc-prop-ref-get> <assoc-prop-mut-get> | <assoc-prop-set>
-<assoc-prop-get> := 'get' <expr-no-block> ';'
-            | 'get' <expr-with-block>
-<assoc-prop-ref-get> := 'ref' 'get' <expr-no-block> ';'
-                | 'ref' 'get' <expr-with-block>
-<assoc-prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
-                | 'mut' 'get' <expr-with-block>
-<assoc-prop-get> := 'set' <expr-no-block> ';'
             | 'set' <expr-with-block>
 ```
 
@@ -2031,12 +2013,16 @@ property value : Type { set { ... } };
 fn set_value(&self, value: Type) { ... }
 ```
 
-### 7.11.2. Associated trait properties [↵](#711-properties-)
+### 7.11.2. Trait properties [↵](#711-properties-)
 
 ```
-<assoc-trait-property> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
+<trait-property> := <trait-property-def> | <trait-property-override>
+
+<trait-property-def> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
 <trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
+
+<trait-property-override> := 'override' 'property' <name> '{' { <trait-prop-get-set> }[1, 4] '}'
 ```
 
 An associated trait type declares a signature for an associated propery implementation.
@@ -2044,23 +2030,19 @@ It declares the name, type and which getter/setter combo needs to exist of the p
 
 Trait implementation cannot implement additional getters/setters.
 
+A default implementation can be provided which will be used when no explicit property is defined within an implementation.
+If any setter or getter has a default value, all others are also required to have a default.
+
+An override for a property in a base trait is also supported, this only allows a new default implementation to be defined (which needs to be compatible with the base's declaration).
+Overrides also adhere to the same rule of requiring all setters and getters to be defined.
+
 ## 7.12. Trait [↵](#7-items-)
 
 ```
-<trait-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] [ 'sealed' ] 'trait' <name> [ <generic-params> ] [ ':' <trait-bound> ] [ <where-clause> ] '{' { <trait-elem> }* '}'
-<trait-elem> := <assoc-func>
-              | <assoc-type>
-              | <assoc-const>
-              | <assoc-property>
-<assoc-const> := 'const' <name> ':' <type> ';'
+<trait-item> := { <attribute> }* [ <vis> ] [ 'unsafe' ] [ 'sealed' ] 'trait' <name> [ <generic-params> ] [ ':' <trait-bound> ] [ <where-clause> ] '{' { <trait-item> }* '}'
 ```
 
 A trait represents an abstract interface that type can implement.
-This consists out of a set of associated items, there are the following:
-- functions
-- types
-- constants
-- properties
 
 All traits define an implicit `Self` type, and refers to "the type that is implementing this trait".
 Any generic paramter applied to the trait, are also passed along to the `Self` type
@@ -2106,6 +2088,24 @@ Unsafe traits come with additional requirements that the programmer needs to gua
 Traits define their visiblity directly on the trait itself, and all items within the trait take on that visibility.
 Individual associated items cannot declare their own visibility.
 
+### 7.12.5 Trait Items [↵](#712-trait-)
+
+```
+<trait-item> := <trait-func>
+              | <trait-type-alias>
+              | <trait-const>
+              | <trait-property>
+```
+
+Trait items are items that are assocated with a trait.
+The following items are supported inside a trait:
+- functions
+- type aliases
+- constants
+- properties
+
+Any item that does not have a default value or implementation is required to be implemented in any trait implementation.
+
 ## 7.13. Implementation [↵](#7-items-)
 
 ```
@@ -2118,7 +2118,7 @@ There are 2 types of implementations:
 ### 7.13.1. Inherent implementation [↵](#713-implementation-)
 
 ```
-<inherent-impl> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'impl' [ <generic-params> ] <type> [ <where-clause> ] '{' { <assoc-item> }* '}'
+<inherent-impl> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'impl' [ <generic-params> ] <type> [ <where-clause> ] '{' { <impl-item> }* '}'
 ```
 
 An inherent implementation is defined without specifying a trait to implement.
@@ -2135,10 +2135,57 @@ An implementation for a type must be defined in the same library as the original
 If a visibility attribute is defined for the block, all items with in the block will default to that visibility.
 If `unsafe` is added to the block, then all functions within the block will be marked as unsafe.
 
-### 7.13.2. Trait implementation [↵](#713-implementation-)
+### 7.13.2 Trait override resolution
+
+As traits can override the default implementation of a supertrait without inserting a new item into the current trait,there is a possiblity for these overrides to incur the so-called "diamond problem".
+This "diamond problem" will be explained below, using a overriden function as an example
+
+Imagine a trait `A`, defining a function foo (with or without a default implementation).
+2 traits, `B` and `C` both have `A` as a supertrait and override the default implementation.
+Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
+
+The trait hierachy is now:
+```
+ A
+/ \
+B C
+\ /
+ D
+```
+
+Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
+
+This example is illustrated in the following code:
+```
+trait A {
+    fn foo() -> i32;
+}
+
+trait B: A { 
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 1 }
+}
+
+trait C: A {
+    // Create/override the default implementation for A.foo
+    override fn foo() -> i32 { 2 }
+}
+
+trait D: B, C {
+    // Override 'foo' to resolve the conflicting default implementations from B and C
+    // Removing this override will result in a compile error
+    override fn foo() -> i32 { C.foo() }
+}
+```
+
+This is somewhat similar to the resolution for conflicting generic specializations.
+
+_TODO: How to decide what base interface we are overriding here_
+
+### 7.13.3. Trait implementation [↵](#713-implementation-)
 
 ```
-<trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <assoc-item> }* '}'
+<trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <impl-item> }* '}'
 ```
 
 A `trait` implementation is defined like an inherent implementation, but also include the trait to be implemented.
@@ -2151,7 +2198,7 @@ It is not allowed to define any implementation that is not defined in the implem
 If an implemented trait contains an override for an associated function, but the implementing type has already implemented it by itself, the overriden default will be ignored.
 
 Unsafe traits require the `unsafe` keyword to be added to the implementation.
-`trait` implementations are not allowed to specify any visibility for items. 
+`trait` implementations are not allowed to specify any visibility for items.
 
 #### Coherence
 
@@ -2167,85 +2214,36 @@ The coherence rules require that the implementation `impl<P0..=Pn> T0 as Trait<T
 
 > _Note_: Coherence rules might be changed in the future
 
-## 7.14. Associated items [↵](#7-items-)
+### 7.13.3 Impl Items [↵](#713-implementation-)
 
 ```
-<assoc-item> := <fn-item>
+<impl-items> := <function>
+              | <method>
               | <type-alias>
-              | <const-item>
-              | <property-item>
+              | <const>
+              | <property>
 ```
 
-Associated items are items that can be defined in traits or implemetentations to be associated with the given trait or type.
-They are a subset of items that can be declared inside of a module.
+Impl items are items that are associated with the type being implemented.
+The following items are allowed:
+- Functions
+- Methods
+- Type aliases
+- Statics
+- Constants
+- Properties
 
-Associated items are useful when wanting to make items logically related to a given item.
 
-Every associated can come in 2 variations:
-- Ones that define an implementation
-- Ones that only define a signature (only allowed inside of traits)
+These items can be accessed from the type they are implemented, below `Item` represents the item that is implemented, `Type` the type that implements an item,
+and `Trait` the trait the `Type` might be implementing:
+The can be accessed in the following ways:
+- If the type is a path type: `Type.Item`
+- If the path is not a path type: `(:Type:).Item`
+- If the trait has to be explicitly mentioned: `(:Type as Trait:).Item`
 
-### 7.14.1. Associated types [↵](#714-associated-items-)
+The trait needs to be explicitly mentioned when trying to access to an item with an ambiguous name that is implemented for multiple traits on the same type.
 
-```
-<assoc-type> := <assoc-trait-type> | <assoc-impl-type>
-```
-
-An associated types are only allowed to be defined in trait implementations and in traits.
-
-Associated types can generally be split into 2 types:
-
-#### Associated trait type
-
-```
-<assoc-trait-type> := 'type' <name> [ <generic-params> ] [ ':' <trait-bounds> ] [ <where-clause> ] ';'
-```
-
-An associated trait type definition declared a signature for associated type implementation.
-They can include generic paramters, trait bounds and a where clause.
-When a trait bound is defined, it requires any type which can be used as the associated type to implement those traits.
-An implicit `Sized` trait is also bound on associated types, but can be relaxed using the `?Sized` bound.
-
-#### Associated type implementation
-
-```
-<assoc-impl-type> := { <attribute> }* [ <vis> ] 'type' <name> '=' <type> ';'
-```
-
-An associated type definition has a very similar syntax than that of a type alias, except is cannot define any generic paramters.
-If a type `Item` has an associated type `Assoc` from a trait `Trait`, then `.[Item as Trait].Assoc` is a type that is an alias to the type specificed in the associated type definition.
-Otherwise a the type can be accessed as `Item.Assoc`, this can also be used if there in only 1 trait implementation with an associated type with a given name.
-
-### 7.14.2. Associated constants [↵](#714-associated-items-)
-
-```
-<assoc-const> := <assoc-trait-const> | <assoc-impl-const>
-```
-
-Associated constants are constants associated with a type.
-
-For more info, see the section on [const items](#79-const-item-)
-
-### 7.14.3. Associated properties [↵](#714-associated-items-)
-
-```
-<assoc-property> := <assoc-trait-property> | <assoc-property-item>
-```
-
-Associated properties are properties associated with a type.
-
-For more info, see the section on [property items](#711-properties-)
-
-### 7.14.4. Associated functions [↵](#714-associated-items-)
-
-Associated functions are that are associated with a type.
-They come in 2 kinds:
-- Regular functions associated with a type
-- Methods taking in a the type as a receiver
-
-For more info, see the section about function at [7.3. Function](#73-function-)
-
-## 7.15. External block [↵](#7-items-)
+## 7.14. External block [↵](#7-items-)
 
 ```
 <external-block> := { <attribute> }* 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
@@ -4718,13 +4716,13 @@ _TODO: figure out ergonomics, i.e. number of params, looping over them, etc. Lik
 ```
 <constraint-item> := { <attribute> }* [ <vis> ] 'constraint' <name> [ <generic-params> ] '{' <constraint-members> '}'
 <inline-constraint> := 'constraint' '{' <constraint-members> '}'
-<constraint-member> := <contraint-function> | <contraint-method> | <contraint-property> | <constraint-type> | <constraint-const>
+<constraint-member> := <contraint-function> | <contraint-method> | <constraint-type-alias> | <constraint-const> | <contraint-property>
 
-<contraint-function> := 'fn' <name> '(' [ <constraint-fn-params> ] ')' [ '->' <type> ] ';'
+<contraint-function> := 'fn' <name> [ <generic-params> ] '(' [ <constraint-fn-params> ] ')' [ '->' <type> ] [ <where-clause> ] ';'
 <constraint-fn-params> := <constraint-params> { ',' <constraint-param> }
                         | <receiver-param> [ ',' <constraint-params> { ',' <constraint-param> } ]
 
-<contraint-property> := <trait-property>
+<contraint-property> := [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
 <constraint-type> := <assoc-trait-type>
 <constraint-const> := <assoc-const>
 <constrait-params> := <constraint-param> { ',' <constraiant-param> }* [ ',' ]
@@ -4734,6 +4732,47 @@ _TODO: figure out ergonomics, i.e. number of params, looping over them, etc. Lik
 A constraint is an item used to a arbitrary restriction to a given type without requiring the to implement a given interface, this can be used as a form of duck-typing.
 A constrait defines what functions, methods, properties, types, and constants a type is required to have to be used.
 All functionality defined inside of the contraint can be used inside a generic item.
+
+## 12.4.1. Functions & Methods
+
+```
+<constraint-func> := fn 'name' [ <generic-params> ] '(' [ <constraint-fn-param> { ',' <constraint-fn-param> }* [ [ ',' ] <variadic-param> ] ] ')' [ '->' <type> ] [ <where-clause> ] ';'
+<constraint-method> := fn 'name' [ <generic-params> ] '(' <receiver-param> [ ',' <constraint-fn-param> { ',' <constraint-fn-param> } ] ')' [ '->' <type> ] [ <where-clause> ] ';'
+
+<constraint-params> := <constraint-fn-param> { ',' <constraint-param> }*
+                     | [ <constraint-param>  { ',' <constraint-param> }* ',' ] <variadic-param>
+<constraint-fn-param> := <name> { ',' <name> }* ':' <type>
+```
+
+A constraint function or method is similar to a trait function or method, but does not support any of it's override features.
+The parameters are simplified version of normal function parameters, as they only correspond to the labels for a given function and doesn't care how they are used in the function implementation.
+
+
+## 12.4.2. Type alias
+
+```
+<constraint-type-alias> := 'type' <name> [ <generic-params> ] [ ':' <trait-bounds> ] [ <where-clause> ] ';'
+```
+
+A constraint type alias is very similar to a trait type alias, with the main difference that there is no default type.
+
+## 12.4.3. Consts
+
+```
+<trait-const> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
+```
+
+A constraint constant is very similar to a trait const, with the main difference that there is no default value.
+
+## 12.4.4. Properties
+
+```
+<constraint-property> := 'property' <ext-name> ':' <type> '{' { <constraint-prop-get-set> }[1,4] '}'
+<constraint-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
+                      | 'set' ';'
+```
+
+A constraint property is very similar to a trait property, with the main difference that there is no default implementation.
 
 ## 12.5. Where clause [↵](#12-generics-)
 
@@ -4799,7 +4838,7 @@ These expressions are then used to apply a bound on the value given to their res
 <generic-args> := '.[' <generic-arg> [ ',' <generic-arg> ] ']'
 <generic-arg> := <generic-type-arg> | <generic-value-arg>
 <generic-type-arg> := <type>
-<generic-value-arg> := <path-expr>
+<generic-value-arg> := <name>
                      | <block-expr>
 ```
 
