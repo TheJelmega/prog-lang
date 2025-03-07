@@ -392,7 +392,6 @@ impl AstNode for Item {
             Self::OpUse(item)         => logger.log_node_ref(item),
             Self::Precedence(item)    => logger.log_node_ref(item),
             Self::PrecedenceUse(item) => logger.log_node_ref(item),
-            Item::Constraint(item)    => logger.log_node_ref(item),
         }
     }
 }
@@ -5505,10 +5504,257 @@ impl AstNodeParseHelper for EnumRecordType {
 
 // =============================================================================================================================
 
-pub struct GenericParams {
-
+pub enum GenericParam {
+    Type(AstNodeRef<GenericTypeParam>),
+    TypeSpec(AstNodeRef<GenericTypeSpec>),
+    Const(AstNodeRef<GenericConstParam>),
+    ConstSpec(AstNodeRef<GenericConstSpec>),
+    Pack(AstNodeRef<GenericParamPack>),
 }
+
+impl AstNode for GenericParam {
+    fn span(&self) -> SpanId {
+        todo!()
+    }
+
+    fn node_id(&self) -> NodeId {
+        todo!()
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        todo!()
+    }
+}
+
+pub struct GenericTypeParam {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub bounds:  Vec<GenericTypeBound>,
+    pub def:     Option<Type>,
+}
+
+impl AstNode for GenericTypeParam {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Type Parameter", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
+            logger.set_last_at_indent_if(self.def.is_none());
+            logger.log_indented_node_slice("Bounds", &self.bounds);
+            logger.set_last_at_indent();
+            logger.log_indented_opt_node("Default", &self.def);
+        })
+    }
+}
+
+impl AstNodeParseHelper for GenericTypeParam {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct GenericTypeSpec {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub ty:      Type,
+}
+
+impl AstNode for GenericTypeSpec {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Type Specialization", |logger| {
+            logger.set_last_at_indent();
+            logger.log_node(&self.ty);
+        })
+    }
+}
+
+impl AstNodeParseHelper for GenericTypeSpec {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct GenericConstParam {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub name:    NameId,
+    pub ty:      Type,
+    pub def:     Option<Expr>,
+}
+
+impl AstNode for GenericConstParam {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Constant Parameter", |logger| {
+            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
+            logger.set_last_at_indent_if(self.def.is_none());
+            logger.log_indented_node("Type", &self.ty);
+            logger.set_last_at_indent();
+            logger.log_indented_opt_node("Default", &self.def);
+        })
+    }
+}
+
+impl AstNodeParseHelper for GenericConstParam {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct GenericConstSpec {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub expr:    AstNodeRef<BlockExpr>,
+}
+
+impl AstNode for GenericConstSpec {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Constant Specialization", |logger| {
+            logger.set_last_at_indent();
+            logger.log_node_ref(&self.expr);
+        })
+    }
+}
+
+impl AstNodeParseHelper for GenericConstSpec {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub enum GenericParamPackDesc {
+    Type(SpanId),
+    TypeBounds(SpanId, Vec<GenericTypeBound>),
+    Expr(Type),
+}
+
+impl GenericParamPackDesc {
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            GenericParamPackDesc::Type(_) => logger.prefixed_log("Type"),
+            GenericParamPackDesc::TypeBounds(_, bounds) => logger.log_indented_node_slice("Bounded Type", bounds),
+            GenericParamPackDesc::Expr(ty) => logger.log_node(ty),
+        }
+    }
+}
+
+pub enum GenericParamPackDef {
+    Type(Type),
+    Expr(AstNodeRef<BlockExpr>),
+}
+
+impl GenericParamPackDef {
+    pub fn log(&self, logger: &mut AstLogger) {
+        match self {
+            GenericParamPackDef::Type(ty) => logger.log_node(ty),
+            GenericParamPackDef::Expr(expr) => logger.log_node_ref(expr),
+        }
+    }
+}
+
+pub struct GenericParamPack {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub names:   Vec<(NameId, SpanId)>,
+    pub descs:   Vec<GenericParamPackDesc>,
+    pub defs:    Vec<GenericParamPackDef>,
+}
+
+impl AstNode for GenericParamPack {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Parameter Pack", |logger| {
+            if self.names.len() > 1 {
+                logger.log_indented_slice("Names", &self.names, |logger, (name, _)| {
+                    logger.prefixed_log(logger.resolve_name(*name));
+                });
+            } else {
+                logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.names[0].0)));
+            }
+            
+        })
+    }
+}
+
+impl AstNodeParseHelper for GenericParamPack {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct GenericParams {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub params:  Vec<GenericParam>,
+}
+
 impl AstNode for GenericParams {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Generic Parameterss", |logger| {
+            logger.log_node_slice(&self.params);
+        });
+    }
+}
+
+impl AstNodeParseHelper for GenericParams {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+
+pub struct WhereClause {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub bounds:  Vec<WhereBound>,
+}
+
+impl AstNode for WhereClause {
     fn span(&self) -> SpanId {
         SpanId::INVALID
     }
@@ -5518,21 +5764,96 @@ impl AstNode for GenericParams {
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_indented("Generic Params", |logger| {
-
+        logger.log_indented("Where Clause", |logger| {
+            let end = self.bounds.len() - 1;;
+            for (idx, bound) in self.bounds.iter().enumerate() {
+                if idx == end {
+                    logger.set_last_at_indent();
+                }
+                bound.log(logger);
+            }
         });
     }
 }
 
-impl AstNodeParseHelper for GenericParams {
+impl AstNodeParseHelper for WhereClause {
     fn set_node_id(&mut self, node_id: NodeId) {
-        
+        self.node_id = node_id;
     }
 }
 
-pub struct GenericArgs {
-
+pub enum WhereBound {
+    Type {
+        span:   SpanId,
+        ty:     Type,
+        bounds: Vec<GenericTypeBound>,
+    },
+    ExplicitType {
+        span:   SpanId,
+        ty:     Type,
+        bounds: Vec<Type>
+    },
+    Value {
+        bound:  AstNodeRef<BlockExpr>,
+    }
 }
+
+impl WhereBound {
+    pub fn log(&self, logger: &mut AstLogger) {
+        match self {
+            Self::Type { ty, bounds, .. } => logger.log_indented("Type Where Bound", |logger| {
+                logger.log_indented_node("Type", ty);
+                logger.set_last_at_indent();
+                logger.log_indented_slice("Bounds", bounds, |logger, bound| {
+                    logger.log_node(bound);
+                })
+            }),
+            Self::ExplicitType { ty, bounds, .. } => logger.log_indented("Explicit Type Where Bound", |logger| {
+                logger.log_indented_node("Type", ty);
+                logger.set_last_at_indent();
+                logger.log_indented_node_slice("Allowed Types", bounds);
+            }),
+            Self::Value { bound, .. } => logger.log_indented_node_ref("Value Bound", bound),
+        }
+    }
+}
+
+pub enum GenericTypeBound {
+    Type(AstNodeRef<TypePath>),
+}
+
+impl AstNode for GenericTypeBound {
+    fn span(&self) -> SpanId {
+        match self {
+            Self::Type(ty) => ty.span(),
+        }
+    }
+
+    fn node_id(&self) -> NodeId {
+        match self {
+            Self::Type(ty) => ty.node_id(),
+        }
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        match self {
+            Self::Type(path) => logger.log_indented_node_ref("Trait Constraint", path),
+        }
+    }
+}
+
+pub enum GenericArg {
+    Type(Type),
+    Value(AstNodeRef<BlockExpr>),
+    TypeOrValue(NameId),
+}
+
+pub struct GenericArgs {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub args:    Vec<GenericArg>,
+}
+
 impl AstNode for GenericArgs {
     fn span(&self) -> SpanId {
         SpanId::INVALID
@@ -5551,38 +5872,16 @@ impl AstNode for GenericArgs {
 
 impl AstNodeParseHelper for GenericArgs {
     fn set_node_id(&mut self, node_id: NodeId) {
-        
-    }
-}
-
-pub struct WhereClause {
-
-}
-impl AstNode for WhereClause {
-    fn span(&self) -> SpanId {
-        SpanId::INVALID
-    }
-
-    fn node_id(&self) -> NodeId {
-        NodeId::default()
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_indented("Where Clause", |logger| {
-
-        });
-    }
-}
-
-impl AstNodeParseHelper for WhereClause {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        
+        self.node_id = node_id;
     }
 }
 
 pub struct TraitBounds {
-    
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub bounds:  Vec<AstNodeRef<TypePath>>
 }
+
 impl AstNode for TraitBounds {
     fn span(&self) -> SpanId {
         SpanId::INVALID
@@ -5593,15 +5892,21 @@ impl AstNode for TraitBounds {
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_indented("Trait Bounds", |logger| {
-
+        logger.log_ast_node("Trait Bounds", |logger| {
+            let end = self.bounds.len() - 1;
+            for (idx, bound) in self.bounds.iter().enumerate() {
+                if idx == end {
+                    logger.set_last_at_indent();
+                }
+                logger.log_node_ref(bound);
+            }
         });  
     }
 }
 
 impl AstNodeParseHelper for TraitBounds {
     fn set_node_id(&mut self, node_id: NodeId) {
-        
+        self.node_id = node_id;
     }
 }
 

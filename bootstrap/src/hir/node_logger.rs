@@ -907,13 +907,12 @@ impl Visitor for NodeLogger<'_> {
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         self.log_node("Trait Type Alias", node.node_id, |this| {
-            this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none() && node.bounds.is_empty() && node.def.is_none());
+            this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.generics.is_none() && node.def.is_none());
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
-            this.logger.set_last_at_indent_if(node.generics.is_none() && node.bounds.is_empty() && node.def.is_none());
+            this.logger.set_last_at_indent_if(node.generics.is_none() && node.def.is_none());
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.logger.set_last_at_indent_if(node.bounds.is_empty() && node.def.is_none());
-            this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
             this.logger.set_last_at_indent_if(node.def.is_none());
+            this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
             this.logger.set_last_at_indent();
             this.log_opt_indented("Default Type", &mut node.def, |logger, ty| logger.visit_type(ty));
         });

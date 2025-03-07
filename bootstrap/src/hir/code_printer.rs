@@ -1015,9 +1015,6 @@ impl Visitor for CodePrinter<'_> {
         if let Some(generics) = &mut node.generics {
             self.visit_gen_params(generics);
         }
-        for bound in &mut node.bounds {
-            todo!()   
-        }
         if let Some(def) = &mut node.def {
             self.logger.log(" = ");
             self.visit_type(def);

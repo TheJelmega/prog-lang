@@ -35,8 +35,6 @@ pub struct AstToHirLowering<'a> {
     type_stack:         Vec<Box<hir::Type>>,
 
     gen_args_stack:     Vec<Box<hir::GenericArgs>>,
-    gen_params_stack:   Vec<Box<hir::GenericParams>>,
-    gen_where_stack:    Vec<Box<hir::WhereClause>>,
     trait_bounds_stack: Vec<Box<hir::TraitBounds>>,
 
     #[allow(unused)]
@@ -92,8 +90,6 @@ impl<'a> AstToHirLowering<'a> {
             type_stack:         Vec::new(),
 
             gen_args_stack:     Vec::new(),
-            gen_params_stack:   Vec::new(),
-            gen_where_stack:    Vec::new(),
             trait_bounds_stack: Vec::new(),
 
             contract_stack:     Vec::new(),
@@ -571,8 +567,6 @@ impl AstToHirLowering<'_> {
         (true_pat, false_pat)
     }
 
-    
-    // TODO: AST attribs don't map fully to HIR attribs
     fn get_attribs(&mut self, attrs: &[AstNodeRef<Attribute>]) -> Vec<Box<hir::Attribute>> {
         let mut hir_attrs = Vec::new();
         for attr in attrs.iter().rev() {
@@ -693,6 +687,305 @@ impl AstToHirLowering<'_> {
                     metas: hir_metas,
                 }
             },
+        }
+    }
+
+    fn convert_gen_type_bound(&mut self, bound: &GenericTypeBound) -> hir::TypePath {
+        match bound {
+            GenericTypeBound::Type(path) => {
+                self.visit_type_path(path);
+                let path = self.type_path_stack.pop().unwrap();
+                path
+            },
+        }
+    }
+
+    fn convert_generic_params(&mut self, generics: Option<&AstNodeRef<GenericParams>>, where_clause: Option<&AstNodeRef<WhereClause>>) -> (Option<Box<hir::GenericParams>>, Option<Box<hir::WhereClause>>) {
+        let mut where_bounds = Vec::new();
+        
+        let params = if let Some(generics) = generics {
+            let mut hir_params = Vec::new();
+            let mut hir_pack = None;
+            for param in &generics.params {
+                match param {
+                    GenericParam::Type(param) => {
+                        let def = if let Some(def) = &param.def {
+                            self.visit_type(def);
+                            self.type_stack.pop()
+                        } else {
+                            None
+                        };
+
+                        hir_params.push(hir::GenericParam::Type(hir::GenericTypeParam {
+                            span: param.span,
+                            name: param.name,
+                            def, 
+                        }));
+
+                        if !where_bounds.is_empty() {
+                            let ty = Box::new(hir::Type::Path(hir::PathType {
+                                span: param.span,
+                                node_id: param.node_id,
+                                path: hir::TypePath {
+                                    span: param.span,
+                                    node_id: param.node_id,
+                                    segments: vec![
+                                        hir::TypePathSegment::Plain {
+                                            span: param.span,
+                                            name: param.name
+                                        }
+                                    ],
+                                }
+                            }));
+
+                            let mut bounds = Vec::new();
+                            for bound in &param.bounds {
+                                let path = self.convert_gen_type_bound(bound);
+                                bounds.push(Box::new(path));
+                            }
+
+                            where_bounds.push(hir::WhereBound::Type {
+                                span: param.span,
+                                ty: ty,
+                                bounds,
+                            });
+                        }
+                    },
+                    GenericParam::TypeSpec(param) => {
+                        self.visit_type(&param.ty);
+                        let ty = self.type_stack.pop().unwrap();
+
+                        hir_params.push(hir::GenericParam::TypeSpec(hir::GenericTypeSpec {
+                            span: param.span,
+                            ty,
+                        }))
+                    },
+                    GenericParam::Const(param) => {
+                        self.visit_type(&param.ty);
+                        let ty = self.type_stack.pop().unwrap();
+                        let def = param.def.as_ref().map(|def| {
+                            self.visit_expr(&def);
+                            self.expr_stack.pop().unwrap()
+                        });
+
+                        hir_params.push(hir::GenericParam::Const(hir::GenericConstParam {
+                            span: param.span,
+                            name: param.name,
+                            ty,
+                            def,
+                        }));
+                    },
+                    GenericParam::ConstSpec(param) => {
+                        self.visit_block_expr(&param.expr);
+                        let hir::Expr::Block(hir::BlockExpr{ span, block, .. }) = *self.expr_stack.pop().unwrap() else { unreachable!() };
+
+                        hir_params.push(hir::GenericParam::ConstSpec(hir::GenericConstSpec {
+                            span,
+                            expr: Box::new(block),
+                        }))
+                    },
+                    GenericParam::Pack(pack) => {
+                        let mut elems = Vec::new();
+
+                        let def_step_count = pack.defs.len();
+                        for (def_offset, (name, desc)) in pack.names.iter().zip(pack.descs.iter()).enumerate() {
+                            match desc {
+                                GenericParamPackDesc::Type(span) => {
+                                    let mut defs = Vec::new();
+
+                                    for (idx, def) in pack.defs.iter()
+                                        .skip(def_offset)
+                                        .enumerate()
+                                        .step_by(def_step_count)
+                                    {
+                                        let GenericParamPackDef::Type(ty) = def else {
+                                            self.ctx.add_error(AstError {
+                                                node_id: pack.node_id,
+                                                err: AstErrorCode::ParamPackExpectedTypeDef { pos: idx as u32 },
+                                            });
+                                            continue;
+                                        };
+
+                                        self.visit_type(ty);
+                                        let ty = self.type_stack.pop().unwrap();
+                                        defs.push(ty);
+                                    }
+
+                                    elems.push(hir::GenericParamPackElem::Type {
+                                        name: name.0,
+                                        name_span: name.1,
+                                        ty_span: *span,
+                                        defs,
+                                    })
+                                },
+                                GenericParamPackDesc::TypeBounds(span, bounds) => {
+                                    let mut defs = Vec::new();
+                                    for (idx, def) in pack.defs.iter()
+                                        .skip(def_offset)
+                                        .enumerate()
+                                        .step_by(def_step_count)
+                                    {
+                                        let GenericParamPackDef::Type(ty) = def else {
+                                            self.ctx.add_error(AstError {
+                                                node_id: pack.node_id,
+                                                err: AstErrorCode::ParamPackExpectedTypeDef { pos: idx as u32 },
+                                            });
+                                            continue;
+                                        };
+
+                                        self.visit_type(ty);
+                                        let ty = self.type_stack.pop().unwrap();
+                                        defs.push(ty);
+                                    }
+
+                                    elems.push(hir::GenericParamPackElem::Type {
+                                        name: name.0,
+                                        name_span: name.1,
+                                        ty_span: SpanId::INVALID,
+                                        defs
+                                    });
+
+                                    let mut hir_bounds = Vec::new();
+                                    for bound in bounds {
+                                        let path = self.convert_gen_type_bound(bound);
+                                        hir_bounds.push(Box::new(path));
+                                    }
+                                    let ty = Box::new(hir::Type::Path(hir::PathType {
+                                        span: name.1,
+                                        node_id: NodeId::INVALID,
+                                        path: hir::TypePath {
+                                            span: name.1,
+                                            node_id: NodeId::INVALID,
+                                            segments: vec![hir::TypePathSegment::Plain {
+                                                span: name.1,
+                                                name: name.0
+                                            }],
+                                        },
+                                    }));
+
+                                    where_bounds.push(hir::WhereBound::Type {
+                                        span: *span,
+                                        ty,
+                                        bounds: hir_bounds,
+                                    });
+                                },
+                                GenericParamPackDesc::Expr(ty) => {
+                                    let mut defs = Vec::new();
+                                    for (idx, def) in pack.defs.iter()
+                                        .skip(def_offset)
+                                        .enumerate()
+                                        .step_by(def_step_count)
+                                    {
+                                        let GenericParamPackDef::Expr(expr) = def else {
+                                            self.ctx.add_error(AstError {
+                                                node_id: pack.node_id,
+                                                err: AstErrorCode::ParamPackExpectedExprDef { pos: idx as u32 }
+                                            });
+                                            continue;
+                                        };
+
+                                        self.visit_block_expr(expr);
+                                        let expr = self.expr_stack.pop().unwrap();
+                                        defs.push(expr);
+                                    }
+                                },
+                            }
+                        }
+
+                        hir_pack = Some(hir::GenericParamPack {
+                            span: pack.span,
+                            elems,
+                        })
+                    },
+                }
+            }
+        
+            Some(Box::new(hir::GenericParams {
+                span: generics.span,
+                node_id: generics.node_id,
+                params: hir_params,
+                pack: hir_pack,
+            }))
+        } else {
+            None
+        };
+
+        let (where_span, where_node_id) = if let Some(where_clause) = where_clause {
+            for where_bound in &where_clause.bounds {
+                match where_bound {
+                    WhereBound::Type { span, ty, bounds } => {
+                        self.visit_type(ty);
+                        let ty = self.type_stack.pop().unwrap();
+
+                        let mut hir_bounds = Vec::new();
+                        for bound in bounds {
+                            let path = self.convert_gen_type_bound(bound);
+                            hir_bounds.push(Box::new(path));
+                        }
+
+                        where_bounds.push(hir::WhereBound::Type {
+                            span: *span,
+                            ty,
+                            bounds: hir_bounds,
+                        })
+                    },
+                    WhereBound::ExplicitType { span, ty, bounds } => {
+                        self.visit_type(ty);
+                        let ty = self.type_stack.pop().unwrap();
+
+                        let mut hir_bounds = Vec::new();
+                        for bound in bounds {
+                            self.visit_type(bound);
+                            let bound = self.type_stack.pop().unwrap();
+                            hir_bounds.push(bound);
+                        }
+
+                        where_bounds.push(hir::WhereBound::Explicit {
+                            span: *span,
+                            ty,
+                            bounds: hir_bounds,
+                        })
+                    },
+                    WhereBound::Value { bound } => {
+                        self.visit_block_expr(bound);
+                        let expr = self.expr_stack.pop().unwrap();
+
+                        where_bounds.push(hir::WhereBound::Expr {
+                            expr,
+                        })
+                    },
+                }
+            }
+            (where_clause.span, where_clause.node_id)
+        } else {
+            (SpanId::INVALID, NodeId::INVALID)
+        };
+
+        let where_clause = if where_bounds.is_empty() {
+            None
+        } else {
+            Some(Box::new(hir::WhereClause {
+                span: where_span,
+                node_id: where_node_id,
+                bounds: where_bounds,
+            }))
+        };
+
+        (params, where_clause)
+    }
+
+    fn convert_trait_bounds(&mut self, bounds: &TraitBounds) -> hir::TraitBounds {
+        let mut hir_bounds = Vec::new();
+        for bound in &bounds.bounds {
+            self.visit_type_path(bound);
+            let path = self.type_path_stack.pop().unwrap();
+            hir_bounds.push(Box::new(path));
+        }
+
+        hir::TraitBounds {
+            span: bounds.span,
+            node_id: bounds.node_id,
+            bounds: hir_bounds,
         }
     }
 }
@@ -856,12 +1149,11 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_function(&mut self, node: &AstNodeRef<Function>) where Self: Sized {
-        helpers::visit_function(self, node, false);
+        helpers::visit_function(self, node, false, false);
         
         let mut contracts = Vec::new();
         contracts.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
             FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
             FnReturn::Named{ span, vars } => {
@@ -878,11 +1170,12 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         let params = self.convert_fn_params(&node.params, node.node_id());
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let abi = self.convert_abi(node.abi, node.node_id());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
         let body = node.body.as_ref().map(|body| self.convert_fn_body(body, node.returns.as_ref(), return_ty.as_ref()));
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let node_ctx = self.ctx.get_node_for(node);
 
@@ -924,12 +1217,11 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_method(&mut self, node: &AstNodeRef<Method>) where Self: Sized {
-        helpers::visit_method(self, node, false);
+        helpers::visit_method(self, node, false, false);
         
         let mut contracts = Vec::new();
         contracts.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
             FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
             FnReturn::Named{ span, vars } => {
@@ -947,10 +1239,11 @@ impl Visitor for AstToHirLowering<'_> {
 
         let params = self.convert_fn_params(&node.params, node.node_id());
         let receiver = self.convert_fn_receiver(&node.receiver);
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
         let body = self.convert_fn_body(&node.body, node.returns.as_ref(), return_ty.as_ref());
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let node_ctx = self.ctx.get_node_for(node);
 
@@ -973,14 +1266,16 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_type_alias(&mut self, node: &AstNodeRef<TypeAlias>) where Self: Sized {
-        helpers::visit_type_alias(self, node);
+        helpers::visit_type_alias(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
         let ty = self.type_stack.pop().unwrap();
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        // Parser prevent a where clause to be generated here
+        let (generics, _) = self.convert_generic_params(node.generics.as_ref(), None);
 
         self.hir.add_type_alias(scope, hir::TypeAlias {
             span: node.span,
@@ -994,15 +1289,17 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_distinct_type(&mut self, node: &AstNodeRef<DistinctType>) where Self: Sized {
-        helpers::visit_distinct_type(self, node);
+        helpers::visit_distinct_type(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
 
         let ty = self.type_stack.pop().unwrap();
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        // Parser prevent a where clause to be generated here
+        let (generics, _) = self.convert_generic_params(node.generics.as_ref(), None);
 
         self.hir.add_distinct_type(scope, hir::DistinctType {
             span: node.span,
@@ -1036,7 +1333,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_struct(&mut self, node: &AstNodeRef<Struct>) where Self: Sized {
-        helpers::visit_struct(self, node);
+        helpers::visit_struct(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
@@ -1054,10 +1351,10 @@ impl Visitor for AstToHirLowering<'_> {
                 hir_fields.reverse();
                 uses.reverse();
 
-                let where_clause = where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(vis.as_ref());
                 let attrs = self.get_attribs(attrs);
+
+                let (generics, where_clause) = self.convert_generic_params(generics.as_ref(), where_clause.as_ref());
 
                 self.hir.add_struct(scope, hir::Struct {
                     span: *span,
@@ -1081,10 +1378,10 @@ impl Visitor for AstToHirLowering<'_> {
                 }
                 hir_fields.reverse();
 
-                let where_clause = where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(vis.as_ref());
                 let attrs = self.get_attribs(attrs);
+
+                let (generics, where_clause) = self.convert_generic_params(generics.as_ref(), where_clause.as_ref());
 
                 self.hir.add_tuple_struct(scope, hir::TupleStruct {
                     span: *span,
@@ -1127,7 +1424,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_union(&mut self, node: &AstNodeRef<Union>) where Self: Sized {
-        helpers::visit_union(self, node);
+        helpers::visit_union(self, node, false);
 
         let mut fields = Vec::new();
         for field in node.fields.iter().rev() {
@@ -1146,10 +1443,10 @@ impl Visitor for AstToHirLowering<'_> {
         }
         fields.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let node_ctx = self.ctx.get_node_for(node);
 
@@ -1167,7 +1464,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_enum(&mut self, node: &AstNodeRef<Enum>) where Self: Sized {
-        helpers::visit_enum(self, node);
+        helpers::visit_enum(self, node, false);
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
 
@@ -1179,10 +1476,10 @@ impl Visitor for AstToHirLowering<'_> {
                 }
                 hir_variants.reverse();
 
-                let where_clause = where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-                let generics = generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
                 let vis = self.get_vis(vis.as_ref());
                 let attrs = self.get_attribs(attrs);
+
+                let (generics, where_clause) = self.convert_generic_params(generics.as_ref(), where_clause.as_ref());
 
                 self.hir.add_adt_enum(scope, hir::AdtEnum {
                     span: *span,
@@ -1235,7 +1532,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_bitfield(&mut self, node: &AstNodeRef<Bitfield>) where Self: Sized {
-        helpers::visit_bitfield(self, node);
+        helpers::visit_bitfield(self, node, false);
 
         let mut fields = Vec::new();
         let mut uses = Vec::new();
@@ -1281,10 +1578,10 @@ impl Visitor for AstToHirLowering<'_> {
         fields.reverse();
         uses.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_bitfield(ast_ctx.scope.clone(), hir::Bitfield {
@@ -1425,12 +1722,11 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_trait_function(&mut self, node: &AstNodeRef<TraitFunction>) where Self: Sized {
-        helpers::visit_trait_function(self, node, false);
+        helpers::visit_trait_function(self, node, false, false);
         
         let mut contracts = Vec::new();
         contracts.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
             FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
             FnReturn::Named{ span, vars } => {
@@ -1447,9 +1743,7 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         let params = self.convert_fn_params(&node.params, node.node_id());
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let attrs = self.get_attribs(&node.attrs);
-
 
         let body = node.body.as_ref().map(|body| if let Some(FnReturn::Named{ span, vars }) = &node.returns {
             // convert:
@@ -1521,6 +1815,8 @@ impl Visitor for AstToHirLowering<'_> {
             Box::new(self.block_stack.pop().unwrap())
         });
 
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
+
         let node_ctx = self.ctx.get_node_for(node);
 
         self.hir.add_trait_function(node_ctx.scope.clone(), hir::TraitFunction {
@@ -1541,12 +1837,11 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_trait_method(&mut self, node: &AstNodeRef<TraitMethod>) where Self: Sized {
-        helpers::visit_trait_method(self, node, false);
+        helpers::visit_trait_method(self, node, false, false);
         
         let mut contracts = Vec::new();
         contracts.reverse();
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let return_ty = node.returns.as_ref().map(|rets| match rets {
             FnReturn::Type{ .. } => self.type_stack.pop().unwrap(),
             FnReturn::Named{ span, vars } => {
@@ -1564,9 +1859,10 @@ impl Visitor for AstToHirLowering<'_> {
 
         let params = self.convert_fn_params(&node.params, node.node_id());
         let receiver = self.convert_fn_receiver(&node.receiver);
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let attrs = self.get_attribs(&node.attrs);
         let body = node.body.as_ref().map(|body| self.convert_fn_body(body, node.returns.as_ref(), return_ty.as_ref()));
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let node_ctx = self.ctx.get_node_for(node);
 
@@ -1589,24 +1885,56 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_trait_type_alias(&mut self, node: &AstNodeRef<TraitTypeAlias>) where Self: Sized {
-        helpers::visit_trait_type_alias(self, node);
+        helpers::visit_trait_type_alias(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
         let scope = node_ctx.scope.clone();
 
         let def = node.def.as_ref().map(|_| self.type_stack.pop().unwrap());
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
-        let bounds = Vec::new(); // TODO
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let attrs = self.get_attribs(&node.attrs);
 
+        let (generics, mut where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
+        if !node.bounds.is_empty() {
+            let mut bounds = Vec::new();
+            for bound in &node.bounds {
+                let path = self.convert_gen_type_bound(bound);
+                bounds.push(Box::new(path));
+            }
+            
+            let ty = Box::new(hir::Type::Path(hir::PathType {
+                span: node.span,
+                node_id: node.node_id,
+                path: hir::TypePath {
+                    span: node.span,
+                    node_id: node.node_id,
+                    segments: vec![hir::TypePathSegment::Plain {
+                        span: node.span,
+                        name: node.name
+                    }],
+                },
+            }));
+            let bound = hir::WhereBound::Type {
+                span: node.span,
+                ty,
+                bounds,
+            };
+
+            match &mut where_clause {
+                Some(where_clause) => where_clause.bounds.push(bound),
+                None => where_clause = Some(Box::new(hir::WhereClause {
+                    span: node.span,
+                    node_id: node.node_id,
+                    bounds: vec![bound],
+                })),
+            }
+        }
+        
         self.hir.add_trait_type_alias(scope, hir::TraitTypeAlias {
             span: node.span,
             node_id: node.node_id,
             attrs,
             name: node.name,
             generics,
-            bounds,
             where_clause,
             def,
         })
@@ -1744,12 +2072,12 @@ impl Visitor for AstToHirLowering<'_> {
             self.visit_where_clause(where_clause);
         }
 
-        let where_clause = node.where_clause.as_ref().map(|_| self.gen_where_stack.pop().unwrap());
         let impl_trait = node.impl_trait.as_ref().map(|_| self.type_path_stack.pop().unwrap());
         let ty = self.type_stack.pop().unwrap();
-        let generics = node.generics.as_ref().map(|_| self.gen_params_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_impl(ast_ctx.scope.clone(), hir::Impl {

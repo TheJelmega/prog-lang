@@ -787,7 +787,7 @@ impl Parser<'_> {
 
         self.consume_strong_kw(StrongKeyword::Fn)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let (receiver, params) = self.parse_fn_receiver_and_params()?;
 
         if receiver.is_some() {
@@ -976,7 +976,7 @@ impl Parser<'_> {
         if self.try_consume(Token::WeakKw(WeakKeyword::Distinct)) {
             self.consume_strong_kw(StrongKeyword::Type)?;
             let name = self.consume_name()?;
-            let generics = self.parse_generic_params()?;
+            let generics = self.parse_generic_params(false)?;
             self.consume_punct(Punctuation::Equals)?;
 
             let ty = self.parse_type()?;
@@ -997,7 +997,7 @@ impl Parser<'_> {
         let is_distinct = self.try_consume(Token::WeakKw(WeakKeyword::Distinct));
         self.consume_strong_kw(StrongKeyword::Type)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(false)?;
 
         self.consume_punct(Punctuation::Equals)?;
 
@@ -1048,7 +1048,7 @@ impl Parser<'_> {
         let is_distinct = self.try_consume(Token::WeakKw(WeakKeyword::Distinct));
         self.consume_strong_kw(StrongKeyword::Type)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(false)?;
 
         self.consume_punct(Punctuation::Equals)?;
   
@@ -1080,7 +1080,7 @@ impl Parser<'_> {
         self.consume_strong_kw(StrongKeyword::Struct)?;
         let name = self.consume_name()?;
 
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let where_clause = self.parse_where_clause()?;
 
         let peek = self.peek()?;
@@ -1204,7 +1204,7 @@ impl Parser<'_> {
         let is_mut = self.try_consume(Token::StrongKw(StrongKeyword::Mut));
         self.consume_strong_kw(StrongKeyword::Union)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let where_clause = self.parse_where_clause()?;
 
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_union_field)?;
@@ -1274,7 +1274,7 @@ impl Parser<'_> {
                 variants,
             })))
         } else {
-            let generics = self.parse_generic_params()?;
+            let generics = self.parse_generic_params(true)?;
             let where_clause = self.parse_where_clause()?;
             let variants = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_enum_variant)?;
 
@@ -1363,7 +1363,7 @@ impl Parser<'_> {
         let is_record = self.try_consume(Token::WeakKw(WeakKeyword::Record));
         self.consume_strong_kw(StrongKeyword::Bitfield)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
 
         let bit_count = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
             Some(self.parse_expr(ExprParseMode::General)?)
@@ -1552,8 +1552,8 @@ impl Parser<'_> {
         
         self.begin_scope(OpenCloseSymbol::Brace)?;
         while !self.try_end_scope() {
-                let peek = self.peek()?;
-                match peek {
+            let peek = self.peek()?;
+            match peek {
                 Token::WeakKw(WeakKeyword::Get) => {
                     let begin = self.get_cur_span();
                     self.consume_single();
@@ -1744,7 +1744,7 @@ impl Parser<'_> {
 
         self.consume_strong_kw(StrongKeyword::Fn)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let (receiver, params) = self.parse_fn_receiver_and_params()?;
         let returns = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
             Some(self.parse_func_return()?)
@@ -1812,7 +1812,7 @@ impl Parser<'_> {
 
         self.consume_strong_kw(StrongKeyword::Type)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
 
         let bounds = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
             self.parse_punct_separated(Punctuation::Ampersand, Self::parse_generic_type_bound)?
@@ -1915,12 +1915,12 @@ impl Parser<'_> {
         let mut get = None;
         let mut ref_get = None;
         let mut mut_get = None;
-            let mut set = None;
-            
-            self.begin_scope(OpenCloseSymbol::Brace)?;
-            while !self.try_end_scope() {
-                let peek = self.peek()?;
-                match peek {
+        let mut set = None;
+
+        self.begin_scope(OpenCloseSymbol::Brace)?;
+        while !self.try_end_scope() {
+            let peek = self.peek()?;
+            match peek {
                 Token::WeakKw(WeakKeyword::Get) => {
                     let begin = self.get_cur_span();
                     self.consume_single();
@@ -2094,7 +2094,7 @@ impl Parser<'_> {
         let begin = self.get_cur_span();
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         self.consume_strong_kw(StrongKeyword::Impl)?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let ty = self.parse_type()?;
         let impl_trait = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
             Some(self.parse_type_path()?)
@@ -2131,7 +2131,7 @@ impl Parser<'_> {
 
         self.consume_strong_kw(StrongKeyword::Fn)?;
         let name = self.consume_name()?;
-        let generics = self.parse_generic_params()?;
+        let generics = self.parse_generic_params(true)?;
         let (receiver, params) = self.parse_fn_receiver_and_params()?;
         let returns = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
             Some(self.parse_func_return()?)
@@ -4179,7 +4179,7 @@ impl Parser<'_> {
                 StrongKeyword::Extern                   |
                 StrongKeyword::Fn)                      => self.parse_fn_type(),
             Token::StrongKw(StrongKeyword::Enum)        => self.parse_enum_record_type(),
-            Token::OpenSymbol(OpenCloseSymbol::Brace)   => self.parse_record_type(),
+            Token::StrongKw(StrongKeyword::Struct)      => self.parse_record_type(),
             Token::StrongKw(kw)                         => self.parse_type_from_strong_kw(span, kw),
             _                                           => self.parse_path_type(),
         }
@@ -4391,6 +4391,7 @@ impl Parser<'_> {
 
     fn parse_record_type(&mut self) -> Result<Type, ParserErr> {
         let begin = self.get_cur_span();
+        self.consume_strong_kw(StrongKeyword::Struct);
         let fields = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::parse_struct_field)?;
         let span = self.get_span_to_current(begin);
         Ok(Type::Record(self.add_node(RecordType {
@@ -4414,24 +4415,316 @@ impl Parser<'_> {
 
 // =============================================================================================================================
 
-    fn parse_generic_params(&mut self) -> Result<Option<AstNodeRef<GenericParams>>, ParserErr> {
-        // TODO
-        Ok(None)
+    fn parse_generic_params(&mut self, allow_bounds: bool) -> Result<Option<AstNodeRef<GenericParams>>, ParserErr> {
+        let begin = self.get_cur_span();
+        if !self.try_begin_scope(OpenCloseSymbol::Bracket) {
+            return Ok(None);
+        }
+
+        let mut params = Vec::new();
+        while !self.try_end_scope() {
+            if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
+                params.push(self.parse_mutli_parameter_pack()?);
+                self.end_scope()?;
+                break;
+            }
+            if self.peek_at(1)? == Token::Punctuation(Punctuation::DotDotDot) {
+                params.push(self.parse_single_parameter_pack()?);
+                self.end_scope()?;
+                break;
+            }
+
+            params.push(match self.peek()? {
+                Token::StrongKw(StrongKeyword::Is) => self.parse_generic_type_spec()?,
+                Token::OpenSymbol(OpenCloseSymbol::Brace) => self.parse_generic_const_spec()?,
+                _ => if self.peek_at(1)? == Token::Punctuation(Punctuation::Colon) {
+                    self.parse_generic_const_param()?
+                } else {
+                    self.parse_generic_type_param(allow_bounds)?
+                }
+            });
+        }
+
+        let span = self.get_span_to_current(begin);
+        Ok(Some(self.add_node(GenericParams {
+            span,
+            node_id: NodeId::INVALID,
+            params,
+        })))
+    }
+
+    fn parse_generic_type_param(&mut self, allow_bounds: bool) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        let name = self.consume_name()?;
+        let bounds = if allow_bounds && self.try_consume(Token::StrongKw(StrongKeyword::Is))  {
+            if !allow_bounds {
+                return Err(self.gen_error(ParseErrorCode::GenericTypeBoundsNotAllowed));
+            }
+
+            let mut bounds = Vec::new();
+            loop {
+                let bound = self.parse_generic_type_bound()?;
+                bounds.push(bound);
+                if !self.try_consume(Token::Punctuation(Punctuation::Or)) {
+                    break;
+                }
+            }
+            bounds
+        } else {
+            Vec::new()
+        };
+
+        let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let span = self.get_span_to_current(begin);
+        Ok(GenericParam::Type(self.add_node(GenericTypeParam {
+            span,
+            node_id: NodeId::INVALID,
+            name,
+            bounds,
+            def,
+        })))
+    }
+
+    fn parse_generic_type_spec(&mut self) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        self.consume_strong_kw(StrongKeyword::Is)?;
+        let ty = self.parse_type()?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(GenericParam::TypeSpec(self.add_node(GenericTypeSpec {
+            span,
+            node_id: NodeId::INVALID,
+            ty,
+        })))
+    }
+
+    fn parse_generic_const_param(&mut self) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        let name = self.consume_name()?;
+        self.consume_punct(Punctuation::Colon);
+        let ty = self.parse_type()?;
+        let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_expr(ExprParseMode::General)?)
+        } else {
+            None
+        };
+
+        let span = self.get_span_to_current(begin);
+        Ok(GenericParam::Const(self.add_node(GenericConstParam {
+            span,
+            node_id: NodeId::INVALID,
+            name,
+            ty,
+            def,
+        })))
+    }
+
+    fn parse_generic_const_spec(&mut self) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        let expr = self.parse_block_expr(begin, None)?;
+        Ok(GenericParam::ConstSpec(self.add_node(GenericConstSpec {
+            span: expr.span,
+            node_id: NodeId::INVALID,
+            expr,
+        })))
+    }
+
+    fn parse_single_parameter_pack(&mut self) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        let name = self.consume_name_and_span()?;
+        self.consume_punct(Punctuation::DotDotDot)?;
+        let desc = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            self.parse_param_pack_desc()?
+        } else {
+            GenericParamPackDesc::Type(SpanId::INVALID)
+        };
+
+        let defs = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            vec![self.parse_param_pack_def()?]
+        } else {
+            Vec::new()
+        };
+
+        let span = self.get_span_to_current(begin);
+        Ok(GenericParam::Pack(self.add_node(GenericParamPack {
+            span,
+            node_id: NodeId::INVALID,
+            names: vec![name],
+            descs: vec![desc],
+            defs,
+        })))
+    }
+
+    fn parse_mutli_parameter_pack(&mut self) -> Result<GenericParam, ParserErr> {
+        let begin = self.get_cur_span();
+        let names = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Parser::consume_name_and_span)?;
+        self.consume_punct(Punctuation::Colon);
+        let descs = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Parser::parse_param_pack_desc)?;
+        let defs = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            self.parse_punct_separated(Punctuation::Comma, |parser| parser.parse_param_pack_def())?
+        } else {
+            Vec::new()
+        };
+
+        if names.len() != descs.len() {
+            return Err(self.gen_error(ParseErrorCode::ParamPackNameDescMismatch { name_count: names.len() as u32, desc_count: descs.len() as u32 }));
+        }
+        if defs.len() % names.len() != 0 {
+            return Err(self.gen_error(ParseErrorCode::ParamPackDefMisMatch { elem_count: names.len() as u32, def_count: defs.len() as u32 }));
+        }
+
+        let span = self.get_span_to_current(begin);
+        Ok(GenericParam::Pack(self.add_node(GenericParamPack {
+            span,
+            node_id: NodeId::INVALID,
+            names,
+            descs,
+            defs,
+        })))
+    }
+
+    fn parse_param_pack_desc(&mut self) -> Result<GenericParamPackDesc, ParserErr> {
+        match self.peek()? {
+            Token::StrongKw(StrongKeyword::Type) => {
+                let (_, span) = self.consume_single();
+                Ok(GenericParamPackDesc::Type(span))
+            },
+            Token::StrongKw(StrongKeyword::Is) => {
+                let begin = self.get_cur_span();
+                self.consume_strong_kw(StrongKeyword::Is)?;
+                let bounds = self.parse_punct_separated(Punctuation::Ampersand, Parser::parse_generic_type_bound)?;
+                let span = self.get_span_to_current(begin);
+                Ok(GenericParamPackDesc::TypeBounds(span, bounds))
+            },
+            _ => {
+                let ty = self.parse_type()?;
+                Ok(GenericParamPackDesc::Expr(ty))
+            }
+        }
+    }
+
+    fn parse_param_pack_def(&mut self) -> Result<GenericParamPackDef, ParserErr> {
+        if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Brace) {
+            let begin = self.get_cur_span();
+            let block_expr = self.parse_block_expr(begin, None)?;
+            Ok(GenericParamPackDef::Expr(block_expr))
+        } else {
+            let ty = self.parse_type()?;
+            Ok(GenericParamPackDef::Type(ty))
+        }
+    }
+
+    pub fn parse_generic_type_bound(&mut self) -> Result<GenericTypeBound, ParserErr> {
+        let path = self.parse_type_path()?;
+        Ok(GenericTypeBound::Type(path))
     }
 
     fn parse_generic_args(&mut self, start_with_dot: bool) -> Result<Option<AstNodeRef<GenericArgs>>, ParserErr> {
-        // TODO
+        let begin = self.get_cur_span();
+        if start_with_dot {
+            if ! self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+                return Ok(None);
+            }
+        } else {
+            if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Bracket) {
+                return Ok(None);
+            }
+        }
+        let args = self.parse_comma_separated_closed(OpenCloseSymbol::Bracket, Self::parse_generic_arg)?;
 
-        Ok(None)
+        let span = self.get_span_to_current(begin);
+        Ok(Some(self.add_node(GenericArgs {
+            span,
+            node_id: NodeId::INVALID,
+            args,
+        })))
+    }
+
+    fn parse_generic_arg(&mut self) -> Result<GenericArg, ParserErr> {
+        let peek = self.peek()?;
+        match peek {
+            Token::OpenSymbol(OpenCloseSymbol::Brace) => {
+                let begin = self.get_cur_span();
+                let expr = self.parse_block_expr(begin, None)?;
+                Ok(GenericArg::Value(expr))  
+            },
+            Token::Name(name_id) => {
+                let peek_1 = self.peek_at(1)?;
+                if matches!(peek_1, Token::Punctuation(Punctuation::Comma) | Token::CloseSymbol(_)) {
+                    self.consume_single();
+                    Ok(GenericArg::TypeOrValue(name_id))
+                } else {
+                    let ty = self.parse_type()?;
+                    Ok(GenericArg::Type(ty))
+                }
+            },
+            _ => {
+                let ty = self.parse_type()?;
+                Ok(GenericArg::Type(ty))
+            },
+        }
+    }
+
+    fn parse_where_bound(&mut self) -> Result<WhereBound, ParserErr> {
+        let begin = self.get_cur_span();
+        if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Brace) {
+            let bound = self.parse_block_expr(begin, None)?;
+            return Ok(WhereBound::Value {
+                bound,
+            });
+        }
+
+        let ty = self.parse_type()?;
+        if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
+            let bounds = self.parse_punct_separated(Punctuation::Ampersand, Self::parse_generic_type_bound)?;
+            let span = self.get_span_to_current(begin);
+            Ok(WhereBound::Type {
+                span,
+                ty,
+                bounds,
+            })
+        } else {
+            self.consume_strong_kw(StrongKeyword::In)?;
+            let bounds = self.parse_punct_separated(Punctuation::Or, Self::parse_type)?;
+            let span = self.get_span_to_current(begin);
+            Ok(WhereBound::ExplicitType {
+                span,
+                ty,
+                bounds,
+            })
+        }
     }
 
     fn parse_where_clause(&mut self) -> Result<Option<AstNodeRef<WhereClause>>, ParserErr> {
-        // TODO
-        Ok(None)
+        let begin = self.get_cur_span();
+        if !self.try_consume(Token::StrongKw(StrongKeyword::Where)) {
+            return Ok(None);
+        }
+
+        let bounds = self.parse_punct_separated(Punctuation::Comma, Self::parse_where_bound)?;
+        let span = self.get_span_to_current(begin);
+        Ok(Some(self.add_node(WhereClause {
+            span,
+            node_id: NodeId::INVALID,
+            bounds,
+        })))
     }
 
     fn parse_trait_bounds(&mut self) -> Result<AstNodeRef<TraitBounds>, ParserErr> {
-        todo!()
+        let begin = self.get_cur_span();
+        let bounds = self.parse_punct_separated(Punctuation::Ampersand, Self::parse_type_path)?;
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TraitBounds {
+            span,
+            node_id: NodeId::INVALID,
+            bounds,
+        }))
     }
 
 // =============================================================================================================================

@@ -152,6 +152,10 @@ pub enum ParseErrorCode {
     AttrsNotAllowed{ for_reason: &'static str },
 
     ReceiverInFreeFunction,
+
+    ParamPackNameDescMismatch{ name_count: u32, desc_count: u32 },
+    ParamPackDefMisMatch{ elem_count: u32, def_count: u32 },
+    GenericTypeBoundsNotAllowed,
 }
 
 impl Display for ParseErrorCode {
@@ -159,27 +163,30 @@ impl Display for ParseErrorCode {
         let code: u16 = 2000 + unsafe { *((self as *const Self).cast::<u16>()) };
         write!(f, "E{code:04}: ")?;
         match self {
-            Self::InternalError(err)                        => write!(f, "Internal compiler error: {err}"),
+            Self::InternalError(err)                                  => write!(f, "Internal compiler error: {err}"),
 
-            Self::NotEnoughTokens                      => write!(f, "not enough tokens to parse"),
-            Self::FoundButExpected { found, expected } => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
-            Self::UnexpectedFor { found, for_reason }  => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
-            Self::InvalidPathStart { found, reason }   => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
-            Self::ExpectPackageName { found }          => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
-            Self::ExpectModuleName { found }           => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
-            Self::InvalidExternUse                     => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
-            Self::MissingExternFuncNoBlock             => write!(f, "An empty block is only allowed on functions that are explicitly defined as extern (when not in a trait)"),
-            Self::DuplicateProp { get_set }            => write!(f, "Duplicate {get_set} in property item"),
-            Self::InvalidLabel                         => write!(f, "A label is not supported in this location"),
-            Self::ExprNotSupported { expr, loc }       => write!(f, "{expr} is not allowed in {loc}"),
-            Self::InvalidPrecedenceAssoc { name }      => write!(f, "Invalid precedence associativity: {name}"),
-            Self::AmbiguousOperators                   => write!(f, "Ambiguous operators, cannot figure out which operators is infix"),
-            Self::EmptyStmtWithAttrs                   => write!(f, "An empty statement cannot have attributes applied to it"),
-            Self::AttrsNotAllowed{ for_reason }        => write!(f, "Attributes are not allowed for {for_reason}"),
-            Self::ReceiverInFreeFunction               => write!(f, "Free functions are not allowed to have a receiver"),
+            Self::NotEnoughTokens                                     => write!(f, "not enough tokens to parse"),
+            Self::FoundButExpected { found, expected }                => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
+            Self::UnexpectedFor { found, for_reason }                 => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
+            Self::InvalidPathStart { found, reason }                  => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
+            Self::ExpectPackageName { found }                         => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
+            Self::ExpectModuleName { found }                          => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
+            Self::InvalidExternUse                                    => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),
+            Self::MissingExternFuncNoBlock                            => write!(f, "An empty block is only allowed on functions that are explicitly defined as extern (when not in a trait)"),
+            Self::DuplicateProp { get_set }                           => write!(f, "Duplicate {get_set} in property item"),
+            Self::InvalidLabel                                        => write!(f, "A label is not supported in this location"),
+            Self::ExprNotSupported { expr, loc }                      => write!(f, "{expr} is not allowed in {loc}"),
+            Self::InvalidPrecedenceAssoc { name }                     => write!(f, "Invalid precedence associativity: {name}"),
+            Self::AmbiguousOperators                                  => write!(f, "Ambiguous operators, cannot figure out which operators is infix"),
+            Self::EmptyStmtWithAttrs                                  => write!(f, "An empty statement cannot have attributes applied to it"),
+            Self::AttrsNotAllowed{ for_reason }                       => write!(f, "Attributes are not allowed for {for_reason}"),
+            Self::ReceiverInFreeFunction                              => write!(f, "Free functions are not allowed to have a receiver"),
+            Self::ParamPackNameDescMismatch{ name_count, desc_count } => write!(f, "Mismatch in number of paramter pack names ({name_count}) and descriptions ({desc_count})"),
+            Self::ParamPackDefMisMatch { elem_count, def_count }      => write!(f, "Number of parameter pack defaults ({def_count}) need to ve an integer multiple of the element count ({elem_count})"),
+            Self::GenericTypeBoundsNotAllowed                         => write!(f, "Generics type bounds are not allowed on an item that doesn't support a where clause"),
 
             #[allow(unreachable_patterns)]
-            _                                          => write!(f, "Unknown Parse error"),
+            _                                                         => write!(f, "Unknown Parse error"),
         }
     }
 }
@@ -209,6 +216,9 @@ pub enum AstErrorCode {
     
     ParamMultipleNamesWithDefVal,
     ParamReqAfterOpt,
+
+    ParamPackExpectedTypeDef{ pos: u32 },
+    ParamPackExpectedExprDef{ pos: u32 },
 }
 
 impl Display for AstErrorCode {
@@ -241,6 +251,9 @@ impl Display for AstErrorCode {
             
             Self::ParamMultipleNamesWithDefVal    => write!(f, "When assigning a default value, a paramter may only have 1 'name'"),
             Self::ParamReqAfterOpt                => write!(f, "Required paramters need to be defined before all optional paramters"),
+
+            Self::ParamPackExpectedTypeDef{ pos } => write!(f, "Expected a type as a paramter pack default in position {pos}"),
+            Self::ParamPackExpectedExprDef{ pos } => write!(f, "Expected an expression as a paramter pack default in position {pos}"),
 
             #[allow(unreachable_patterns)]
             _                                     => write!(f, "Unknown AST error"),

@@ -147,24 +147,6 @@ pub struct ExternFunctionNoBody {
     pub contracts:    Vec<Box<Contract>>,
 }
 
-pub struct ConstraintFunction {
-    pub span:         SpanId,
-    pub node_id:      ast::NodeId,
-    pub attrs:        Vec<Box<Attribute>>,
-    pub vis:          Visibility,
-    pub is_override:  bool,
-    pub is_const:     bool,
-    pub is_unsafe:    bool,
-    pub name:         NameId,
-    pub generics:     Option<Box<GenericParams>>,
-    pub receiver:     FnReceiver,
-    pub params:       Vec<FnParam>,
-    pub return_ty:    Option<Box<Type>>,
-    pub where_clause: Option<Box<WhereClause>>,
-    pub contracts:    Vec<Box<Contract>>,
-    pub body:         Option<Box<Block>>,
-}
-
 pub enum FnReceiver {
     None,
     SelfReceiver {
@@ -421,15 +403,6 @@ pub struct Const {
     pub val:     Box<Expr>,
 }
 
-pub struct ConstraintConst {
-    pub span:    SpanId,
-    pub node_id: ast::NodeId,
-    pub attrs:   Vec<Box<Attribute>>,
-    pub vis:     Visibility,
-    pub name:    NameId,
-    pub ty:      Box<Type>,
-}
-
 pub struct Static {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
@@ -460,19 +433,6 @@ pub struct ExternStatic {
     pub is_mut:  bool,
     pub name:    NameId,
     pub ty:      Box<Type>,
-}
-
-pub struct ConstraintProperty {
-    pub span:        SpanId,
-    pub node_id:     ast::NodeId,
-    pub attrs:       Vec<Box<Attribute>>,
-    pub vis:         Visibility,
-    pub is_unsafe:   bool,
-    pub name:        NameId,
-    pub has_get:     bool,
-    pub has_ref_get: bool,
-    pub has_mut_get: bool,
-    pub has_set:     bool,
 }
 
 //--------------------------------------------------------------
@@ -527,7 +487,6 @@ pub struct TraitTypeAlias {
     pub attrs:        Vec<Box<Attribute>>,
     pub name:         NameId,
     pub generics:     Option<Box<GenericParams>>,
-    pub bounds:       Vec<()>,
     pub where_clause: Option<Box<WhereClause>>,
     pub def:          Option<Box<Type>>,
 }
@@ -1514,22 +1473,114 @@ pub struct FnType {
 
 #[derive(Clone)]
 pub struct GenericParams {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub params:  Vec<GenericParam>,
+    pub pack:    Option<GenericParamPack>,
+}
 
+#[derive(Clone)]
+pub enum GenericParam {
+    Type(GenericTypeParam),
+    TypeSpec(GenericTypeSpec),
+    Const(GenericConstParam),
+    ConstSpec(GenericConstSpec),
+}
+
+#[derive(Clone)]
+pub struct GenericTypeParam {
+    pub span: SpanId,
+    pub name: NameId,
+    pub def:  Option<Box<Type>>,
+}
+
+#[derive(Clone)]
+pub struct GenericTypeSpec {
+    pub span: SpanId,
+    pub ty:   Box<Type>,
+}
+
+#[derive(Clone)]
+pub struct GenericConstParam {
+    pub span: SpanId,
+    pub name: NameId,
+    pub ty:   Box<Type>,
+    pub def:  Option<Box<Expr>>,
+}
+
+#[derive(Clone)]
+pub struct GenericConstSpec {
+    pub span: SpanId,
+    pub expr: Box<Block>,
+}
+
+
+#[derive(Clone)]
+pub struct GenericParamPack {
+    pub span:  SpanId,
+    pub elems: Vec<GenericParamPackElem>,
+}
+
+#[derive(Clone)]
+pub enum GenericParamPackElem {
+    Type {
+        name:      NameId,
+        name_span: SpanId,
+        ty_span:   SpanId,
+        defs:      Vec<Box<Type>>,
+    },
+    Const {
+        name:      NameId,
+        name_span: SpanId,
+        ty:        Box<Type>,
+        defs:      Vec<Box<Expr>>,
+    }
 }
 
 #[derive(Clone)]
 pub struct GenericArgs {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub args:    Vec<GenericArg>,
+}
 
+#[derive(Clone)]
+pub enum GenericArg {
+    Type(Box<Type>),
+    Value(Box<Expr>),
+    Name(SpanId, NameId)
 }
 
 #[derive(Clone)]
 pub struct WhereClause {
-
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub bounds:  Vec<WhereBound>,
 }
 
 #[derive(Clone)]
-pub struct TraitBounds {
+pub enum WhereBound {
+    Type {
+        span:   SpanId,
+        ty:     Box<Type>,
+        bounds: Vec<Box<TypePath>>,
+    },
+    Explicit {
+        span:   SpanId,
+        ty:     Box<Type>,
+        bounds: Vec<Box<Type>>,
+    },
+    Expr {
+        expr: Box<Expr>,
+    },
+}
 
+
+#[derive(Clone)]
+pub struct TraitBounds {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub bounds:  Vec<Box<TypePath>>,
 }
 
 // =============================================================================================================================
@@ -1892,12 +1943,6 @@ pub struct Hir {
     pub op_contracts:              Vec<(usize, OpContract, OpContractContext)>,
 
     pub precedences:               Vec<(Precedence, Ref<PrecedenceContext>)>,
-
-    pub constraints:               Vec<Ref<Constraint>>,
-    pub constraint_func:           Vec<(usize, ConstraintFunction)>,
-    pub constraint_type_alias:     Vec<(usize, ConstraintTypeAlias)>,
-    pub constraint_const:          Vec<(usize, ConstraintConst)>,
-    pub constraint_property:       Vec<(usize, ConstraintProperty)>,
 }
 
 impl Hir {
@@ -2151,9 +2196,10 @@ impl Hir {
     }
 
     //--------------------------------------------------------------
-
+    
     pub fn add_precedence(&mut self, scope: Scope, item: Precedence) {
         let ctx = Arc::new(RwLock::new(PrecedenceContext::new(scope)));
         self.precedences.push((item, ctx));
     }
+
 }

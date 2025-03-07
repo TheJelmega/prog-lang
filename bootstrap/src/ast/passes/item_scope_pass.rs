@@ -71,7 +71,7 @@ impl Visitor for ModuleScopePass<'_> {
         }
 
         self.scope.push_with_params(name, param_names);
-        helpers::visit_function(self, node, true);
+        helpers::visit_function(self, node, true, true);
         self.scope.pop();
     }
 }

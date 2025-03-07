@@ -57,19 +57,19 @@ pub trait Visitor {
     }
 
     fn visit_function(&mut self, node: &AstNodeRef<Function>) where Self: Sized {
-        helpers::visit_function(self, node, true);
+        helpers::visit_function(self, node, true, true);
     }
 
     fn visit_method(&mut self, node: &AstNodeRef<Method>) where Self: Sized {
-        helpers::visit_method(self, node, true);
+        helpers::visit_method(self, node, true, true);
     }
 
     fn visit_type_alias(&mut self, node: &AstNodeRef<TypeAlias>) where Self: Sized {
-        helpers::visit_type_alias(self, node);
+        helpers::visit_type_alias(self, node, true);
     }
 
     fn visit_distinct_type(&mut self, node: &AstNodeRef<DistinctType>) where Self: Sized {
-        helpers::visit_distinct_type(self, node);
+        helpers::visit_distinct_type(self, node, true);
     }
 
     fn visit_opaque_type(&mut self, node: &AstNodeRef<OpaqueType>) where Self: Sized {
@@ -77,7 +77,7 @@ pub trait Visitor {
     }
 
     fn visit_struct(&mut self, node: &AstNodeRef<Struct>) where Self: Sized {
-        helpers::visit_struct(self, node);
+        helpers::visit_struct(self, node, true);
     }
 
     fn visit_reg_struct_field(&mut self, field: &RegStructField) where Self: Sized {
@@ -89,11 +89,11 @@ pub trait Visitor {
     }
 
     fn visit_union(&mut self, node: &AstNodeRef<Union>) where Self: Sized {
-        helpers::visit_union(self, node);
+        helpers::visit_union(self, node, true);
     }
 
     fn visit_enum(&mut self, node: &AstNodeRef<Enum>) where Self: Sized {
-        helpers::visit_enum(self, node);
+        helpers::visit_enum(self, node, true);
     }
 
     fn visit_enum_variant(&mut self, variant: &EnumVariant) where Self: Sized {
@@ -101,7 +101,7 @@ pub trait Visitor {
     }
 
     fn visit_bitfield(&mut self, node: &AstNodeRef<Bitfield>) where Self: Sized {
-        helpers::visit_bitfield(self, node);
+        helpers::visit_bitfield(self, node, true);
     }
     
     fn visit_bitfield_field(&mut self, field: &BitfieldField) where Self: Sized {
@@ -127,15 +127,15 @@ pub trait Visitor {
     }
     
     fn visit_trait_function(&mut self, node: &AstNodeRef<TraitFunction>) where Self: Sized {
-        helpers::visit_trait_function(self, node, true);
+        helpers::visit_trait_function(self, node, true, true);
     }
 
     fn visit_trait_method(&mut self, node: &AstNodeRef<TraitMethod>) where Self: Sized {
-        helpers::visit_trait_method(self, node, true);
+        helpers::visit_trait_method(self, node, true, true);
     }
 
     fn visit_trait_type_alias(&mut self, node: &AstNodeRef<TraitTypeAlias>) where Self: Sized {
-        helpers::visit_trait_type_alias(self, node);
+        helpers::visit_trait_type_alias(self, node, true);
     }
 
     fn visit_trait_type_alias_override(&mut self, node: &AstNodeRef<TraitTypeAliasOverride>) where Self: Sized {
@@ -161,7 +161,7 @@ pub trait Visitor {
 //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &AstNodeRef<Impl>) where Self: Sized {
-        helpers::visit_impl(self, node);
+        helpers::visit_impl(self, node, true);
     }
     
 //--------------------------------------------------------------
@@ -185,7 +185,7 @@ pub trait Visitor {
     
     fn visit_precedence_use(&mut self, node: &AstNodeRef<PrecedenceUse>) where Self: Sized {
     }
-    
+
 // =============================================================================================================================
 
     fn visit_block(&mut self, node: &AstNodeRef<Block>) where Self: Sized {
@@ -511,6 +511,26 @@ pub trait Visitor {
         helpers::visit_generic_params(self, node);
     }
 
+    fn visit_generic_type_param(&mut self, node: &AstNodeRef<GenericTypeParam>) where Self: Sized {
+        helpers::visit_generic_type_param(self, node)
+    }
+
+    fn visit_generic_type_spec(&mut self, node: &AstNodeRef<GenericTypeSpec>) where Self: Sized {
+        helpers::visit_generic_type_spec(self, node)
+    }
+
+    fn visit_generic_const_param(&mut self, node: &AstNodeRef<GenericConstParam>) where Self: Sized {
+        helpers::visit_generic_const_param(self, node)
+    }
+
+    fn visit_generic_const_spec(&mut self, node: &AstNodeRef<GenericConstSpec>) where Self: Sized {
+        helpers::visit_generic_const_spec(self, node)
+    }
+
+    fn visit_generic_param_pack(&mut self, node: &AstNodeRef<GenericParamPack>) where Self: Sized {
+        helpers::visit_generic_param_pack(self, node)
+    }
+
     fn visit_generic_args(&mut self, node: &AstNodeRef<GenericArgs>) where Self: Sized {
         helpers::visit_generic_args(self, node);
     }
@@ -661,15 +681,17 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_function<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Function>, do_body: bool) {
+    pub fn visit_function<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Function>, do_generics: bool, do_body: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
 
         for param in &node.params {
@@ -680,9 +702,12 @@ pub mod helpers {
             visit_fn_return(visitor, ret);
         }
 
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
+
         for contract in &node.contracts {
             visitor.visit_contract( contract);
         }
@@ -717,15 +742,17 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Method>, do_body: bool) {
+    pub fn visit_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Method>, do_generics: bool, do_body: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
 
         if let FnReceiver::SelfTyped { span, is_mut, ty } = &node.receiver {
@@ -740,9 +767,12 @@ pub mod helpers {
             visit_fn_return(visitor, ret);
         }
 
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
+
         for contract in &node.contracts {
             visitor.visit_contract( contract);
         }
@@ -752,28 +782,32 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TypeAlias>) {
+    pub fn visit_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TypeAlias>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
         visitor.visit_type(&node.ty);
     }
 
-    pub fn visit_distinct_type<T: Visitor>(visitor: &mut T, node: &AstNodeRef<DistinctType>) {
+    pub fn visit_distinct_type<T: Visitor>(visitor: &mut T, node: &AstNodeRef<DistinctType>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
         visitor.visit_type(&node.ty);
     }
@@ -790,7 +824,7 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_struct<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Struct>) {
+    pub fn visit_struct<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Struct>, do_generics: bool) {
         match &**node {
             Struct::Regular { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
                 for attr in attrs {
@@ -799,11 +833,13 @@ pub mod helpers {
                 if let Some(vis) = vis {
                     visitor.visit_visibility(vis);
                 }
-                if let Some(generics) = generics {
-                    visitor.visit_generic_params(generics);
-                }
-                if let Some(where_clause) = where_clause {
-                    visitor.visit_where_clause(where_clause);
+                if do_generics {
+                    if let Some(generics) = generics {
+                        visitor.visit_generic_params(generics);
+                    }
+                    if let Some(where_clause) = where_clause {
+                        visitor.visit_where_clause(where_clause);
+                    }
                 }
                 for field in fields {
                     visitor.visit_reg_struct_field(field);
@@ -816,11 +852,13 @@ pub mod helpers {
                 if let Some(vis) = vis {
                     visitor.visit_visibility(vis);
                 }
-                if let Some(generics) = generics {
-                    visitor.visit_generic_params(generics);
-                }
-                if let Some(where_clause) = where_clause {
-                    visitor.visit_where_clause(where_clause);
+                if do_generics {
+                    if let Some(generics) = generics {
+                        visitor.visit_generic_params(generics);
+                    }
+                    if let Some(where_clause) = where_clause {
+                        visitor.visit_where_clause(where_clause);
+                    }
                 }
                 for field in fields {
                     visitor.visit_tuple_struct_field(field);
@@ -876,18 +914,20 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_union<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Union>) {
+    pub fn visit_union<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Union>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
-        }
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
         for field in &node.fields {
             for attr in &field.attrs {
@@ -900,7 +940,7 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_enum<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Enum>) {
+    pub fn visit_enum<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Enum>, do_generics: bool) {
         match &**node {
             Enum::Adt { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
                 for attr in attrs {
@@ -909,11 +949,13 @@ pub mod helpers {
                 if let Some(vis) = vis {
                     visitor.visit_visibility(vis);
                 }
-                if let Some(generics) = &generics {
-                    visitor.visit_generic_params(generics);
-                }
-                if let Some(where_clause) = &where_clause {
-                    visitor.visit_where_clause(where_clause);
+                if do_generics {
+                    if let Some(generics) = &generics {
+                        visitor.visit_generic_params(generics);
+                    }
+                    if let Some(where_clause) = &where_clause {
+                        visitor.visit_where_clause(where_clause);
+                    }
                 }
                 for variant in variants {
                     visitor.visit_enum_variant(variant);
@@ -973,18 +1015,20 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_bitfield<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Bitfield>) {
+    pub fn visit_bitfield<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Bitfield>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
-        }
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
         for field in &node.fields {
             visitor.visit_bitfield_field(field);
@@ -1112,12 +1156,15 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_trait_function<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitFunction>, do_body: bool) {
+    pub fn visit_trait_function<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitFunction>, do_generics: bool, do_body: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
 
         for param in &node.params {
@@ -1128,9 +1175,12 @@ pub mod helpers {
             visit_fn_return(visitor, ret);
         }
 
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
+
         for contract in &node.contracts {
             visitor.visit_contract( contract);
         }
@@ -1142,14 +1192,16 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_trait_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitMethod>, do_body: bool) {
+    pub fn visit_trait_method<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitMethod>, do_generics: bool, do_body: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
         }
-
+            
         if let FnReceiver::SelfTyped { ty, .. } = &node.receiver {
             visitor.visit_type(ty);
         }
@@ -1162,9 +1214,12 @@ pub mod helpers {
             visit_fn_return(visitor, ret);
         }
 
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
+
         for contract in &node.contracts {
             visitor.visit_contract( contract);
         }
@@ -1176,21 +1231,22 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_trait_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitTypeAlias>) {
+    pub fn visit_trait_type_alias<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitTypeAlias>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics);
-        }
-        for bound in &node.bounds {
-            match bound {
-                GenericTypeBound::Type(path) => visitor.visit_type_path(path),
-                GenericTypeBound::InlineConstraint(constraint) => visitor.visit_inline_constraint(constraint),
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
             }
-        }
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+            for bound in &node.bounds {
+                match bound {
+                    GenericTypeBound::Type(path) => visitor.visit_type_path(path),
+                }
+            }
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
         if let Some(def) = &node.def {
             visitor.visit_type(def);
@@ -1250,22 +1306,26 @@ pub mod helpers {
 
 //--------------------------------------------------------------
 
-    pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Impl>) {
+    pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Impl>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
-        if let Some(generics) = &node.generics {
-            visitor.visit_generic_params(generics)
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics)
+            }
         }
         visitor.visit_type(&node.ty);
         if let Some(impl_trait) = &node.impl_trait {
             visitor.visit_type_path(impl_trait);
         }
-        if let Some(where_clause) = &node.where_clause {
-            visitor.visit_where_clause(where_clause);
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
         for item in &node.assoc_items {
             visitor.visit_assoc_item(item);
@@ -1346,7 +1406,7 @@ pub mod helpers {
             visitor.visit_visibility(vis);
         }
     }
-    
+
 // =============================================================================================================================
 
     pub fn visit_block<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Block>) {
@@ -1917,18 +1977,92 @@ pub mod helpers {
 // =============================================================================================================================
 
     pub fn visit_generic_params<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericParams>) {
+        for param in &node.params {
+            match param {
+                GenericParam::Type(param) => visitor.visit_generic_type_param(param),
+                GenericParam::TypeSpec(param) => visitor.visit_generic_type_spec(param),
+                GenericParam::Const(param) => visitor.visit_generic_const_param(param),
+                GenericParam::ConstSpec(param) => visitor.visit_generic_const_spec(param),
+                GenericParam::Pack(param) => visitor.visit_generic_param_pack(param),
+            }
+        }
+    }
 
+    pub fn visit_generic_type_param<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericTypeParam>) {
+        for bound in &node.bounds {
+            match bound {
+                GenericTypeBound::Type(path) => visitor.visit_type_path(path),
+            }
+        }
+        if let Some(def) = &node.def {
+            visitor.visit_type(def);
+        }
+    }
+
+    pub fn visit_generic_type_spec<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericTypeSpec>) {
+        visitor.visit_type(&node.ty);
+    }
+
+    pub fn visit_generic_const_param<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericConstParam>) {
+        visitor.visit_type(&node.ty);
+        if let Some(def) = &node.def {
+            visitor.visit_expr(def);
+        }
+    }
+
+    pub fn visit_generic_const_spec<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericConstSpec>) {
+        visitor.visit_block_expr(&node.expr);
+    }
+
+    pub fn visit_generic_param_pack<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericParamPack>) {
+        for desc in &node.descs {
+            match desc {
+                GenericParamPackDesc::Type(_) => (),
+                GenericParamPackDesc::TypeBounds(_, bounds) => for bound in bounds {
+                    match bound {
+                        GenericTypeBound::Type(path) => visitor.visit_type_path(path),
+                    }
+                },
+                GenericParamPackDesc::Expr(ty) => visitor.visit_type(ty),
+            }
+        }
     }
 
     pub fn visit_generic_args<T: Visitor>(visitor: &mut T, node: &AstNodeRef<GenericArgs>) {
-
+        for arg in &node.args {
+            match arg {
+                GenericArg::Type(ty) => visitor.visit_type(ty),
+                GenericArg::Value(expr) => visitor.visit_block_expr(expr),
+                GenericArg::TypeOrValue(_) => (),
+            }
+        }
     }
 
     pub fn visit_where_clause<T: Visitor>(visitor: &mut T, node: &AstNodeRef<WhereClause>) {
-
+        for bound in &node.bounds {
+            match bound {
+                WhereBound::Type { ty, bounds, .. } => {
+                    visitor.visit_type(ty);
+                    for bound in bounds {
+                        match bound {
+                            GenericTypeBound::Type(path) => visitor.visit_type_path(path),
+                        }
+                    }
+                },
+                WhereBound::ExplicitType { ty, bounds, .. } => {
+                    visitor.visit_type(ty);
+                    for bound in bounds {
+                        visitor.visit_type(bound);
+                    }
+                },
+                WhereBound::Value { bound } => visitor.visit_block_expr(bound),
+            }
+        }
     }
 
     pub fn visit_trait_bounds<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitBounds>) {
-
+        for bound in &node.bounds {
+            visitor.visit_type_path(bound);
+        }
     }
 }
