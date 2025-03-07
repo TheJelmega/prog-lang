@@ -4713,6 +4713,9 @@ _TODO: figure out ergonomics, i.e. number of params, looping over them, etc. Lik
 
 ## 12.4. Constraints [↵](#12-generics-)
 
+_TODO: Placeholder, needs to be refined, will not yet be implemented in the compiler. Need to figure out a better reason for this to exist + allow more than just to be a trait-like item_
+
+
 ```
 <constraint-item> := { <attribute> }* [ <vis> ] 'constraint' <name> [ <generic-params> ] '{' <constraint-members> '}'
 <inline-constraint> := 'constraint' '{' <constraint-members> '}'
