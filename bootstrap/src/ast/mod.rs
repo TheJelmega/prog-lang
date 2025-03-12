@@ -1606,7 +1606,9 @@ pub struct Trait {
     pub is_unsafe:   bool,
     pub is_sealed:   bool,
     pub name:        NameId,
+    pub generics:    Option<AstNodeRef<GenericParams>>,
     pub bounds:      Option<AstNodeRef<TraitBounds>>,
+    pub where_clause: Option<AstNodeRef<WhereClause>>,
     pub assoc_items: Vec<TraitItem>,
 }
 

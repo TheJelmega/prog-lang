@@ -917,7 +917,7 @@ impl Visitor for NodeLogger<'_> {
             this.log_opt_indented("Default Type", &mut node.def, |logger, ty| logger.visit_type(ty));
         });
     }
-
+ 
     fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
         self.log_node("Trait Type Alias Override", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
@@ -1140,21 +1140,21 @@ impl Visitor for NodeLogger<'_> {
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
         self.log_node("Precedence", node.node_id, |this| {
             this.log_visibility(&mut node.vis);
-            this.logger.prefixed_log_fmt(format_args!("Name: {}", &self.names[node.name]));
+            this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &self.names[node.name]));
             this.log_visibility(&mut node.vis);
             this.logger.set_last_at_indent_if(node.higher_than.is_none() && node.lower_than.is_none() && node.assoc.is_none());
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
             this.logger.set_last_at_indent_if(node.lower_than.is_none() && node.assoc.is_none());
             if let Some((higher_than, _)) = node.higher_than {
-                this.logger.prefixed_log_fmt(format_args!("Higher than: {}", &self.names[higher_than]))
+                this.logger.prefixed_log_fmt(format_args!("Higher than: {}\n", &self.names[higher_than]))
             }
             this.logger.set_last_at_indent_if(node.assoc.is_none());
             if let Some((lower_than, _)) = node.lower_than {
-                this.logger.prefixed_log_fmt(format_args!("Higher than: {}", &self.names[lower_than]))
+                this.logger.prefixed_log_fmt(format_args!("Higher than: {}\n", &self.names[lower_than]))
             }
             this.logger.set_last_at_indent();
             if let Some(assoc) = &node.assoc {
-                this.logger.prefixed_log_fmt(format_args!("Associativity: {}", assoc.kind))
+                this.logger.prefixed_log_fmt(format_args!("Associativity: {}\n", assoc.kind))
             }
         })
     }
@@ -1784,19 +1784,103 @@ impl Visitor for NodeLogger<'_> {
     // =============================================================
 
     fn visit_gen_params(&mut self, node: &mut GenericParams) {
-        todo!()
+        self.log_node("Generic Parameters", node.node_id, |this| {
+            let end = node.params.len() - 1;
+            for (idx, param) in &mut node.params.iter_mut().enumerate() {
+                this.logger.set_last_at_indent_if(idx == end && node.pack.is_none());
+
+                match param {
+                    GenericParam::Type(param) => this.log_indented("Generic Type Parameter", |this| {
+                        this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &self.names[param.name]));
+                        this.logger.set_last_at_indent();
+                        this.log_opt_indented("Default Type", &mut param.def, |this, def| this.visit_type(def));
+                    }),
+                    GenericParam::TypeSpec(param) => this.log_indented("Generic Type Specialization", |this| this.visit_type(&mut param.ty)),
+                    GenericParam::Const(param) => this.log_indented("Generic Constant Parameter", |this| {
+                        this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[param.name]));
+                        this.logger.set_last_at_indent_if(param.def.is_none());
+                        this.log_indented("Type", |this| this.visit_type(&mut param.ty));
+                        this.logger.set_last_at_indent();
+                        this.log_opt_indented("Default Value", &mut param.def, |this, expr| this.visit_expr(expr));
+                    }),
+                    GenericParam::ConstSpec(param) => this.log_indented("Generic Constant Specialization", |this| this.visit_block(&mut param.expr)),
+                }
+            }
+            if let Some(pack) = &mut node.pack {
+                this.log_indented("Parameter Pack", |this| {
+                    for elem in &mut pack.elems {
+                        match elem {
+                            GenericParamPackElem::Type { name, name_span, ty_span, defs } => this.log_indented("Parameter Pack Type Element", |this| {
+                                this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
+                                this.logger.set_last_at_indent();
+                                if !defs.is_empty() {
+                                    this.log_slice_indented("Default Types", defs, |this, def| {
+                                        this.visit_type(def);
+                                    });
+                                }
+                            }),
+                            GenericParamPackElem::Const { name, name_span, ty, defs } => this.log_indented("Parameter Pack Expression Type Element", |this| {
+                                this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
+                                this.log_indented("Type", |this| this.visit_type(ty));
+                                if !defs.is_empty() {
+                                    this.log_slice_indented("Default Values", defs, |this, def| {
+                                        this.visit_expr(def);
+                                    });
+                                }
+                            }),
+                        }
+                    }
+                })
+            }
+        })
     }
 
     fn visit_gen_args(&mut self, node: &mut GenericArgs) {
-        todo!()
+        self.log_node("Generic Arguments", node.node_id, |this| {
+            let end = node.args.len() - 1;
+            for (idx, arg) in node.args.iter_mut().enumerate() {
+                this.logger.set_last_at_indent_if(idx == end);
+                match arg {
+                    GenericArg::Type(ty) => this.log_indented("Generic Type Argument", |this| this.visit_type(ty)),
+                    GenericArg::Value(val) => this.log_indented("Generic Constant Argument", |this| this.visit_expr(val)),
+                    GenericArg::Name(_, name) => this.logger.prefixed_log_fmt(format_args!("Generic Name Argument: {}\n", &this.names[*name])),
+                }
+            }
+        })
     }
 
     fn visit_where_clause(&mut self, node: &mut WhereClause) {
-        todo!()
+        self.log_node("Trait Bounds", node.node_id, |this| {
+            let end = node.bounds.len() - 1;
+            for (idx, bound) in node.bounds.iter_mut().enumerate() {
+                this.logger.set_last_at_indent_if(idx == end);
+                match bound {
+                    WhereBound::Type { span, ty, bounds } => this.log_indented("Type Bound", |this| {
+                        this.log_indented("Type", |this| this.visit_type(ty));
+                        this.log_slice_indented("Bounds", bounds, |this, bound| {
+                            this.visit_type_path(bound);
+                        });
+                    }),
+                    WhereBound::Explicit { span, ty, bounds } => this.log_indented("Explicit Type Bound", |this| {
+                        this.log_indented("Type", |this| this.visit_type(ty));
+                        this.log_slice_indented("Bounds", bounds, |this, bound| {
+                            this.visit_type(bound);
+                        });
+                    }),
+                    WhereBound::Expr { expr } => this.log_indented("Expression Bound", |this| this.visit_expr(expr)),
+                }
+            }
+        })
     }
 
     fn visit_trait_bounds(&mut self, node: &mut TraitBounds) {
-        todo!()
+        self.log_node("Trait Bounds", node.node_id, |this| {
+            let end = node.bounds.len() - 1;
+            for (idx, bound) in node.bounds.iter_mut().enumerate() {
+                this.logger.set_last_at_indent_if(idx == end);
+                this.visit_type_path(bound);
+            }
+        })
     }
 
     fn visit_contract(&mut self, node: &mut Contract) {

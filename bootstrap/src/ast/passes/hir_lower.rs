@@ -723,20 +723,7 @@ impl AstToHirLowering<'_> {
                         }));
 
                         if !where_bounds.is_empty() {
-                            let ty = Box::new(hir::Type::Path(hir::PathType {
-                                span: param.span,
-                                node_id: param.node_id,
-                                path: hir::TypePath {
-                                    span: param.span,
-                                    node_id: param.node_id,
-                                    segments: vec![
-                                        hir::TypePathSegment::Plain {
-                                            span: param.span,
-                                            name: param.name
-                                        }
-                                    ],
-                                }
-                            }));
+                            let ty = Box::new(hir::PathType::from_name(param.name, param.span, param.node_id));
 
                             let mut bounds = Vec::new();
                             for bound in &param.bounds {
@@ -850,18 +837,7 @@ impl AstToHirLowering<'_> {
                                         let path = self.convert_gen_type_bound(bound);
                                         hir_bounds.push(Box::new(path));
                                     }
-                                    let ty = Box::new(hir::Type::Path(hir::PathType {
-                                        span: name.1,
-                                        node_id: NodeId::INVALID,
-                                        path: hir::TypePath {
-                                            span: name.1,
-                                            node_id: NodeId::INVALID,
-                                            segments: vec![hir::TypePathSegment::Plain {
-                                                span: name.1,
-                                                name: name.0
-                                            }],
-                                        },
-                                    }));
+                                    let ty = Box::new(hir::PathType::from_name(name.0, name.1, NodeId::INVALID));
 
                                     where_bounds.push(hir::WhereBound::Type {
                                         span: *span,
@@ -1690,19 +1666,13 @@ impl Visitor for AstToHirLowering<'_> {
     //--------------------------------------------------------------
 
     fn visit_trait(&mut self, node: &AstNodeRef<Trait>) where Self: Sized {
-        for attr in &node.attrs {
-            self.visit_attribute(attr);
-        }
-        if let Some(vis) = &node.vis {
-            self.visit_visibility(vis);
-        }
-        if let Some(bounds) = &node.bounds {
-            self.visit_trait_bounds(bounds);
-        }
+        helpers::visit_trait(self, node, false);
 
-        let bounds = node.bounds.as_ref().map(|_| self.trait_bounds_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
+
+        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
+        let bounds = node.bounds.as_ref().map(|bounds| Box::new(self.convert_trait_bounds(&bounds)));
 
         let ast_ctx = self.ctx.get_node_for(node);
         self.hir.add_trait(ast_ctx.scope.clone(), hir::Trait {
@@ -1713,7 +1683,9 @@ impl Visitor for AstToHirLowering<'_> {
             is_unsafe: node.is_unsafe,
             is_sealed: node.is_sealed,
             name: node.name,
+            generics,
             bounds,
+            where_clause,
         });
 
         for item in &node.assoc_items {
@@ -1901,18 +1873,7 @@ impl Visitor for AstToHirLowering<'_> {
                 bounds.push(Box::new(path));
             }
             
-            let ty = Box::new(hir::Type::Path(hir::PathType {
-                span: node.span,
-                node_id: node.node_id,
-                path: hir::TypePath {
-                    span: node.span,
-                    node_id: node.node_id,
-                    segments: vec![hir::TypePathSegment::Plain {
-                        span: node.span,
-                        name: node.name
-                    }],
-                },
-            }));
+            let ty = Box::new(hir::PathType::from_name(node.name, node.span, node.node_id));
             let bound = hir::WhereBound::Type {
                 span: node.span,
                 ty,
@@ -4410,6 +4371,7 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_generic_args(&mut self, node: &AstNodeRef<GenericArgs>) where Self: Sized {
+        // TODO
         helpers::visit_generic_args(self, node);
     }
 

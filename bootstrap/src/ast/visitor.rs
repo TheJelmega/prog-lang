@@ -123,7 +123,7 @@ pub trait Visitor {
 //--------------------------------------------------------------
 
     fn visit_trait(&mut self, node: &AstNodeRef<Trait>) where Self: Sized {
-        helpers::visit_trait(self, node);
+        helpers::visit_trait(self, node, true);
     }
     
     fn visit_trait_function(&mut self, node: &AstNodeRef<TraitFunction>) where Self: Sized {
@@ -1141,15 +1141,25 @@ pub mod helpers {
 //--------------------------------------------------------------
 // <T: Visitor>(visitor: &mut T, node: &AstNodeRef<>)
 
-    pub fn visit_trait<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Trait>) {
+    pub fn visit_trait<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Trait>, do_generics: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
         if let Some(vis) = &node.vis {
             visitor.visit_visibility(vis);
         }
+        if do_generics {
+            if let Some(generics) = &node.generics {
+                visitor.visit_generic_params(generics);
+            }
+        }
         if let Some(bounds) = &node.bounds {
             visitor.visit_trait_bounds(bounds);
+        }
+        if do_generics {
+            if let Some(where_clause) = &node.where_clause {
+                visitor.visit_where_clause(where_clause);
+            }
         }
         for item in &node.assoc_items {
             visitor.visit_trait_item(item);

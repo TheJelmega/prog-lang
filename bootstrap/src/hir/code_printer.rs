@@ -31,6 +31,7 @@ impl<'a> CodePrinter<'a> {
     }
 
     pub fn log_fn_param(&mut self, param: &mut FnParam) {
+        self.logger.write_prefix();
         match param {
             FnParam::Param { span, attrs, label, pattern, ty } => {
                 for attr in attrs {
@@ -133,14 +134,17 @@ impl<'a> CodePrinter<'a> {
             if node.is_sealed { "sealed " } else { "" },
             &self.names[node.name]
         ));
+        if let Some(generics) = &mut node.generics {
+            self.visit_gen_params(generics);
+        }
         if let Some(bounds) = &mut node.bounds {
-            self.logger.log(" : ");
             self.visit_trait_bounds(bounds);
         }
-        self.logger.logln("{");
+        self.logger.logln(" {");
 
         let type_aliases_count = hir.trait_type_alias.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
         let funcs_count = hir.trait_functions.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
+        let method_count = hir.trait_methods.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
         let consts_count = hir.trait_consts.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
         let props_count = hir.trait_properties.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
@@ -148,7 +152,7 @@ impl<'a> CodePrinter<'a> {
         let mut count = 0;
         for (fn_idx, node, ctx) in &mut hir.trait_type_alias {
             if *fn_idx == idx {
-                self.logger.set_last_at_indent_if(count == type_aliases_count - 1 && consts_count == 0 && funcs_count == 0 && props_count == 0);
+                self.logger.set_last_at_indent_if(count == type_aliases_count - 1 && consts_count == 0 && funcs_count == 0 && method_count == 0 && props_count == 0);
                 self.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                 count += 1;
             }
@@ -156,7 +160,7 @@ impl<'a> CodePrinter<'a> {
         count = 0;
         for (fn_idx, node, ctx) in &mut hir.trait_consts {
             if *fn_idx == idx {
-                self.logger.set_last_at_indent_if(count == consts_count - 1 && funcs_count == 0 && props_count == 0);
+                self.logger.set_last_at_indent_if(count == consts_count - 1 && funcs_count == 0 && method_count == 0 && props_count == 0);
                 self.visit_trait_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                 count += 1;
             }
@@ -165,8 +169,17 @@ impl<'a> CodePrinter<'a> {
         count = 0;
         for (fn_idx, node, ctx) in &mut hir.trait_functions {
             if *fn_idx == idx {
-                self.logger.set_last_at_indent_if(count == funcs_count - 1 && props_count == 0);
+                self.logger.set_last_at_indent_if(count == funcs_count - 1 && method_count == 0 && props_count == 0);
                 self.visit_trait_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                count += 1;
+            }
+        }
+        
+        count = 0;
+        for (fn_idx, node, ctx) in &mut hir.trait_methods {
+            if *fn_idx == idx {
+                self.logger.set_last_at_indent_if(count == method_count - 1 && props_count == 0);
+                self.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                 count += 1;
             }
         }
@@ -204,6 +217,9 @@ impl<'a> CodePrinter<'a> {
         if let Some(impl_trait) = &mut node.impl_trait {
             self.logger.log(" as ");
             self.visit_type_path(impl_trait);
+        }
+        if let Some(where_clause) = &mut node.where_clause {
+            self.visit_where_clause(where_clause);
         }
         self.logger.logln("{");
 
@@ -353,6 +369,7 @@ impl Visitor for CodePrinter<'_> {
         let ignore_trait_flags =
             VisitFlags::Trait |
             VisitFlags::TraitFunction |
+            VisitFlags::TraitMethod |
             VisitFlags::TraitTypeAlias |
             VisitFlags::TraitConst |
             VisitFlags::TraitProperty;
@@ -486,6 +503,10 @@ impl Visitor for CodePrinter<'_> {
             self.logger.pop_indent();
             self.logger.prefixed_log("(");
         }
+        if let Some(ty) = &mut node.return_ty {
+            self.logger.log(" -> ");
+            self.visit_type(ty);
+        }
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
         }
@@ -513,6 +534,10 @@ impl Visitor for CodePrinter<'_> {
         ));
         if let Some(generics) = &mut node.generics {
             self.visit_gen_params(generics);
+        }
+        if let Some(ty) = &mut node.return_ty {
+            self.logger.log(" -> ");
+            self.visit_type(ty);
         }
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
@@ -930,6 +955,10 @@ impl Visitor for CodePrinter<'_> {
             self.logger.pop_indent();
         }
         self.logger.log(")");
+        if let Some(ty) = &mut node.return_ty {
+            self.logger.log(" -> ");
+            self.visit_type(ty);
+        }
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
         }
@@ -953,7 +982,7 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.logger.log_fmt(format_args!("{}{}{}fn {}", 
+        self.logger.prefixed_log_fmt(format_args!("{}{}{}fn {}", 
             if node.is_override { "override " } else { "" },
             if node.is_const { "const " } else { "" },
             if node.is_unsafe { "unsafe " } else { "" },
@@ -979,15 +1008,16 @@ impl Visitor for CodePrinter<'_> {
             },
         }
         if !node.params.is_empty() {
-            self.logger.logln("");
-            self.logger.push_indent();
-
+            self.logger.logln(",");
             for param in &mut node.params {
                 self.log_fn_param(param);
             }
-            self.logger.pop_indent();
         }
-        self.logger.log(")");
+        self.logger.prefixed_log(")");
+        if let Some(ty) = &mut node.return_ty {
+            self.logger.log(" -> ");
+            self.visit_type(ty);
+        }
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
         }
@@ -1000,14 +1030,16 @@ impl Visitor for CodePrinter<'_> {
             self.logger.logln(" ");
         }
         if let Some(body) = &mut node.body {
+            self.logger.write_prefix();
             self.visit_block(body);
             self.logger.logln("");
         } else {
-            self.logger.logln(";");
+            self.logger.prefixed_logln(";");
         }
     }
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+        self.logger.write_prefix();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
@@ -1019,16 +1051,17 @@ impl Visitor for CodePrinter<'_> {
             self.logger.log(" = ");
             self.visit_type(def);
         }
-        self.logger.log(";");
+        self.logger.logln(";");
     }
 
     fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
-        self.logger.log_fmt(format_args!("override type {} = ", &self.names[node.name]));
+        self.logger.prefixed_log_fmt(format_args!("override type {} = ", &self.names[node.name]));
         self.visit_type(&mut node.ty);
-        self.logger.log(";");
+        self.logger.logln(";");
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
+        self.logger.write_prefix();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
@@ -1043,12 +1076,13 @@ impl Visitor for CodePrinter<'_> {
     }
     
     fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
-        self.logger.log_fmt(format_args!("override const {} = ", &self.names[node.name]));
+        self.logger.prefixed_log_fmt(format_args!("override const {} = ", &self.names[node.name]));
         self.visit_expr(&mut node.expr);
         self.logger.logln(";");
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+        self.logger.write_prefix();
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
@@ -1085,7 +1119,7 @@ impl Visitor for CodePrinter<'_> {
     }
 
     fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
-        self.logger.log_fmt(format_args!("override property {} {{\n", &self.names[node.name]));
+        self.logger.prefixed_log_fmt(format_args!("override property {} {{\n", &self.names[node.name]));
 
         let mut log_mem = |name: &str, mem: Option<&mut Box<Expr>>| {
             let Some(expr) = mem else { return; };
@@ -1346,7 +1380,7 @@ impl Visitor for CodePrinter<'_> {
             self.visit_attribute(attr);
         }
 
-        self.logger.prefixed_log_fmt(format_args!("let {}{} = ",
+        self.logger.log_fmt(format_args!("let {}{} = ",
             if node.is_mut { "mut " } else { "" },
             &self.names[node.name]
         ));
@@ -1584,6 +1618,7 @@ impl Visitor for CodePrinter<'_> {
                 }
                 self.visit_expr(&mut arg.expr);
             }
+            self.logger.logln("");
             self.logger.pop_indent();
             self.logger.prefixed_log(")");
         }
@@ -1999,19 +2034,97 @@ impl Visitor for CodePrinter<'_> {
     }
 
     fn visit_gen_params(&mut self, node: &mut GenericParams) {
-        todo!()
+        self.logger.log("[");
+
+        for (idx, param) in node.params.iter_mut().enumerate() {
+            if idx != 0 {
+                self.logger.log(", ");
+            }
+
+            match param {
+                GenericParam::Type(param) => {
+                    self.logger.log_fmt(format_args!("{}", &self.names[param.name]));
+                    if let Some(def) = &mut param.def {
+                        self.logger.log(" = ");
+                        self.visit_type(def);
+                    }
+                },
+                GenericParam::TypeSpec(param) => {
+                    self.logger.log("is ");
+                    self.visit_type(&mut param.ty);
+                },
+                GenericParam::Const(param) => {
+                    self.logger.log_fmt(format_args!("{} : ", &self.names[param.name]));
+                    self.visit_type(&mut param.ty);
+                    if let Some(def) = &mut param.def {
+                        self.logger.log(" = ");
+                        self.visit_expr(def);
+                    }
+                },
+                GenericParam::ConstSpec(param) => self.visit_block(&mut param.expr),
+            }
+        }
+
+        self.logger.log("]");
     }
 
     fn visit_gen_args(&mut self, node: &mut GenericArgs) {
-        todo!()
+        self.logger.log(".[");
+        for (idx, arg) in node.args.iter_mut().enumerate() {
+            if idx != 0 {
+                self.logger.log(", ");
+            }
+
+            match arg {
+                GenericArg::Type(ty) => self.visit_type(ty),
+                GenericArg::Value(expr) => self.visit_expr(expr),
+                GenericArg::Name(_, name) => self.logger.log_fmt(format_args!("{}", &self.names[*name])),
+            }
+        }
+        self.logger.log("]");
     }
 
     fn visit_where_clause(&mut self, node: &mut WhereClause) {
-        todo!()
+        self.logger.logln("where");
+        for bound in &mut node.bounds {
+            self.logger.write_prefix();
+            match bound {
+                WhereBound::Type { span, ty, bounds } => {
+                    self.visit_type(ty);
+                    self.logger.log(" is ");
+                    for (idx, bound) in bounds.iter_mut().enumerate() {
+                        if idx != 0 {
+                            self.logger.log(" & ");
+                        }
+                        self.visit_type_path(bound);
+                    }
+                },
+                WhereBound::Explicit { span, ty, bounds } => {
+                    self.visit_type(ty);
+                    self.logger.log(" in ");
+                    for (idx, bound) in bounds.iter_mut().enumerate() {
+                        if idx != 0 {
+                            self.logger.log(" & ");
+                        }
+                        self.visit_type(bound);
+                    }
+                },
+                WhereBound::Expr { expr } => self.visit_expr(expr),
+            }
+            self.logger.logln(",");
+        }
+
+        self.logger.prefixed_logln("");
     }
 
     fn visit_trait_bounds(&mut self, node: &mut TraitBounds) {
-        todo!()
+        self.logger.log(" : ");
+        for (idx, bound) in node.bounds.iter_mut().enumerate() {
+            if idx != 0 {
+                self.logger.log(" & ");
+            }
+            self.visit_type_path(bound);
+        }
     }
 
     fn visit_contract(&mut self, node: &mut Contract) {

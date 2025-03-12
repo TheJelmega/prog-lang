@@ -10,14 +10,16 @@ use std::{fmt, ops::Index};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Span {
+    // Moved in front for easier debugging
     pub file_id:     u32,
+    pub row:         u32,
+    pub column:      u32,
+
     pub char_offset: u64,
     pub byte_offset: u64,
     pub char_len:    u64,
     pub byte_len:    u64,
-    pub row:         u32,
     pub row_end:    u32,
-    pub column:      u32,
     pub column_end: u32,
 }
 

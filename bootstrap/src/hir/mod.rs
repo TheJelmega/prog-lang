@@ -443,14 +443,16 @@ pub struct ExternStatic {
 //--------------------------------------------------------------
 
 pub struct Trait {
-    pub span:       SpanId,
-    pub node_id:    ast::NodeId,
-    pub attrs:      Vec<Box<Attribute>>,
-    pub vis:        Visibility,
-    pub is_unsafe:  bool,
-    pub is_sealed:  bool,
-    pub name:       NameId,
-    pub bounds:     Option<Box<TraitBounds>>,
+    pub span:         SpanId,
+    pub node_id:      ast::NodeId,
+    pub attrs:        Vec<Box<Attribute>>,
+    pub vis:          Visibility,
+    pub is_unsafe:    bool,
+    pub is_sealed:    bool,
+    pub name:         NameId,
+    pub generics:     Option<Box<GenericParams>>,
+    pub bounds:       Option<Box<TraitBounds>>,
+    pub where_clause: Option<Box<WhereClause>>
 }
 
 pub struct TraitFunction {

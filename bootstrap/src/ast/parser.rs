@@ -1652,11 +1652,15 @@ impl Parser<'_> {
         self.consume_strong_kw(StrongKeyword::Trait)?;
         let name = self.consume_name()?;
 
+        let generics = self.parse_generic_params(true)?;
+
         let bounds = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
             Some(self.parse_trait_bounds()?)
         } else {
             None
         };
+
+        let where_clause = self.parse_where_clause()?;
 
         let mut assoc_items = Vec::new();
         self.begin_scope(OpenCloseSymbol::Brace);
@@ -1673,7 +1677,9 @@ impl Parser<'_> {
             is_unsafe,
             is_sealed,
             name,
+            generics,
             bounds,
+            where_clause,
             assoc_items,
         })))
     }
@@ -4627,11 +4633,11 @@ impl Parser<'_> {
     fn parse_generic_args(&mut self, start_with_dot: bool) -> Result<Option<AstNodeRef<GenericArgs>>, ParserErr> {
         let begin = self.get_cur_span();
         if start_with_dot {
-            if ! self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            if self.try_peek_at(1) != Some(Token::OpenSymbol(OpenCloseSymbol::Bracket)) || !self.try_consume(Token::Punctuation(Punctuation::Dot)) {
                 return Ok(None);
             }
         } else {
-            if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Bracket) {
+            if self.peek()? != Token::OpenSymbol(OpenCloseSymbol::Bracket) {
                 return Ok(None);
             }
         }

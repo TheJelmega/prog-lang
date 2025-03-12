@@ -45,7 +45,7 @@ pub enum VisitFlags {
     OpFunction,
     OpSpecialization,
     OpContract,
-    
+
     Precedence,
 }
 
@@ -482,19 +482,19 @@ pub trait Visitor: Sized {
     // =============================================================
     
     fn visit_gen_params(&mut self, node: &mut GenericParams) {
-        todo!()
+        helpers::visit_gen_params(self, node);
     }
 
     fn visit_gen_args(&mut self, node: &mut GenericArgs) {
-        todo!()
+        helpers::visit_gen_args(self, node);
     }
 
     fn visit_where_clause(&mut self, node: &mut WhereClause) {
-        todo!()
+        helpers::visit_where_clause(self, node);
     }
 
     fn visit_trait_bounds(&mut self, node: &mut TraitBounds) {
-        todo!()
+        helpers::visit_trait_bounds(self, node);
     }
     
     // =============================================================
@@ -1807,6 +1807,85 @@ pub(crate) mod helpers {
         }
         if let Some(ty) = &mut node.return_ty {
             visitor.visit_type(ty);
+        }
+    }
+    
+    // =============================================================
+
+    pub fn visit_gen_params<T: Visitor>(visitor: &mut T, node: &mut GenericParams) {
+        for param in &mut node.params {
+            match param {
+                GenericParam::Type(param) => {
+                    if let Some(def) = &mut param.def {
+                        visitor.visit_type(def);
+                    }
+                },
+                GenericParam::TypeSpec(param) => {
+                    visitor.visit_type(&mut param.ty)
+                },
+                GenericParam::Const(param) => {
+                    visitor.visit_type(&mut param.ty);
+                    if let Some(def) = &mut param.def {
+                        visitor.visit_expr(def);
+                    }
+                },
+                GenericParam::ConstSpec(param) => {
+                    visitor.visit_block (&mut param.expr);
+                },
+            }
+        }
+        if let Some(pack) = &mut node.pack {
+            for elem in &mut pack.elems {
+                match elem {
+                    GenericParamPackElem::Type { defs, ..} => {
+                        for def in defs {
+                            visitor.visit_type(def);
+                        }
+                    },
+                    GenericParamPackElem::Const { ty, defs, .. } => {
+                        visitor.visit_type(ty);
+                        for def in defs {
+                            visitor.visit_expr(def);
+                        }
+                    },
+                }
+            }
+        }
+    }
+
+    pub fn visit_gen_args<T: Visitor>(visitor: &mut T, node: &mut GenericArgs) {
+        for arg in &mut node.args {
+            match arg {
+                GenericArg::Type(ty) => visitor.visit_type(ty),
+                GenericArg::Value(expr) => visitor.visit_expr(expr),
+                GenericArg::Name(_, _) => (),
+            }
+        }
+    }
+
+    pub fn visit_where_clause<T: Visitor>(visitor: &mut T, node: &mut WhereClause) {
+        for where_bound in &mut node.bounds {
+            match where_bound {
+                WhereBound::Type { span, ty, bounds } => {
+                    visitor.visit_type(ty);
+                    for bound in bounds {
+                        visitor.visit_type_path(bound);
+                    }
+                },
+                WhereBound::Explicit { span, ty, bounds } => {
+                    visitor.visit_type(ty);
+                    for bound in bounds {
+                        visitor.visit_type(bound);
+                    }
+                },
+                WhereBound::Expr { expr } => visitor.visit_expr(expr),
+            }
+        }
+    }
+
+    pub fn visit_trait_bounds<T: Visitor>(visitor: &mut T, node: &mut TraitBounds) {
+        for bound in &mut node.bounds {
+            visitor.visit_type_path(bound);
         }
     }
     
