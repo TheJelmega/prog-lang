@@ -26,6 +26,7 @@ pub use passes::Pass;
 
 // =============================================================================================================================
 
+#[derive(Clone)]
 pub struct HirError {
     pub node_id: ast::NodeId,
     pub err:     HirErrorCode
@@ -33,7 +34,11 @@ pub struct HirError {
 
 impl fmt::Display for HirError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.node_id, self.err)
+        if self.node_id == NodeId::INVALID {
+            write!(f, "{}", self.err)
+        } else {
+            write!(f, "{}: {}", self.node_id, self.err)
+        }
     }
 }
 
@@ -1403,6 +1408,25 @@ pub struct PathType {
     pub path:    TypePath,
 }
 
+impl PathType {
+    pub fn from_name(name: NameId, span: SpanId, node_id: NodeId) -> Type {
+        Type::Path(PathType {
+            span,
+            node_id,
+            path: TypePath {
+                span,
+                node_id,
+                segments: vec![
+                    TypePathSegment::Plain {
+                        span,
+                        name
+                    }
+                ],
+            },
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct TupleType {
     pub span:    SpanId,
@@ -1792,8 +1816,9 @@ impl PropertyContext {
 }
 
 pub struct TraitContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:   Scope,
+    pub sym:     Option<SymbolRef>,
+    pub dag_idx: u32,
 }
 
 impl TraitContext {
@@ -1801,6 +1826,7 @@ impl TraitContext {
         Self {
             scope,
             sym: None,
+            dag_idx: u32::MAX,
         }
     }
 }
@@ -1822,6 +1848,7 @@ impl ImplContext {
 pub struct OpTraitContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
+    pub dag_idx:          u32,
 }
 
 impl OpTraitContext {
@@ -1829,6 +1856,7 @@ impl OpTraitContext {
         Self {
             scope,
             sym: None,
+            dag_idx: u32::MAX,
         }
     }
 }

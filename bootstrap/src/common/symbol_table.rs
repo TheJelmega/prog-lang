@@ -153,6 +153,7 @@ pub struct PropertySymbol {
 pub struct TraitSymbol {
     pub scope:     Scope,
     pub name:      String,
+    pub dag_idx:   u32,
 }
 
 pub struct ImplSymbol {
@@ -370,6 +371,7 @@ impl RootSymbolTable {
         let sym = Symbol::Trait(TraitSymbol {
             scope: scope.clone(),
             name: name.clone(),
+            dag_idx: u32::MAX,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -400,7 +402,7 @@ impl RootSymbolTable {
     /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
     /// * `sym_path` - Path of the symbol as it occurs within code
     // TODO: lib path
-    pub fn get_symbol_with_uses(&self, use_table: &RootUseTable, cur_scope: &Scope, cur_sub_scope: &Scope, sym_path: &Scope) -> Option<SymbolRef> { 
+    pub fn get_symbol_with_uses(&self, use_table: &RootUseTable, cur_scope: &Scope, cur_sub_scope: Option<&Scope>, sym_path: &Scope) -> Option<SymbolRef> { 
         assert!(!sym_path.is_empty());
 
         let sym_name = &sym_path.last().unwrap().name;
@@ -416,7 +418,9 @@ impl RootSymbolTable {
 
         // Then look into the use table
         let mut use_loc_path = cur_scope.clone();
-        use_loc_path.extend(cur_sub_scope);
+        if let Some(sub_scope) = cur_sub_scope {
+            use_loc_path.extend(sub_scope);
+        }
         let mut found_sym = None;
         use_table.with_uses(&use_loc_path, |use_path| {
             let root = sym_path.root().unwrap();

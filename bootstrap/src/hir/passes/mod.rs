@@ -1,7 +1,12 @@
-use super::{Hir, VisitFlags, Visitor};
+use std::sync::Arc;
+
+use crate::{common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag}, lexer::{Punctuation, PuncutationTable}, literals::LiteralTable};
+
+use super::{Hir, HirError, VisitFlags, Visitor};
 
 
 mod symbol_generation;
+use parking_lot::RwLock;
 pub use symbol_generation::*;
 
 mod precedence_passes;
@@ -10,7 +15,33 @@ pub use precedence_passes::*;
 mod operator_passes;
 pub use operator_passes::*;
 
+mod trait_passes;
+pub use trait_passes::*;
 
+#[derive(Clone)]
+pub struct PassContext {
+    pub names:          Arc<RwLock<NameTable>>,
+    pub puncts:         Arc<RwLock<PuncutationTable>>,
+    pub lits:           Arc<RwLock<LiteralTable>>,
+
+    pub syms:           Arc<RwLock<RootSymbolTable>>,
+    pub uses:           Arc<RwLock<RootUseTable>>,
+
+    pub trait_dag:      Arc<RwLock<TraitDag>>,
+
+    pub precedence_dag: Arc<RwLock<PrecedenceDAG>>,
+    pub op_table:       Arc<RwLock<OperatorTable>>,
+
+    pub lib_path:       LibraryPath,
+
+    pub errors:         Arc<RwLock<Vec<HirError>>>,
+}
+
+impl PassContext {
+    pub fn add_error(&self, err: HirError) {
+        self.errors.write().push(err);
+    }
+}
 
 pub trait Pass: Visitor {
     const NAME: &'static str;

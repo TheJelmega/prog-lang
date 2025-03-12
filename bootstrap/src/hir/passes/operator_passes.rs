@@ -1,27 +1,21 @@
 use core::prelude;
 use std::{collections::VecDeque, mem};
 
+use passes::PassContext;
+
 use crate::{
     common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolTable, UseTable},
     hir::*, lexer::PuncutationTable
 };
 
 pub struct OpPrecedenceProcessing<'a> {
-    names:          &'a NameTable,
-    precedence_dag: &'a PrecedenceDAG,
-    sym_table:      &'a RootSymbolTable,
-    op_table:       &'a mut OperatorTable,
-    use_table:      &'a RootUseTable,
+    ctx: &'a PassContext
 }
 
 impl<'a> OpPrecedenceProcessing<'a> {
-    pub fn new(names: &'a NameTable, precedence_dag: &'a PrecedenceDAG, sym_table: &'a RootSymbolTable, op_table: &'a mut OperatorTable, use_table: &'a RootUseTable) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            names,
-            precedence_dag,
-            sym_table,
-            op_table,
-            use_table,
+            ctx,
         }
     }
 }
@@ -44,17 +38,17 @@ impl Visitor for OpPrecedenceProcessing<'_> {
 
             let mut ctx_ref = ctx_ref.write();
             let mut sym_path = ctx_ref.scope.clone();
-            sym_path.push(self.names[op_trait_ref.name].to_string());
+            sym_path.push(self.ctx.names.read()[op_trait_ref.name].to_string());
 
             // Explicit precedence
             if let Some(precedence) = op_trait_ref.precedence {
-                let precedence_name = &self.names[precedence];
-                    match self.precedence_dag.get(precedence_name){
-                        Some(id) => self.op_table.add_trait_precedence(sym_path.clone(), precedence_name.to_string(), id),
+                let precedence_name = &self.ctx.names.read()[precedence];
+                    match self.ctx.precedence_dag.read().get(precedence_name){
+                        Some(id) => self.ctx.op_table.write().add_trait_precedence(sym_path.clone(), precedence_name.to_string(), id),
                         None => todo!("Error")
                     };
             } else if op_trait_ref.bases.is_empty() { // Default if there are no base classes, i.e. no precedence
-                self.op_table.add_trait_precedence(sym_path, "<none>".to_string(), u16::MAX);
+                self.ctx.op_table.write().add_trait_precedence(sym_path, "<none>".to_string(), u16::MAX);
                 continue;
             }
 
@@ -67,11 +61,10 @@ impl Visitor for OpPrecedenceProcessing<'_> {
                 // TODO: Store this is some node context
                 let mut search_sym_path = Scope::new();
                 for name in &base.names {
-                    search_sym_path.push(self.names[*name].to_string());
+                    search_sym_path.push(self.ctx.names.read()[*name].to_string());
                 }
 
-                let sub_scope = Scope::new();
-                let Some(sym) = self.sym_table.get_symbol_with_uses(self.use_table, &ctx_ref.scope, &sub_scope, &search_sym_path) else {
+                let Some(sym) = self.ctx.syms.read().get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) else {
                     todo!("Error");
                 };
                 let Symbol::Trait(sym) = &*sym.read() else { 
@@ -81,10 +74,10 @@ impl Visitor for OpPrecedenceProcessing<'_> {
                 let mut base_sym_path = sym.scope.clone();
                 base_sym_path.push(sym.name.clone());
 
-                let trait_precedence = self.op_table.get_trait_precedence(&base_sym_path).map(|(name, id)| (name.to_string(), id));
+                let trait_precedence = self.ctx.op_table.read().get_trait_precedence(&base_sym_path).map(|(name, id)| (name.to_string(), id));
                 match trait_precedence {
                     Some((prec, id)) => {
-                        self.op_table.add_trait_precedence(sym_path.clone(), prec, id);
+                        self.ctx.op_table.write().add_trait_precedence(sym_path.clone(), prec, id);
                         break;
                     },
                     None    => {
@@ -97,19 +90,16 @@ impl Visitor for OpPrecedenceProcessing<'_> {
     }
 }
 
-pub struct OperatorCollection<'a> {
-    names:    &'a NameTable,
-    op_table: &'a mut OperatorTable,
+//==============================================================================================================================
 
-    lib_path: LibraryPath,
+pub struct OperatorCollection<'a> {
+    ctx: &'a PassContext
 }
 
 impl<'a> OperatorCollection<'a> {
-    pub fn new(names: &'a NameTable, op_table: &'a mut OperatorTable, lib_path: LibraryPath) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            names,
-            op_table,
-            lib_path,
+            ctx
         }
     }
 }
@@ -121,37 +111,35 @@ impl Pass for OperatorCollection<'_> {
 impl Visitor for OperatorCollection<'_> {
     fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
         let op_trait_path = ctx.scope.clone();
-        let (prec_name, prec_id) = self.op_table.get_trait_precedence(&op_trait_path).unwrap();
+        
+        let op_info = {
+            let op_table = self.ctx.op_table.read();
+            let (prec_name, prec_id) = op_table.get_trait_precedence(&op_trait_path).unwrap();
 
-        let op_info = OperatorInfo {
-            op_type: node.op_ty,
-            op: node.op,
-            precedence_name: prec_name.to_string(),
-            precedence_id: prec_id,
-            library_path: self.lib_path.clone(),
-            trait_path: ctx.scope.clone(),
-            func_name: self.names[node.name].to_string(),
+            OperatorInfo {
+                op_type: node.op_ty,
+                op: node.op,
+                precedence_name: prec_name.to_string(),
+                precedence_id: prec_id,
+                library_path: self.ctx.lib_path.clone(),
+                trait_path: ctx.scope.clone(),
+                func_name: self.ctx.names.read()[node.name].to_string(),
+            }
         };
-        self.op_table.add_operator(op_info);  
+        self.ctx.op_table.write().add_operator(op_info);  
     }
 }
 
-
+//==============================================================================================================================
 
 pub struct InfixReorder<'a> {
-    puncts:         &'a PuncutationTable,
-    op_table:       &'a OperatorTable,
-    precedence_dag: &'a PrecedenceDAG,
-    errors:         &'a mut Vec<HirError>,
+    ctx: &'a PassContext
 }
 
 impl<'a> InfixReorder<'a> {
-    pub fn new(puncts: &'a PuncutationTable, op_table: &'a OperatorTable, precedence_dag: &'a PrecedenceDAG, errors: &'a mut Vec<HirError>) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            puncts,
-            op_table,
-            precedence_dag,
-            errors,
+            ctx
         }
     }
 }
@@ -177,45 +165,48 @@ impl Visitor for InfixReorder<'_> {
 
         let Expr::Infix(right) = &*node.right else { unreachable!("Internal Compiler error here!") };
 
-        let op = match self.op_table.get(OpType::Infix, node.op) {
+        let puncts = self.ctx.puncts.read();
+        let op_table = self.ctx.op_table.read();
+
+        let op = match op_table.get(OpType::Infix, node.op) {
             Some(op) => op,
             None => {
-                self.errors.push(HirError {
+                self.ctx.add_error(HirError {
                     node_id: node.node_id,
-                    err: HirErrorCode::OperatorDoesNotExist { op: node.op.as_str(self.puncts).to_string() },
+                    err: HirErrorCode::OperatorDoesNotExist { op: node.op.as_str(&puncts).to_string() },
                 });
                 return;
             }
         };
         if op.precedence_id == u16::MAX {
-            self.errors.push(HirError {
+            self.ctx.add_error(HirError {
                 node_id: node.node_id,
-                err: HirErrorCode::OperatorNoPrecedence { op: node.op.as_str(self.puncts).to_string() },
+                err: HirErrorCode::OperatorNoPrecedence { op: node.op.as_str(&puncts).to_string() },
             });
         }
 
-        let right_op = match self.op_table.get(OpType::Infix, right.op) {
+        let right_op = match op_table.get(OpType::Infix, right.op) {
             Some(op) => op,
             None => {
-                self.errors.push(HirError {
+                self.ctx.add_error(HirError {
                     node_id: right.node_id,
-                    err: HirErrorCode::OperatorDoesNotExist { op: right.op.as_str(self.puncts).to_string() },
+                    err: HirErrorCode::OperatorDoesNotExist { op: right.op.as_str(&puncts).to_string() },
                 });
                 return;
             }
         };
         if right_op.precedence_id == u16::MAX {
-            self.errors.push(HirError {
+            self.ctx.add_error(HirError {
                 node_id: node.node_id,
-                err: HirErrorCode::OperatorNoPrecedence { op: right.op.as_str(self.puncts).to_string() },
+                err: HirErrorCode::OperatorNoPrecedence { op: right.op.as_str(&puncts).to_string() },
             });
         }
 
-        match self.precedence_dag.get_order(op.precedence_id, right_op.precedence_id) {
+        match self.ctx.precedence_dag.read().get_order(op.precedence_id, right_op.precedence_id) {
             PrecedenceOrder::None => {
-                let op0 = node.op.as_str(self.puncts).to_string();
-                let op1 = right.op.as_str(self.puncts).to_string();
-                self.errors.push(HirError {
+                let op0 = node.op.as_str(&puncts).to_string();
+                let op1 = right.op.as_str(&puncts).to_string();
+                self.ctx.add_error(HirError {
                     node_id: node.node_id,
                     err: HirErrorCode::OperatorNoOrder { op0, op1 },
                 });

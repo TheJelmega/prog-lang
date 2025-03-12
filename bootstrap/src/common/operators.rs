@@ -83,7 +83,7 @@ impl OperatorTable {
         }
     }
 
-    pub fn get_trait_precedence(&mut self, scope: &Scope) -> Option<(&str, u16)> {
+    pub fn get_trait_precedence(&self, scope: &Scope) -> Option<(&str, u16)> {
         self.trait_precedences.get(scope).map(|(s, id)| (s.as_str(), *id))
     }
 

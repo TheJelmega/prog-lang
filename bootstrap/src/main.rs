@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanRegistry, UseTable};
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanRegistry, Symbol, TraitDag};
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -57,6 +57,8 @@ fn main() {
     let symbol_table = RootSymbolTable::new(library_path.clone());
     let symbol_table = Arc::new(RwLock::new(symbol_table));
 
+    let trait_dag = Arc::new(RwLock::new(TraitDag::new()));
+
     let precedences = PrecedenceDAG::new();
     let precedences = Arc::new(RwLock::new(precedences));
 
@@ -68,9 +70,9 @@ fn main() {
 
     let mut asts = Vec::new();
 
-    let mut literal_table = LiteralTable::new();
-    let mut name_table = NameTable::new();
-    let mut punct_table = PuncutationTable::new();
+    let literal_table = Arc::new(RwLock::new(LiteralTable::new()));
+    let name_table = Arc::new(RwLock::new(NameTable::new()));
+    let punct_table = Arc::new(RwLock::new(PuncutationTable::new()));
 
     let mut stats = CompilerStats::new();
 
@@ -90,8 +92,11 @@ fn main() {
         let lex_start = time::Instant::now();
     
         let tokens = {
-            let mut spans = span_registry.write();  
-            let mut lexer = Lexer::new(&input_file, &file_content, &mut literal_table, &mut name_table, &mut punct_table, &mut spans);
+            let mut spans = span_registry.write();
+            let mut names = name_table.write();
+            let mut puncts = punct_table.write();
+            let mut lits = literal_table.write();
+            let mut lexer = Lexer::new(&input_file, &file_content, &mut lits, &mut names, &mut puncts, &mut spans);
             match lexer.lex() {
                 Ok(()) => {},
                 Err(mut err) => {
@@ -120,7 +125,10 @@ fn main() {
             
         if cli.print_lex_output {
             let spans = span_registry.read();
-            tokens.log(&literal_table, &name_table, &punct_table, &spans);
+            let names = name_table.read();
+            let puncts = punct_table.read();
+            let lits = literal_table.read();
+            tokens.log(&lits, &names, &puncts, &spans);
         }
     
         if cli.output_lex_csv {
@@ -137,8 +145,11 @@ fn main() {
             }
 
             let spans = span_registry.read();
+            let names = name_table.read();
+            let puncts = punct_table.read();
+            let lits = literal_table.read();
             let mut csv_file = File::create(lex_csv_out_path).unwrap();
-            _ = tokens.log_csv(&mut csv_file, &literal_table, &name_table, &punct_table, &spans);
+            _ = tokens.log_csv(&mut csv_file, &lits, &names, &puncts, &spans);
         }
         
         if cli.lex_only {
@@ -150,7 +161,8 @@ fn main() {
         let mut ast = {
             let mut spans = span_registry.write();
 
-            let mut parser = Parser::new(&tokens, &name_table, &mut spans);
+            let names = name_table.read();
+            let mut parser = Parser::new(&tokens, &names, &mut spans);
             match parser.parse() {
                 Ok(_) => {},
                 Err(err) => {
@@ -172,7 +184,10 @@ fn main() {
         }
 
         if cli.print_parse_output {
-            ast.log(&name_table, &literal_table, &punct_table);
+            let names = name_table.read();
+            let puncts = punct_table.read();
+            let lits = literal_table.read();
+            ast.log(&names, &lits, &puncts);
         }
 
         if cli.parse_only {
@@ -188,31 +203,36 @@ fn main() {
             &ast,
             precedences.clone(),
         );
-
-        do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {
-            let mut pass = ast::passes::ContextSetup::new(&mut ast_ctx);
-            pass.visit(&ast);
-        });
-
-        do_ast_pass(&cli, &mut stats, &input_file, "Module Scoping", || {
-            let mut pass = ast::passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &name_table);
-            pass.visit(&ast);
-        });
         
-        do_ast_pass(&cli, &mut stats, &input_file, "Module Attribute Resolve", || {
-            let mut pass = ast::passes::ModuleAttributeResolver::new(&mut ast_ctx, &name_table, &literal_table);
-            pass.visit(&ast);
-        });
-
         let mut sub_paths = Vec::new();
-        do_ast_pass(&cli, &mut stats, &input_file, "Module Symbol Generation + Path Collection", || {
-            let mut input_path = PathBuf::from(input_file.clone());
-            input_path.pop();
-            let mut pass = ast::passes::ModulePathResolution::new(&mut ast_ctx, &name_table, input_path);
-            pass.visit(&ast);
+        {
+            let names = name_table.read();
+            let lits = literal_table.read();
 
-            sub_paths = pass.collected_paths;
-        });
+            do_ast_pass(&cli, &mut stats, &input_file, "Context Setup", || {
+                let mut pass = ast::passes::ContextSetup::new(&mut ast_ctx);
+                pass.visit(&ast);
+            });
+            
+            do_ast_pass(&cli, &mut stats, &input_file, "Module Scoping", || {
+                let mut pass = ast::passes::ModuleScopePass::new(&mut ast_ctx, base_scope.clone(), &names);
+                pass.visit(&ast);
+            });
+            
+            do_ast_pass(&cli, &mut stats, &input_file, "Module Attribute Resolve", || {
+                let mut pass = ast::passes::ModuleAttributeResolver::new(&mut ast_ctx, &names, &lits);
+                pass.visit(&ast);
+            });
+            
+            do_ast_pass(&cli, &mut stats, &input_file, "Module Symbol Generation + Path Collection", || {
+                let mut input_path = PathBuf::from(input_file.clone());
+                input_path.pop();
+                let mut pass = ast::passes::ModulePathResolution::new(&mut ast_ctx, &names, input_path);
+                pass.visit(&ast);
+                
+                sub_paths = pass.collected_paths;
+            });
+        }
 
         for err in &*ast_ctx.errors.lock() {
             println!("{err}");
@@ -251,13 +271,16 @@ fn main() {
 
     // TODO: External operator importing happens here
 
-    let mut use_table = RootUseTable::new();
+    let use_table = Arc::new(RwLock::new(RootUseTable::new()));
 
 
     let mut hir = hir::Hir::new();
     do_ast_for_all_passes(&cli, &mut stats, "AST to HIR lowering", &mut asts, |ast, ast_ctx| {
         let spans = span_registry.read();
-        let mut pass = ast::passes::AstToHirLowering::new(ast_ctx, &mut name_table, &literal_table, &spans, &mut hir, &mut use_table, library_path.clone());
+        let mut names = name_table.write();
+        let lits = literal_table.read();
+        let mut uses = use_table.write();
+        let mut pass = ast::passes::AstToHirLowering::new(ast_ctx, &mut names, &lits, &spans, &mut hir, &mut uses, library_path.clone());
         pass.visit(ast);
     });
     stats.add_ast_hir_lower(&hir);
@@ -265,26 +288,34 @@ fn main() {
     // TODO: implicit prelude
 
     if cli.print_hir_nodes {
+        let names = name_table.read();
+        let puncts = punct_table.read();
+        let lits = literal_table.read();
+
         println!("Lowered HIR:");
-        let mut hir_logger = hir::NodeLogger::new(&name_table, &literal_table, &punct_table);
+        let mut hir_logger = hir::NodeLogger::new(&names, &lits, &puncts);
         hir_logger.visit(&mut hir, hir::VisitFlags::all());
         println!("--------------------------------")
     }
 
     if cli.print_hir_code {
+        let names = name_table.read();
+        let puncts = punct_table.read();
+        let lits = literal_table.read();
+
         println!("Lowered HIR pseudo-code:");
-        let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
+        let mut hir_printer = hir::CodePrinter::new(&names, &lits, &puncts);
         hir_printer.visit(&mut hir, hir::VisitFlags::all());
         println!("--------------------------------")
     }
 
     if cli.print_hir_use_table {
         println!("HIR use table");
-        use_table.log();
+        use_table.read().log();
         println!("--------------------------------")
     }
 
-    let use_ambiguities = use_table.check_non_wildcard_ambiguity();
+    let use_ambiguities = use_table.write().check_non_wildcard_ambiguity();
     if !use_ambiguities.is_empty() {
         println!("Use table ambiguities:");
         for (scope, name) in use_ambiguities {
@@ -293,29 +324,34 @@ fn main() {
     }
 
     {
-        let mut sym_table = symbol_table.write();
-        let mut precedence_dag = precedences.write();
-        let mut op_table = operators.write();
-        let ctx = HirProcessCtx {
-            names: &name_table,
-            puncts: &punct_table,
-            lits: &literal_table,
-            sym_table: &mut sym_table,
-            precedence_dag: &mut precedence_dag,
-            op_table: &mut op_table,
-            uses: &mut use_table,
-
+        let mut ctx = hir::passes::PassContext {
+            names: name_table.clone(),
+            puncts: punct_table.clone(),
+            lits: literal_table.clone(),
+            syms: symbol_table.clone(),
+            trait_dag: trait_dag.clone(),
+            uses: use_table.clone(),
+            precedence_dag: precedences.clone(),
+            op_table: operators.clone(),
             lib_path: library_path.clone(),
-
-            errors: Vec::new(),
+            errors: Arc::new(RwLock::new(Vec::new())),
         };
-        process_hir(&mut hir, &cli, &mut stats, ctx);
+        process_hir(&mut hir, &cli, &mut stats, &mut ctx);
 
         if cli.print_hir_code {
+            let names = name_table.read();
+            let puncts = punct_table.read();
+            let lits = literal_table.read();
+
             println!("--------------------------------");
             println!("Processed HIR pseudo-code:");
-            let mut hir_printer = hir::CodePrinter::new(&name_table, &literal_table, &punct_table);
+            let mut hir_printer = hir::CodePrinter::new(&names, &lits, &puncts);
             hir_printer.visit(&mut hir, hir::VisitFlags::all());
+        }
+
+        
+        for err in &*ctx.errors.read() {
+            println!("{err}");
         }
     }
     
@@ -333,8 +369,16 @@ fn main() {
     }
 
     if cli.print_op_table {
+        let puncts = punct_table.read();
+
         println!("Operator table");
-        operators.read().log(&punct_table);
+        operators.read().log(&puncts);
+    }
+
+    if cli.print_trait_dag {
+        println!("Trait DAG Unordered:");
+        trait_dag.read().log_unordered();
+        println!("--------------------------------");
     }
 
     if cli.timings {
@@ -381,45 +425,83 @@ fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &st
     }
 }
 
-pub struct HirProcessCtx<'a> {
-    names:          &'a NameTable,
-    puncts:         &'a PuncutationTable,
-    lits:           &'a LiteralTable,
-
-    sym_table:      &'a mut RootSymbolTable,
-    precedence_dag: &'a mut PrecedenceDAG,
-    op_table:       &'a mut OperatorTable,
-    uses:           &'a RootUseTable,
-
-    lib_path:       LibraryPath,
-    
-    errors:         Vec<hir::HirError>,
-}
-
-fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut ctx: HirProcessCtx) -> bool {
+fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &hir::passes::PassContext) -> bool {
     //do_hir_pass(hir, cli, stats, hir::passes::);
     
     // base passes
-    do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx.sym_table, ctx.names));
+    do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::TraitDagGen::new(ctx));
+
+    {
+        let mut trait_dag = ctx.trait_dag.write();
+
+        let cycles = trait_dag.check_cycles();
+        if !cycles.is_empty() {
+            for cycle in cycles {
+                let mut cycle_str = String::new();
+
+                for idx in &cycle {
+                    let sym = trait_dag.get(*idx).unwrap().symbol.read();
+                    let Symbol::Trait(sym) = &*sym else { unreachable!() };
+                    cycle_str.push_str(&format!("{}.{} -> ", sym.scope, sym.name));
+                }
+                let sym = trait_dag.get(cycle[0]).unwrap().symbol.read();
+                let Symbol::Trait(sym) = &*sym else { unreachable!() };
+                cycle_str.push_str(&format!("{}.{}", sym.scope, sym.name));
+
+                ctx.add_error(hir::HirError {
+                    node_id: ast::NodeId::INVALID,
+                    err: error_warning::HirErrorCode::CycleInTraitDag { cycle: cycle_str },
+                })
+            }
+            
+            return false;
+        }
+        trait_dag.calculate_predecessors();
+    }
 
     // Precedences
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceAttrib::new(ctx.names, ctx.lits, &mut ctx.errors));
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceCollection::new(ctx.precedence_dag, ctx.names));
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceConnect::new(ctx.names, ctx.precedence_dag, &mut ctx.errors));
-    ctx.precedence_dag.precompute_order();
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceAttrib::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceConnect::new(ctx));
 
+    {
+        let mut precedence_dag = ctx.precedence_dag.write();
+
+        let cycles = precedence_dag.check_cycles();
+        if !cycles.is_empty() {
+            for cycle in cycles {
+                let mut cycle_str = String::new();
+
+                for idx in &cycle {
+                    let name = precedence_dag.get_name(*idx).unwrap();
+                    cycle_str.push_str(&format!("{name} -> "));
+                }
+                let name = precedence_dag.get_name(cycle[0]).unwrap();
+                cycle_str.push_str(&format!("{name}"));
+
+                ctx.add_error(hir::HirError {
+                    node_id: ast::NodeId::INVALID,
+                    err: error_warning::HirErrorCode::CycleInPrecedenceDag { cycle: cycle_str },
+                })
+            }
+            
+            return false;
+        }
+        precedence_dag.calculate_order();
+    }
     
     // Operators
-    do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx.names, ctx.precedence_dag, ctx.sym_table, ctx.op_table, ctx.uses));
-    do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx.names, ctx.op_table, ctx.lib_path.clone()));
-    do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx.puncts, ctx.op_table, ctx.precedence_dag, &mut ctx.errors));
+    do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx));
 
 
-
-    for err in &ctx.errors {
+    let errors = ctx.errors.read();
+    for err in &*errors {
         println!("{err}");
     }
-    !ctx.errors.is_empty()
+    !errors.is_empty()
 }
 
 fn do_hir_pass<T: hir::Pass>(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut pass: T) {

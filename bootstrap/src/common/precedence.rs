@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt};
 
-use super::Logger;
+use super::{dag::Dag, Logger};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrecedenceAssocKind {
@@ -35,17 +35,17 @@ struct PrecedenceNode {
 }
 
 pub struct PrecedenceDAG {
-    nodes:   Vec<PrecedenceNode>,
     lowest:  u16,
     highest: u16,
+    dag:     Dag<PrecedenceNode>,
 }
 
 impl PrecedenceDAG {
     pub fn new() -> Self {
         Self {
-            nodes: Vec::new(),
             lowest: u16::MAX,
             highest: u16::MAX,
+            dag: Dag::new(),
         }
     }
 
@@ -58,48 +58,40 @@ impl PrecedenceDAG {
     }
 
     pub fn add_precedence(&mut self, name: String) -> u16 {
-        let id = self.nodes.len() as u16;
-        self.nodes.push(PrecedenceNode {
+        self.dag.add_node(PrecedenceNode {
             higher: Vec::new(),
             lower: Vec::new(),
             name,
             precomp_higher: Vec::new(),
-        });
-        id
+        }) as u16
     }
 
     pub fn get(&self, name: &str) -> Option<u16> {
-        self.nodes.iter().enumerate().find_map(|(id, node)| if node.name == name {
+        self.dag.find_map(|id, data| if data.name == name {
             Some(id as u16)
         } else {
             None
         })
     }
 
-    pub fn get_id(&self, name: &str) -> u16 {
-        self.nodes.iter().enumerate().find_map(|(id, node)| if node.name == name {
-            Some(id as u16)
-        } else {
-            None
-        }).unwrap()
+    pub fn get_name(&self, idx: u32) -> Option<&str> {
+        self.dag.get_data(idx).map(|data| data.name.as_str())
     }
 
     pub fn set_order(&mut self, lower: u16, higher: u16) {
-        assert!((lower as usize) < self.nodes.len());
-        assert!((higher as usize) < self.nodes.len());
-
-        self.nodes[lower as usize].higher.push(higher);
-        self.nodes[higher as usize].lower.push(lower);
+        self.dag.get_data_mut(lower as u32).unwrap().higher.push(higher);
+        self.dag.get_data_mut(higher as u32).unwrap().lower.push(lower);
+        self.dag.set_predecessor(lower as u32, higher as u32);
     }
 
-    pub fn precompute_order(&mut self) {
+    pub fn calculate_order(&mut self) {
         // Before precomputing the order, check and fixup (if needed) the following
         // - lowest cannot have any predecessors
         // - highest cannot have any successors
         // - if not lowest and no predecessor exists, assign lowest as predecessor
         // - if not hightest and no successor exists, assign highest as successor
         let mut to_connect = Vec::new();
-        for (idx, node) in self.nodes.iter().enumerate() {
+        for (idx, node) in self.dag.iter().enumerate() {
             let id = idx as u16;
             if id == self.lowest || id == self.highest {
                 continue;
@@ -116,47 +108,12 @@ impl PrecedenceDAG {
             self.set_order(lower, higher);
         }
 
-        // Now go over the nodes and collect the set of higher nodes, if it's not processed yet, skip them
-        let mut to_process = VecDeque::new();
-        for id in &self.nodes[self.highest as usize].lower {
-            to_process.push_back(*id);
-        }  
+        // Now let the dag do it's work
+        self.dag.calculate_predecessors();
+    }
 
-         while let Some(id) = to_process.pop_front() {
-            let node = &self.nodes[id as usize];
-            // Skip if we already processed this (happens when node have multiple sources)
-            if !node.precomp_higher.is_empty() {
-                continue;
-            }
-            
-            // Check if we can already process it, if not, push it on the back
-            for higher in &node.higher {
-                if *higher != self.highest && self.nodes[*higher as usize].precomp_higher.is_empty() {
-                    to_process.push_back(id);
-                    continue;
-                }
-            }
-
-            // Otherwise collect all higher nodes, dedup and sort them
-            let mut precomp_higher = Vec::new();
-            for higher in &node.higher {
-                let node = &self.nodes[*higher as usize];
-                for tmp in &node.precomp_higher {
-                    precomp_higher.push(*tmp);
-                }
-                precomp_higher.push(*higher);
-            }
-
-            precomp_higher.dedup();
-            precomp_higher.sort();
-            
-            // add lower nodes to process
-            for id in &node.lower {
-                to_process.push_back(*id);
-            }
-
-            self.nodes[id as usize].precomp_higher = precomp_higher;
-        }
+    pub fn check_cycles(&self) -> Vec<Vec<u32>> {
+        self.dag.check_cycles()
     }
 
     pub fn get_order(&self, pred0: u16, pred1: u16) -> PrecedenceOrder {
@@ -164,16 +121,14 @@ impl PrecedenceDAG {
         if pred0 == u16::MAX || pred1 == u16::MAX {
             return PrecedenceOrder::None;
         }
-
-        assert!((pred0 as usize) < self.nodes.len());
-        assert!((pred1 as usize) < self.nodes.len());
+        
 
         if pred0 == pred1 {
             PrecedenceOrder::Same
-        } else if self.nodes[pred1 as usize].precomp_higher.contains(&pred0) {
+        } else if self.dag.has_predecessor(pred1 as u32, pred0 as u32) {
             // See if pred0 comes before pred1
             PrecedenceOrder::Higher
-        } else if self.nodes[pred0 as usize].precomp_higher.contains(&pred1) {
+        } else if self.dag.has_predecessor(pred0 as u32, pred1 as u32) {
             // See if pred1 comes after pred0
             PrecedenceOrder::Lower
         } else {
@@ -185,7 +140,7 @@ impl PrecedenceDAG {
     pub fn log_unordered(&self) {
         let logger = Logger::new();
 
-        for (id, node) in self.nodes.iter().enumerate() {
+        for (id, node) in self.dag.iter().enumerate() {
             logger.log_fmt(format_args!("Precedence {id}, path: {}\n", &node.name));
             if !node.higher.is_empty() {
                 logger.log("    - lower than: ");
@@ -207,9 +162,11 @@ impl PrecedenceDAG {
                 }
                 logger.logln("");
             }
-            if !node.precomp_higher.is_empty() {
+
+            let all_higher = self.dag.get_precomputed_predecessor_idxs(id as u32);
+            if !all_higher.is_empty() {
                 logger.log("    - precomputed lower than: ");
-                for (idx, id) in node.precomp_higher.iter().enumerate() {
+                for (idx, id) in all_higher.iter().enumerate() {
                     if idx != 0 {
                         logger.log(", ");
                     }

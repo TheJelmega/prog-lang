@@ -35,6 +35,8 @@ pub struct Cli {
     #[arg(long)]
     pub print_sym_table:     bool,
     #[arg(long)]
+    pub print_trait_dag:     bool,
+    #[arg(long)]
     pub print_precedence:    bool,
     #[arg(long)]
     pub print_op_table:      bool,

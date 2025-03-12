@@ -4,6 +4,8 @@ use std::{fmt, time, hash::Hash};
 mod logger;
 pub use logger::*;
 
+mod dag;
+
 mod precedence;
 pub use precedence::*;
 
@@ -24,6 +26,9 @@ pub use scope::*;
 
 mod span;
 pub use span::*;
+
+mod traits;
+pub use traits::*;
 
 use crate::hir::Hir;
 

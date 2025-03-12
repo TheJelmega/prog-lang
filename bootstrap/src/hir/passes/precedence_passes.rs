@@ -1,3 +1,5 @@
+use passes::PassContext;
+
 use crate::{
     common::{NameTable, PrecedenceDAG, Symbol},
     hir::*, literals::{Literal, LiteralTable},
@@ -7,19 +9,15 @@ use super::Pass;
 
 
 pub struct PrecedenceAttrib<'a> {
-    names:  &'a NameTable,
-    lits:   &'a LiteralTable,
-    ctx:    Option<Ref<PrecedenceContext>>,
-    errors: &'a mut Vec<HirError>,
+    ctx:            &'a PassContext,
+    precedence_ctx: Option<Ref<PrecedenceContext>>,
 }
 
 impl<'a> PrecedenceAttrib<'a> {
-    pub fn new(names: &'a NameTable, lits: &'a LiteralTable, errors: &'a mut Vec<HirError>) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            names,
-            lits,
-            ctx: None,
-            errors,
+            ctx,
+            precedence_ctx: None,
         }
     }
 }
@@ -34,35 +32,35 @@ impl Pass for PrecedenceAttrib<'_> {
 
 impl Visitor for PrecedenceAttrib<'_> {
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
-        self.ctx = Some(ctx.clone());
+        self.precedence_ctx = Some(ctx.clone());
         helpers::visit_precedence(self, node);
-        self.ctx = None;
+        self.precedence_ctx = None;
     }
 
     fn visit_attribute(&mut self, node: &mut Attribute) {
         if node.path.names.len() != 1 {
             let mut path = String::new();
             for name in &node.path.names {
-                path.push_str(&self.names[*name]);
+                path.push_str(&self.ctx.names.read()[*name]);
             }
 
-            self.errors.push(HirError {
+            self.ctx.add_error(HirError {
                 node_id: node.node_id,
                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Unsupported path: {path}, only `builtin` is supported") },
             });
             return;
         }
 
-        if &self.names[node.path.names[0]] != "builtin" {
-            self.errors.push(HirError {
+        if &self.ctx.names.read()[node.path.names[0]] != "builtin" {
+            self.ctx.add_error(HirError {
                 node_id: node.node_id,
-                err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Unsupported path: {}, only `builtin` is supported", &self.names[node.path.names[0]]) },
+                err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Unsupported path: {}, only `builtin` is supported", &self.ctx.names.read()[node.path.names[0]]) },
             });
             return;
         }
 
         if node.metas.len() != 1 {
-            self.errors.push(HirError {
+            self.ctx.add_error(HirError {
                 node_id: node.node_id,
                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only 1 meta element is supported") },
             });
@@ -72,18 +70,18 @@ impl Visitor for PrecedenceAttrib<'_> {
         match &node.metas[0] {
             AttrMeta::Simple { path } => {
                 if path.names.len() != 1 {
-                    self.errors.push(HirError {
+                    self.ctx.add_error(HirError {
                         node_id: node.node_id,
                         err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                     });
                     return;
                 }
 
-                match &self.names[path.names[0]] {
+                match &self.ctx.names.read()[path.names[0]] {
                     "lowest_precedence" => {
-                        let mut ctx = self.ctx.as_ref().unwrap().write();
+                        let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
                         if ctx.is_highest {
-                            self.errors.push(HirError {
+                            self.ctx.add_error(HirError {
                                 node_id: path.node_id,
                                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
                             });
@@ -91,9 +89,9 @@ impl Visitor for PrecedenceAttrib<'_> {
                         ctx.is_lowest = true;
                     },
                     "highest_precedence" => {
-                        let mut ctx = self.ctx.as_ref().unwrap().write();
+                        let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
                         if ctx.is_lowest {
-                            self.errors.push(HirError {
+                            self.ctx.add_error(HirError {
                                 node_id: path.node_id,
                                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
                             });
@@ -101,7 +99,7 @@ impl Visitor for PrecedenceAttrib<'_> {
                         ctx.is_highest = true;
                     },
                     _ => {
-                        self.errors.push(HirError {
+                        self.ctx.add_error(HirError {
                             node_id: path.node_id,
                             err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                         });
@@ -110,7 +108,7 @@ impl Visitor for PrecedenceAttrib<'_> {
                 }
             },
             _ => {
-                self.errors.push(HirError {
+                self.ctx.add_error(HirError {
                     node_id: node.node_id,
                     err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                 });
@@ -120,15 +118,13 @@ impl Visitor for PrecedenceAttrib<'_> {
 }
 
 pub struct PrecedenceCollection<'a> {
-    dag:   &'a mut PrecedenceDAG,
-    names: &'a NameTable, 
+    ctx: &'a PassContext
 }
 
 impl<'a> PrecedenceCollection<'a> {
-    pub fn new(dag: &'a mut PrecedenceDAG, names: &'a NameTable) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            dag,
-            names
+            ctx
         }
     }
 }
@@ -147,29 +143,27 @@ impl Visitor for PrecedenceCollection<'_> {
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Precedence(sym) = &mut *sym else { unreachable!("Precedence HIR nodes should always have Precedence symbols") };
 
-        let id = self.dag.add_precedence(self.names[node.name].to_string());
+        let mut dag = self.ctx.precedence_dag.write();
+
+        let id = dag.add_precedence(self.ctx.names.read()[node.name].to_string());
         sym.id = id;
 
         if ctx.is_lowest {
-            self.dag.set_lowest(id);
+            dag.set_lowest(id);
         } else if ctx.is_highest {
-            self.dag.set_highest(id);
+            dag.set_highest(id);
         }
     }
 }
 
 pub struct PrecedenceConnect<'a> {
-    names:  &'a NameTable,
-    dag:    &'a mut PrecedenceDAG,
-    errors: &'a mut Vec<HirError>,
+    ctx: &'a PassContext
 }
 
 impl<'a> PrecedenceConnect<'a> {
-    pub fn new(names: &'a NameTable, dag: &'a mut PrecedenceDAG, errors: &'a mut Vec<HirError>) -> Self {
+    pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            names,
-            dag,
-            errors,
+            ctx
         }
     }
 }
@@ -184,27 +178,29 @@ impl Visitor for PrecedenceConnect<'_> {
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Precedence(sym) = &mut *sym else { unreachable!("Precedence HIR nodes should always have Precedence symbols") };
 
+        let mut dag = self.ctx.precedence_dag.write();
+
         if let Some((lower_than, _)) = node.lower_than {
             if ctx.is_highest {
-                self.errors.push(HirError {
+                self.ctx.add_error(HirError {
                     node_id: node.node_id,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Highest precedence cannot be lower than other precedences".to_string() },
                 });
             } else {
-                let higher = self.dag.get_id(&self.names[lower_than]);
-                self.dag.set_order(sym.id, higher);
+                let higher = dag.get(&self.ctx.names.read()[lower_than]).unwrap();
+                dag.set_order(sym.id, higher);
             }
         }
 
         if let Some((higher_than, _)) = node.higher_than {
             if ctx.is_highest {
-                self.errors.push(HirError {
+                self.ctx.add_error(HirError {
                     node_id: node.node_id,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Lowest precedence cannot be higher than other precedences".to_string() },
                 });
             } else {
-                let lower = self.dag.get_id(&self.names[higher_than]);
-                self.dag.set_order(lower, sym.id)
+                let lower = dag.get(&self.ctx.names.read()[higher_than]).unwrap();
+                dag.set_order(lower, sym.id)
             }
         }
     }

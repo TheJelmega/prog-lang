@@ -264,7 +264,7 @@ impl Display for AstErrorCode {
 //==============================================================================================================================
 
 // Range: E4000 - E4999
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HirErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
@@ -275,6 +275,10 @@ pub enum HirErrorCode {
     OperatorDoesNotExist { op: String },
     OperatorNoPrecedence { op: String },
     OperatorNoOrder { op0: String, op1: String },
+
+    CycleInTraitDag { cycle: String },
+    CycleInPrecedenceDag { cycle: String },
+
 }
 
 impl Display for HirErrorCode {
@@ -291,6 +295,10 @@ impl Display for HirErrorCode {
             Self::OperatorDoesNotExist { op }          => write!(f, "Operator does not exist: {op}"),
             Self::OperatorNoPrecedence { op }          => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
             Self::OperatorNoOrder { op0, op1 }         => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+
+            Self::CycleInTraitDag { cycle }            => write!(f, "Cycle in trait DAG: {cycle}"),
+            Self::CycleInPrecedenceDag { cycle }       => write!(f, "Cycle in precedence DAG: {cycle}"),
+
             #[allow(unreachable_patterns)]
             _                                          => write!(f, "Unknown HIR error"),
         }
