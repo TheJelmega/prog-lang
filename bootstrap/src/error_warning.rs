@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::lexer::{OpenCloseSymbol, Token};
+use crate::{common::Scope, lexer::{OpenCloseSymbol, Token}};
 
 
 // TODO: Split into distinct error subsets
@@ -279,6 +279,7 @@ pub enum HirErrorCode {
     CycleInTraitDag { cycle: String },
     CycleInPrecedenceDag { cycle: String },
 
+    UnknownSymbol { path: Scope },
 }
 
 impl Display for HirErrorCode {
@@ -298,6 +299,8 @@ impl Display for HirErrorCode {
 
             Self::CycleInTraitDag { cycle }            => write!(f, "Cycle in trait DAG: {cycle}"),
             Self::CycleInPrecedenceDag { cycle }       => write!(f, "Cycle in precedence DAG: {cycle}"),
+
+            Self::UnknownSymbol { path }               => write!(f, "Cannot find symbol: {}", &path.to_string()),
 
             #[allow(unreachable_patterns)]
             _                                          => write!(f, "Unknown HIR error"),

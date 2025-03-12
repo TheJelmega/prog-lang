@@ -495,6 +495,8 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx));
     do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx));
     do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::OpTagging::new(ctx));
+    do_hir_pass(hir, cli, stats, hir::passes::OpTraitGen::new(ctx));
 
 
     let errors = ctx.errors.read();

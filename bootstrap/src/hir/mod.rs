@@ -1848,8 +1848,10 @@ impl ImplContext {
 }
 
 pub struct OpTraitContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:            Scope,
+    pub sym:              Option<SymbolRef>,
+    pub has_generics:     bool,
+    pub has_output_alias: bool,
     pub dag_idx:          u32,
 }
 
@@ -1858,6 +1860,8 @@ impl OpTraitContext {
         Self {
             scope,
             sym: None,
+            has_generics: false,
+            has_output_alias: false,
             dag_idx: u32::MAX,
         }
     }
