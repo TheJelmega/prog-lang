@@ -51,14 +51,14 @@ impl TraitDag {
 
             let Symbol::Trait(sym) = &*sym else { unreachable!() };
 
-            logger.log_fmt(format_args!("Trait {id:03}, path: {}.{}\n", sym.scope, &sym.name));
+            logger.log_fmt(format_args!("Trait {id:03}, path: {}\n", sym.path));
             let predecessors = self.dag.get_precomputed_predecessor_idxs(id as u32);
             if !predecessors.is_empty() {
                 logger.logln("    Depends on:");
                 for pred_id in predecessors {
                     let pred = self.dag.get_data(*pred_id).unwrap().symbol.read();
                     let Symbol::Trait(pred) = &*pred else { unreachable!() };
-                    logger.log_fmt(format_args!("    - Trait: {pred_id:03}, path: {}.{}\n", pred.scope, &pred.name));
+                    logger.log_fmt(format_args!("    - Trait: {pred_id:03}, path: {}\n", pred.path));
                 }
             }
         }

@@ -114,7 +114,7 @@ impl Visitor for ModulePathResolution<'_> {
                     return;
                 };
 
-                 mod_sym.path.ends_with("mod.xn")
+                 mod_sym.file_path.ends_with("mod.xn")
             };
 
             // if a mod 'bar' is defined inside of 'foo', it can be in any of the following locations
@@ -173,7 +173,7 @@ impl Visitor for ModulePathResolution<'_> {
         let mut base_scope = ctx_node.scope.clone();
         base_scope.push(mod_name.clone());
         
-        self.ctx.syms.write().add_module(&ctx_node.scope, mod_name.to_string(), path.clone());
+        self.ctx.syms.write().add_module(None, &ctx_node.scope, &mod_name, path.clone());
         self.collected_paths.push((path.clone(), base_scope));
     }
 }

@@ -71,8 +71,8 @@ impl Visitor for OpPrecedenceProcessing<'_> {
                     todo!("Error");
                 };
 
-                let mut base_sym_path = sym.scope.clone();
-                base_sym_path.push(sym.name.clone());
+                let mut base_sym_path = sym.path.scope.clone();
+                base_sym_path.push(sym.path.name.clone());
 
                 let trait_precedence = self.ctx.op_table.read().get_trait_precedence(&base_sym_path).map(|(name, id)| (name.to_string(), id));
                 match trait_precedence {

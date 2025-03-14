@@ -13,6 +13,20 @@ use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment};
 
 // =============================================================
 
+pub struct SymbolPath {
+    pub lib:   LibraryPath,
+    pub scope: Scope,
+    pub name:  String,
+}
+
+impl fmt::Display for SymbolPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}{}{}", self.lib, self.scope, if self.scope.is_empty() { "" } else  { "." }, self.name)
+    }
+}
+
+// =============================================================
+
 pub enum Symbol {
     Module(ModuleSymbol),
     Precedence(PrecedenceSymbol),
@@ -33,39 +47,32 @@ pub enum Symbol {
 }
 
 pub struct ModuleSymbol {
-    pub scope:     Scope,
-    pub name:      String,
-    pub path:      PathBuf,
+    pub path:      SymbolPath,
+    pub file_path: PathBuf,
 }
 
 pub struct PrecedenceSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path:  SymbolPath,
     pub id:    u16,
 }
 
 pub struct FunctionSymbol {
-    pub scope:     Scope,
-    pub name:      String,
+    pub path:      SymbolPath,
 
     pub sub_table: SymbolTable,
 }
 
 pub struct TypeAliasSymbol {
-    pub scope: Scope,
-    pub name:  String,
-
+    pub path: SymbolPath,
 }
 
 pub struct DistinctTypeSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
     
 }
 
 pub struct OpaqueTypeSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
     
 }
 
@@ -87,38 +94,32 @@ impl fmt::Display for StructKind {
 }
 
 pub struct StructSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
     pub kind:  StructKind,
 }
 
 pub struct UnionSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 
 }
 
 pub struct AdtEnumSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 
 }
 
 pub struct FlagEnumSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 
 }
 
 pub struct BitfieldSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 
 }
 
 pub struct ConstSymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 
 }
 
@@ -140,25 +141,21 @@ impl fmt::Display for StaticKind {
 }
 
 pub struct StaticSymbol {
-    pub scope: Scope,
-    pub name:  String,
-    pub kind:  StaticKind,
+    pub path: SymbolPath,
+    pub kind: StaticKind,
 }
 
 pub struct PropertySymbol {
-    pub scope: Scope,
-    pub name:  String,
+    pub path: SymbolPath,
 }
 
 pub struct TraitSymbol {
-    pub scope:     Scope,
-    pub name:      String,
-    pub dag_idx:   u32,
+    pub path:    SymbolPath,
+    pub dag_idx: u32,
 }
 
 pub struct ImplSymbol {
-    pub scope:     Scope,
-    pub name:      String,
+    pub path: SymbolPath,
 }
 
 pub type SymbolRef = Arc<RwLock<Symbol>>;
@@ -249,137 +246,185 @@ impl RootSymbolTable {
     }
 
     
-    pub fn add_module(&mut self, scope: &Scope, name: String, file_path: PathBuf) -> SymbolRef {
+    pub fn add_module(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, file_path: PathBuf) -> SymbolRef {
         let sym = Symbol::Module(ModuleSymbol{
-            scope: scope.clone(),
-            name: name.clone(),
-            path: file_path,
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
+            file_path,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, name, &[], sym)
     }
 
-    pub fn add_precedence(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Precedence(PrecedenceSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
             id: u16::MAX,
         }); 
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_function(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Function(FunctionSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
 
             sub_table: SymbolTable::new(),
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_type_alias(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_type_alias(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::TypeAlias(TypeAliasSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_distinct_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_distinct_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::DistinctType(DistinctTypeSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_opaque_type(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_opaque_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_struct(&mut self, scope: &Scope, name: String, kind: StructKind) -> SymbolRef {
+    pub fn add_struct(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StructKind) -> SymbolRef {
         let sym = Symbol::Struct(StructSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
             kind,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_union(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_union(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Union(UnionSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_adt_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_adt_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::AdtEnum(AdtEnumSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_flag_enum(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_flag_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::FlagEnum(FlagEnumSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_bitfield(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_bitfield(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Bitfield(BitfieldSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_const(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_const(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Const(ConstSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_static(&mut self, scope: &Scope, name: String, kind: StaticKind) -> SymbolRef {
+    pub fn add_static(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StaticKind) -> SymbolRef {
         let sym = Symbol::Static(StaticSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
             kind,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_property(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_property(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Property(PropertySymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_trait(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_trait(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Trait(TraitSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
             dag_idx: u32::MAX,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
 
-    pub fn add_impl(&mut self, scope: &Scope, name: String) -> SymbolRef {
+    pub fn add_impl(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Impl(ImplSymbol {
-            scope: scope.clone(),
-            name: name.clone(),
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -517,101 +562,101 @@ impl SymbolTableLogger {
             {
                 logger.prefixed_logln("Module");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
-                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path.to_str().unwrap()));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("File Path: {}\n", sym.file_path.to_str().unwrap()));
             },
             Symbol::Precedence(sym) =>
             {
                 logger.prefixed_logln("Precedence");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Id: {}\n", sym.id));
             },
             Symbol::Function(sym) =>
             {
                 logger.prefixed_logln("Function");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::TypeAlias(sym) =>
             {
                 logger.prefixed_logln("Type Alias");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::DistinctType(sym) =>
             {
                 logger.prefixed_logln("Distinct Type");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::OpaqueType(sym) =>
             {
                 logger.prefixed_logln("Opaque Type");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Struct(sym) =>
             {
                 logger.prefixed_logln("Struct");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             }, 
             Symbol::Union(sym) =>
             {   
                 logger.prefixed_logln("Union");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::AdtEnum(sym) =>
             {
                 logger.prefixed_logln("ADT enum");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::FlagEnum(sym) =>
             {
                 logger.prefixed_logln("Flag");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Bitfield(sym) =>
             {
                 logger.prefixed_logln("Bitfield");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Const(sym) =>
             {
                 logger.prefixed_logln("Const");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Static(sym) =>
             {
                 logger.prefixed_logln("Static");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             },
             Symbol::Property(sym) =>
             {
                 logger.prefixed_logln("Property");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Trait(sym) =>
             {
                 logger.prefixed_logln("Trait");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
             Symbol::Impl(sym) =>
             {
                 logger.prefixed_logln("Impl");
                 logger.push_indent();
-                logger.prefixed_log_fmt(format_args!("Name: {}\n", sym.name));
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
             },
         }
 

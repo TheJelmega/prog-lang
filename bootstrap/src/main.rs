@@ -443,11 +443,11 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
                 for idx in &cycle {
                     let sym = trait_dag.get(*idx).unwrap().symbol.read();
                     let Symbol::Trait(sym) = &*sym else { unreachable!() };
-                    cycle_str.push_str(&format!("{}.{} -> ", sym.scope, sym.name));
+                    cycle_str.push_str(&format!("{} -> ", sym.path));
                 }
                 let sym = trait_dag.get(cycle[0]).unwrap().symbol.read();
                 let Symbol::Trait(sym) = &*sym else { unreachable!() };
-                cycle_str.push_str(&format!("{}.{}", sym.scope, sym.name));
+                cycle_str.push_str(&format!("{}", sym.path));
 
                 ctx.add_error(hir::HirError {
                     node_id: ast::NodeId::INVALID,
