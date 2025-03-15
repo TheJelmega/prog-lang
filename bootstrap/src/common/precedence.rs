@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt};
+use std::fmt;
 
 use super::{dag::Dag, Logger};
 
@@ -28,10 +28,9 @@ pub enum PrecedenceOrder {
 }
 
 struct PrecedenceNode {
-    higher:         Vec<u16>,
-    lower:         Vec<u16>,
-    name:         String,
-    precomp_higher: Vec<u16>,
+    higher: Vec<u16>,
+    lower:  Vec<u16>,
+    name:   String,
 }
 
 pub struct PrecedenceDAG {
@@ -62,7 +61,6 @@ impl PrecedenceDAG {
             higher: Vec::new(),
             lower: Vec::new(),
             name,
-            precomp_higher: Vec::new(),
         }) as u16
     }
 
