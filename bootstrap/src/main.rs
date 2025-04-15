@@ -430,10 +430,13 @@ fn do_ast_for_all_passes<F>(cli: &Cli, stats: &mut CompilerStats, pass_name: &st
 
 fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &hir::passes::PassContext) -> bool {
     //do_hir_pass(hir, cli, stats, hir::passes::);
+
+    use hir::passes::*;
     
     // base passes
-    do_hir_pass(hir, cli, stats, hir::passes::SymbolGeneration::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::TraitDagGen::new(ctx));
+    do_hir_pass(hir, cli, stats, PathGenPass::new(ctx));
+    do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
+    do_hir_pass(hir, cli, stats, TraitDagGen::new(ctx));
 
     {
         let mut trait_dag = ctx.trait_dag.write();
@@ -464,9 +467,9 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     }
 
     // Precedences
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceAttrib::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceCollection::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::PrecedenceConnect::new(ctx));
+    do_hir_pass(hir, cli, stats, PrecedenceAttrib::new(ctx));
+    do_hir_pass(hir, cli, stats, PrecedenceCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, PrecedenceConnect::new(ctx));
 
     {
         let mut precedence_dag = ctx.precedence_dag.write();
@@ -495,11 +498,15 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     }
     
     // Operators
-    do_hir_pass(hir, cli, stats, hir::passes::OpPrecedenceProcessing::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::OperatorCollection::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::InfixReorder::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::OpTagging::new(ctx));
-    do_hir_pass(hir, cli, stats, hir::passes::OpTraitGen::new(ctx));
+    do_hir_pass(hir, cli, stats, OpPrecedenceProcessing::new(ctx));
+    do_hir_pass(hir, cli, stats, OperatorCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, InfixReorder::new(ctx));
+    do_hir_pass(hir, cli, stats, OpTagging::new(ctx));
+    do_hir_pass(hir, cli, stats, OpTraitGen::new(ctx));
+    do_hir_pass(hir, cli, stats, PostOpPathGenPass::new(ctx));
+
+    // Types
+    do_hir_pass(hir, cli, stats, ExplicitTypeGen::new(ctx));
 
 
     let errors = ctx.errors.read();

@@ -45,6 +45,19 @@ impl fmt::Display for HirError {
 // =============================================================================================================================
 
 #[derive(Clone)]
+pub struct PathCtx {
+    pub path: Scope,
+}
+
+impl PathCtx {
+    pub fn new() -> Self {
+        Self {
+            path: Scope::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum TypePathSegment {
     Plain {
         span:     SpanId,
@@ -68,6 +81,7 @@ pub struct TypePath {
     pub span:     SpanId,
     pub node_id:  ast::NodeId,
     pub segments: Vec<TypePathSegment>
+    pub ctx:      PathCtx,
 }
 
 #[derive(Clone)]
@@ -75,6 +89,7 @@ pub struct SimplePath {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub names:   Vec<NameId>,
+    pub ctx:     PathCtx,
 }
 
 #[derive(Clone)]
@@ -90,6 +105,7 @@ pub struct Path {
     pub node_id:     ast::NodeId,
     pub is_inferred: bool,
     pub idens:       Vec<Identifier>,
+    pub ctx:      PathCtx,
 }
 
 #[derive(Clone)]
@@ -99,6 +115,7 @@ pub struct QualifiedPath {
     pub ty:       Box<Type>,
     pub bound:    Option<TypePath>,
     pub sub_path: Vec<Identifier>,
+    pub ctx:      PathCtx,
 }
 
 // =============================================================================================================================
@@ -1460,6 +1477,7 @@ impl PathType {
                         name
                     }
                 ],
+                ctx: PathCtx::new(),
             },
             ctx: TypeContext::new(),
         })

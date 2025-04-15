@@ -63,6 +63,7 @@ impl<'a> AstToHirLowering<'a> {
                 span: SpanId::INVALID,
                 node_id: NodeId::INVALID,
                 names: vec![comp_gen_name],
+                ctx: hir::PathCtx::new(),
             },
             metas: Vec::new(),
         });
@@ -985,6 +986,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span(),
             node_id: node.node_id,
             names,
+            ctx: hir::PathCtx::new(),
         })
     }
 
@@ -1008,6 +1010,7 @@ impl Visitor for AstToHirLowering<'_> {
             node_id: node.node_id,
             is_inferred: node.inferred,
             idens,
+            ctx: hir::PathCtx::new(),
         })
     }
 
@@ -1045,7 +1048,9 @@ impl Visitor for AstToHirLowering<'_> {
         self.type_path_stack.push(hir::TypePath {
             span: node.span(),
             node_id: node.node_id,
+            self_rel: false, // TODO
             segments,
+            ctx: hir::PathCtx::new(),
         })
     }
 
@@ -1068,6 +1073,7 @@ impl Visitor for AstToHirLowering<'_> {
             ty,
             bound,
             sub_path,
+            ctx: hir::PathCtx::new(),
         })
     }
 
@@ -4145,6 +4151,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             ty: slice_ty,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4175,6 +4182,7 @@ impl Visitor for AstToHirLowering<'_> {
             node_id: node.node_id,
             is_mut: node.is_mut,
             ty,
+            ctx: hir::TypeContext::new(),
         }))
     }
 
@@ -4413,5 +4421,6 @@ fn base_type_path_from_scope(scope: &Scope, names: &mut NameTable, span: SpanId,
         span,
         node_id,
         segments,
+        ctx: hir::PathCtx::new(),
     }
 }

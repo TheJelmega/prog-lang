@@ -10,6 +10,8 @@ use crate::{
 use super::{Hir, HirError, VisitFlags, Visitor};
 use parking_lot::RwLock;
 
+mod misc_passes;
+pub use misc_passes::*;
 
 mod symbol_generation;
 pub use symbol_generation::*;

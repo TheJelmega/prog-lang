@@ -54,29 +54,3 @@ impl Visitor for PatternIdenCollection {
         }
     }
 }
-
-// =============================================================================================================================
-
-pub fn simple_path_to_scope(path: &SimplePath, names: &NameTable) -> Scope {
-    let mut scope = Scope::new();
-    for name in &path.names {
-        let name = names[*name].to_string();
-        scope.push(name);
-    }
-    scope
-}
-
-pub fn type_path_to_scope(path: &TypePath, names: &NameTable) -> Scope {
-    let mut scope = Scope::new();
-    for segment in &path.segments {
-        match segment {
-            TypePathSegment::Plain { span, name } => {
-                let name = names[*name].to_string();
-                scope.push(name);
-            },
-            TypePathSegment::GenArg { span, name, gen_args } => todo!(),
-            TypePathSegment::Fn { span, name, params, ret } => todo!(),
-        }
-    }
-    scope
-}

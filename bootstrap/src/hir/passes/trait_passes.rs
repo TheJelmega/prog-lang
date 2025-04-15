@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{common::{Scope, Symbol}, error_warning::HirErrorCode, hir::{utils::{simple_path_to_scope, type_path_to_scope}, HirError, Visitor}};
+use crate::{
+    common::{Scope, Symbol},
+    error_warning::HirErrorCode,
+    hir::{HirError, Visitor}
+};
 
 use super::{Pass, PassContext};
 
@@ -73,12 +77,11 @@ impl Pass for TraitDagGen<'_> {
 
             if let Some(bound) = &node.bounds {
                 for path in &bound.bounds {
-                    // TODO: pregen scopes
-                    let mut scope = type_path_to_scope(path, &names);
-                    let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, &scope) else {
+                    let scope = &path.ctx.path;
+                    let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
                         self.ctx.add_error(HirError {
                             node_id: bound.node_id,
-                            err: HirErrorCode::UnknownSymbol { path: scope },
+                            err: HirErrorCode::UnknownSymbol { path: scope.clone() },
                         });
                         continue;
                     };
@@ -101,12 +104,12 @@ impl Pass for TraitDagGen<'_> {
             let ctx = ctx.read();
 
             for path in &node.bases {
-                // TODO: pregen scopes
-                let mut scope = simple_path_to_scope(path, &names);
-                let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, &scope) else {
+                let scope = &path.ctx.path;
+
+                let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
                     self.ctx.add_error(HirError {
                         node_id: node.node_id,
-                        err: HirErrorCode::UnknownSymbol { path: scope },
+                        err: HirErrorCode::UnknownSymbol { path: scope.clone() },
                     });
                     continue;
                 };
