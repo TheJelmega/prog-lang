@@ -40,6 +40,8 @@ pub struct Cli {
     pub print_precedence:    bool,
     #[arg(long)]
     pub print_op_table:      bool,
+    #[arg(long)]
+    pub print_type_registry: bool,
 
     #[arg(long)]
     pub timings:             bool,

@@ -125,6 +125,7 @@ pub struct CompilerStats {
     // HIR
     pub num_hir_passes:                       u64,
     pub hir_pass_time:                        time::Duration,
+    pub num_types_registered:                 u32,
     
 }
 
@@ -179,6 +180,7 @@ impl CompilerStats {
 
             num_hir_passes:                       0,
             hir_pass_time:                        time::Duration::default(),
+            num_types_registered:                 0,
         }
     }
     
@@ -316,7 +318,9 @@ impl CompilerStats {
         logger.log_fmt(format_args!("    Op contract lowered:                {}\n", self.ast_op_contracts_lowered));
         
         logger.logln("- HIR passes:");
-        logger.log_fmt(format_args!("    Num passes: {}\n", self.num_hir_passes));
-        logger.log_fmt(format_args!("    Time:       {:.2}ms\n", self.hir_pass_time.as_secs_f32() * 1000.0));
+        logger.log_fmt(format_args!("    Num passes:           {}\n", self.num_hir_passes));
+        logger.log_fmt(format_args!("    Time:                 {:.2}ms\n", self.hir_pass_time.as_secs_f32() * 1000.0));
+
+        logger.log_fmt(format_args!("    Num Types Registered: {}\n", self.num_types_registered));
     }
 }

@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
-use crate::{common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag}, lexer::{Punctuation, PuncutationTable}, literals::LiteralTable};
+use crate::{
+    common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag},
+    lexer::{Punctuation, PuncutationTable},
+    literals::LiteralTable,
+    type_system::TypeRegistry
+};
 
 use super::{Hir, HirError, VisitFlags, Visitor};
+use parking_lot::RwLock;
 
 
 mod symbol_generation;
-use parking_lot::RwLock;
 pub use symbol_generation::*;
 
 mod precedence_passes;
@@ -26,6 +31,7 @@ pub struct PassContext {
 
     pub syms:           Arc<RwLock<RootSymbolTable>>,
     pub uses:           Arc<RwLock<RootUseTable>>,
+    pub type_reg:       Arc<RwLock<TypeRegistry>>,
 
     pub trait_dag:      Arc<RwLock<TraitDag>>,
 

@@ -1141,6 +1141,7 @@ impl Visitor for AstToHirLowering<'_> {
                     span: *span,
                     node_id: node.node_id,
                     types,
+                    ctx: hir::TypeContext::new(),
                 }))
             },
         });
@@ -1209,6 +1210,7 @@ impl Visitor for AstToHirLowering<'_> {
                     span: *span,
                     node_id: node.node_id,
                     types,
+                    ctx: hir::TypeContext::new(),
                 }))
             },
         });
@@ -1710,6 +1712,7 @@ impl Visitor for AstToHirLowering<'_> {
                     span: *span,
                     node_id: node.node_id,
                     types,
+                    ctx: hir::TypeContext::new(),
                 }))
             },
         });
@@ -1825,6 +1828,7 @@ impl Visitor for AstToHirLowering<'_> {
                     span: *span,
                     node_id: node.node_id,
                     types,
+                    ctx: hir::TypeContext::new(),
                 }))
             },
         });
@@ -4053,7 +4057,8 @@ impl Visitor for AstToHirLowering<'_> {
         self.push_type(hir::Type::Primitive(hir::PrimitiveType {
             span: node.span,
             node_id: node.node_id,
-            ty: node.ty
+            ty: node.ty,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4061,6 +4066,7 @@ impl Visitor for AstToHirLowering<'_> {
         self.push_type(hir::Type::Unit(hir::UnitType {
             span:    node.span,
             node_id: node.node_id,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4068,6 +4074,7 @@ impl Visitor for AstToHirLowering<'_> {
         self.push_type(hir::Type::Never(hir::NeverType {
             span:    node.span,
             node_id: node.node_id,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4080,6 +4087,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             path,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4094,7 +4102,8 @@ impl Visitor for AstToHirLowering<'_> {
         self.push_type(hir::Type::Tuple(hir::TupleType {
             span: node.span,
             node_id: node.node_id,
-            types
+            types,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4111,6 +4120,7 @@ impl Visitor for AstToHirLowering<'_> {
             size,
             sentinel,
             ty,
+            ctx: hir::TypeContext::new(),
         }))
     }
 
@@ -4125,6 +4135,7 @@ impl Visitor for AstToHirLowering<'_> {
             node_id: node.node_id,
             sentinel,
             ty,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4150,6 +4161,7 @@ impl Visitor for AstToHirLowering<'_> {
             is_mut: node.is_mut,
             ty,
             sentinel,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4175,6 +4187,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             ty,
+            ctx: hir::TypeContext::new(),
         }));
     }
 
@@ -4224,6 +4237,7 @@ impl Visitor for AstToHirLowering<'_> {
             abi,
             params,
             return_ty,
+            ctx: hir::TypeContext::new(),
         }))
     }
 
@@ -4274,6 +4288,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             path,
+            ctx: hir::TypeContext::new(),
         }))
     }
 
@@ -4318,6 +4333,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             path,
+            ctx: hir::TypeContext::new(),
         }))
     }
 

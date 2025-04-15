@@ -1368,6 +1368,19 @@ pub struct TypeCheckPattern {
 // =============================================================================================================================
 
 #[derive(Clone)]
+pub struct TypeContext {
+    ty: Option<Arc<type_system::Type>>,
+}
+
+impl TypeContext {
+    pub fn new() -> Self {
+        Self {
+            ty: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Type {
     Unit(UnitType),
     Never(NeverType),
@@ -1383,16 +1396,37 @@ pub enum Type {
     Fn(FnType),
 }
 
+impl Type {
+    pub fn ctx(&self) -> &TypeContext {
+        match self {
+            Type::Unit(ty) => &ty.ctx,
+            Type::Never(ty) => &ty.ctx,
+            Type::Primitive(ty) => &ty.ctx,
+            Type::Path(ty) => &ty.ctx,
+            Type::Tuple(ty) => &ty.ctx,
+            Type::Array(ty) => &ty.ctx,
+            Type::Slice(ty) => &ty.ctx,
+            Type::StringSlice(ty) => &ty.ctx,
+            Type::Pointer(ty) => &ty.ctx,
+            Type::Reference(ty) => &ty.ctx,
+            Type::Optional(ty) => &ty.ctx,
+            Type::Fn(ty) => &ty.ctx,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct UnitType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
 pub struct NeverType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
+    pub ctx:     TypeContext,
 }
 
 
@@ -1401,6 +1435,7 @@ pub struct PrimitiveType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub ty:      type_system::PrimitiveType,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1408,6 +1443,7 @@ pub struct PathType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub path:    TypePath,
+    pub ctx:     TypeContext,
 }
 
 impl PathType {
@@ -1425,6 +1461,7 @@ impl PathType {
                     }
                 ],
             },
+            ctx: TypeContext::new(),
         })
     }
 }
@@ -1433,7 +1470,8 @@ impl PathType {
 pub struct TupleType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
-    pub types:   Vec<Box<Type>>
+    pub types:   Vec<Box<Type>>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1443,6 +1481,7 @@ pub struct ArrayType {
     pub size:     Box<Expr>,
     pub sentinel: Option<Box<Expr>>,
     pub ty:       Box<Type>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1451,13 +1490,15 @@ pub struct SliceType {
     pub node_id:  ast::NodeId,
     pub sentinel: Option<Box<Expr>>,
     pub ty:       Box<Type>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
 pub struct StringSliceType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
-    pub ty:      type_system::StringSliceType
+    pub ty:      type_system::StringSliceType,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1468,6 +1509,7 @@ pub struct PointerType {
     pub is_mut:   bool,
     pub ty:       Box<Type>,
     pub sentinel: Option<Box<Expr>>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1476,6 +1518,7 @@ pub struct ReferenceType {
     pub node_id: ast::NodeId,
     pub is_mut:  bool,
     pub ty:      Box<Type>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1483,6 +1526,7 @@ pub struct OptionalType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub ty:      Box<Type>,
+    pub ctx:     TypeContext,
 }
 
 #[derive(Clone)]
@@ -1493,6 +1537,7 @@ pub struct FnType {
     pub abi:       Abi,
     pub params:    Vec<(NameId, Box<Type>)>,
     pub return_ty: Option<Box<Type>>,
+    pub ctx:     TypeContext,
 }
 
 // =============================================================================================================================

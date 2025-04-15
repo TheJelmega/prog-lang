@@ -15,6 +15,7 @@ use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable
 use hir::Visitor as _;
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
+use type_system::TypeRegistry;
 
 mod error_warning;
 mod literals;
@@ -56,6 +57,8 @@ fn main() {
     
     let symbol_table = RootSymbolTable::new(library_path.clone());
     let symbol_table = Arc::new(RwLock::new(symbol_table));
+
+    let type_registry = Arc::new(RwLock::new(TypeRegistry::new()));
 
     let trait_dag = Arc::new(RwLock::new(TraitDag::new()));
 

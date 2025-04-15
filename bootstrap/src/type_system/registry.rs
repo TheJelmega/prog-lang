@@ -1,0 +1,268 @@
+use std::sync::Arc;
+
+use crate::common::{Logger, SymbolPath, SymbolRef};
+
+use super::{ArrayType, NeverType, PathType, PointerType, PrimitiveType, ReferenceType, SliceType, StringSliceType, TupleType, Type, UnitType};
+
+pub struct TypeRegistry {
+    prim_types:      Vec<Option<Arc<Type>>>,
+    str_slice_types: Vec<Option<Arc<Type>>>,
+    unit_ty:         Option<Arc<Type>>,
+    never_ty:        Option<Arc<Type>>,
+    path_types:      Vec<Arc<Type>>,
+    tuple_types:     Vec<Arc<Type>>,
+    array_types:     Vec<Arc<Type>>,
+    slice_types:     Vec<Arc<Type>>,
+    pointer_types:   Vec<Arc<Type>>,
+    reference_types: Vec<Arc<Type>>,
+}
+
+impl TypeRegistry {
+    pub fn new() -> Self {
+        Self {
+            prim_types: Vec::new(),
+            str_slice_types: Vec::new(),
+            unit_ty: None,
+            never_ty: None,
+            path_types: Vec::new(),
+            tuple_types: Vec::new(),
+            array_types: Vec::new(),
+            slice_types: Vec::new(),
+            pointer_types: Vec::new(),
+            reference_types: Vec::new(),
+        }
+    }
+
+    pub fn type_count(&self) -> u32 {
+        let mut count = 0;
+        count += self.unit_ty.is_some() as usize;
+        count += self.never_ty.is_some() as usize;
+
+        for ty in &self.prim_types {
+            count += ty.is_some() as usize;
+        }
+        for ty in &self.str_slice_types {
+            count += ty.is_some() as usize;
+        }
+
+        count += self.path_types.len();
+        count += self.tuple_types.len();
+        count += self.array_types.len();
+        count += self.slice_types.len();
+        count += self.pointer_types.len();
+        count += self.reference_types.len();
+
+        count as u32
+    }
+
+    pub fn log(&self) {
+        let logger = Logger::new();
+        
+        logger.logln("Type registry:");
+        if self.unit_ty.is_some() {
+            logger.logln("- ()");
+        }
+        if self.never_ty.is_some() {
+            logger.logln("- !");
+        }
+
+        if !self.prim_types.is_empty() {
+            logger.logln("- Primitive types:");
+            for prim_ty in &self.prim_types {
+                if let Some(prim_ty) = prim_ty {
+                    logger.log_fmt(format_args!("    {prim_ty}\n"));
+                }
+            }
+        }
+
+        if !self.str_slice_types.is_empty() {
+            logger.logln("- String slice types:");
+            for str_slice_ty in &self.str_slice_types {
+                if let Some(str_slice_ty) = str_slice_ty {
+                    logger.log_fmt(format_args!("    {str_slice_ty}\n"));
+                }
+            }
+        }
+
+        if !self.path_types.is_empty() {
+            logger.logln("- Path types:");
+            for path_ty in &self.path_types {
+                logger.log_fmt(format_args!("    {path_ty}\n"));
+            }
+        }
+
+        if !self.tuple_types.is_empty() {
+            logger.logln("- Tuple types:");
+            for tup_ty in &self.tuple_types {
+                logger.log_fmt(format_args!("    {tup_ty}\n"));
+            }
+        }
+
+        if !self.array_types.is_empty() {
+            logger.logln("- Array types:");
+            for arr_ty in &self.array_types {
+                logger.log_fmt(format_args!("    {arr_ty}\n"));
+            }
+        }
+
+        if !self.slice_types.is_empty() {
+            logger.logln("- Slice types:");
+            for slice_ty in &self.slice_types {
+                logger.log_fmt(format_args!("    {slice_ty}\n"));
+            }
+        }
+
+        if !self.pointer_types.is_empty() {
+            logger.logln("- Pointer types:");
+            for ptr_ty in &self.pointer_types {
+                logger.log_fmt(format_args!("    {ptr_ty}\n"));
+            }
+        }
+
+        if !self.reference_types.is_empty() {
+            logger.logln("- Reference types:");
+            for ref_ty in &self.reference_types {
+                logger.log_fmt(format_args!("    {ref_ty}\n"));
+            }
+        }
+    }
+
+    pub fn create_primitive_type(&mut self, ty: PrimitiveType) -> Arc<Type> {
+        let idx = ty as usize;
+        if idx < self.prim_types.len() {
+            if let Some(prim_ty) = &self.prim_types[idx] {
+                return prim_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Primitive(ty));
+        if idx >= self.prim_types.len() {
+            self.prim_types.resize(idx + 1, None);
+        }
+        self.prim_types[idx] = Some(ty.clone());
+        ty
+    }
+
+    pub fn create_str_slice_type(&mut self, ty: StringSliceType) -> Arc<Type> {
+        let idx = ty as usize;
+        if idx < self.str_slice_types.len() {
+            if let Some(str_slice_ty) = &self.str_slice_types[idx] {
+                return str_slice_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::StringSlice(ty));
+        if idx >= self.str_slice_types.len() {
+            self.str_slice_types.resize(idx + 1, None);
+        }
+        self.str_slice_types[idx] = Some(ty.clone());
+        ty
+    }
+
+    pub fn create_unit_type(&mut self) -> Arc<Type> {
+        if let Some(ty) = &self.unit_ty {
+            ty.clone()
+        } else {
+            let ty = Arc::new(Type::Unit(UnitType));
+            self.unit_ty = Some(ty.clone());
+            ty
+        }
+    }
+
+    pub fn create_never_type(&mut self) -> Arc<Type> {
+        if let Some(ty) = &self.unit_ty {
+            ty.clone()
+        } else {
+            let ty = Arc::new(Type::Never(NeverType));
+            self.unit_ty = Some(ty.clone());
+            ty
+        }
+    }
+
+    pub fn create_path_type(&mut self, sym: SymbolRef) -> Arc<Type> {
+        for path_ty in &self.path_types {
+            let Type::Path(PathType{ sym: inner_sym }) = &**path_ty else { unreachable!() };
+            if Arc::ptr_eq(inner_sym, &sym) {
+                return path_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Path(PathType { sym  }));
+        self.path_types.push(ty.clone());
+        ty
+    }
+
+    pub fn create_tuple_type(&mut self, types: &[Arc<Type>]) -> Arc<Type> {
+        'outer: for tup in &self.tuple_types {
+            let Type::Tuple(TupleType { types: tup_types }) = &**tup else { unreachable!() };
+            if tup_types.len() != types.len() {
+                continue;
+            }
+
+            for (ty, tup_ty) in types.iter().zip(tup_types.iter()) {
+                if !Arc::ptr_eq(ty, tup_ty) {
+                    continue 'outer;
+                }
+            }
+
+            return tup.clone();
+        }
+
+        let ty = Arc::new(Type::Tuple(TupleType { types: Vec::from(types) }));
+        self.tuple_types.push(ty.clone());
+        ty
+    }
+
+    pub fn create_array_type(&mut self, ty: Arc<Type>, size: Option<usize>) -> Arc<Type> {
+        for arr_ty in &self.array_types {
+            let Type::Array(ArrayType { ty: inner_ty, size: inner_size }) = &**arr_ty else { unreachable!() };
+            if Arc::ptr_eq(inner_ty, &ty) && *inner_size == size {
+                return arr_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Array(ArrayType { ty, size }));
+        self.array_types.push(ty.clone());
+        ty
+    }
+
+    pub fn create_slice_type(&mut self, ty: Arc<Type>) -> Arc<Type> {
+        for arr_ty in &self.slice_types {
+            let Type::Slice(SliceType { ty: inner_ty }) = &**arr_ty else { unreachable!() };
+            if Arc::ptr_eq(inner_ty, &ty) {
+                return arr_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Slice(SliceType { ty }));
+        self.slice_types.push(ty.clone());
+        ty
+    }
+
+    pub fn create_pointer_type(&mut self, ty: Arc<Type>, is_multi: bool) -> Arc<Type> {
+        for ptr_ty in &self.pointer_types {
+            let Type::Pointer(PointerType { ty: inner_ty, is_multi: inner_multi }) = &**ptr_ty else { unreachable!() };
+            if Arc::ptr_eq(inner_ty, &ty) && *inner_multi == is_multi {
+                return ptr_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Pointer(PointerType { ty, is_multi }));
+        self.pointer_types.push(ty.clone());
+        ty
+    }
+
+    pub fn create_reference_type(&mut self, ty: Arc<Type>, is_mut: bool) -> Arc<Type> {
+        for ref_ty in &self.reference_types {
+            let Type::Reference(ReferenceType { ty: inner_ty, is_mut: inner_mut }) = &**ref_ty else { unreachable!() };
+            if Arc::ptr_eq(inner_ty, &ty) && *inner_mut == is_mut {
+                return ref_ty.clone();
+            }
+        }
+
+        let ty = Arc::new(Type::Reference(ReferenceType { ty, is_mut }));
+        self.reference_types.push(ty.clone());
+        ty
+    }
+
+}

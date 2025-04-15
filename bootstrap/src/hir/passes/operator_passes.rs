@@ -451,6 +451,7 @@ impl Visitor for OpTraitGen<'_> {
                         }
                     ],
                 },
+                ctx: TypeContext::new(),
             })))
         };
         
