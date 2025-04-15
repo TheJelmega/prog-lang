@@ -23,6 +23,15 @@ Version: 0.0
     2. [Artifacts](#42-artifacts-)
     3. [Modules](#43-modules-)
 5. [Names and path](#5-names-and-paths-)
+    1. [Names](#51-names-)
+    2. [Identifiers](#52-identifiers-)
+    3. [Paths](#53-paths-)
+        1. [Simple paths](#531-simple-paths-)
+        2. [Common path elements](#532-common-path-segments)
+            - [Path start](#path-start)
+            - [Trait disambiguation](#trait-disambiguation)
+        3. [Paths in expressions and patterns](#533-paths-in-expressions-and-patterns-)
+        4. [Paths in types](#534-paths-in-types-)
 6. [Literals](#6-literals-)
     1. [Numeric literals](#61-numeric-literals-)
         1. [Decimal literals](#611-decimal-literal-)
@@ -771,8 +780,8 @@ Extended names on the other hand have much more limited scope of where they can 
 ## 5.2. Identifiers [↵](#5-names-and-paths-)
 
 ```
-<expr-path-ident> := <name> [ '.' <generic-args> ]
-<type-path-ident> := <name> [ [ '.' ] ( <generic-args> | <ident-fn-path>) ]
+<expr-path-iden> := <name> [ '.' <generic-args> ]
+<type-path-iden> := <name> [ [ '.' ] ( <generic-args> | <ident-fn-path>) ]
 <ident-fn-path> := ( [ <type> { ',' <type> }* [ ',' ] ] ) [ '->' <type> ]
 ```
 
@@ -797,36 +806,71 @@ There are multiple types of paths:
 ### 5.3.1. Simple paths [↵](#53-paths-)
 
 ```
-<simple-path> := <simple-path-start> { '.' <simple-path-segment> }*
-<simple-path-start> := ([ '.' ] <name>) | 'super' | 'self'
+<simple-path> := [<simple-path-start>] { '.' <simple-path-segment> }*
+<simple-path-start> := '.' | 'super' | 'self'
 <simple-path-segment> := <name> | <ext-name>
 ```
 
 Simple path are used for visitility, attributes, macros and use items.
 
-### 5.3.2. Paths in expression [↵](#53-paths-)
+### 5.3.2. Common path segments
+
+
+Since the difference between paths in types, and those in expressions and patterns, there is some commonality between them.
+
+#### Path start
 
 ```
-<expr-path> := [ '.' ] <expr-path-ident> { '.' <path-expr-segment> }*
-<path-expr-segment> := <expr-path-ident> | <ext-name>
+<path-start> := <path-type-start> | <path-self-type-start> | <path-infer-start>
+<path-type-start>      := '(:' <type> ':)' '.'
+<path-self-type-start> := 'Self' '.'
+<path-infer-start>     := '.' 
+```
+Path may start with a 1 of 3 different special starts:
+- `(:type:)`: This allows a path to get an associated item out of a type.
+- `Self`: This allows a path to be relative to the current type being implemented. If the type is implementing a trait, the first element will be automatically disambiguated with the trait currently being implemented.
+- `.`: This allows a path to be directly relative the the current library, ignoring any other modules/scope it is found it, i.e. it looks in the root namespace of the current library.
+
+#### Trait disambiguation
+
+```
+<path-disambig> := '(' <type-path> '.' <type-path-iden> ')'
 ```
 
-Paths in experessions allow for paths with generic arguments specified.
-They are used in various places in expressions and patterns, but cannot appear on their own, as they are different from path expressions.
+Sometimes an item can not be resolved without ambiguity appearing, this will happen when at least 2 trait implementations exists that have the same name, but not explicit item exists on the previous item in the path.
+This can be resolved by explicitly prepending a path to the implemented trait that has the desired item to be accessed.
 
-### 5.3.3. Paths in types [↵](#53-paths-)
+### 5.3.3. Paths in expressions and patterns [↵](#53-paths-)
 
 ```
-<type-path> := [ '.' ] <type-path-segment> { '.' <type-path-segment> }*
-<type-path-segment> := 
+<expr-iden-path-segment> := <name> [ '.' <generics-args> ]
+<expr-path-segment> := <expr-path-iden> | <path-disambig>
+<expr-path> := [ <path-start> ] <expr-path-segment> { '.' <expr-path-segment> }
 ```
 
-### 5.3.4. Qualified paths [↵](#53-paths-)
+Paths that are to be used in expressions and path consist of an optional path start, followed by 1 or more path segments.
+If any of these segments requires generic arguments to be specified, an explicit `.` is required between the name and generic arguments to distinguish it from an index expression.
+Not all expressions that may look like a path expression are purely path expressions, when in an expression, the path expression will consist of a path to the first variable or constant within that chain, then followed by [field access expressions](#916-field-access-).
+
+> _Note_: Within an AST, the path will generally only represent the initial element of a path, i.e. path start + first segment, followed by field access expressions,
+> as at this point, it is not resolved yet whether a name is part of a path or an actual field access
+
+### 5.3.4. Paths in types [↵](#53-paths-)
+
 ```
-<qualified-path> '(:' <type> 'as' <identifier> ':)' { '.' <path-expr-segment> }*
+<type-path-fn> := <name> '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
+
+<type-path-segment> := <type-path-iden> | <path-disambig>
+<type-path> := 'Self'
+            |  [ <path-start> ] <type-path-segment> { '.' <type-path-segment> }* [ '.' <type-path-fn> ]
+            |  <type-path-fn>
+
 ```
 
-Qualified path allow for disambuating the path for trait implementations.
+Paths that are used in types consist of either a single `Self` or an optional path start, followed by 1 or more path segments (0 is allowed if a function end exists), followed by an optional path function end.
+
+If the path is just a single `Self`, it will refer to the type that is currently being implemented, otherwise is will point to the type defined by the path.
+A type path may end in a special function end, the usecase for is limited to the for function call related traits, allowing the parameters and return type for these to be specified.
 
 # 6. Literals [↵](#tables-of-contents)
 
@@ -2967,7 +3011,8 @@ Any default arguments do not need to be provided and will be evaluated after eva
 ## 9.16. Field access [↵](#9-expressions-)
 
 ```
-<field-access-expr> := <expr> ( '.' | '?.' ) <expr-path-ident>
+<field-access-iden> := <expr-path-ident> | <path-disambig>
+<field-access-expr> := <expr> ( '.' | '?.' ) <field-access-iden>
 ```
 
 A field expression is a place expression that evaluates to the location of a field of a struct or union.
