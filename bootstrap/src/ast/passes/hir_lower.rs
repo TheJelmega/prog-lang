@@ -4387,7 +4387,6 @@ impl Visitor for AstToHirLowering<'_> {
     }
 
     fn visit_generic_args(&mut self, node: &AstNodeRef<GenericArgs>) where Self: Sized {
-        // TODO
         helpers::visit_generic_args(self, node);
     }
 
