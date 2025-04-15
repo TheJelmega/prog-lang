@@ -288,6 +288,8 @@ fn main() {
     });
     stats.add_ast_hir_lower(&hir);
 
+    println!("================================================================");
+
     // TODO: implicit prelude
 
     if cli.print_hir_nodes {
@@ -332,6 +334,7 @@ fn main() {
             puncts: punct_table.clone(),
             lits: literal_table.clone(),
             syms: symbol_table.clone(),
+            type_reg: type_registry.clone(),
             trait_dag: trait_dag.clone(),
             uses: use_table.clone(),
             precedence_dag: precedences.clone(),
@@ -340,6 +343,8 @@ fn main() {
             errors: Arc::new(RwLock::new(Vec::new())),
         };
         process_hir(&mut hir, &cli, &mut stats, &mut ctx);
+
+        stats.num_types_registered = type_registry.read().type_count();
 
         if cli.print_hir_code {
             let names = name_table.read();
@@ -381,6 +386,11 @@ fn main() {
     if cli.print_trait_dag {
         println!("Trait DAG Unordered:");
         trait_dag.read().log_unordered();
+        println!("--------------------------------");
+    }
+
+    if cli.print_type_registry {
+        type_registry.read().log();
         println!("--------------------------------");
     }
 
