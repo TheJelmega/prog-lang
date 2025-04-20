@@ -513,10 +513,12 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     do_hir_pass(hir, cli, stats, InfixReorder::new(ctx));
     do_hir_pass(hir, cli, stats, OpTagging::new(ctx));
     do_hir_pass(hir, cli, stats, OpTraitGen::new(ctx));
-    do_hir_pass(hir, cli, stats, PostOpPathGenPass::new(ctx));
+
+    // 
+    do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
 
     // Types
-    do_hir_pass(hir, cli, stats, ExplicitTypeGen::new(ctx));
+    //do_hir_pass(hir, cli, stats, ExplicitTypeGen::new(ctx));
 
 
     let errors = ctx.errors.read();
