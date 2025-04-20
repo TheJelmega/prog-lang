@@ -437,19 +437,19 @@ impl Visitor for OpTraitGen<'_> {
             Some(Box::new(Type::Path(PathType {
                 span: node.span,
                 node_id: node.node_id,
-                path: TypePath {
+                path: Path {
                     span: node.span,
                     node_id: node.node_id,
-                    segments: vec![
-                        TypePathSegment::Plain {
-                            span: node.span,
-                            name: self_name,
-                        },
-                        TypePathSegment::Plain {
-                            span: node.span,
-                            name: output_ty_name,
+                    start: PathStart::SelfTy { span: node.span },
+                    idens: vec![
+                        Identifier {
+                            name: IdenName::Name { name: output_ty_name, span: node.span },
+                            gen_args: None,
+                            span: node.span
                         }
                     ],
+                    fn_end: None,
+                    ctx: PathCtx::new(),
                 },
                 ctx: TypeContext::new(),
             })))

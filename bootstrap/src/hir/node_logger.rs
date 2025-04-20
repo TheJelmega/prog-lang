@@ -257,7 +257,7 @@ impl NodeLogger<'_> {
                 this.logger.set_last_at_indent_if(node.impl_trait.is_none() && node.where_clause.is_none() && has_items);
                 this.log_single_indented("Type", |this| this.visit_type(&mut node.ty));
                 this.logger.set_last_at_indent_if(node.where_clause.is_none() && has_items);
-                this.log_opt_indented("Impl trait", &mut node.impl_trait, |this, impl_trait| this.visit_type_path(impl_trait));
+                this.log_opt_indented("Impl trait", &mut node.impl_trait, |this, impl_trait| this.visit_path(impl_trait));
                 this.logger.set_last_at_indent_if(has_items);
                 this.log_opt_indented("Where clause", &mut node.where_clause, |this, where_clause| this.visit_where_clause(where_clause));
             }
@@ -383,6 +383,31 @@ impl NodeLogger<'_> {
 
         });
     }
+
+    pub fn log_identifier(&mut self, iden: &mut Identifier) {
+        match &mut iden.name {
+            IdenName::Name { name, span } => self.logger.prefixed_log_fmt(format_args!("Identifier: {}", &self.names[*name])),
+            IdenName::Disambig { trait_path, name, .. } => self.log_indented("Trait Disambiguation", |this| {
+                this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
+                this.log_indented("Trait", |this| this.visit_path(trait_path));
+            }),
+        }
+        if let Some(gen_args) = &mut iden.gen_args {
+            self.logger.push_indent();
+            self.logger.set_last_at_indent();
+            self.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
+            self.logger.pop_indent();
+        }
+    }
+
+    pub fn log_path_start(&mut self, start: &mut PathStart) {
+        match start {
+            PathStart::None => (),
+            PathStart::SelfTy { span } => self.logger.prefixed_logln("Start: Self type relative"),
+            PathStart::Inferred { span } => self.logger.prefixed_logln("Start: Inferred"),
+            PathStart::Type { ty } => self.log_indented("Start: Type relative", |this| this.visit_type(ty)),
+        }
+    }
 }
 
 impl Visitor for NodeLogger<'_> {
@@ -428,59 +453,25 @@ impl Visitor for NodeLogger<'_> {
 
     // =============================================================
 
-    fn visit_type_path(&mut self, path: &mut TypePath) {
-        self.log_node("Type path", path.node_id, |this| {
-            this.log_slice(&mut path.segments, |this, segment| {
-                match segment {
-                    TypePathSegment::Plain { name, .. } => this.logger.prefixed_log_fmt(format_args!("Segment: {}\n", &this.names[*name])),
-                    TypePathSegment::GenArg { name, gen_args, .. } => {
-                        this.logger.prefixed_log_fmt(format_args!("Segment: {}", &this.names[*name]));
-                        this.logger.set_last_at_indent();
-                        this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
-                    },
-                    TypePathSegment::Fn { name, params, ret, .. } => this.log_indented("Function segment", |this| {
-                        this.logger.prefixed_log_fmt(format_args!("Name: {}", &this.names[*name]));
-                        this.logger.set_last_at_indent_if(ret.is_none());
-                        this.log_slice_indented("Params", params, |this, param| this.visit_type(param));
-                        this.logger.set_last_at_indent();
-                        this.log_opt_indented("Return type", ret, |this, ret| this.visit_type(ret));
-                    }),
-                }
-            })
-        })
-    }
-
     fn visit_path(&mut self, path: &mut Path) {
         self.log_node("Path", path.node_id, |this| {
-            this.logger.prefixed_log_fmt(format_args!("Is inferred: {}\n", path.is_inferred));
-            this.log_slice_indented("Identifiers", &mut path.idens, |this, iden| {
-                this.logger.prefixed_log_fmt(format_args!("Identifier: {}", &this.names[iden.name]));
-                if let Some(gen_args) = &mut iden.gen_args {
-                    this.logger.push_indent();
-                    this.logger.set_last_at_indent();
-                    this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
-                    this.logger.pop_indent();
-                }
-            });
-            
-        });
-    }
+            this.log_path_start(&mut path.start);
 
-    fn visit_qual_path(&mut self, path: &mut QualifiedPath) {
-        self.log_node("Qualified path", path.node_id, |this| {
-            this.log_single_indented("Type", |this| this.visit_type(&mut path.ty));
-            this.log_opt_indented("Bound", &mut path.bound, |this, bound| this.visit_type_path(bound));
-            
-            this.logger.set_last_at_indent();
-            this.log_slice_indented("Sub-path", &mut path.sub_path, |this, iden| {
-                this.logger.prefixed_log_fmt(format_args!("Identifier: {}", &this.names[iden.name]));
-                if let Some(gen_args) = &mut iden.gen_args {
-                    this.logger.push_indent();
-                    this.logger.set_last_at_indent();
-                    this.log_single_indented("Generics", |this| this.visit_gen_args(gen_args));
-                    this.logger.pop_indent();
-                }
+            this.log_slice_indented("Identifiers", &mut path.idens, |this, iden| {
+                this.log_identifier(iden);
             });
+
+            if let Some(fn_end) = &mut path.fn_end {
+                this.log_indented("Trait Path Function End", |this| {
+                    this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[fn_end.name]));
+                    this.log_slice_indented("Parameters", &mut fn_end.params, |this, (name, ty)| {
+                        this.logger.log_fmt(format_args!("Name: {}", &this.names[*name]));
+                        this.visit_type(ty);
+                    })
+                });
+                this.log_opt_indented("Return Type", &mut fn_end.ret_ty, |this, ty| this.visit_type(ty));
+            }
+            
         });
     }
 
@@ -593,7 +584,7 @@ impl Visitor for NodeLogger<'_> {
                 this.log_visibility(&mut struct_use.vis);
                 this.log_slice_indented("Attributes", &mut struct_use.attrs, |this, attr| this.visit_attribute(attr));
                 this.logger.set_last_at_indent();
-                this.log_single_indented("Path", |this| this.visit_type_path(&mut struct_use.path));
+                this.log_single_indented("Path", |this| this.visit_path(&mut struct_use.path));
                 this.logger.pop_indent();
             });
             
@@ -787,7 +778,7 @@ impl Visitor for NodeLogger<'_> {
                 this.log_visibility(&mut bf_use.vis);
                 this.log_slice_indented("Attributes", &mut bf_use.attrs, |this, attr| this.visit_attribute(attr));
                 this.logger.set_last_at_indent_if(bf_use.bits.is_none());
-                this.log_single_indented("Path", |this| this.visit_type_path(&mut bf_use.path));
+                this.log_single_indented("Path", |this| this.visit_path(&mut bf_use.path));
                 this.logger.set_last_at_indent();
                 this.log_opt_indented("Bits", &mut bf_use.bits, |this, bits| this.visit_expr(bits));
                 this.logger.pop_indent();
@@ -1271,23 +1262,14 @@ impl Visitor for NodeLogger<'_> {
 
     fn visit_path_expr(&mut self, node: &mut PathExpr) {
         match node {
-            PathExpr::Named { iden, .. } => self.log_indented("Name path expression", |this| {
-                this.logger.set_last_at_indent_if(iden.gen_args.is_none());
-                this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[iden.name]));
-                this.logger.set_last_at_indent();
-                this.log_opt_indented("Generics", &mut iden.gen_args, |this, gen_args| this.visit_gen_args(gen_args));
-            }),
-            PathExpr::Inferred { iden, .. } => self.log_indented("Inferred path expression", |this| {
-                this.logger.set_last_at_indent_if(iden.gen_args.is_none());
-                this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[iden.name]));
-                this.logger.set_last_at_indent();
-                this.log_opt_indented("Generics", &mut iden.gen_args, |this, gen_args| this.visit_gen_args(gen_args));
-            }),
-            PathExpr::SelfPath{ .. } => self.logger.prefixed_logln("Self path expression"),
-            PathExpr::Qualified { path, .. } => self.log_indented("Qualified path expression", |this| {
-                this.logger.set_last_at_indent();
-                this.visit_qual_path(path);
-            }),
+            PathExpr::Named { start, iden, .. } => {
+                self.log_indented("Named Path Expression", |this| {
+                    this.log_path_start(start);
+                    this.log_identifier(iden)
+                })
+            },
+            PathExpr::SelfPath { span, node_id } => self.logger.prefixed_logln("`self` Path Expression"),
+            PathExpr::Expanded { path } => self.log_indented("Expanded path expression", |this| this.visit_path(path)),
         }
     }
 
@@ -1418,10 +1400,9 @@ impl Visitor for NodeLogger<'_> {
 
     fn visit_method_call_expr(&mut self, node: &mut MethodCallExpr) {
         self.log_node("Method call expression", node.node_id, |this| {
-            this.logger.prefixed_log_fmt(format_args!("Method: {}\n", &this.names[node.method]));
             this.logger.prefixed_log_fmt(format_args!("Is propagating: {}\n", node.is_propagating));
             this.log_single_indented("Receiver", |this| this.visit_expr(&mut node.receiver));
-            this.log_opt_indented("Generics", &mut node.gen_args, |this, gen_args| this.visit_gen_args(gen_args));
+            this.log_indented("Method", |this| this.log_identifier(&mut node.method));
             this.logger.set_last_at_indent();
             this.log_slice_indented("Arguments", &mut node.args, |this, arg| {
                 this.logger.prefixed_log_fmt(format_args!("Argument {}\n", arg.label.map_or("", |label| &this.names[label])));
@@ -1435,9 +1416,8 @@ impl Visitor for NodeLogger<'_> {
 
     fn visit_field_access_expr(&mut self, node: &mut FieldAccessExpr) {
         self.log_node("Field access expressions", node.node_id, |this| {
-            this.logger.prefixed_log_fmt(format_args!("Field: {}\n", &this.names[node.field]));
             this.logger.prefixed_log_fmt(format_args!("Is propagating: {}\n", node.is_propagating));
-            this.log_opt_indented("Generics", &mut node.gen_args, |this, gen_args| this.visit_gen_args(gen_args));
+            this.log_indented("Field", |this| this.log_identifier(&mut node.field));
             this.logger.set_last_at_indent();
             this.log_single_indented("Expr", |this| this.visit_expr(&mut node.expr));
         });
@@ -1701,7 +1681,7 @@ impl Visitor for NodeLogger<'_> {
     fn visit_path_type(&mut self, node: &mut PathType) {
         self.log_node("Path type", node.node_id, |this| {
             this.logger.set_last_at_indent();
-            this.visit_type_path(&mut node.path);
+            this.visit_path(&mut node.path);
         });
     }
 
@@ -1858,7 +1838,7 @@ impl Visitor for NodeLogger<'_> {
                     WhereBound::Type { span, ty, bounds } => this.log_indented("Type Bound", |this| {
                         this.log_indented("Type", |this| this.visit_type(ty));
                         this.log_slice_indented("Bounds", bounds, |this, bound| {
-                            this.visit_type_path(bound);
+                            this.visit_path(bound);
                         });
                     }),
                     WhereBound::Explicit { span, ty, bounds } => this.log_indented("Explicit Type Bound", |this| {
@@ -1878,7 +1858,7 @@ impl Visitor for NodeLogger<'_> {
             let end = node.bounds.len() - 1;
             for (idx, bound) in node.bounds.iter_mut().enumerate() {
                 this.logger.set_last_at_indent_if(idx == end);
-                this.visit_type_path(bound);
+                this.visit_path(bound);
             }
         })
     }

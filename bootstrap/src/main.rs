@@ -444,7 +444,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     use hir::passes::*;
     
     // base passes
-    do_hir_pass(hir, cli, stats, PathGenPass::new(ctx));
+    do_hir_pass(hir, cli, stats, SimplePathGenPass::new(ctx));
     do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
     do_hir_pass(hir, cli, stats, TraitDagGen::new(ctx));
 

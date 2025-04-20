@@ -5,7 +5,8 @@ use std::{
     io::{Stdout, Write},
     marker::PhantomData,
     ops::{Index, IndexMut},
-    path::{self, PathBuf}, sync::Arc,
+    path::{self, PathBuf},
+    sync::Arc,
 };
 
 use crate::{
@@ -56,20 +57,42 @@ pub struct AstNodeMeta {
     pub last_tok:  u32,
 }
 
+pub enum IdenName {
+    Name(NameId, SpanId),
+    Disambig{
+        span:       SpanId,
+        trait_path: AstNodeRef<TraitPath>,
+        name:       NameId,
+        name_span:  SpanId,
+    }
+}
+
 pub struct Identifier {
     pub span:     SpanId,
-    pub name:     NameId,
+    pub name:     IdenName,
     pub gen_args: Option<AstNodeRef<GenericArgs>>,
 }
 
 impl Identifier {
     pub fn log(&self, logger: &mut AstLogger) {
-        logger.log_indented("Identifier", |logger| {
-            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            if let Some(gen_args) = &self.gen_args {
-                logger.log_node_ref(gen_args);
-            }
-        })
+        match &self.name {
+            IdenName::Name(name, _) => logger.log_indented("Identifier", |logger| {
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+    
+                if let Some(gen_args) = &self.gen_args {
+                    logger.log_node_ref(gen_args);
+                }
+            }),
+            IdenName::Disambig{ trait_path, name, .. } => logger.log_indented("Disambiguated Identifier", |logger| {
+                logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
+                logger.log_indented_node_ref("Trait Path", trait_path);
+                if let Some(gen_args) = &self.gen_args {
+                    logger.log_node_ref(gen_args);
+                }
+            }),
+        }
+
+        
     }
 }
 
@@ -97,10 +120,10 @@ impl SimplePathStart {
 }
 
 pub struct SimplePath {
-    pub span:  SpanId,
+    pub span:    SpanId,
     pub node_id: NodeId,
-    pub start: Option<SimplePathStart>,
-    pub names: Vec<(NameId, SpanId)>,
+    pub start:   Option<SimplePathStart>,
+    pub names:   Vec<(NameId, SpanId)>,
 }
 
 impl AstNode for SimplePath {
@@ -133,59 +156,40 @@ impl AstNodeParseHelper for SimplePath {
     }
 }
 
-pub enum TypePathIdentifier {
-    Plain {
-        span: SpanId,
-        name: NameId
-    },
-    GenArg{
-        span:     SpanId,
-        name:     NameId,
-        gen_args: AstNodeRef<GenericArgs>,
-    },
-    Fn {
-        span:   SpanId,
-        name:   NameId,
-        params: Vec<Type>,
-        ret:    Option<Type>
-    },
+pub enum PathStart {
+    None,
+    SelfTy(SpanId),
+    Inferred(SpanId),
+    Typed(Type),
 }
 
-pub struct ExprPath {
-    pub span:     SpanId,
-    pub node_id:  NodeId,
-    pub inferred: bool,
-    pub idens:    Vec<Identifier>,
-}
-
-impl AstNode for ExprPath {
-    fn span(&self) -> SpanId {
-        self.span
-    }
-
-    fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
+impl PathStart {
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Expr Path", |logger| {
-            logger.prefixed_log_fmt(format_args!("Is Inferred: {}\n", self.inferred));
-            logger.set_last_at_indent();
-            logger.log_indented_slice("Identifiers", &self.idens, |logger, iden| iden.log(logger));
-        });
+        match self {
+            PathStart::None => (),
+            PathStart::SelfTy(_) => logger.logln("Path start: Self relative"),
+            PathStart::Inferred(_) => logger.logln("Path start: Inferred"),
+            PathStart::Typed(ty) => logger.log_indented_node("Path start: Typed", ty),
+        }
     }
 }
+ 
+pub enum PathSegment {
+    Iden(Identifier),
+    Disambig(AstNodeRef<TypePath>, Identifier, SpanId),
+}
 
-impl AstNodeParseHelper for ExprPath {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
+impl PathSegment {
+    fn log(&self, logger: &mut AstLogger) {
+
     }
 }
 
 pub struct TypePath {
     pub span:    SpanId,
     pub node_id: NodeId,
-    pub idens:   Vec<TypePathIdentifier>,
+    pub start:   PathStart,
+    pub idens:   Vec<Identifier>,
 }
 
 impl AstNode for TypePath {
@@ -198,25 +202,12 @@ impl AstNode for TypePath {
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Type Path", |logger| for (idx, iden) in self.idens.iter().enumerate() {
-            if idx == self.idens.len() - 1 {
-                logger.set_last_at_indent();
-            }
-
-            match iden {
-                TypePathIdentifier::Plain { span:_, name } => {
-                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                },
-                TypePathIdentifier::GenArg { span:_, name, gen_args } => logger.log_indented("Identifier", |logger| {
-                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                    logger.set_last_at_indent();
-                    logger.log_node_ref(gen_args);
-                }),
-                TypePathIdentifier::Fn { span:_, name, params, ret } => logger.log_indented("Function Identifier", |logger| {
-                    logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
-                }),
-            }
-        })
+        logger.log_ast_node("Type Path", |logger| {
+            self.start.log(logger);
+            logger.log_indented_slice("Path segments", &self.idens, |logger, segment| {
+                segment.log(logger);
+            });
+        });
     }
 }
 
@@ -226,37 +217,95 @@ impl AstNodeParseHelper for TypePath {
     }
 }
 
-pub struct QualifiedPath {
-    pub span:     SpanId,
-    pub node_id:  NodeId,
-    pub ty:       Type,
-    pub bound:    Option<AstNodeRef<TypePath>>,
-    pub sub_path: Identifier,
+pub struct ExprPath {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub start:   PathStart,
+    pub idens:   Vec<Identifier>,
 }
 
-impl AstNode for QualifiedPath {
+impl AstNode for ExprPath {
     fn span(&self) -> SpanId {
         self.span
     }
 
     fn node_id(&self) -> NodeId {
-        self.node_id 
+        self.node_id
     }
 
     fn log(&self, logger: &mut AstLogger) {
-        logger.log_indented("Qualified Path", |logger| {
-            logger.log_indented_node("Type", &self.ty);
-            if let Some(bound) = &self.bound {
-                logger.log_indented_node_ref("Bound", bound);
-            }
-            
-            logger.set_last_at_indent();
-            logger.log_indented("Sub Path", |logger| self.sub_path.log(logger));
+        logger.log_ast_node("Expression Path", |logger| {
+            self.start.log(logger);
+            logger.log_indented_slice("Path segments", &self.idens, |logger, segment| {
+                segment.log(logger);
+            });
         })
     }
 }
 
-impl AstNodeParseHelper for QualifiedPath {
+impl AstNodeParseHelper for ExprPath {
+    fn set_node_id(&mut self, node_id: NodeId) {
+        self.node_id = node_id;
+    }
+}
+
+pub struct TraitPathFnEnd {
+    pub span:      SpanId,
+    pub name:      NameId,
+    pub params:    Vec<(Vec<NameId>, Type)>,
+    pub return_ty: Option<Type>,
+}
+
+impl TraitPathFnEnd {
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_indented("Path Function End", |logger| {
+            logger.set_last_at_indent_if(self.params.is_empty() && self.return_ty.is_none());
+            logger.log_fmt(format_args!("Name: {}\n", &logger.names[self.name]));
+            logger.set_last_at_indent_if(self.return_ty.is_none());
+            if !self.params.is_empty() {
+                logger.log_indented_slice("Parameters", &self.params, |logger, (names, ty)| logger.log_indented("Parameter", |logger| {
+                    logger.log_indented_slice("Names", names, |logger, name|
+                        logger.log_fmt(format_args!("{}\n", &logger.names[*name]))
+                    );
+                    logger.log_indented_node("Type", ty);
+                }));
+            }
+
+            logger.set_last_at_indent();
+            logger.log_indented_opt_node("Return Type", &self.return_ty);
+        });
+    }
+}
+
+pub struct TraitPath {
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub start:   PathStart,
+    pub idens:   Vec<Identifier>,
+    pub fn_end:  Option<TraitPathFnEnd>,
+}
+
+impl AstNode for TraitPath {
+    fn span(&self) -> SpanId {
+        self.span
+    }
+
+    fn node_id(&self) -> NodeId {
+        self.node_id
+    }
+
+    fn log(&self, logger: &mut AstLogger) {
+        logger.log_ast_node("Trait Path", |logger| {
+            self.start.log(logger);
+            logger.log_indented_slice("Path segments", &self.idens, |logger, segment| {
+                segment.log(logger);
+            });
+            logger.log_opt(&self.fn_end, |logger, fn_end| fn_end.log(logger));
+        })
+    }
+}
+
+impl AstNodeParseHelper for TraitPath {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
@@ -2051,7 +2100,7 @@ pub struct Impl {
     pub is_unsafe:    bool,
     pub generics:     Option<AstNodeRef<GenericParams>>,
     pub ty:           Type,
-    pub impl_trait:   Option<AstNodeRef<TypePath>>,
+    pub impl_trait:   Option<AstNodeRef<TraitPath>>,
     pub where_clause: Option<AstNodeRef<WhereClause>>,
     pub assoc_items:  Vec<ImplItem>,
 }
@@ -2947,64 +2996,43 @@ impl AstNodeParseHelper for LiteralExpr {
 }
 
 pub enum PathExpr {
-    Named {
+    Path {
         span:    SpanId,
         node_id: NodeId,
+        start:   PathStart,
         iden:    Identifier,
     },
-    Inferred {
+    SelfVar {
         span:    SpanId,
-        node_id: NodeId,
-        iden:    Identifier,
-    },
-    SelfPath {
-        span:    SpanId,
-        node_id: NodeId,
-    },
-    Qualified {
-        span:    SpanId,
-        node_id: NodeId,
-        path:    AstNodeRef<QualifiedPath>,
+        node_id: NodeId
     }
 }
 
 impl AstNode for PathExpr {
     fn span(&self) -> SpanId {
         match self {
-            PathExpr::Named { span, .. }     => *span,
-            PathExpr::Inferred { span, .. }  => *span,
-            PathExpr::SelfPath { span, ..}   => *span,
-            PathExpr::Qualified { span, .. } => *span,
+            PathExpr::Path { span, .. }    => *span,
+            PathExpr::SelfVar { span, .. } => *span,
         }
     }
 
     fn node_id(&self) -> NodeId {
         match self {
-            PathExpr::Named { node_id, .. }     => *node_id,
-            PathExpr::Inferred { node_id, .. }  => *node_id,
-            PathExpr::SelfPath{ node_id, .. }   => *node_id,
-            PathExpr::Qualified { node_id, .. } => *node_id,
+            PathExpr::Path { node_id, .. }    => *node_id,
+            PathExpr::SelfVar { node_id, .. } => *node_id,
         }
     }
 
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            PathExpr::Named { span, node_id, iden } => logger.log_ast_node("Path Expr", |logger| {
+            PathExpr::Path { start, iden, .. } => logger.log_ast_node("Path Expression", |logger| {
+                if !matches!(start, PathStart::None) {
+                    logger.log_indented("Path Start", |logger| start.log(logger));
+                }
                 logger.set_last_at_indent();
-                iden.log(logger);
+                logger.log_indented("Identifier", |logger| iden.log(logger));
             }),
-            PathExpr::Inferred { span, node_id, iden } => logger.log_ast_node("Inferred Path Expr", |logger| {
-                logger.set_last_at_indent();
-                iden.log(logger);
-            }),
-            PathExpr::SelfPath{ span, node_id } => {
-                logger.set_last_at_indent();
-                logger.prefixed_logln("Self Path Expr");
-            },
-            PathExpr::Qualified { span, node_id, path } => logger.log_ast_node("Qualified Path Expr", |logger| {
-                logger.set_last_at_indent();
-                logger.log_node_ref(path);
-            })
+            PathExpr::SelfVar{ .. }     => logger.log_ast_node("Self path Expression", |logger| ()),
         }
     }
 }
@@ -3012,10 +3040,8 @@ impl AstNode for PathExpr {
 impl AstNodeParseHelper for PathExpr {
     fn set_node_id(&mut self, ast_node_id: NodeId) {
         match self {
-            PathExpr::Named { node_id, .. }     => *node_id = ast_node_id,
-            PathExpr::Inferred { node_id, .. }  => *node_id = ast_node_id,
-            PathExpr::SelfPath{ node_id, ..}    => *node_id = ast_node_id,
-            PathExpr::Qualified { node_id, .. } => *node_id = ast_node_id,
+            PathExpr::Path { node_id, .. }    => *node_id = ast_node_id,
+            PathExpr::SelfVar { node_id, .. } => *node_id = ast_node_id,
         }
     }
 }
@@ -3610,8 +3636,7 @@ pub struct MethodCallExpr {
     pub span:           SpanId,
     pub node_id:        NodeId,
     pub receiver:       Expr,
-    pub method:         NameId,
-    pub gen_args:       Option<AstNodeRef<GenericArgs>>,
+    pub method:         Identifier,
     pub args:           Vec<FnArg>,
     pub is_propagating: bool,
 }
@@ -3628,11 +3653,10 @@ impl AstNode for MethodCallExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Method Call Expression", |logger| {
             logger.prefixed_log_fmt(format_args!("Is Propagating: {}\n", self.is_propagating));
-            logger.prefixed_log_fmt(format_args!("Method Name: {}\n", logger.resolve_name(self.method)));
             logger.set_last_at_indent_if(self.args.is_empty());
             logger.log_indented_node("Receiver", &self.receiver);
             logger.set_last_at_indent();
-            logger.log_indented_slice("Arguments", &self.args, |logger, arg| arg.log(logger));
+            logger.log_indented("Method Identifier", |logger| self.method.log(logger));
         });
     }
 }
@@ -3647,8 +3671,7 @@ pub struct FieldAccessExpr {
     pub span:           SpanId,
     pub node_id:        NodeId,
     pub expr:           Expr,
-    pub field:          NameId,
-    pub gen_args:       Option<AstNodeRef<GenericArgs>>,
+    pub field:          Identifier,
     pub is_propagating: bool
 }
 
@@ -3664,8 +3687,7 @@ impl AstNode for FieldAccessExpr {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Field Access Expression", |logger| {
             logger.prefixed_log_fmt(format_args!("Is Propagating: {}\n", self.is_propagating));
-            logger.prefixed_log_fmt(format_args!("Field Name: {}\n", logger.resolve_name(self.field)));
-            logger.log_indented_opt_node_ref("Generics", &self.gen_args);
+            logger.log_indented("Field Identifier", |logger| self.field.log(logger));
             logger.set_last_at_indent();
             logger.log_node(&self.expr);
         });
@@ -5881,7 +5903,7 @@ impl AstNodeParseHelper for GenericArgs {
 pub struct TraitBounds {
     pub span:    SpanId,
     pub node_id: NodeId,
-    pub bounds:  Vec<AstNodeRef<TypePath>>
+    pub bounds:  Vec<AstNodeRef<TraitPath>>
 }
 
 impl AstNode for TraitBounds {

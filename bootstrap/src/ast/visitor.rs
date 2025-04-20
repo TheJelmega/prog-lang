@@ -15,15 +15,15 @@ pub trait Visitor {
     }
 
     fn visit_expr_path(&mut self, node: &AstNodeRef<ExprPath>) where Self: Sized {
-        helpers::visit_expr_path(self, node)
+        helpers::visit_expr_path(self, node);
     }
 
     fn visit_type_path(&mut self, node: &AstNodeRef<TypePath>) where Self: Sized {
-        helpers::visit_type_path(self, node)
+        helpers::visit_type_path(self, node);
     }
 
-    fn visit_qualified_path(&mut self, node: &AstNodeRef<QualifiedPath>) where Self: Sized {
-        helpers::visit_qualified_path(self, node)
+    fn visit_trait_path(&mut self, node: &AstNodeRef<TraitPath>) where Self: Sized {
+        helpers::visit_trait_path(self, node);
     }
 
 // =============================================================================================================================
@@ -555,38 +555,44 @@ pub mod helpers {
     }
 
     pub fn visit_expr_path<T: Visitor>(visitor: &mut T, node: &AstNodeRef<ExprPath>) {
+        if let PathStart::Typed(ty) = &node.start {
+            visitor.visit_type(ty);
+        }
         for iden in &node.idens {
-            if let Some(gen_args) = &iden.gen_args {
-                visitor.visit_generic_args(gen_args)
-            }
+            visit_iden(visitor, iden);
         }
     }
 
     pub fn visit_type_path<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TypePath>) {
+        if let PathStart::Typed(ty) = &node.start {
+            visitor.visit_type(ty);
+        }
         for iden in &node.idens {
-            match iden {
-                TypePathIdentifier::Plain { span, name }            => {},
-                TypePathIdentifier::GenArg { span, name, gen_args } => visitor.visit_generic_args(gen_args),
-                TypePathIdentifier::Fn { span, name, params, ret }  => {
-                    for param_ty in params {
-                        visitor.visit_type(param_ty);
-                    }
-                    if let Some(ret) = ret {
-                        visitor.visit_type(ret);
-                    }
-                },
+            visit_iden(visitor, iden);
+        }
+    }
+
+    pub fn visit_trait_path<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitPath>) {
+        if let PathStart::Typed(ty) = &node.start {
+            visitor.visit_type(ty);
+        }
+        for iden in &node.idens {
+            visit_iden(visitor, iden);
+        }
+        if let Some(fn_end) = &node.fn_end {
+            for (_, ty) in &fn_end.params {
+                visitor.visit_type(ty);
             }
         }
     }
 
-    pub fn visit_qualified_path<T: Visitor>(visitor: &mut T, node: &AstNodeRef<QualifiedPath>) {
-        visitor.visit_type(&node.ty);
-        if let Some(bound) = &node.bound {
-            visitor.visit_type_path(bound);
+    pub fn visit_iden<T: Visitor>(visitor: &mut T, iden: &Identifier) {
+        if let IdenName::Disambig{ trait_path, .. } = &iden.name {
+            visitor.visit_trait_path(trait_path);
         }
 
-        if let Some(gen_args) = &node.sub_path.gen_args {
-            visitor.visit_generic_args(gen_args)
+        if let Some(args) = &iden.gen_args {
+            visitor.visit_generic_args(args);
         }
     }
 
@@ -1330,7 +1336,7 @@ pub mod helpers {
         }
         visitor.visit_type(&node.ty);
         if let Some(impl_trait) = &node.impl_trait {
-            visitor.visit_type_path(impl_trait);
+            visitor.visit_trait_path(impl_trait);
         }
         if do_generics {
             if let Some(where_clause) = &node.where_clause {
@@ -1623,9 +1629,7 @@ pub mod helpers {
 
     pub fn visit_method_call_expr<T: Visitor>(visitor: &mut T, node: &AstNodeRef<MethodCallExpr>) {
         visitor.visit_expr(&node.receiver);
-        if let Some(gen_args) = &node.gen_args {
-            visitor.visit_generic_args(gen_args);
-        }
+        visit_iden(visitor, &node.method);
         for arg in &node.args {
             match arg {
                 FnArg::Expr{ span, expr }            => visitor.visit_expr(expr),
@@ -1636,6 +1640,7 @@ pub mod helpers {
 
     pub fn visit_field_access_expr<T: Visitor>(visitor: &mut T, node: &AstNodeRef<FieldAccessExpr>) {
         visitor.visit_expr(&node.expr);
+        visit_iden(visitor, &node.field);
     }
     
     pub fn visit_closure_expr<T: Visitor>(visitor: &mut T, node: &AstNodeRef<ClosureExpr>) {
@@ -2072,7 +2077,7 @@ pub mod helpers {
 
     pub fn visit_trait_bounds<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitBounds>) {
         for bound in &node.bounds {
-            visitor.visit_type_path(bound);
+            visitor.visit_trait_path(bound);
         }
     }
 }

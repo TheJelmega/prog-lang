@@ -125,6 +125,9 @@ pub enum ParseErrorCode {
     // Invalid token at start of path
     InvalidPathStart{ found: Token, reason: &'static str },
 
+    InvalidPathDisabmiguation{ reason: &'static str },
+    InvalidTraitPathFnEnd{ reason: &'static str },
+
     // Use: expected package name or nothing before ':'
     ExpectPackageName{ found: Token },
     // Use: expected module name or nothing between ':' and '.'
@@ -169,6 +172,8 @@ impl Display for ParseErrorCode {
             Self::FoundButExpected { found, expected }                => write!(f, "Expected `{}`, found `{}`", expected.as_display_str(), found.as_display_str()),
             Self::UnexpectedFor { found, for_reason }                 => write!(f, "Unexpected token {} for {for_reason}", found.as_display_str()),
             Self::InvalidPathStart { found, reason }                  => write!(f, "Invalid token at start of path: '{}'{}{reason}", found.as_display_str(), if reason.is_empty() { "" } else { ", reason: " }),
+            Self::InvalidPathDisabmiguation { reason }                => write!(f, "Path disambiguation is invalid: {reason}"),
+            Self::InvalidTraitPathFnEnd { reason }                    => write!(f, "Trait path ends on an invalid function-style end: {reason}"),
             Self::ExpectPackageName { found }                         => write!(f, "Unexpected token when parsing use declaration, expected a package name or nothing before ':', found '{}'", found.as_display_str()),
             Self::ExpectModuleName { found }                          => write!(f, "Unexpected token when parsing use declaration, expected a module name or nothing between ':' and '.', found '{}'", found.as_display_str()),
             Self::InvalidExternUse                                    => write!(f, "Invalid usage of 'extern', can only be applied to functions and statics"),

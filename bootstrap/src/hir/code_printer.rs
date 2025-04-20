@@ -216,7 +216,7 @@ impl<'a> CodePrinter<'a> {
         
         if let Some(impl_trait) = &mut node.impl_trait {
             self.logger.log(" as ");
-            self.visit_type_path(impl_trait);
+            self.visit_path(impl_trait);
         }
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
@@ -345,6 +345,35 @@ impl<'a> CodePrinter<'a> {
         self.logger.pop_indent();
         self.logger.prefixed_logln("}");
     }
+
+    pub fn log_identifier(&mut self, iden: &mut Identifier) {
+        match &mut iden.name {
+            IdenName::Name { name, .. } => self.logger.log(&self.names[*name]),
+            IdenName::Disambig { trait_path, name, .. } => {
+                self.logger.log("(");
+                self.visit_path(trait_path);
+                self.logger.log_fmt(format_args!(".{})", &self.names[*name]));
+            },
+        }
+    }
+    
+    pub fn log_path_start(&mut self, start: &mut PathStart, has_idens: bool) {
+        match start {
+            PathStart::None => (),
+            PathStart::SelfTy { span } => {
+                self.logger.log("Self");
+                if has_idens {
+                    self.logger.log(".");
+                }
+            },
+            PathStart::Inferred { span } => self.logger.log("."),
+            PathStart::Type { ty } => {
+                self.logger.log("(:");
+                self.visit_type(ty);
+                self.logger.log(":)");
+            },
+        }
+    }
 }
 
 impl CodePrinter<'_> {
@@ -406,36 +435,6 @@ impl Visitor for CodePrinter<'_> {
         }
     }
 
-    fn visit_type_path(&mut self, path: &mut TypePath) {
-        for (idx, segment) in path.segments.iter_mut().enumerate() {
-            if idx != 0 {
-                self.logger.log(".");
-            }
-            match segment {
-                TypePathSegment::Plain { name, .. } => self.logger.log(&self.names[*name]),
-                TypePathSegment::GenArg { name, gen_args, .. } => {
-                    self.logger.log(&self.names[*name]);
-                    self.visit_gen_args(gen_args);
-                },
-                TypePathSegment::Fn { name, params, ret, .. } => {
-                    self.logger.log_fmt(format_args!("{}(", &self.names[*name]));
-                    let end = params.len() - 1;
-                    for (idx, ty) in params.iter_mut().enumerate() {
-                        self.visit_type(ty);
-                        if idx != end {
-                            self.logger.log(", ")
-                        }
-                    }
-                    self.logger.log("(");
-                    if let Some(ty) = ret {
-                        self.logger.log("-> ");
-                        self.visit_type(ty);
-                    }
-                },
-            }
-        }
-    }
-
     fn visit_simple_path(&mut self, path: &mut SimplePath) {
         for (idx, name) in path.names.iter().enumerate() {
             if idx != 0 {
@@ -446,36 +445,31 @@ impl Visitor for CodePrinter<'_> {
     }
 
     fn visit_path(&mut self, path: &mut Path) {
-        if path.is_inferred {
-            self.logger.log(".");
-        }
+        self.log_path_start(&mut path.start, !path.idens.is_empty());
+
         for (idx, iden) in path.idens.iter_mut().enumerate() {
             if idx != 0 {
                 self.logger.log(".");
             }
-            self.logger.log(&self.names[iden.name]);
-            if let Some(gen_args) = &mut iden.gen_args {
-                self.visit_gen_args(gen_args);
+            self.log_identifier(iden);
+        }
+
+        if let Some(fn_end) = &mut path.fn_end {
+            self.logger.log_fmt(format_args!("{}(", &self.names[fn_end.name]));
+            for (idx, (name, ty)) in fn_end.params.iter_mut().enumerate() {
+                if idx != 0 {
+                    self.logger.log(", ");
+                    self.logger.log_fmt(format_args!("{}: ", &self.names[*name]));
+                    self.visit_type(ty);
+                }
+            }
+            self.logger.log(")");
+            if let Some(ret_ty) = &mut fn_end.ret_ty {
+                self.logger.log(" -> ");
+                self.visit_type(ret_ty);
             }
         }
     }
-
-    fn visit_qual_path(&mut self, path: &mut QualifiedPath) {
-        self.logger.log("(:");
-        self.visit_type(&mut path.ty);
-        if let Some(bound) = &mut path.bound {
-            self.logger.log(" as ");
-            self.visit_type_path(bound);
-        }
-        self.logger.log(":).");
-        for iden in &mut path.sub_path {
-            self.logger.log_fmt(format_args!(".{}", &self.names[iden.name]));
-            if let Some(gen_args) = &mut iden.gen_args {
-                self.visit_gen_args(gen_args);
-            }
-        }
-    }
-
     // =============================================================
 
     fn visit_function(&mut self, node: &mut Function, ctx: &mut FunctionContext) {
@@ -627,7 +621,7 @@ impl Visitor for CodePrinter<'_> {
             if struct_use.is_mut {
                 self.logger.prefixed_log("mut")
             }
-            self.visit_type_path(&mut struct_use.path);
+            self.visit_path(&mut struct_use.path);
             self.logger.log(",");
         }
         self.logger.pop_indent();
@@ -855,7 +849,7 @@ impl Visitor for CodePrinter<'_> {
             if struct_use.is_mut {
                 self.logger.prefixed_log("mut")
             }
-            self.visit_type_path(&mut struct_use.path);
+            self.visit_path(&mut struct_use.path);
             self.logger.log(",");
         }
         self.logger.pop_indent();
@@ -1012,8 +1006,9 @@ impl Visitor for CodePrinter<'_> {
             for param in &mut node.params {
                 self.log_fn_param(param);
             }
+            self.logger.write_prefix();
         }
-        self.logger.prefixed_log(")");
+        self.logger.log(")");
         if let Some(ty) = &mut node.return_ty {
             self.logger.log(" -> ");
             self.visit_type(ty);
@@ -1026,15 +1021,14 @@ impl Visitor for CodePrinter<'_> {
                 self.visit_contract(contract);
             }
             self.logger.write_prefix();
-        } else {
-            self.logger.logln(" ");
         }
         if let Some(body) = &mut node.body {
+            self.logger.logln(" ");
             self.logger.write_prefix();
             self.visit_block(body);
             self.logger.logln("");
         } else {
-            self.logger.prefixed_logln(";");
+            self.logger.logln(";");
         }
     }
 
@@ -1483,20 +1477,12 @@ impl Visitor for CodePrinter<'_> {
 
     fn visit_path_expr(&mut self, node: &mut PathExpr) {
         match node {
-            PathExpr::Named { iden, .. } => {
-                self.logger.log_fmt(format_args!("{}", &self.names[iden.name]));
-                if let Some(gen_args) = &mut iden.gen_args {
-                    self.visit_gen_args(gen_args);
-                }
+            PathExpr::Named { start, iden, .. } => {
+                self.log_path_start(start, true);
+                self.log_identifier(iden);
             },
-            PathExpr::Inferred { iden, .. } => {
-                self.logger.log_fmt(format_args!(".{}", &self.names[iden.name]));
-                if let Some(gen_args) = &mut iden.gen_args {
-                    self.visit_gen_args(gen_args);
-                }
-            },
-            PathExpr::SelfPath{ .. } => self.logger.log("self"),
-            PathExpr::Qualified { path, .. } => self.visit_qual_path(path),
+            PathExpr::SelfPath { .. } => self.logger.log("Self"),
+            PathExpr::Expanded { path } => self.visit_path(path),
         }
     }
 
@@ -1626,10 +1612,12 @@ impl Visitor for CodePrinter<'_> {
 
     fn visit_method_call_expr(&mut self, node: &mut MethodCallExpr) {
         self.visit_expr(&mut node.receiver);
-        self.logger.log_fmt(format_args!(".{}", &self.names[node.method]));
-        if let Some(gen_args) = &mut node.gen_args {
-            self.visit_gen_args(gen_args);
+        if node.is_propagating {
+            self.logger.log(".?");
+        } else {
+            self.logger.log(".");
         }
+        self.log_identifier(&mut node.method);
         if node.args.is_empty() {
             self.logger.log("()");
         } else {
@@ -1650,13 +1638,12 @@ impl Visitor for CodePrinter<'_> {
 
     fn visit_field_access_expr(&mut self, node: &mut FieldAccessExpr) {
         self.visit_expr(&mut node.expr);
-        self.logger.log_fmt(format_args!("{}.{}",
-            if node.is_propagating { "?" } else { "" },
-            &self.names[node.field],
-        ));
-        if let Some(gen_args) = &mut node.gen_args {
-            self.visit_gen_args(gen_args);
+        if node.is_propagating {
+            self.logger.log(".?");
+        } else {
+            self.logger.log(".");
         }
+        self.log_identifier(&mut node.field);
     }
 
     fn visit_closure_expr(&mut self, node: &mut ClosureExpr) {
@@ -1952,7 +1939,7 @@ impl Visitor for CodePrinter<'_> {
     }
 
     fn visit_path_type(&mut self, node: &mut PathType) {
-        self.visit_type_path(&mut node.path);
+        self.visit_path(&mut node.path);
     }
 
     fn visit_tuple_type(&mut self, node: &mut TupleType) {
@@ -2096,7 +2083,7 @@ impl Visitor for CodePrinter<'_> {
                         if idx != 0 {
                             self.logger.log(" & ");
                         }
-                        self.visit_type_path(bound);
+                        self.visit_path(bound);
                     }
                 },
                 WhereBound::Explicit { span, ty, bounds } => {
@@ -2123,7 +2110,7 @@ impl Visitor for CodePrinter<'_> {
             if idx != 0 {
                 self.logger.log(" & ");
             }
-            self.visit_type_path(bound);
+            self.visit_path(bound);
         }
     }
 

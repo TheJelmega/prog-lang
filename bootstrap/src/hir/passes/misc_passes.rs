@@ -1,12 +1,12 @@
-use crate::{common::Scope, hir::{TypePathSegment, VisitFlags, Visitor}};
+use crate::{common::Scope, hir::{VisitFlags, Visitor}};
 
 use super::{Pass, PassContext};
 
-pub struct PathGenPass<'a> {
+pub struct SimplePathGenPass<'a> {
     ctx: &'a PassContext
 }
 
-impl<'a> PathGenPass<'a> {
+impl<'a> SimplePathGenPass<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
@@ -14,25 +14,7 @@ impl<'a> PathGenPass<'a> {
     }
 }
 
-impl Visitor for PathGenPass<'_> {
-    fn visit_type_path(&mut self, node: &mut crate::hir::TypePath) {
-        if !node.ctx.path.is_empty() {
-            return;
-        }
-
-        let mut path = Scope::new();
-        let names = self.ctx.names.read();
-
-        for segment in &node.segments {
-            match segment {
-                TypePathSegment::Plain { name, .. } => path.push(names[*name].to_string()),
-                TypePathSegment::GenArg { span, name, gen_args } => todo!(),
-                TypePathSegment::Fn { span, name, params, ret } => todo!(),
-            }
-        }
-        node.ctx.path = path;
-    }
-
+impl Visitor for SimplePathGenPass<'_> {
     fn visit_simple_path(&mut self, node: &mut crate::hir::SimplePath) {
         if !node.ctx.path.is_empty() {
             return;
@@ -46,38 +28,21 @@ impl Visitor for PathGenPass<'_> {
         }
         node.ctx.path = path;
     }
-
-    fn visit_path(&mut self, node: &mut crate::hir::Path) {
-        if !node.ctx.path.is_empty() {
-            return;
-        }
-
-        // TODO
-    }
-
-    fn visit_qual_path(&mut self, node: &mut crate::hir::QualifiedPath) {
-        if !node.ctx.path.is_empty() {
-            return;
-        }
-
-        // TODO
-    }
 }
 
-impl Pass for PathGenPass<'_> {
+impl Pass for SimplePathGenPass<'_> {
     const NAME: &'static str = "Path Generation";
 }
 
 
-
 pub struct PostOpPathGenPass<'a> {
-    pass: PathGenPass<'a>,
+    pass: SimplePathGenPass<'a>,
 }
 
 impl<'a> PostOpPathGenPass<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
-            pass: PathGenPass::new(ctx),
+            pass: SimplePathGenPass::new(ctx),
         }
     }
 }

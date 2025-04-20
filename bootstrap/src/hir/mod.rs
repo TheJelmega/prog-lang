@@ -57,32 +57,6 @@ impl PathCtx {
     }
 }
 
-#[derive(Clone)]
-pub enum TypePathSegment {
-    Plain {
-        span:     SpanId,
-        name:     NameId
-    },
-    GenArg {
-        span:     SpanId,
-        name:     NameId,
-        gen_args: Box<GenericArgs>,
-    },
-    Fn {
-        span:     SpanId,
-        name:     NameId,
-        params:   Vec<Box<Type>>,
-        ret:      Option<Box<Type>>,
-    }
-}
-
-#[derive(Clone)]
-pub struct TypePath {
-    pub span:     SpanId,
-    pub node_id:  ast::NodeId,
-    pub segments: Vec<TypePathSegment>
-    pub ctx:      PathCtx,
-}
 
 #[derive(Clone)]
 pub struct SimplePath {
@@ -93,29 +67,56 @@ pub struct SimplePath {
 }
 
 #[derive(Clone)]
+pub enum IdenName {
+    Name{
+        name: NameId,
+        span: SpanId,
+    },
+    Disambig{
+        span:       SpanId,
+        trait_path: Box<Path>,
+        name:       NameId,
+        name_span:  SpanId,
+    }
+}
+
+#[derive(Clone)]
 pub struct Identifier {
-    pub span:     SpanId,
-    pub name:     NameId,
+    pub name:     IdenName,
     pub gen_args: Option<Box<GenericArgs>>,
+    pub span:     SpanId,
+}
+
+#[derive(Clone)]
+pub enum PathStart {
+    None,
+    SelfTy {
+        span: SpanId,
+    },
+    Inferred {
+        span: SpanId,
+    },
+    Type {
+        ty: Box<Type>,
+    }
+}
+
+#[derive(Clone)]
+pub struct PathFnEnd {
+    pub span:   SpanId,
+    pub name:   NameId,
+    pub params: Vec<(NameId, Box<Type>)>,
+    pub ret_ty: Option<Box<Type>>,
 }
 
 #[derive(Clone)]
 pub struct Path {
-    pub span:        SpanId,
-    pub node_id:     ast::NodeId,
-    pub is_inferred: bool,
-    pub idens:       Vec<Identifier>,
-    pub ctx:      PathCtx,
-}
-
-#[derive(Clone)]
-pub struct QualifiedPath {
-    pub span:     SpanId,
-    pub node_id:  ast::NodeId,
-    pub ty:       Box<Type>,
-    pub bound:    Option<TypePath>,
-    pub sub_path: Vec<Identifier>,
-    pub ctx:      PathCtx,
+    pub span:    SpanId,
+    pub node_id: ast::NodeId,
+    pub start:   PathStart,
+    pub idens:   Vec<Identifier>,
+    pub fn_end:  Option<PathFnEnd>,
+    pub ctx:     PathCtx,
 }
 
 // =============================================================================================================================
@@ -270,7 +271,7 @@ pub struct StructUse {
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
-    pub path:   TypePath,
+    pub path:   Path,
 }
 
 pub struct TupleStruct {
@@ -411,7 +412,7 @@ pub struct BitfieldUse {
     pub attrs:  Vec<Box<Attribute>>,
     pub vis:    Visibility,
     pub is_mut: bool,
-    pub path:   TypePath,
+    pub path:   Path,
     pub bits:   Option<Box<Expr>>
 }
 
@@ -582,7 +583,7 @@ pub struct Impl {
     pub is_unsafe:    bool,
     pub generics:     Option<Box<GenericParams>>,
     pub ty:           Box<Type>,
-    pub impl_trait:   Option<TypePath>,
+    pub impl_trait:   Option<Path>,
     pub where_clause: Option<Box<WhereClause>>,
 }
 
@@ -890,21 +891,15 @@ pub enum PathExpr {
     Named {
         span:    SpanId,
         node_id: ast::NodeId,
-        iden:    Identifier,
-    },
-    Inferred {
-        span:    SpanId,
-        node_id: ast::NodeId,
+        start:   PathStart,
         iden:    Identifier,
     },
     SelfPath {
         span:    SpanId,
         node_id: ast::NodeId,
     },
-    Qualified {
-        span:    SpanId,
-        node_id: ast::NodeId,
-        path:    QualifiedPath,
+    Expanded {
+        path:    Path,
     }
 }
 
@@ -912,18 +907,16 @@ impl PathExpr {
     pub fn span(&self) -> SpanId {
         match self {
             PathExpr::Named { span, .. } => *span,
-            PathExpr::Inferred { span, .. } => *span,
             PathExpr::SelfPath { span, .. } => *span,
-            PathExpr::Qualified { span, .. } => *span,
+            PathExpr::Expanded { path } => path.span,
         }
     }
 
     pub fn node_id(&self) -> NodeId {
         match self {
             PathExpr::Named { node_id, .. } => *node_id,
-            PathExpr::Inferred { node_id, .. } => *node_id,
             PathExpr::SelfPath { node_id, .. } => *node_id,
-            PathExpr::Qualified { node_id, .. } => *node_id,
+            PathExpr::Expanded { .. } => NodeId::INVALID,
         }
     }
 }
@@ -1071,8 +1064,7 @@ pub struct MethodCallExpr {
     pub span:           SpanId,
     pub node_id:        ast::NodeId,
     pub receiver:       Box<Expr>,
-    pub method:         NameId,
-    pub gen_args:       Option<Box<GenericArgs>>,
+    pub method:         Identifier,
     pub args:           Vec<FnArg>,
     pub is_propagating: bool,
 }
@@ -1082,8 +1074,7 @@ pub struct FieldAccessExpr {
     pub span:           SpanId,
     pub node_id:        ast::NodeId,
     pub expr:           Box<Expr>,
-    pub field:          NameId,
-    pub gen_args:       Option<Box<GenericArgs>>,
+    pub field:          Identifier,
     pub is_propagating: bool,
 }
 
@@ -1459,7 +1450,7 @@ pub struct PrimitiveType {
 pub struct PathType {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
-    pub path:    TypePath,
+    pub path:    Path,
     pub ctx:     TypeContext,
 }
 
@@ -1468,15 +1459,18 @@ impl PathType {
         Type::Path(PathType {
             span,
             node_id,
-            path: TypePath {
+            path: Path {
                 span,
                 node_id,
-                segments: vec![
-                    TypePathSegment::Plain {
-                        span,
-                        name
+                start: PathStart::None,
+                idens: vec![
+                    Identifier {
+                        name: IdenName::Name { name, span },
+                        gen_args: None,
+                        span
                     }
                 ],
+                fn_end: None,
                 ctx: PathCtx::new(),
             },
             ctx: TypeContext::new(),
@@ -1555,7 +1549,7 @@ pub struct FnType {
     pub abi:       Abi,
     pub params:    Vec<(NameId, Box<Type>)>,
     pub return_ty: Option<Box<Type>>,
-    pub ctx:     TypeContext,
+    pub ctx:       TypeContext,
 }
 
 // =============================================================================================================================
@@ -1652,7 +1646,7 @@ pub enum WhereBound {
     Type {
         span:   SpanId,
         ty:     Box<Type>,
-        bounds: Vec<Box<TypePath>>,
+        bounds: Vec<Box<Path>>,
     },
     Explicit {
         span:   SpanId,
@@ -1669,7 +1663,7 @@ pub enum WhereBound {
 pub struct TraitBounds {
     pub span:    SpanId,
     pub node_id: NodeId,
-    pub bounds:  Vec<Box<TypePath>>,
+    pub bounds:  Vec<Box<Path>>,
 }
 
 // =============================================================================================================================

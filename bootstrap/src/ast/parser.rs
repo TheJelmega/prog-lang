@@ -365,118 +365,159 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_type_path(&mut self) -> Result<AstNodeRef<TypePath>, ParserErr> {
-        self.push_meta_frame();
-        let begin = self.last_frame.span;
-
-        let idens = self.parse_punct_separated(Punctuation::Dot, |parser| {
-            let (name, begin) = parser.consume_name_and_span()?;
-
-            if let Some(gen_args) = parser.parse_generic_args(false)? {
-                let span = parser.get_span_to_current(begin);
-                return Ok(TypePathIdentifier::GenArg { span, name, gen_args });
-            }
-            if let Some(gen_args) = parser.parse_generic_args(true)? {
-                let span = parser.get_span_to_current(begin);
-                return Ok(TypePathIdentifier::GenArg { span, name, gen_args });
-            }
-
-            if parser.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
-                let params = parser.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_type)?;
-
-                let ret = if parser.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
-                    parser.consume_single();
-                    Some(parser.parse_type()?)
-                } else {
-                    None
-                };
-
-                let span = parser.get_span_to_current(begin);
-                Ok(TypePathIdentifier::Fn { span, name, params, ret })
-            } else {
-                Ok(TypePathIdentifier::Plain { span: begin, name })
-            }
-        })?;
-
-        let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TypePath{ span, node_id: NodeId::default(), idens }))
-    }
-
     fn parse_identifier(&mut self, dot_generics: bool) -> Result<Identifier, ParserErr> {
-        let (name, begin) = self.consume_name_and_span()?;
+        let begin = self.get_cur_span();
+        let name = if self.try_begin_scope(OpenCloseSymbol::Paren) {
+            let begin = self.get_cur_span();
+            let (path, Some((name, name_span))) = self.parse_raw_trait_path(true)? else { unreachable!() };
+            let path = self.add_node(path);
+
+            let span = self.get_span_to_current(begin);
+            IdenName::Disambig{
+                span,
+                trait_path: path,
+                name,
+                name_span,
+            }
+        } else {
+            let (name, span) = self.consume_name_and_span()?;
+            IdenName::Name(name, span)
+        };
+
         let gen_args = self.parse_generic_args(dot_generics)?;
         let span = self.get_span_to_current(begin);
         Ok(Identifier { span, name, gen_args })
     }
 
+    fn parse_path_start(&mut self) -> Result<PathStart, ParserErr> {
+        match self.peek()? {
+            Token::StrongKw(StrongKeyword::SelfTy) => {
+                let span = self.get_cur_span();
+                self.consume_single();
+                Ok(PathStart::SelfTy(span))
+            },
+            Token::Punctuation(Punctuation::Dot) => {
+                let span = self.get_cur_span();
+                self.consume_single();
+                Ok(PathStart::Inferred(span))
+            },
+            Token::OpenSymbol(OpenCloseSymbol::Paren) => {
+                self.begin_scope(OpenCloseSymbol::Paren)?;
+                self.consume_punct(Punctuation::Colon)?;
+                let ty = self.parse_type()?;
+                self.consume_punct(Punctuation::Colon)?;
+                self.end_scope();
+                Ok(PathStart::Typed(ty))
+            },
+            _ => Ok(PathStart::None),
+        }
+    }
+
+
+    fn parse_type_path(&mut self) -> Result<AstNodeRef<TypePath>, ParserErr> {
+        self.push_meta_frame();
+        let begin = self.last_frame.span;
+
+        let start = self.parse_path_start()?;
+        let mut idens = self.parse_punct_separated(Punctuation::Dot, |parser| Self::parse_identifier(parser, false))?;
+
+        
+
+        let span = self.get_span_to_current(begin);
+        Ok(self.add_node(TypePath{
+            span,
+            node_id: NodeId::INVALID,
+            start,
+            idens,
+        }))
+    }
+
     fn parse_expr_path(&mut self) -> Result<AstNodeRef<ExprPath>, ParserErr> {
         self.push_meta_frame();
         let begin = self.last_frame.span;
-        let inferred = self.try_consume(Token::Punctuation(Punctuation::Dot));
 
-        let mut idens = Vec::new();
-        loop {
-            idens.push(self.parse_identifier(true)?);
-
-            if self.peek()? != Token::Punctuation(Punctuation::Dot) ||!matches!(self.peek_at(1)?, Token::Name(_)) {
-                break;
-            }
-            self.consume_punct(Punctuation::Dot)?;
-        }
+        let start = self.parse_path_start()?;
+        let mut idens = self.parse_punct_separated(Punctuation::Dot, |parser| Self::parse_identifier(parser, false))?;
 
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(ExprPath{
             span,
             node_id: NodeId::default(),
-            inferred,
+            start,
             idens
         }))
     }
 
-    fn parse_qualified_path(&mut self) -> Result<AstNodeRef<QualifiedPath>, ParserErr> {
-        let begin = self.get_cur_span();
-        self.begin_scope(OpenCloseSymbol::Paren);
-        self.consume_punct(Punctuation::Colon)?;
+    fn parse_trait_path(&mut self) -> Result<AstNodeRef<TraitPath>, ParserErr> {
+        let (path, _) = self.parse_raw_trait_path(false)?;
+        Ok(self.add_node(path))
+    }
 
-        let ty = self.parse_type()?;
-        let bound = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
-            Some(self.parse_type_path()?)
+    fn parse_raw_trait_path(&mut self, seperate_last_iden: bool) -> Result<(TraitPath, Option<(NameId, SpanId)>), ParserErr> {
+        self.push_meta_frame();
+        let begin = self.last_frame.span;
+
+        let start = self.parse_path_start()?;
+        let mut prev_span_end = begin;
+        let mut idens = self.parse_punct_separated(Punctuation::Dot, |parser| {
+            prev_span_end = parser.get_cur_span();
+            Self::parse_identifier(parser, false)
+        })?;
+ 
+        let fn_end = if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
+            let begin = self.get_cur_span();
+            let iden = idens.pop().unwrap();
+            if iden.gen_args.is_some() {
+                return Err(self.gen_error(ParseErrorCode::InvalidTraitPathFnEnd { reason: "Cannot contain any generic arguments" }));
+            }
+            let name = match iden.name {
+                IdenName::Name(name, _) => name,
+                IdenName::Disambig{ .. } => return Err(self.gen_error(ParseErrorCode::InvalidTraitPathFnEnd { reason: "Cannot have trait disambiguation" })),
+            };
+
+            let params = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_fn_type_param)?;
+            let return_ty = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let span = self.get_span_to_current(begin);
+
+            Some(TraitPathFnEnd {
+                span,
+                name,
+                params,
+                return_ty,
+            })
         } else {
             None
         };
 
-        self.consume_punct(Punctuation::Colon)?;
-        self.end_scope();
-
-        let mut sub_path = Vec::new();
-        loop {
-            let (name, begin) = self.consume_name_and_span()?;
-            let gen_args = self.parse_generic_args(true)?;
-            let span = self.get_span_to_current(begin);
-            sub_path.push(Identifier{ span, name, gen_args });
-
-            if self.peek()? != Token::Punctuation(Punctuation::Dot) ||!matches!(self.peek_at(1)?, Token::Name(_)) {
-                break;
+        let last_name = if seperate_last_iden {
+            if fn_end.is_some() {
+                return Err(self.gen_error(ParseErrorCode::InvalidPathDisabmiguation { reason: "Cannot have a function-style end" }));
             }
-            self.consume_punct(Punctuation::Dot)?;
-        }
 
-        let sub_path = {
-            let (name, begin) = self.consume_name_and_span()?;
-            let gen_args = self.parse_generic_args(true)?;
-            let span = self.get_span_to_current(begin);
-            Identifier{ span, name, gen_args }
+            let iden = idens.pop().unwrap();
+            if iden.gen_args.is_some() {
+                return Err(self.gen_error(ParseErrorCode::InvalidPathDisabmiguation { reason: "Cannot contain any generic arguments" }));
+            }
+            match iden.name {
+                IdenName::Name(name, span) => Some((name, span)),
+                IdenName::Disambig{ .. } => return Err(self.gen_error(ParseErrorCode::InvalidPathDisabmiguation { reason: "Cannot have trait disambiguation" })),
+            }
+        } else {
+            None
         };
 
-
         let span = self.get_span_to_current(begin);
-        Ok(self.add_node(QualifiedPath {
+        Ok((TraitPath{
             span,
             node_id: NodeId::default(),
-            ty,
-            bound,
-            sub_path,
-        }))
+            start,
+            idens,
+            fn_end,
+        }, last_name))
     }
 
 // =============================================================================================================================
@@ -2103,7 +2144,7 @@ impl Parser<'_> {
         let generics = self.parse_generic_params(true)?;
         let ty = self.parse_type()?;
         let impl_trait = if self.try_consume(Token::StrongKw(StrongKeyword::As)) {
-            Some(self.parse_type_path()?)
+            Some(self.parse_trait_path()?)
         } else {
             None
         };
@@ -2764,13 +2805,7 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Fallthrough)   => self.parse_fallthrough_expr()?,
             Token::StrongKw(StrongKeyword::Return)        => self.parse_return_expr()?,
             Token::StrongKw(StrongKeyword::When)          => self.parse_when_expr()?,
-            Token::StrongKw(StrongKeyword::SelfName)      => {
-                self.consume_single();
-                Expr::Path(self.add_node(PathExpr::SelfPath {
-                    span: begin,
-                    node_id: NodeId::default(),
-                }))
-            },
+            Token::StrongKw(StrongKeyword::SelfName)      => self.parse_path_expr()?,
             Token::StrongKw(StrongKeyword::Let) if mode == ExprParseMode::AllowLet => self.parse_let_binding_expr()?,
 
             Token::StrongKw(StrongKeyword::Move)          |
@@ -2807,7 +2842,7 @@ impl Parser<'_> {
                         node_id: NodeId::default(),
                     }))
                 } else if self.check_peek(&[1], Token::Punctuation(Punctuation::Colon)) {
-                    self.parse_qualified_path_expr()?
+                    self.parse_path_expr()?
                 } else {
                     self.parse_paren_expr()?
                 }
@@ -3054,22 +3089,24 @@ impl Parser<'_> {
 
     fn parse_path_expr(&mut self) -> Result<Expr, ParserErr> {
         let begin = self.get_cur_span();
-        if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
-            let iden = self.parse_identifier(true)?;
-            let span = self.get_span_to_current(begin);
-            Ok(Expr::Path(self.add_node(PathExpr::Inferred { span, node_id: NodeId::default(), iden })))
+        if self.try_consume(Token::StrongKw(StrongKeyword::SelfName)) {
+            Ok(Expr::Path(self.add_node(PathExpr::SelfVar {
+                span: begin,
+                node_id: NodeId::INVALID,
+            })))
         } else {
+            
+            let start = self.parse_path_start()?;
             let iden = self.parse_identifier(true)?;
             let span = self.get_span_to_current(begin);
-            Ok(Expr::Path(self.add_node(PathExpr::Named { span, node_id: NodeId::default(), iden })))
+            
+            Ok(Expr::Path(self.add_node(PathExpr::Path {
+                span: span,
+                node_id: NodeId::INVALID,
+                start,
+                iden,
+            })))
         }
-    }
-
-    fn parse_qualified_path_expr(&mut self) -> Result<Expr, ParserErr> {
-        let begin = self.get_cur_span();
-        let path = self.parse_qualified_path()?;
-        let span = self.get_span_to_current(begin);
-        Ok(Expr::Path(self.add_node(PathExpr::Qualified { span, node_id: NodeId::default(), path })))
     }
 
     fn parse_block_expr(&mut self, begin: SpanId, label: Option<NameId>) -> Result<AstNodeRef<BlockExpr>, ParserErr> {
@@ -3388,9 +3425,8 @@ impl Parser<'_> {
             false
         };
 
-        let field = self.consume_name()?;
+        let field = self.parse_identifier(true)?;
 
-        let gen_args = self.parse_generic_args(true)?;
         if self.peek()? == Token::OpenSymbol(OpenCloseSymbol::Paren) {
             let args = self.parse_comma_separated_closed(OpenCloseSymbol::Paren, Self::parse_func_arg)?;
             let span = self.get_span_to_current(begin);
@@ -3399,7 +3435,6 @@ impl Parser<'_> {
                 node_id: NodeId::default(),
                 receiver: expr,
                 method: field,
-                gen_args,
                 args,
                 is_propagating,
             })))
@@ -3409,7 +3444,6 @@ impl Parser<'_> {
                 span,
                 node_id: NodeId::default(),
                 expr,
-                gen_args,
                 field,
                 is_propagating,
             })))
@@ -4723,7 +4757,7 @@ impl Parser<'_> {
 
     fn parse_trait_bounds(&mut self) -> Result<AstNodeRef<TraitBounds>, ParserErr> {
         let begin = self.get_cur_span();
-        let bounds = self.parse_punct_separated(Punctuation::Ampersand, Self::parse_type_path)?;
+        let bounds = self.parse_punct_separated(Punctuation::Ampersand, Self::parse_trait_path)?;
 
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(TraitBounds {
