@@ -273,10 +273,10 @@ impl Pass for OpTagging<'_> {
         // Tag traits as using generics
         for (trait_idx, node, ctx) in &hir.op_functions {
             let mut trait_ctx = hir.op_traits[*trait_idx].1.write();
-            if matches!(node.op_ty, OpType::Infix | OpType::Assign) {
+            if node.op_ty.has_generics() {
                 trait_ctx.has_generics = true;
             }
-            if node.ret_ty.is_none() {
+            if node.ret_ty.is_none() && node.op_ty.has_output() {
                 trait_ctx.has_output_alias = true;
             }
         }
@@ -321,7 +321,7 @@ struct TraitGenEntry {
 
 pub struct OpTraitGen<'a> {
     ctx:    &'a PassContext,
-    traits: Vec<TraitGenEntry>
+    traits: Vec<TraitGenEntry>,
 }
 
 impl<'a> OpTraitGen<'a> {
@@ -424,16 +424,16 @@ impl Visitor for OpTraitGen<'_> {
         let self_name = names.add("Self");
         let output_ty_name = names.add("Output");
 
-
+        let is_assign = node.op_ty == OpType::Assign;
         let receiver = FnReceiver::SelfReceiver {
             span: node.span,
-            is_ref: false,
-            is_mut: false
+            is_ref: is_assign,
+            is_mut: is_assign
         };
 
         let return_ty = if let Some(ret) = &node.ret_ty {
             Some(ret.clone())
-        } else {
+        } else if node.op_ty.has_output() {
             Some(Box::new(Type::Path(PathType {
                 span: node.span,
                 node_id: node.node_id,
@@ -453,6 +453,8 @@ impl Visitor for OpTraitGen<'_> {
                 },
                 ctx: TypeContext::new(),
             })))
+        } else {
+            None
         };
         
         let params =  if node.op_ty == OpType::Infix {

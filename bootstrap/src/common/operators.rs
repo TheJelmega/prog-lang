@@ -15,6 +15,14 @@ pub enum OpType {
 
 impl OpType {
     const COUNT: usize = OpType::Assign as usize + 1;
+
+    pub fn has_generics(&self) -> bool {
+        matches!(self, OpType::Infix | OpType::Assign)
+    }
+
+    pub fn has_output(&self) -> bool {
+        matches!(self, OpType::Prefix | OpType::Postfix | OpType::Infix)
+    }
 }
 
 impl fmt::Display for OpType {
