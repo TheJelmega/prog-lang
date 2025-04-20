@@ -25,13 +25,13 @@ Version: 0.0
 5. [Names and path](#5-names-and-paths-)
     1. [Names](#51-names-)
     2. [Identifiers](#52-identifiers-)
+        1. [Trait disambiguation](#521-trait-disambiguation)
     3. [Paths](#53-paths-)
         1. [Simple paths](#531-simple-paths-)
-        2. [Common path elements](#532-common-path-segments)
-            - [Path start](#path-start)
-            - [Trait disambiguation](#trait-disambiguation)
+        2. [Path start](#532-path-start)
         3. [Paths in expressions and patterns](#533-paths-in-expressions-and-patterns-)
         4. [Paths in types](#534-paths-in-types-)
+        5. [Trait paths](#535-trait-paths)
 6. [Literals](#6-literals-)
     1. [Numeric literals](#61-numeric-literals-)
         1. [Decimal literals](#611-decimal-literal-)
@@ -780,14 +780,25 @@ Extended names on the other hand have much more limited scope of where they can 
 ## 5.2. Identifiers [↵](#5-names-and-paths-)
 
 ```
-<expr-path-iden> := <name> [ '.' <generic-args> ]
-<type-path-iden> := <name> [ [ '.' ] ( <generic-args> | <ident-fn-path>) ]
-<ident-fn-path> := ( [ <type> { ',' <type> }* [ ',' ] ] ) [ '->' <type> ]
+<iden-name> := <name> | <path-disambig>
+
+<expr-iden> := <iden-name> [ '.' <generic-args> ]
+<type-iden> := <iden-name> [ [ '.' ] ( <generic-args> ) ]
 ```
 
 An identifier is a sub-segment of a path, which consists out of a name and optional generic arguments.
 
 Identifiers refer to a single element in a path which can be uniquely identified by it's name and generics.
+
+### 5.2.1 Trait disambiguation
+
+```
+<iden-disambig> := '(' <trait-path> '.' <name> ')'
+```
+
+Sometimes an identifier can not be resolved without ambiguity appearing, this will happen when at least 2 trait implementations exists that have the same name, but not explicit item exists on the previous item in the path.
+This can be resolved by explicitly prepending a path to the implemented trait that has the desired item to be accessed.
+The trait path may not end in a function-style trait path end.
 
 ## 5.3. Paths [↵](#5-names-and-paths-)
 
@@ -813,12 +824,7 @@ There are multiple types of paths:
 
 Simple path are used for visitility, attributes, macros and use items.
 
-### 5.3.2. Common path segments
-
-
-Since the difference between paths in types, and those in expressions and patterns, there is some commonality between them.
-
-#### Path start
+### 5.3.2. Path start
 
 ```
 <path-start> := <path-type-start> | <path-self-type-start> | <path-infer-start>
@@ -831,21 +837,10 @@ Path may start with a 1 of 3 different special starts:
 - `Self`: This allows a path to be relative to the current type being implemented. If the type is implementing a trait, the first element will be automatically disambiguated with the trait currently being implemented.
 - `.`: This allows a path to be directly relative the the current library, ignoring any other modules/scope it is found it, i.e. it looks in the root namespace of the current library.
 
-#### Trait disambiguation
-
-```
-<path-disambig> := '(' <type-path> '.' <type-path-iden> ')'
-```
-
-Sometimes an item can not be resolved without ambiguity appearing, this will happen when at least 2 trait implementations exists that have the same name, but not explicit item exists on the previous item in the path.
-This can be resolved by explicitly prepending a path to the implemented trait that has the desired item to be accessed.
-
 ### 5.3.3. Paths in expressions and patterns [↵](#53-paths-)
 
 ```
-<expr-iden-path-segment> := <name> [ '.' <generics-args> ]
-<expr-path-segment> := <expr-path-iden> | <path-disambig>
-<expr-path> := [ <path-start> ] <expr-path-segment> { '.' <expr-path-segment> }
+<expr-path> := [ <path-start> ] <expr-path-iden> { '.' <expr-path-iden> }
 ```
 
 Paths that are to be used in expressions and path consist of an optional path start, followed by 1 or more path segments.
@@ -858,19 +853,26 @@ Not all expressions that may look like a path expression are purely path express
 ### 5.3.4. Paths in types [↵](#53-paths-)
 
 ```
-<type-path-fn> := <name> '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
-
-<type-path-segment> := <type-path-iden> | <path-disambig>
 <type-path> := 'Self'
-            |  [ <path-start> ] <type-path-segment> { '.' <type-path-segment> }* [ '.' <type-path-fn> ]
-            |  <type-path-fn>
+            |  [ <path-start> ] <type-path-iden> { '.' <type-path-iden> }*
 
 ```
 
 Paths that are used in types consist of either a single `Self` or an optional path start, followed by 1 or more path segments (0 is allowed if a function end exists), followed by an optional path function end.
 
 If the path is just a single `Self`, it will refer to the type that is currently being implemented, otherwise is will point to the type defined by the path.
-A type path may end in a special function end, the usecase for is limited to the for function call related traits, allowing the parameters and return type for these to be specified.
+
+### 5.3.5. Trait paths
+
+```
+<trait-path-fn> := <name> '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
+<trait-path> := [ <path-start> ] <type-path-segment> { '.' <type-path-segment> }* [ '.' <trait-path-fn> ]
+              |  <trait-path-fn>
+```
+
+Trait paths are a special variation of paths that are used in any location a trait is explicitly expected.
+A trait path may end in a special function end, the usecase for is limited to the for function call related traits, allowing the parameters and return type for these to be specified.
+
 
 # 6. Literals [↵](#tables-of-contents)
 
@@ -2552,11 +2554,13 @@ Literal expressions also allow a special literal operator to be applied to them,
 ## 9.3. Path expression  [↵](#9-expressions-)
 
 ```
-<path-expr> := <expr-path-ident>
-             | '.' <expr-path-ident>
+<path-expr> := [ <path-start> ] <expr-path-iden>
              | 'self'
-             | <qualified-path>
 ```
+
+A path expression only represents the start of a path that refers to a local variable or item.
+ 
+
 
 A path expression uses a path to refer to a local variable or item.
 Path expressions referencing local or static variables are place expression, all other path expressions are value expressions.
@@ -3980,7 +3984,7 @@ For more info about closure, see the [closure expression].
 ### 11.1.17. Intereface Object types [↵](#111-types-)
 
 ```
-<trait-object-type> := 'dyn' <trait-bound> { '+' <trait-bound> }*
+<trait-object-type> := 'dyn' <trait-bound>
 ```
 
 An trait object type is an opaque type that implements a set of traits, any set of traits is allowed, except of an opt-in trait like `?Sized`.
@@ -4004,7 +4008,7 @@ The actual implementation of each vtable may vary on an object-by-object basis.
 ### 11.1.18. Impl trait types [↵](#111-types-)
 
 ```
-<impl-trait-type> := 'impl' <trait-bound> { '+' <trait-bound> }
+<impl-trait-type> := 'impl' <trait-bound>
 ```
 
 An impl trait type introduces an unnamed generic parameter that implements the given intrefaces to the item it is used in.
@@ -4843,7 +4847,7 @@ A value may be consttrained using a value bound.
                       | <generic-explicit-bound>
 <generic-trait-bound> := <type> 'is' <trait-constraint-bounds>
 <trait-constraint-bounds> := <trait-constraint-bound> [ '&' <trait-constraint-bound> ]
-<trait-constraint-bound> := <type-path> | <inline-constraint>
+<trait-constraint-bound> := <trait-path> | <inline-constraint>
 ```
 
 A type bound limits a both what types can be used when monomorphization, and what functionality is available inside of the the generic item. 
@@ -4851,7 +4855,7 @@ A type bound limits a both what types can be used when monomorphization, and wha
 #### Trait bounds
 
 ```
-<trait-bound> := <type-path> { '&' <type-path> }*
+<trait-bound> := <trait-path> { '&' <trait-path> }*
 ```
 
 A trait bound limits a type to only types implementing the given traits.
@@ -4883,7 +4887,7 @@ These expressions are then used to apply a bound on the value given to their res
 ## 12.6. Generic Arguments [↵](#12-generics-)
 
 ```
-<generic-args> := '.[' <generic-arg> [ ',' <generic-arg> ] ']'
+<generic-args> := '[' <generic-arg> [ ',' <generic-arg> ] ']'
 <generic-arg> := <generic-type-arg> | <generic-value-arg>
 <generic-type-arg> := <type>
 <generic-value-arg> := <name>
