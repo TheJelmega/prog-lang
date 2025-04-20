@@ -355,6 +355,9 @@ impl<'a> CodePrinter<'a> {
                 self.logger.log_fmt(format_args!(".{})", &self.names[*name]));
             },
         }
+        if let Some(gen_args) = &mut iden.gen_args {
+            self.visit_gen_args(gen_args);
+        }
     }
     
     pub fn log_path_start(&mut self, start: &mut PathStart, has_idens: bool) {
@@ -1481,7 +1484,7 @@ impl Visitor for CodePrinter<'_> {
                 self.log_path_start(start, true);
                 self.log_identifier(iden);
             },
-            PathExpr::SelfPath { .. } => self.logger.log("Self"),
+            PathExpr::SelfPath { .. } => self.logger.log("self"),
             PathExpr::Expanded { path } => self.visit_path(path),
         }
     }
