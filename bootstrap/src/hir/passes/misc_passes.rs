@@ -124,42 +124,68 @@ impl SelfTyReplacePass<'_> {
                 args,
             })
     }
-}
 
-impl Visitor for SelfTyReplacePass<'_> {
-    fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
+    fn create_path_type(&mut self, scope: &Scope, name: NameId, generics: Option<&Box<GenericParams>>, span: SpanId, node_id: NodeId) -> SelfTyReplaceInfo {
         let mut idens = Vec::new();
-        for segment in ctx.scope.segments() {
+        for segment in scope.segments() {
             let name = self.ctx.names.read().get_id_for_str(&segment.name);
 
             idens.push(Identifier {
-                name: IdenName::Name { name, span: node.span },
+                name: IdenName::Name { name, span },
                 gen_args: None,
-                span: node.span,
+                span,
             })
         }
 
-        let gen_args = node.generics.as_ref().map(|generics| self.get_gen_args_from_params(generics, node.span));
-
-        // TODO: Generic args
+        let gen_args = generics.map(|generics| self.get_gen_args_from_params(generics, span));
         idens.push(Identifier {
-            name: IdenName::Name { name: node.name, span: node.span },
+            name: IdenName::Name { name, span },
             gen_args,
-            span: node.span,
+            span,
         });
 
-        self.self_ty = SelfTyReplaceInfo::Path(Path {
-            span: node.span,
-            node_id: node.node_id,
+        SelfTyReplaceInfo::Path(Path {
+            span,
+            node_id,
             start: PathStart::None,
             idens,
             fn_end: None,
             ctx: PathCtx::new(),
-        });
-
-        self.trait_path = None;
-        helpers::visit_trait(self, node);
+        })
     }
+}
+
+impl Visitor for SelfTyReplacePass<'_> {
+    fn visit_struct(&mut self, node: &mut Struct, ctx: &mut StructContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_struct(self, node);
+    }
+
+    fn visit_tuple_struct(&mut self, node: &mut TupleStruct, ctx: &mut StructContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_tuple_struct(self, node);
+    }
+
+    fn visit_union(&mut self, node: &mut Union, ctx: &mut UnionContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_union(self, node);
+    }
+
+    fn visit_adt_enum(&mut self, node: &mut AdtEnum, ctx: &mut AdtEnumContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_adt_enum(self, node);
+    }
+
+    fn visit_bitfield(&mut self, node: &mut Bitfield, ctx: &mut BitfieldContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_bitfield(self, node);
+    }
+    
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
         self.self_ty = if let Type::Path(path_ty) = &*node.ty {
@@ -222,4 +248,15 @@ impl Visitor for SelfTyReplacePass<'_> {
 
 impl Pass for SelfTyReplacePass<'_> {
     const NAME: &'static str = "Self Type Replacement";
+
+    fn process(&mut self, hir: &mut Hir) {
+        let flags = VisitFlags::Struct
+                  | VisitFlags::TupleStruct
+                  | VisitFlags::Union
+                  | VisitFlags::AdtEnum
+                  | VisitFlags::Union
+                  | VisitFlags::AnyTrait;
+
+        self.visit(hir, flags);
+    }
 }
