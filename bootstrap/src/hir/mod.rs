@@ -1476,6 +1476,22 @@ impl PathType {
             ctx: TypeContext::new(),
         })
     }
+
+    pub fn self_ty(span: SpanId, node_id: NodeId) -> Type {
+        Type::Path(PathType {
+            span,
+            node_id,
+            path: Path {
+                span,
+                node_id,
+                start: PathStart::SelfTy { span },
+                idens: Vec::new(),
+                fn_end: None,
+                ctx: PathCtx::new(),
+            },
+            ctx: TypeContext::new(),
+        })
+    }
 }
 
 #[derive(Clone)]
