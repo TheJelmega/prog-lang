@@ -31,6 +31,7 @@ pub enum VisitFlags {
     TraitConstOverride,
     TraitProperty,
     TraitPropertyOverride,
+    AnyTrait = Trait | TraitFunction | TraitMethod | TraitTypeAlias | TraitTypeAliasOverride | TraitConst | TraitConst | TraitConstOverride | TraitProperty | TraitPropertyOverride,
     
     Impl,
     ImplFunction,
@@ -40,11 +41,13 @@ pub enum VisitFlags {
     ImplStatic,
     ImplTlsStatic,
     Property,
+    AnyImpl = Impl | ImplFunction | Method | ImplTypeAlias | ImplConst | ImplStatic | ImplTlsStatic | Property,
 
     OpTrait,
     OpFunction,
     OpSpecialization,
     OpContract,
+    AnyOpTrait = OpTrait | OpFunction | OpSpecialization | OpContract,
 
     Precedence,
 }
@@ -603,156 +606,238 @@ pub(crate) mod helpers {
             }
         }
 
-        if flags.contains(VisitFlags::Trait) {
-            for (node, ctx) in &mut hir.traits {
-                let mut node = node.write();
-                let mut ctx = ctx.write();
-                visitor.visit_trait(&mut node, &mut ctx);
+        // TODO: Visit trait, then all associate elements (same for similar types of things)
+
+    
+        if flags.intersects(VisitFlags::AnyTrait) {
+            let mut func_offset = 0;
+            let mut method_offset = 0;
+            let mut type_alias_offset = 0;
+            let mut type_alias_override_offset = 0;
+            let mut const_offset = 0;
+            let mut const_override_offset = 0;
+            let mut prop_offset = 0;
+            let mut prop_override_offset = 0;
+
+            for (idx, (trait_ref, trait_ctx)) in hir.traits.iter_mut().enumerate() {
+                if flags.contains(VisitFlags::Trait) {
+                    let mut node = trait_ref.write();
+                    let mut ctx = trait_ctx.write();
+                    visitor.visit_trait(&mut node, &mut ctx);
+                }
+                
+                if flags.contains(VisitFlags::TraitFunction) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_functions[func_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        func_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitMethod) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_methods[method_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        method_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitTypeAlias) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_type_alias[type_alias_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        type_alias_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitTypeAliasOverride) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_type_alias_override[type_alias_override_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_type_alias_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        type_alias_override_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitConst) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_consts[const_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        const_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitConstOverride) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_const_overrides[const_override_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_const_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        const_override_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitProperty) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_properties[prop_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        prop_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::TraitPropertyOverride) {
+                    for (trait_idx, node, ctx) in &mut hir.trait_property_overides[prop_override_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_property_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        prop_override_offset += 1;
+                    }
+                }
             }
         }
 
-        if flags.contains(VisitFlags::TraitFunction) {
-            for (trait_idx, node, ctx) in &mut hir.trait_functions {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+        if flags.intersects(VisitFlags::AnyImpl) {
+            let mut func_offset = 0;
+            let mut method_offset = 0;
+            let mut type_alias_offset = 0;
+            let mut const_offset = 0;
+            let mut static_offset = 0;
+            let mut tls_static_offset = 0;
+            let mut prop_offset = 0;
+
+            for (idx, (impl_ref, impl_ctx)) in hir.impls.iter_mut().enumerate() {
+                if flags.contains(VisitFlags::Impl) {
+                    let mut node = impl_ref.write();
+                    let mut ctx = impl_ctx.write();
+                    visitor.visit_impl(&mut node, &mut ctx);
+                }
+                
+                if flags.contains(VisitFlags::ImplFunction) {
+                    for (impl_idx, node, ctx) in &mut hir.impl_functions[func_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_function(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        func_offset += 1;
+                    }
+                }
+
+                if flags.contains(VisitFlags::Method) {
+                    for (impl_idx, node, ctx) in &mut hir.methods[method_offset..] {
+
+                        visitor.visit_method(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        method_offset += 1;
+                    }
+                }
+
+                if flags.contains(VisitFlags::ImplTypeAlias) {
+                    for (impl_idx, node, ctx) in &mut hir.impl_type_aliases[type_alias_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_type_alias(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        type_alias_offset += 1;
+                    }
+                }
+            
+                if flags.contains(VisitFlags::ImplConst) {
+                    for (impl_idx, node, ctx) in &mut hir.impl_consts[const_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_const(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        const_offset += 1;
+                    }
+                }
+
+                if flags.contains(VisitFlags::ImplStatic) {
+                    for (impl_idx, node, ctx) in &mut hir.impl_statics[static_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        static_offset += 1;
+                    }
+                }
+
+                if flags.contains(VisitFlags::ImplTlsStatic) {
+                    for (impl_idx, node, ctx) in &mut hir.impl_tls_statics[tls_static_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_tls_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        tls_static_offset += 1;
+                    }
+                }
+            
+                if flags.contains(VisitFlags::Property) {
+                    for (impl_idx, node, ctx) in &mut hir.properties[prop_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_property(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        prop_offset += 1;
+                    }
+                }
             }
         }
 
-        if flags.contains(VisitFlags::TraitMethod) {
-            for (trait_idx, node, ctx) in &mut hir.trait_methods {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+        if flags.intersects(VisitFlags::AnyOpTrait) {
+            let mut func_offset = 0;
+            let mut spec_offset = 0;
+            let mut contract_offset = 0;
+
+            for (idx, (trait_ref, trait_ctx)) in hir.op_traits.iter_mut().enumerate() {
+                if flags.contains(VisitFlags::OpTrait) {
+                    let mut node = trait_ref.write();
+                    let mut ctx = trait_ctx.write();
+                    visitor.visit_op_trait(&mut node, &mut ctx);
+                }
+                
+                if flags.contains(VisitFlags::OpFunction) {
+                    for (trait_idx, node, ctx) in &mut hir.op_functions[func_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        func_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::OpSpecialization) {
+                    for (trait_idx, node, ctx) in &mut hir.op_specializations[spec_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_op_specialization(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        spec_offset += 1;
+                    }
+                }
+                
+                if flags.contains(VisitFlags::OpContract) {
+                    for (trait_idx, node, ctx) in &mut hir.op_contracts[contract_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_op_contract(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        contract_offset += 1;
+                    }
+                }
             }
         }
-
-        if flags.contains(VisitFlags::TraitTypeAlias) {
-            for (trait_idx, node, ctx) in &mut hir.trait_type_alias {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::TraitTypeAliasOverride) {
-            for (trait_idx, node, ctx) in &mut hir.trait_type_alias_override {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_type_alias_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::TraitConst) {
-            for (trait_idx, node, ctx) in &mut hir.trait_consts {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::TraitConstOverride) {
-            for (trait_idx, node, ctx) in &mut hir.trait_const_overrides {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_const_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::TraitProperty) {
-            for (trait_idx, node, ctx) in &mut hir.trait_properties {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::TraitPropertyOverride) {
-            for (trait_idx, node, ctx) in &mut hir.trait_property_overides {
-                let (trait_ref, trait_ctx) = &hir.traits[*trait_idx]; 
-                visitor.visit_trait_property_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::Impl) {
-            for (node, ctx) in &mut hir.impls {
-                let mut node = node.write();
-                let mut ctx = ctx.write();
-                visitor.visit_impl(&mut node, &mut ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::ImplFunction) {
-            for (trait_idx, node, ctx) in &mut hir.impl_functions {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_impl_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::Method) {
-            for (trait_idx, node, ctx) in &mut hir.methods {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::ImplTypeAlias) {
-            for (trait_idx, node, ctx) in &mut hir.impl_type_aliases {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_impl_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::ImplConst) {
-            for (trait_idx, node, ctx) in &mut hir.impl_consts {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_impl_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::ImplStatic) {
-            for (trait_idx, node, ctx) in &mut hir.impl_statics {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_impl_static(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::ImplTlsStatic) {
-            for (trait_idx, node, ctx) in &mut hir.impl_tls_statics {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_impl_tls_static(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::Property) {
-            for (trait_idx, node, ctx) in &mut hir.properties {
-                let (trait_ref, trait_ctx) = &hir.impls[*trait_idx]; 
-                visitor.visit_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::OpTrait) {
-            for (node, ctx) in &mut hir.op_traits {
-                let mut node = node.write();
-                let mut ctx = ctx.write();
-                visitor.visit_op_trait(&mut node, &mut ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::OpFunction) {
-            for (trait_idx, node, ctx) in &mut hir.op_functions {
-                let (trait_ref, trait_ctx) = &hir.op_traits[*trait_idx]; 
-                visitor.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::OpSpecialization) {
-            for (trait_idx, node, ctx) in &mut hir.op_specializations {
-                let (trait_ref, trait_ctx) = &hir.op_traits[*trait_idx]; 
-                visitor.visit_op_specialization(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
-        if flags.contains(VisitFlags::OpContract) {
-            for (trait_idx, node, ctx) in &mut hir.op_contracts {
-                let (trait_ref, trait_ctx) = &hir.op_traits[*trait_idx]; 
-                visitor.visit_op_contract(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-            }
-        }
-
+        
         if flags.contains(VisitFlags::Precedence) {
             for (node, ctx) in &mut hir.precedences {
                 visitor.visit_precedence(node, ctx.clone());
@@ -1171,6 +1256,9 @@ pub(crate) mod helpers {
     pub fn visit_trait<T: Visitor>(visitor: &mut T, node: &mut Trait) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
+        }
+        if let Some(generics) = &mut node.generics {
+            visitor.visit_gen_params(generics);
         }
         if let Some(bounds) = &mut node.bounds {
             visitor.visit_trait_bounds(bounds);
