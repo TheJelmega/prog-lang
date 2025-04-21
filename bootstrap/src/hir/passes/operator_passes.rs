@@ -53,8 +53,6 @@ impl Visitor for OpPrecedenceProcessing<'_> {
             }
 
             // When we have a base, look it up and propagate the precedence
-            
-            // TODO: use paths
 
             for base in &op_trait_ref.bases {
 
@@ -65,10 +63,21 @@ impl Visitor for OpPrecedenceProcessing<'_> {
                 }
 
                 let Some(sym) = self.ctx.syms.read().get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) else {
-                    todo!("Error");
+                    self.ctx.add_error(HirError {
+                        node_id: base.node_id,
+                        err: HirErrorCode::UnknownSymbol { path: search_sym_path },
+                    });
+                    continue;
                 };
-                let Symbol::Trait(sym) = &*sym.read() else { 
-                    todo!("Error");
+                let Symbol::Trait(sym) = &*sym.read() else {
+                    self.ctx.add_error(HirError {
+                        node_id: base.node_id,
+                        err: HirErrorCode::ExpectedTraitSymbol {
+                            kind: sym.read().kind_str().to_string(),
+                            path: search_sym_path
+                        },
+                    });
+                    continue;
                 };
 
                 let mut base_sym_path = sym.path.scope.clone();
@@ -361,8 +370,7 @@ impl Visitor for OpTraitGen<'_> {
 
         let generics = if ctx.has_generics {
             let name = names.add("Rhs");
-            let self_ty_name = names.add("Self");
-            let def = Some(Box::new(PathType::from_name(self_ty_name, node.span, node.node_id)));
+            let def = Some(Box::new(PathType::self_ty(node.span, node.node_id)));
 
             let param = GenericParam::Type(GenericTypeParam {
                 span: node.span,
@@ -421,7 +429,6 @@ impl Visitor for OpTraitGen<'_> {
     fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
         let mut names = self.ctx.names.write();
 
-        let self_name = names.add("Self");
         let output_ty_name = names.add("Output");
 
         let is_assign = node.op_ty == OpType::Assign;
@@ -457,7 +464,7 @@ impl Visitor for OpTraitGen<'_> {
             None
         };
         
-        let params =  if node.op_ty == OpType::Infix {
+        let params =  if node.op_ty.is_binary() {
             let label = Some(names.add("_"));
             let rhs_name = names.add("rhs");
             let rhs_ty_name = names.add("Rhs");

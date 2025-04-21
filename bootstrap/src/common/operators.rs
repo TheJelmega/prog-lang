@@ -23,6 +23,10 @@ impl OpType {
     pub fn has_output(&self) -> bool {
         matches!(self, OpType::Prefix | OpType::Postfix | OpType::Infix)
     }
+
+    pub fn is_binary(&self) -> bool {
+        matches!(self, OpType::Infix | OpType::Assign)
+    }
 }
 
 impl fmt::Display for OpType {
@@ -40,7 +44,6 @@ impl fmt::Display for OpType {
 pub struct OperatorInfo {
     pub op_type:         OpType,
     pub op:              Punctuation,
-    // TODO: name + id
     pub precedence_name: String,
     pub precedence_id:   u16,
     pub library_path:    LibraryPath,

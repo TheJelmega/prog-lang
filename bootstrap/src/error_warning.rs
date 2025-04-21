@@ -284,6 +284,7 @@ pub enum HirErrorCode {
     CycleInTraitDag { cycle: String },
     CycleInPrecedenceDag { cycle: String },
 
+    ExpectedTraitSymbol { kind: String, path: Scope },
     UnknownSymbol { path: Scope },
 }
 
@@ -305,6 +306,7 @@ impl Display for HirErrorCode {
             Self::CycleInTraitDag { cycle }            => write!(f, "Cycle in trait DAG: {cycle}"),
             Self::CycleInPrecedenceDag { cycle }       => write!(f, "Cycle in precedence DAG: {cycle}"),
 
+            Self::ExpectedTraitSymbol { kind, path }   => write!(f, "Expected a trait symbol, found a {kind} symbol: {}", &path.to_string()),
             Self::UnknownSymbol { path }               => write!(f, "Cannot find symbol: {}", &path.to_string()),
 
             #[allow(unreachable_patterns)]

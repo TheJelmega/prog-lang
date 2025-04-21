@@ -13,6 +13,7 @@ use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment};
 
 // =============================================================
 
+#[derive(Clone, Debug)]
 pub struct SymbolPath {
     pub lib:   LibraryPath,
     pub scope: Scope,
@@ -44,6 +45,50 @@ pub enum Symbol {
     Property(PropertySymbol),
     Trait(TraitSymbol),
     Impl(ImplSymbol),
+}
+
+impl Symbol {
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            Symbol::Module(_)       => "module",
+            Symbol::Precedence(_)   => "precedence",
+            Symbol::Function(_)     => "function",
+            Symbol::TypeAlias(_)    => "type alias",
+            Symbol::DistinctType(_) => "distinct type",
+            Symbol::OpaqueType(_)   => "opaque type",
+            Symbol::Struct(_)       => "struct",
+            Symbol::Union(_)        => "union",
+            Symbol::AdtEnum(_)      => "ADT enum",
+            Symbol::FlagEnum(_)     => "flag enum",
+            Symbol::Bitfield(_)     => "bitfield",
+            Symbol::Const(_)        => "const",
+            Symbol::Static(_)       => "static",
+            Symbol::Property(_)     => "property",
+            Symbol::Trait(_)        => "trait",
+            Symbol::Impl(_)         => "impl",
+        }
+    }
+
+    pub fn path(&self) -> &SymbolPath {
+        match self {
+            Symbol::Module(sym)       => &sym.path,
+            Symbol::Precedence(sym)   => &sym.path,
+            Symbol::Function(sym)     => &sym.path,
+            Symbol::TypeAlias(sym)    => &sym.path,
+            Symbol::DistinctType(sym) => &sym.path,
+            Symbol::OpaqueType(sym) => &sym.path,
+            Symbol::Struct(sym)   => &sym.path,
+            Symbol::Union(sym)    => &sym.path,
+            Symbol::AdtEnum(sym)  => &sym.path,
+            Symbol::FlagEnum(sym) => &sym.path,
+            Symbol::Bitfield(sym) => &sym.path,
+            Symbol::Const(sym)    => &sym.path,
+            Symbol::Static(sym)   => &sym.path,
+            Symbol::Property(sym) => &sym.path,
+            Symbol::Trait(sym) => &sym.path,
+            Symbol::Impl(sym)  => &sym.path,
+        }
+    }
 }
 
 pub struct ModuleSymbol {
