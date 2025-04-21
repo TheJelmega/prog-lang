@@ -543,7 +543,10 @@ impl RootSymbolTable {
 
     pub fn log(&self) {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
-        for (lib_path, table) in &self.tables {
+        let end = self.tables.len() - 1;
+        for (idx, (lib_path, table)) in self.tables.iter().enumerate() {
+            logger.set_last_at_indent_if(idx == end);
+
             logger.log_indented("Table", |logger| {
                 if let Some(group) = &lib_path.group {
                     logger.prefixed_log_fmt(format_args!("Group: {group}\n"));
