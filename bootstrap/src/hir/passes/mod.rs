@@ -25,6 +25,9 @@ pub use operator_passes::*;
 mod trait_passes;
 pub use trait_passes::*;
 
+mod explicit_type_passes;
+pub use explicit_type_passes::*;
+
 #[derive(Clone)]
 pub struct PassContext {
     pub names:          Arc<RwLock<NameTable>>,
