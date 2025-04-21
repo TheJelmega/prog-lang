@@ -1,0 +1,56 @@
+
+
+pub op trait PartialEq | Compare {
+    infix op == : eq  -> bool,
+    infix op != : neq -> bool = !(self == other),
+}
+
+pub op trait Eq: PartialEq {
+    invar { (self == this) == (this == self) },
+    invar { (self != this) == (this != self) },
+    invar { (self == this) == !(this != self) }
+}
+
+pub record enum Ordering {
+    Less = -1,
+    Equals,
+    Greater,
+}
+
+pub op trait PartialOrd | Compare {
+    infix op <=>? : partial_cmp -> ?Ordering,
+    infix op <    : lt          -> bool     = (self <=>? other) == Some(Ordering.Less),
+    infix op <=   : le          -> bool     = {
+        let ord = (self <=>? other);
+        ord == Some(Ordering.Less) || ord == Some(Ordering.Equals)
+    },
+    infix op >    : gt          -> bool     = (self <=>? other) == Some(Ordering.Greater),
+    infix op >=   : ge          -> bool     = {
+        let ord = (self <=>? other);
+        ord == Some(Ordering.Greater) || ord == Some(Ordering.Equals)
+    },
+}
+
+pub op trait Ord: PartialOrd & Eq {
+    // new operator
+    infix op <=> : cmp -> Ordering = (self <=>? other)!,
+
+    // operator specializations
+    infix op <   := (self <=> other) == Ordering.Less,
+    infix op <=  := {
+        let ord = (self <=> other);
+        ord == Ordering.Less || ord == Ordering.Equals
+    },
+    infix op >   := (self <=> other) == Ordering.Greater,
+    infix op <=  := {
+        let ord = (self <=> other);
+        ord == Ordering.Greater || ord == Ordering.Equals
+    },
+
+    // Contracts
+    invar { (self <  other) ==  (other >  self ) },
+    invar { (self <  other) == !(self  >= other) },
+    invar { (self >  other) ==  (other <  self ) },
+    invar { (self >  other) == !(self  <= other) },
+    invar { (self <= other) ==  (other >= self ) }
+}

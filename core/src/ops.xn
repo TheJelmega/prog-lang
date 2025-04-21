@@ -1,0 +1,222 @@
+//!
+//!
+//!
+//!
+//!
+//!
+
+pub op trait Pos {
+    prefix op | : pos
+}
+
+pub op trait Neg {
+    prefix op | : neg
+}
+
+pub op trait Not {
+    prefix op ! : not
+}
+
+pub op trait Add {
+    infix op + : add
+}
+
+pub op trait AddAssign {
+    assign op += : add_assign
+}
+
+pub op trait WrappedAdd | AddSub {
+    infix op +% : wrapped_add
+}
+
+pub op trait WrappedAddAssign {
+    assign op +%= : wrapped_add_assign
+}
+
+pub op trait SaturatingAdd | AddSub {
+    infix op +| : saturating_add
+}
+
+pub op trait SaturatingAddAssign {
+    assign op +|= : saturating_add_assign
+}
+
+pub op trait Sub | AddSub {
+    infix op - : sub
+}
+
+pub op trait SubAssign {
+    assign op -= : sub_assign
+}
+
+pub op trait WrappedSub | AddSub {
+    infix op -% : wrapped_sub
+}
+
+pub op trait WrappedSubAssign {
+    assign op -%= : wrapped_sub_assign
+}
+
+pub op trait SaturatingSub | AddSub {
+    infix op -|= : saturating_sub
+}
+
+pub op trait SaturatingSubAssign {
+    assign op -|= : saturating_sub_assign
+}
+
+pub op trait Mul | MulDivRem {
+    infix op * : mul
+}
+
+pub op trait MulAssign {
+    assign op *= : mul
+}
+
+pub op trait WrappedMul | MulDivRem {
+    infix op *% : wrapped_mul
+}
+
+pub op trait WrappedMulAssign {
+    assign op *%= : wrapped_mul_assign
+}
+
+pub op trait SaturatingMul | MulDivRem {
+    infix op *| : saturating_mul
+}
+
+pub op trait SaturatingMulAssign {
+    assign op *|= : saturating_mul_assign
+}
+
+pub op trait Div | MulDivRem {
+    infix op / : div
+}
+
+pub op trait DivAssign {
+    assign op /= : div_assign
+}
+
+pub op trait Rem | MulDivRem {
+    infix op % : rem
+}
+
+pub op trait RemAssign {
+    assign op %= : rem_assign
+}
+
+pub op trait Or | BitOr {
+    infix op | : or
+}
+
+pub op trait OrAssign {
+    assign op |= : or_assign
+}
+
+pub op trait Nor | BitOr {
+    infix op !| : nor
+}
+
+pub op trait NorAssign {
+    assign op !|= : nor_assign
+}
+
+pub op trait And | BitAnd {
+    infix op & : and
+}
+
+pub op trait AndAssign {
+    assign op &= : and_assign
+}
+
+pub op trait Nand | BitAnd {
+    infix op !& : nand
+}
+
+pub op trait NandAssign {
+    assign op !&= : nand_assign
+}
+
+pub op trait Mask | BitAnd {
+    infix op &! : mask
+}
+
+pub op trait MaskAssign {
+    assign op &!= : mask_assign
+}
+
+pub op trait Xor {
+    infix op ~ : xor
+}
+
+pub op trait XorAssign {
+    assign op ~= : xor_assign
+}
+
+pub op trait Shl | ShiftRot {
+    infix op << : shl
+}
+
+pub op trait ShlAssign {
+    assign op <<= : shl_assign
+}
+
+pub op trait SaturatingShl | ShiftRot {
+    infix op <<| : saturating_shl
+}
+
+pub op trait SaturatingShlAssign {
+    assign op <<|= : saturating_shl_assign
+}
+
+pub op trait Shr | ShiftRot {
+    infix op >> : shr
+}
+
+pub op trait ShrAssign {
+    assign op >>= : shr_assign
+}
+
+pub op trait Shra | ShiftRot {
+    infix op >>- : shra
+}
+
+pub op trait ShraAssign {
+    assign op >>-= : shra_assign
+}
+
+pub op trait Shrl | ShiftRot {
+    infix op >>+ : shrl
+}
+
+pub op trait ShrlAssign {
+    assign op >>+ : srhl_assign
+}
+
+pub op trait Rotl | ShiftRot {
+    infix op *<< : rotl
+}
+
+pub op trait RotlAssign | ShiftRot {
+    assign op *<<= : rotl_assign
+}
+
+pub op trait Rotr | ShiftRot {
+    infix op >>* : rotr
+}
+
+pub op trait RotrAssign {
+    assign op >>*= : rotr_assign
+}
+
+// TODO: figure out how to specify lazy evaluation the the second operand
+pub op trait LogicalOr | LazyOr {
+    infix op || : logic_or,
+}
+
+pub op trait LogicalAnd | LazyAnd {
+    infix op && : logic_and,
+}
+
+
+fn test() {}

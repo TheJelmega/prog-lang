@@ -1,0 +1,89 @@
+//! Builtin precedence
+//!
+//! This file contains a set of precedences used by the language for the builtin operators.
+//! These precedences are implicitly included via the core prelude.
+
+/// Highest allowed precedence
+///
+/// This precedence cannot be used directly as it is used for precedence ordering
+@builtin(highest_precedence)
+precedence Highest {
+}
+
+/// Lowest allowed precedence
+///
+/// This precedence cannot be used directly as it is used for precedence ordering
+@builtin(lowest_precedence)
+precedence Lowest {
+}
+
+precedence Typed {
+    lower_than: Highest,
+    associativity: left
+}
+
+precedence MulDivRem {
+    lower_than: Typed,
+    associativity: left
+}
+
+precedence AddSub {
+    lower_than: MulDivRem,
+    associativity: left
+}
+
+precedence ShiftRot {
+    lower_than: AddSub,
+    associativity: none
+}
+
+precedence BitAnd {
+    lower_than: ShiftRot,
+    associativity: left
+}
+
+precedence BitXor {
+    lower_than: BitAnd,
+    associativity: left
+}
+
+precedence BitOr {
+    lower_than: BitXor,
+    associativity: left
+}
+
+precedence Select {
+    lower_than: BitOr,
+    associativity: right
+}
+
+precedence Compare {
+    lower_than: Select,
+    associativity: none
+}
+
+precedence LazyAnd {
+    lower_than: Compare,
+    associativity: left
+}
+
+precedence LazyOr {
+    lower_than: LazyAnd,
+    associativity: left
+}
+
+precedence Range {
+    lower_than: LazyOr,
+    associativity: none
+}
+
+precedence Pipe {
+    lower_than: Range,
+    associativity: left,
+}
+
+precedence Assign {
+    lower_than: Pipe,
+    higher_than: Lowest,
+    associativity: right,
+}
