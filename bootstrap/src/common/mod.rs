@@ -1,5 +1,5 @@
 
-use std::{fmt, time, hash::Hash};
+use std::{fmt, hash::Hash};
 
 mod logger;
 pub use logger::*;
@@ -32,8 +32,6 @@ pub use span::*;
 
 mod traits;
 pub use traits::*;
-
-use crate::hir::Hir;
 
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]

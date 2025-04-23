@@ -76,17 +76,17 @@ impl Symbol {
             Symbol::Function(sym)     => &sym.path,
             Symbol::TypeAlias(sym)    => &sym.path,
             Symbol::DistinctType(sym) => &sym.path,
-            Symbol::OpaqueType(sym) => &sym.path,
-            Symbol::Struct(sym)   => &sym.path,
-            Symbol::Union(sym)    => &sym.path,
-            Symbol::AdtEnum(sym)  => &sym.path,
-            Symbol::FlagEnum(sym) => &sym.path,
-            Symbol::Bitfield(sym) => &sym.path,
-            Symbol::Const(sym)    => &sym.path,
-            Symbol::Static(sym)   => &sym.path,
-            Symbol::Property(sym) => &sym.path,
-            Symbol::Trait(sym) => &sym.path,
-            Symbol::Impl(sym)  => &sym.path,
+            Symbol::OpaqueType(sym)   => &sym.path,
+            Symbol::Struct(sym)       => &sym.path,
+            Symbol::Union(sym)        => &sym.path,
+            Symbol::AdtEnum(sym)      => &sym.path,
+            Symbol::FlagEnum(sym)     => &sym.path,
+            Symbol::Bitfield(sym)     => &sym.path,
+            Symbol::Const(sym)        => &sym.path,
+            Symbol::Static(sym)       => &sym.path,
+            Symbol::Property(sym)     => &sym.path,
+            Symbol::Trait(sym)        => &sym.path,
+            Symbol::Impl(sym)         => &sym.path,
         }
     }
 }
@@ -564,8 +564,7 @@ impl RootSymbolTable {
 
 
 
-struct SymbolTableLogger {
-}
+struct SymbolTableLogger;
 
 #[allow(unused)]
 impl SymbolTableLogger {
