@@ -43,14 +43,14 @@ pub enum ContextNodeData {
 }
 
 pub struct ContextNode {
-    pub scope: Scope,
-    pub data: ContextNodeData,
+    pub module_scope: Scope, // TODO: rename module_scope to actually mentioned what this scope actually is, so this is not used incorrectly when lowering
+    pub data:         ContextNodeData,
 }
 
 impl ContextNode {
     fn new() -> Self {
         Self {
-            scope: Scope::new(),
+            module_scope: Scope::new(),
             data: ContextNodeData::None,
         }
     }

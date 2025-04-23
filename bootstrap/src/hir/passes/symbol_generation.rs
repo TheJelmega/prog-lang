@@ -179,9 +179,8 @@ impl Visitor for SymbolGeneration<'_> {
     }
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
-        // TODO:
-        let name = todo!();// self.ctx.names.read()[node.name].to_string();
-        
+        let name = &self.ctx.names.read()[ctx.name];
+
         let sym = self.ctx.syms.write().add_impl(None, &ctx.scope, name);
         ctx.sym = Some(sym);
     }

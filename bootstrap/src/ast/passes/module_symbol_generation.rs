@@ -91,12 +91,12 @@ impl Visitor for ModulePathResolution<'_> {
             // - path is the main 'lib.xn' or 'main.xn' file
             // - path is a 'mod.xn' file
             let ctx_node = self.ctx.get_node_for(node);
-            let is_mod_path = if ctx_node.scope.is_empty() {
+            let is_mod_path = if ctx_node.module_scope.is_empty() {
                 true
             } else {
                 let syms = self.ctx.syms.read();
-                let base_scope = &ctx_node.scope.parent();
-                let cur_name = &ctx_node.scope.last().unwrap().name;
+                let base_scope = &ctx_node.module_scope.parent();
+                let cur_name = &ctx_node.module_scope.last().unwrap().name;
 
                 let Some(sym) = syms.get_symbol(None, base_scope, cur_name) else {
                     self.ctx.add_error(AstError {
@@ -165,15 +165,15 @@ impl Visitor for ModulePathResolution<'_> {
         {
             let ctx_node = self.ctx.get_node_for_mut(node);
             let ContextNodeData::Module(module_data) = &mut ctx_node.data else { unreachable!() };
-            module_data.sym_path = ctx_node.scope.clone();
+            module_data.sym_path = ctx_node.module_scope.clone();
             module_data.sym_path.push(mod_name.to_string());
         }
         let ctx_node = self.ctx.get_node_for(node);
         
-        let mut base_scope = ctx_node.scope.clone();
+        let mut base_scope = ctx_node.module_scope.clone();
         base_scope.push(mod_name.clone());
         
-        self.ctx.syms.write().add_module(None, &ctx_node.scope, &mod_name, path.clone());
+        self.ctx.syms.write().add_module(None, &ctx_node.module_scope, &mod_name, path.clone());
         self.collected_paths.push((path.clone(), base_scope));
     }
 }

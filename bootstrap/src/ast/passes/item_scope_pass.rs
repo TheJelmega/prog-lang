@@ -22,25 +22,25 @@ impl<'a> ModuleScopePass<'a> {
 impl Visitor for ModuleScopePass<'_> {
     fn visit_item(&mut self, item: &Item) where Self: Sized {
         let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
-        ctx.scope = self.scope.clone();
+        ctx.module_scope = self.scope.clone();
         helpers::visit_item(self, item);
     }
 
     fn visit_trait_item(&mut self, item: &TraitItem) where Self: Sized {
         let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
-        ctx.scope = self.scope.clone();
+        ctx.module_scope = self.scope.clone();
         helpers::visit_trait_item(self, item);
     }
 
     fn visit_assoc_item(&mut self, item: &ImplItem) where Self: Sized {
         let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
-        ctx.scope = self.scope.clone();
+        ctx.module_scope = self.scope.clone();
         helpers::visit_assoc_item(self, item);
     }
 
     fn visit_extern_item(&mut self, item: &ExternItem) where Self: Sized {
         let ctx = self.ctx.get_node_for_index_mut(item.node_id().index());
-        ctx.scope = self.scope.clone();
+        ctx.module_scope = self.scope.clone();
         helpers::visit_extern_item(self, item);
     }
 

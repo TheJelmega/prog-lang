@@ -1907,13 +1907,15 @@ impl TraitContext {
 }
 
 pub struct ImplContext {
+    pub name:  NameId,
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
 }
 
 impl ImplContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(name: NameId, scope: Scope) -> Self {
         Self {
+            name,
             scope,
             sym: None,
         }
@@ -2270,9 +2272,9 @@ impl Hir {
 
     //--------------------------------------------------------------
     
-    pub fn add_impl(&mut self, scope: Scope, item: Impl) {
+    pub fn add_impl(&mut self, name: NameId, scope: Scope, item: Impl) {
         let item = Arc::new(RwLock::new(item));
-        let ctx = Arc::new(RwLock::new(ImplContext::new(scope)));
+        let ctx = Arc::new(RwLock::new(ImplContext::new(name, scope)));
         self.impls.push((item, ctx));
     }
 

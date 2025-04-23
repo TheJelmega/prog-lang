@@ -1,5 +1,7 @@
 use std::mem;
 
+use fmt::format;
+
 use crate::{
     ast::*,
     common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry},
@@ -47,6 +49,7 @@ pub struct AstToHirLowering<'a> {
     use_table:          &'a mut RootUseTable,
 
     lib_path:           LibraryPath,
+    trait_impl_scope:   Scope,
 }
 
 impl<'a> AstToHirLowering<'a> {
@@ -99,6 +102,7 @@ impl<'a> AstToHirLowering<'a> {
             hir,
             use_table,
             lib_path,
+            trait_impl_scope:   Scope::new(),
         }
     }
 }
@@ -1127,7 +1131,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_use(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
+        let scope = ast_ctx.module_scope.clone();
 
         let mut paths = Vec::new();
         let lib_path = self.get_lib_path(node.group, node.package, node.library);
@@ -1178,7 +1182,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         if let Some(body) = body {
             // function, external function
-            self.hir.add_function(self.in_impl, node_ctx.scope.clone(), hir::Function {
+            self.hir.add_function(self.in_impl, node_ctx.module_scope.clone(), hir::Function {
                 span: node.span,
                 node_id: node.node_id,
                 attrs,
@@ -1196,7 +1200,7 @@ impl Visitor for AstToHirLowering<'_> {
             });
         } else {
             // extern
-            self.hir.add_extern_function(node_ctx.scope.clone(), hir::ExternFunctionNoBody {
+            self.hir.add_extern_function(node_ctx.module_scope.clone(), hir::ExternFunctionNoBody {
                 span: node.span,
                 node_id: node.node_id,
                 attrs,
@@ -1243,9 +1247,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
-        let node_ctx = self.ctx.get_node_for(node);
-
-        self.hir.add_method(node_ctx.scope.clone(), hir::Method {
+        self.hir.add_method(self.trait_impl_scope.clone(), hir::Method {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1267,7 +1269,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_type_alias(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = node_ctx.module_scope.clone();
         let ty = self.type_stack.pop().unwrap();
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
@@ -1290,7 +1292,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_distinct_type(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = node_ctx.module_scope.clone();
 
         let ty = self.type_stack.pop().unwrap();
         let vis = self.get_vis(node.vis.as_ref());
@@ -1314,7 +1316,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_opaque_type(self, node);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = node_ctx.module_scope.clone();
 
         let size = node.size.as_ref().map(|_| self.expr_stack.pop().unwrap());
         let vis = self.get_vis(node.vis.as_ref());
@@ -1334,7 +1336,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_struct(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = node_ctx.module_scope.clone();
 
         match &**node {
             Struct::Regular { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, fields } => {
@@ -1448,7 +1450,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let node_ctx = self.ctx.get_node_for(node);
 
-        self.hir.add_union(node_ctx.scope.clone(), hir::Union {
+        self.hir.add_union(node_ctx.module_scope.clone(), hir::Union {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1464,7 +1466,7 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_enum(&mut self, node: &AstNodeRef<Enum>) where Self: Sized {
         helpers::visit_enum(self, node, false);
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = node_ctx.module_scope.clone();
 
         match &**node {
             Enum::Adt { span, node_id, attrs, vis, is_mut, is_record, name, generics, where_clause, variants } => {
@@ -1582,7 +1584,7 @@ impl Visitor for AstToHirLowering<'_> {
         let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
         let ast_ctx = self.ctx.get_node_for(node);
-        self.hir.add_bitfield(ast_ctx.scope.clone(), hir::Bitfield {
+        self.hir.add_bitfield(ast_ctx.module_scope.clone(), hir::Bitfield {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1622,14 +1624,15 @@ impl Visitor for AstToHirLowering<'_> {
             ty,
             val,
         };
-        self.hir.add_const(self.in_impl, ast_ctx.scope.clone(), item);
+        let scope = if self.in_impl { self.trait_impl_scope.clone() } else { ast_ctx.module_scope.clone() };
+        self.hir.add_const(self.in_impl, scope, item);
     }
 
     fn visit_static(&mut self, node: &AstNodeRef<Static>) where Self: Sized {
         helpers::visit_static(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
+        let scope = if self.in_impl { self.trait_impl_scope.clone() } else { ast_ctx.module_scope.clone() };
 
         match &**node {
             Static::Static { span, node_id, attrs, vis, name, ty, val:_ } => {
@@ -1697,7 +1700,8 @@ impl Visitor for AstToHirLowering<'_> {
         let bounds = node.bounds.as_ref().map(|bounds| Box::new(self.convert_trait_bounds(&bounds)));
 
         let ast_ctx = self.ctx.get_node_for(node);
-        self.hir.add_trait(ast_ctx.scope.clone(), hir::Trait {
+        let mut scope = ast_ctx.module_scope.clone();
+        self.hir.add_trait(scope.clone(), hir::Trait {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1709,6 +1713,9 @@ impl Visitor for AstToHirLowering<'_> {
             bounds,
             where_clause,
         });
+
+        scope.push(self.names[node.name].to_string());
+        self.trait_impl_scope = scope;
 
         for item in &node.assoc_items {
             self.visit_trait_item(item);
@@ -1813,9 +1820,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
-        let node_ctx = self.ctx.get_node_for(node);
-
-        self.hir.add_trait_function(node_ctx.scope.clone(), hir::TraitFunction {
+        self.hir.add_trait_function(self.trait_impl_scope.clone(), hir::TraitFunction {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1861,9 +1866,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
-        let node_ctx = self.ctx.get_node_for(node);
-
-        self.hir.add_trait_method(node_ctx.scope.clone(), hir::TraitMethod {
+        self.hir.add_trait_method(self.trait_impl_scope.clone(), hir::TraitMethod {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -1885,7 +1888,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_trait_type_alias(self, node, false);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = self.trait_impl_scope.clone();
 
         let def = node.def.as_ref().map(|_| self.type_stack.pop().unwrap());
         let attrs = self.get_attribs(&node.attrs);
@@ -1930,7 +1933,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_trait_type_alias_override(self, node);
 
         let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.scope.clone();
+        let scope = self.trait_impl_scope.clone();
 
         let ty = self.type_stack.pop().unwrap();
 
@@ -1958,14 +1961,14 @@ impl Visitor for AstToHirLowering<'_> {
             ty,
             def,
         };
-        self.hir.add_trait_const(ast_ctx.scope.clone(), item);
+        self.hir.add_trait_const(self.trait_impl_scope.clone(), item);
     }
 
     fn visit_trait_property(&mut self, node: &AstNodeRef<TraitProperty>) where Self: Sized {
         helpers::visit_trait_property(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
+        let scope = self.trait_impl_scope.clone();
 
         let set = match &node.set {
             None    => hir::TraitPropertyMember::None,
@@ -2020,7 +2023,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_trait_property_override(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
+        let scope = self.trait_impl_scope.clone();
 
         let set = node.set.as_ref().map(|_| self.expr_stack.pop().unwrap());
         let mut_get = node.mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
@@ -2065,8 +2068,13 @@ impl Visitor for AstToHirLowering<'_> {
 
         let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
 
+        let span = self.spans[node.span];
+        let impl_name = format!("__impl_{}_{}", span.row, span.column);
+        let name = self.names.add(&impl_name);
+
         let ast_ctx = self.ctx.get_node_for(node);
-        self.hir.add_impl(ast_ctx.scope.clone(), hir::Impl {
+        let mut scope = ast_ctx.module_scope.clone();
+        self.hir.add_impl(name, scope.clone(), hir::Impl {
             span: node.span,
             node_id: node.node_id,
             attrs,
@@ -2079,6 +2087,9 @@ impl Visitor for AstToHirLowering<'_> {
         });
 
         self.in_impl = true;
+        scope.push(impl_name);
+        self.trait_impl_scope = scope;
+
         for item in &node.assoc_items {
             self.visit_assoc_item(item);
         }
@@ -2089,7 +2100,7 @@ impl Visitor for AstToHirLowering<'_> {
         helpers::visit_property(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let scope = ast_ctx.scope.clone();
+        let scope = self.trait_impl_scope.clone();
 
         let set = node.set.as_ref().map(|_| self.expr_stack.pop().unwrap());
         let mut_get = node.mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
@@ -2144,7 +2155,7 @@ impl Visitor for AstToHirLowering<'_> {
         //helpers::visit_op_trait(self, node);
 
         let ast_ctx = self.ctx.get_node_for(node);
-        let mut scope = ast_ctx.scope.clone();
+        let mut scope = ast_ctx.module_scope.clone();
 
         match &**node {
             OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => {
@@ -2214,7 +2225,7 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_op_use(&mut self, node: &AstNodeRef<OpUse>) where Self: Sized {
         // Check if we're a top level use
-        let scope = &self.ctx.get_node_for(node).scope;
+        let scope = &self.ctx.get_node_for(node).module_scope;
         if !scope.is_empty() {
             self.ctx.add_error(AstError {
                 node_id: node.node_id,
@@ -2248,7 +2259,7 @@ impl Visitor for AstToHirLowering<'_> {
             kind: assoc.kind,
         });
 
-        let scope = &self.ctx.get_node_for(node).scope;
+        let scope = &self.ctx.get_node_for(node).module_scope;
         self.hir.add_precedence(scope.clone(), hir::Precedence {
             span: node.span,
             node_id: node.node_id,
@@ -2263,7 +2274,7 @@ impl Visitor for AstToHirLowering<'_> {
 
     fn visit_precedence_use(&mut self, node: &AstNodeRef<PrecedenceUse>) where Self: Sized {
         // Check if we're a top level use
-        let scope = &self.ctx.get_node_for(node).scope;
+        let scope = &self.ctx.get_node_for(node).module_scope;
         if !scope.is_empty() {
             self.ctx.add_error(AstError {
                 node_id: node.node_id,
@@ -4263,7 +4274,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node);
 
-        self.hir.add_struct(ast_ctx.scope.clone(), hir::Struct {
+        self.hir.add_struct(ast_ctx.module_scope.clone(), hir::Struct {
             span: node.span,
             node_id: node.node_id,
             attrs: vec![self.comp_gen_attr.clone()],
@@ -4278,7 +4289,7 @@ impl Visitor for AstToHirLowering<'_> {
             allow_du: true,
         });
 
-        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);
+        let mut path = base_type_path_from_scope(&ast_ctx.module_scope, &mut self.names, node.span, node.node_id);
         path.idens.push(hir::Identifier {
             name: hir::IdenName::Name { name, span: node.span },
             gen_args: None,
@@ -4310,7 +4321,7 @@ impl Visitor for AstToHirLowering<'_> {
 
         let ast_ctx = self.ctx.get_node_for(node);
 
-        self.hir.add_adt_enum(ast_ctx.scope.clone(), hir::AdtEnum {
+        self.hir.add_adt_enum(ast_ctx.module_scope.clone(), hir::AdtEnum {
             span: node.span,
             node_id: node.node_id,
             attrs: vec![self.comp_gen_attr.clone()],
@@ -4324,7 +4335,7 @@ impl Visitor for AstToHirLowering<'_> {
             allow_du: true,
         });
 
-        let mut path = base_type_path_from_scope(&ast_ctx.scope, &mut self.names, node.span, node.node_id);
+        let mut path = base_type_path_from_scope(&ast_ctx.module_scope, &mut self.names, node.span, node.node_id);
         path.idens.push(hir::Identifier {
             name: hir::IdenName::Name { name, span: node.span },
             gen_args: None,
