@@ -9,22 +9,46 @@ use crate::{lexer::FormatSpan, literals::{Literal, LiteralId, LiteralTable}};
 /// Strong keywords
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StrongKeyword {
-    As,
-    AsQuestion,
-    AsExclaim,
-    Assert,
+    // Primitive types
     B8,
     B16,
     B32,
     B64,
-    Bitfield,
     Bool,
-    Break,
     Char,
     Char7,
     Char8,
     Char16,
     Char32,
+    F16,
+    F32,
+    F64,
+    F128,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    Isize,
+    Str,
+    Str7,
+    Str8,
+    Str16,
+    Str32,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    Usize,
+
+    // Ohter keywords
+    As,
+    AsQuestion,
+    AsExclaim,
+    Assert,
+    Bitfield,
+    Break,
     Const,
     Constraint,
     Continue,
@@ -38,24 +62,14 @@ pub enum StrongKeyword {
     ExclaimIn,
     ExclaimIs,
     Extern,
-    F16,
-    F32,
-    F64,
-    F128,
     False,
     Fallthrough,
     Fn,
     For,
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
     If,
     In,
     Impl,
     Is,
-    Isize,
     Let,
     Loop,
     Match,
@@ -66,11 +80,6 @@ pub enum StrongKeyword {
     SelfTy,
     SelfName,
     Static,
-    Str,
-    Str7,
-    Str8,
-    Str16,
-    Str32,
     Struct,
     Throw,
     Trait,
@@ -80,15 +89,9 @@ pub enum StrongKeyword {
     Type,
     Ref,
     Return,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
     Union,
     Unsafe,
     Use,
-    Usize,
     When,
     Where,
     While,
@@ -102,22 +105,46 @@ pub enum StrongKeyword {
 impl StrongKeyword {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::As          => "as",
-            Self::AsQuestion  => "as?",
-            Self::AsExclaim   => "as!",
-            Self::Assert      => "assert",
+            // Primitive types
             Self::B8          => "b8",
             Self::B16         => "b16",
             Self::B32         => "b32",
             Self::B64         => "b64",
-            Self::Bitfield    => "bitfield",
             Self::Bool        => "bool",
-            Self::Break       => "break",
             Self::Char        => "char",
             Self::Char7       => "char7",
             Self::Char8       => "char8",
             Self::Char16      => "char16",
             Self::Char32      => "char32",
+            Self::F16         => "f16",
+            Self::F32         => "f32",
+            Self::F64         => "f64",
+            Self::F128        => "f128",
+            Self::I8          => "i8",
+            Self::I16         => "i16",
+            Self::I32         => "i32",
+            Self::I64         => "i64",
+            Self::I128        => "i128",
+            Self::Isize       => "isize",
+            Self::Str         => "str",
+            Self::Str7        => "str7",
+            Self::Str8        => "str8",
+            Self::Str16       => "str16",
+            Self::Str32       => "str32",
+            Self::U8          => "u8",
+            Self::U16         => "u16",
+            Self::U32         => "u32",
+            Self::U64         => "u64",
+            Self::U128        => "u128",
+            Self::Usize       => "usize",
+ 
+            // Other keywords
+            Self::As          => "as",
+            Self::AsQuestion  => "as?",
+            Self::AsExclaim   => "as!",
+            Self::Assert      => "assert",
+            Self::Bitfield    => "bitfield",
+            Self::Break       => "break",
             Self::Const       => "const",
             Self::Constraint  => "constraint",
             Self::Continue    => "continue",
@@ -131,24 +158,14 @@ impl StrongKeyword {
             Self::ExclaimIn   => "!in",
             Self::ExclaimIs   => "!is",
             Self::Extern      => "extern",
-            Self::F16         => "f16",
-            Self::F32         => "f32",
-            Self::F64         => "f64",
-            Self::F128        => "f128",
             Self::False       => "false",
             Self::Fallthrough => "fallthrough",
             Self::Fn          => "fn",
             Self::For         => "for",
-            Self::I8          => "i8",
-            Self::I16         => "i16",
-            Self::I32         => "i32",
-            Self::I64         => "i64",
-            Self::I128        => "i128",
             Self::If          => "if",
             Self::Impl        => "impl",
             Self::Is          => "is",
             Self::In          => "in",
-            Self::Isize       => "isize",
             Self::Let         => "let",
             Self::Loop        => "loop",
             Self::Match       => "match",
@@ -161,11 +178,6 @@ impl StrongKeyword {
             Self::SelfName    => "self",
             Self::SelfTy      => "Self",
             Self::Static      => "static",
-            Self::Str         => "str",
-            Self::Str7        => "str7",
-            Self::Str8        => "str8",
-            Self::Str16       => "str16",
-            Self::Str32       => "str32",
             Self::Struct      => "struct",
             Self::Throw       => "throw",
             Self::Trait       => "trait",
@@ -173,22 +185,56 @@ impl StrongKeyword {
             Self::Try         => "try",
             Self::TryExclaim  => "try!",
             Self::Type        => "type",
-            Self::U8          => "u8",
-            Self::U16         => "u16",
-            Self::U32         => "u32",
-            Self::U64         => "u64",
-            Self::U128        => "u128",
             Self::Union       => "union",
             Self::Unsafe      => "unsafe",
             Self::Use         => "use",
-            Self::Usize       => "usize",
             Self::When        => "when",
             Self::Where       => "where",
             Self::While       => "while",
+
+            // Reserved
             Self::Async       => "asycn",
             Self::Await       => "await",
             Self::Yield       => "yield",
         }
+    }
+
+    pub const PRIM_TY_NAMES: [&'static str; 31] = [
+        "b8",
+        "b16",
+        "b32",
+        "b64",
+        "bool",
+        "char",
+        "char7",
+        "char8",
+        "char16",
+        "char32",
+        "f16",
+        "f32",
+        "f64",
+        "f128",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "i128",
+        "isize",
+        "str",
+        "str7",
+        "str8",
+        "str16",
+        "str32",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "u128",
+        "usize",
+    ];
+
+    pub fn is_primitive_type(&self) -> bool {
+        *self as usize <= Self::Usize as usize
     }
 }
 
@@ -475,6 +521,7 @@ pub struct TokenStore {
     pub metadata:         Vec<TokenMetadata>,
     pub tail_meta_elems:  Vec<MetaElem>,
     pub weak_kw_name_map: Vec<NameId>,
+    pub prim_ty_name_map: Vec<NameId>,
 }
 
 impl TokenStore {
@@ -484,6 +531,12 @@ impl TokenStore {
             weak_kw_name_map.push(names.add(kw_name));
         }
 
+        let mut prim_ty_name_map = Vec::with_capacity(StrongKeyword::PRIM_TY_NAMES.len());
+        for kw_name in &StrongKeyword::PRIM_TY_NAMES {
+            prim_ty_name_map.push(names.add(kw_name));
+        }
+        
+
         Self {
             has_bom: false,
             shebang: None,
@@ -491,6 +544,7 @@ impl TokenStore {
             metadata: Vec::new(),
             tail_meta_elems: Vec::new(),
             weak_kw_name_map,
+            prim_ty_name_map,
         }
     }
 
@@ -502,6 +556,7 @@ impl TokenStore {
             metadata: Vec::new(),
             tail_meta_elems: Vec::new(),
             weak_kw_name_map: Vec::new(),
+            prim_ty_name_map: Vec::new(),
         }
     }
 
@@ -512,6 +567,15 @@ impl TokenStore {
 
     pub fn get_name_from_weak_keyword(&self, kw: WeakKeyword) -> NameId {
         self.weak_kw_name_map[kw as usize]
+    }
+
+    pub fn get_name_from_prim_ty(&self, kw: StrongKeyword) -> Option<NameId> {
+        let idx = kw as usize;
+        if idx < StrongKeyword::PRIM_TY_NAMES.len() {
+            Some(self.prim_ty_name_map[idx])
+        } else {
+            None
+        }
     }
 
     pub fn log(&self, literals: &LiteralTable, names: &NameTable, punctuations: &PuncutationTable, spans: &SpanRegistry) {

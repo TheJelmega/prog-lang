@@ -144,38 +144,36 @@ impl Parser<'_> {
         }
     }
 
+    fn name_from_tok(&self, token: Token) -> Option<NameId> {
+        match token {
+            Token::Name(name_id) => Some(name_id),
+            Token::WeakKw(kw)    => Some(self.token_store.get_name_from_weak_keyword(kw)),
+            Token::StrongKw(kw)  => self.token_store.get_name_from_prim_ty(kw),
+            _ => None
+        }
+    }
+
     fn try_consume_name(&mut self) -> Option<NameId> {
         let peek = match self.try_peek() {
             Some(peek) => peek,
             None       => return None,
         };
-        match peek {
-            Token::Name(name_id) => {
-                self.consume_single();
-                Some(name_id)
-            },
-            Token::WeakKw(kw) => {
-                self.consume_single();
-                let id = self.token_store.get_name_from_weak_keyword(kw);
-                Some(id)
-            }
-            _ => None
+
+        let name = self.name_from_tok(peek);
+        if name.is_some() {
+            self.consume_single();
         }
+        name
     }
 
     fn consume_name(&mut self) -> Result<NameId, ParserErr> {
         let peek = self.peek()?;
-        match peek {
-            Token::Name(name_id) => {
+        match self.name_from_tok(peek) {
+            Some(name) => {
                 self.consume_single();
-                Ok(name_id)
+                Ok(name)
             },
-            Token::WeakKw(kw) => {
-                self.consume_single();
-                let id = self.token_store.get_name_from_weak_keyword(kw);;
-                Ok(id)
-            }
-            _ => Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) }))
+            None => Err(self.gen_error(ParseErrorCode::FoundButExpected{ found: peek, expected: Token::Name(NameId::INVALID) })),
         }
     }
 
@@ -407,6 +405,10 @@ impl Parser<'_> {
                 let ty = self.parse_type()?;
                 self.consume_punct(Punctuation::Colon)?;
                 self.end_scope();
+                Ok(PathStart::Typed(ty))
+            },
+            Token::StrongKw(kw) if kw.is_primitive_type() => {
+                let ty = self.parse_type()?;
                 Ok(PathStart::Typed(ty))
             },
             _ => Ok(PathStart::None),
@@ -2789,7 +2791,9 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::False)         |
             Token::Literal(_)                             => self.parse_literal_expr()?,
             Token::Name(_)                                |
-            Token::Punctuation(Punctuation::Dot)          => self.parse_path_expr()?,
+            Token::Punctuation(Punctuation::Dot)          |
+            Token::StrongKw(StrongKeyword::SelfName)      => self.parse_path_expr()?,
+            Token::StrongKw(kw) if kw.is_primitive_type() => self.parse_path_expr()?,
             Token::StrongKw(StrongKeyword::Unsafe)        => self.parse_unsafe_block_expr()?,
             Token::StrongKw(StrongKeyword::Const)         => self.parse_const_block_expr()?,
             Token::StrongKw(StrongKeyword::TryExclaim)    |
@@ -2805,7 +2809,6 @@ impl Parser<'_> {
             Token::StrongKw(StrongKeyword::Fallthrough)   => self.parse_fallthrough_expr()?,
             Token::StrongKw(StrongKeyword::Return)        => self.parse_return_expr()?,
             Token::StrongKw(StrongKeyword::When)          => self.parse_when_expr()?,
-            Token::StrongKw(StrongKeyword::SelfName)      => self.parse_path_expr()?,
             Token::StrongKw(StrongKeyword::Let) if mode == ExprParseMode::AllowLet => self.parse_let_binding_expr()?,
 
             Token::StrongKw(StrongKeyword::Move)          |
