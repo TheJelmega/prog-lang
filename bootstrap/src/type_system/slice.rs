@@ -1,9 +1,9 @@
 use std::{fmt, sync::Arc};
 
-use super::{Type, TypeInfo};
+use super::{Type, TypeHandle, TypeInfo};
 
 pub struct SliceType {
-    pub ty: Arc<Type>,
+    pub ty: TypeHandle,
     // TODO: sentinel
 }
 

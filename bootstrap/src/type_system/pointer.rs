@@ -1,9 +1,9 @@
 use std::{fmt, sync::Arc};
 
-use super::{Type, TypeInfo};
+use super::{Type, TypeHandle, TypeInfo};
 
 pub struct PointerType {
-    pub ty:    Arc<Type>,
+    pub ty:       TypeHandle,
     pub is_multi: bool,
     // TODO: sentinel
 }
@@ -21,7 +21,7 @@ impl fmt::Display for PointerType {
 // TODO: Fat pointer when reference to trait
 impl TypeInfo for PointerType {
     fn byte_size(&self, register_byte_size: usize) -> Option<usize> {
-        if matches!(&*self.ty, Type::TraitObject(_) | Type::ImplTrait(_)) {
+        if matches!(&*self.ty.get(), Type::TraitObject(_) | Type::ImplTrait(_)) {
             Some(register_byte_size * 2)
         } else {
             Some(register_byte_size)
@@ -29,7 +29,7 @@ impl TypeInfo for PointerType {
     }
 
     fn bit_size(&self, register_byte_size: usize) -> Option<usize> {
-        if matches!(&*self.ty, Type::TraitObject(_) | Type::ImplTrait(_)) {
+        if matches!(&*self.ty.get(), Type::TraitObject(_) | Type::ImplTrait(_)) {
             Some(register_byte_size * 2)
         } else {
             Some(register_byte_size)

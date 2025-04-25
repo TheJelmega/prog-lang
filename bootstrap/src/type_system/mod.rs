@@ -2,8 +2,9 @@
 
 
 mod primtive;
-use std::fmt;
+use std::{fmt, ops::Deref, sync::Arc};
 
+use parking_lot::RwLock;
 pub use primtive::*;
 
 mod string_slice;
@@ -51,7 +52,62 @@ pub use impl_trait::*;
 mod registry;
 pub use registry::*;
 
+pub type TypeRef = Arc<Type>;
+//pub type TypeHandle = Arc<RwLock<TypeHandleInner>>;
 
+struct TypeHandleInner {
+    ty:       TypeRef,
+    resolved: Option<TypeRef>,
+}
+
+impl TypeHandleInner {
+    pub fn get(&self) -> TypeRef {
+        match &self.resolved {
+            Some(resolved) => resolved.clone(),
+            None           => self.ty.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TypeHandle {
+    handle: Arc<RwLock<TypeHandleInner>>
+}
+
+impl TypeHandle {
+    pub fn new(ty: Type) -> TypeHandle {
+        let handle = Arc::new(RwLock::new(TypeHandleInner {
+            ty: Arc::new(ty),
+            resolved: None,
+        }));
+        Self {
+            handle,
+        }
+    }
+
+    pub fn get(&self) -> TypeRef {
+        // changing the inner resolved ptr can not be done from a parallel context, so we can just get the latest one
+        self.handle.read().get()
+    }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.handle, &other.handle)
+    }
+}
+
+impl std::hash::Hash for TypeHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let ptr = self.get();
+        // Hash the resolved type, not the original one
+        state.write_usize(Arc::as_ptr(&ptr) as usize);
+    }
+}
+
+impl fmt::Display for TypeHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
 
 pub enum Type {
     Primitive(PrimitiveType),

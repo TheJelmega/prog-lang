@@ -2,10 +2,10 @@ use std::{cmp::max, fmt, sync::Arc};
 
 use parking_lot::RwLock;
 
-use super::{Type, TypeInfo};
+use super::{Type, TypeHandle, TypeInfo};
 
 pub struct TupleType {
-    pub types: Vec<Arc<Type>>,
+    pub types: Vec<TypeHandle>,
 }
 
 impl fmt::Display for TupleType {
@@ -15,7 +15,7 @@ impl fmt::Display for TupleType {
             if idx == 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", &ty)?;
+            write!(f, "{}", &ty.get())?;
         }
         write!(f, ")")
     }
@@ -30,7 +30,7 @@ impl TypeInfo for TupleType {
     fn bit_size(&self, register_byte_size: usize) -> Option<usize> {
         let mut bit_size = 0;
         for ty in &self.types {
-            bit_size += ty.bit_size(register_byte_size)?;
+            bit_size += ty.get().bit_size(register_byte_size)?;
         }
         Some(bit_size)
     }
@@ -38,7 +38,7 @@ impl TypeInfo for TupleType {
     fn byte_align(&self, register_byte_size: usize) -> Option<usize> {
         let mut align = 0;
         for ty in &self.types {
-            let sub_align = ty.byte_align(register_byte_size)?;
+            let sub_align = ty.get().byte_align(register_byte_size)?;
             align = max(align, sub_align);
         }
         Some(align)

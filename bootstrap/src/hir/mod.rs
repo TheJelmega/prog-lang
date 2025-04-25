@@ -1377,7 +1377,7 @@ pub struct TypeCheckPattern {
 
 #[derive(Clone)]
 pub struct TypeContext {
-    ty: Option<Arc<type_system::Type>>,
+    ty: Option<type_system::TypeHandle>,
 }
 
 impl TypeContext {
