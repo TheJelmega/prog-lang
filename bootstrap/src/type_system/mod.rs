@@ -109,6 +109,17 @@ impl fmt::Display for TypeHandle {
     }
 }
 
+impl PartialEq for TypeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ptr = self.get();
+        let other_ptr = other.get();
+        Arc::ptr_eq(&self_ptr, &other_ptr)
+    }
+}
+impl Eq for TypeHandle {
+    
+}
+
 pub enum Type {
     Primitive(PrimitiveType),
     Unit(UnitType),

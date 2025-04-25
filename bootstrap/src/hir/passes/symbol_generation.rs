@@ -270,3 +270,33 @@ impl Visitor for SymbolGeneration<'_> {
     }
 }
 
+pub struct TypeImplSymbolAssoc<'a> {
+    ctx: &'a PassContext
+}
+
+impl<'a> TypeImplSymbolAssoc<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self {
+            ctx,
+        }
+    }
+}
+
+
+impl Visitor for TypeImplSymbolAssoc<'_> {
+    fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
+        let sym = ctx.sym.as_ref().unwrap().clone();
+        let ty = node.ty.ctx().ty.as_ref().unwrap().clone();
+        
+        let mut sym_table = self.ctx.syms.write();
+        sym_table.associate_impl_with_ty(ty, sym);
+    }
+}
+
+impl Pass for TypeImplSymbolAssoc<'_> {
+    const NAME: &'static str = "Type <-> Impl Symbol Association Pass";
+
+    fn process(&mut self, hir: &mut Hir) {
+        self.visit(hir, VisitFlags::Impl);
+    }
+}

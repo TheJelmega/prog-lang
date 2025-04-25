@@ -8,6 +8,8 @@ use std::{
 };
 use parking_lot::RwLock;
 
+use crate::type_system::{Type, TypeHandle, TypeRef};
+
 use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment};
 
 
@@ -274,9 +276,13 @@ impl SymbolTable {
         }
     }
 }
+
+//==============================================================================================================================
+
 pub struct RootSymbolTable {
-    cur_lib: LibraryPath,
-    tables:  HashMap<LibraryPath, SymbolTable>
+    cur_lib:  LibraryPath,
+    tables:   HashMap<LibraryPath, SymbolTable>,
+    ty_table: HashMap<TypeHandle, Vec<SymbolRef>>,
 }
 
 impl RootSymbolTable {
@@ -287,6 +293,7 @@ impl RootSymbolTable {
         Self {
             cur_lib,
             tables,
+            ty_table: HashMap::new(),
         }
     }
 
@@ -480,6 +487,16 @@ impl RootSymbolTable {
         cur_table.add_symbol(scope, name, params, sym)
     }
 
+
+    pub fn associate_impl_with_ty(&mut self, ty: TypeHandle, sym: SymbolRef) {
+        assert!(matches!(*sym.read(), Symbol::Impl(_)));
+
+        let entry = self.ty_table.entry(ty);
+        let assoc_impls = entry.or_default();
+        assoc_impls.push(sym);
+    }
+
+
     pub fn get_symbol(&self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> Option<SymbolRef> {
         let lib = lib.unwrap_or(&self.cur_lib);
         let table = self.tables.get(lib)?;
@@ -545,7 +562,7 @@ impl RootSymbolTable {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
         let end = self.tables.len() - 1;
         for (idx, (lib_path, table)) in self.tables.iter().enumerate() {
-            logger.set_last_at_indent_if(idx == end);
+            logger.set_last_at_indent_if(idx == end && self.ty_table.is_empty());
 
             logger.log_indented("Table", |logger| {
                 if let Some(group) = &lib_path.group {
@@ -554,11 +571,24 @@ impl RootSymbolTable {
                 logger.prefixed_log_fmt(format_args!("Package: {}\n", &lib_path.package));
                 logger.prefixed_log_fmt(format_args!("Library: {}\n", &lib_path.library));
 
-                logger.set_last_at_indent();
-                logger.log_indented("Tables", |logger| SymbolTableLogger::log_table(logger, table))
+                SymbolTableLogger::log_table(logger, table)
             });
         }
 
+        if !self.ty_table.is_empty() {
+            let end = self.ty_table.len() - 1;
+            for (idx, (ty, impls)) in self.ty_table.iter().enumerate() {
+                logger.set_last_at_indent_if(idx == end);
+                
+                logger.log_indented("Type <-> Impl Symbol association", |logger| {
+                    logger.prefixed_log_fmt(format_args!("Type: {ty}\n"));
+                    logger.log_indented_slice(impls, |logger, sym| {
+                        let sym = sym.read();
+                        logger.prefixed_log_fmt(format_args!("Impl: {}\n", sym.path()))
+                    });
+                })
+            }
+        }
     }
 }
 
