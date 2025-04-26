@@ -1191,6 +1191,11 @@ impl Visitor for CodePrinter<'_> {
             self.logger.pop_indent();
         }
         self.logger.log(")");
+        if let Some(return_ty) = &mut node.return_ty {
+            self.logger.log(" -> ");
+            self.visit_type(return_ty);
+        }
+
         if let Some(where_clause) = &mut node.where_clause {
             self.visit_where_clause(where_clause);
         }
@@ -1200,7 +1205,7 @@ impl Visitor for CodePrinter<'_> {
             }
             self.logger.write_prefix();
         } else {
-            self.logger.logln(" ");
+            self.logger.log(" ");
         }
         self.visit_block(&mut node.body);
         self.logger.logln("");

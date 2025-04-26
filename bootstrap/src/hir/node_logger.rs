@@ -106,6 +106,22 @@ impl NodeLogger<'_> {
         }
     }
 
+    pub fn log_fn_receiver(&mut self, receiver: &mut FnReceiver) {
+        match receiver {
+            FnReceiver::None => (),
+            FnReceiver::SelfReceiver { span, is_ref, is_mut } => self.log_indented("Self receiver", |this| {
+                this.logger.prefixed_log_fmt(format_args!("Is ref: {is_ref}\n"));
+                this.logger.set_last_at_indent();
+                this.logger.prefixed_log_fmt(format_args!("Is mut: {is_mut}\n"));
+            }),
+            FnReceiver::SelfTyped { span, is_mut, ty } => self.log_indented("Typed receiver", |this| {
+                this.logger.prefixed_log_fmt(format_args!("Is mut: {is_mut}\n"));
+                this.logger.set_last_at_indent();
+                this.log_single_indented("Type", |this| this.visit_type(ty));
+            }),
+        }
+    }
+
     pub fn log_fn_param(&mut self, param: &mut FnParam) {
         match param {
             FnParam::Param { span, attrs, label, pattern, ty } => {
@@ -386,7 +402,7 @@ impl NodeLogger<'_> {
 
     pub fn log_identifier(&mut self, iden: &mut Identifier) {
         match &mut iden.name {
-            IdenName::Name { name, span } => self.logger.prefixed_log_fmt(format_args!("Identifier: {}", &self.names[*name])),
+            IdenName::Name { name, span } => self.logger.prefixed_log_fmt(format_args!("Identifier: {}\n", &self.names[*name])),
             IdenName::Disambig { trait_path, name, .. } => self.log_indented("Trait Disambiguation", |this| {
                 this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
                 this.log_indented("Trait", |this| this.visit_path(trait_path));
@@ -457,10 +473,12 @@ impl Visitor for NodeLogger<'_> {
         self.log_node("Path", path.node_id, |this| {
             this.log_path_start(&mut path.start);
 
+            this.logger.set_last_at_indent_if(path.fn_end.is_none());
             this.log_slice_indented("Identifiers", &mut path.idens, |this, iden| {
                 this.log_identifier(iden);
             });
 
+            this.logger.set_last_at_indent();
             if let Some(fn_end) = &mut path.fn_end {
                 this.log_indented("Trait Path Function End", |this| {
                     this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[fn_end.name]));
@@ -869,23 +887,11 @@ impl Visitor for NodeLogger<'_> {
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
             this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
-            this.logger.set_last_at_indent_if(node.params.is_empty() && node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
-            match &mut node.receiver {
-                FnReceiver::None => (),
-                FnReceiver::SelfReceiver { span, is_ref, is_mut } => this.log_indented("Self receiver", |this| {
-                    this.logger.prefixed_log_fmt(format_args!("Is ref: {is_ref}\n"));
-                    this.logger.set_last_at_indent();
-                    this.logger.prefixed_log_fmt(format_args!("Is ref: {is_mut}\n"));
-                }),
-                FnReceiver::SelfTyped { span, is_mut, ty } => this.log_indented("Typed receiver", |this| {
-                    this.logger.prefixed_log_fmt(format_args!("Is mut: {is_mut}\n"));
-                    this.logger.set_last_at_indent();
-                    this.log_single_indented("Type", |this| this.visit_type(ty));
-                }),
-            }
-            this.logger.set_last_at_indent_if(node.return_ty.is_none() && node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.logger.set_last_at_indent_if(node.params.is_empty() && node.return_ty.is_none() && node.where_clause.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.log_fn_receiver(&mut node.receiver);
+            this.logger.set_last_at_indent_if(node.return_ty.is_none() && node.where_clause.is_none() && node.contracts.is_empty() && node.body.is_none());
             this.log_slice_indented("Params", &mut node.params, |this, param| this.log_fn_param(param));
-            this.logger.set_last_at_indent_if(node.return_ty.is_none() && node.contracts.is_empty() && node.body.is_none());
+            this.logger.set_last_at_indent_if(node.where_clause.is_none() && node.contracts.is_empty() && node.body.is_none());
             this.log_opt_indented("Return Type", &mut node.return_ty, |this, ty| this.visit_type(ty));
             this.logger.set_last_at_indent_if(node.contracts.is_empty() && node.body.is_none());
             this.log_opt_indented("Where Clause", &mut node.where_clause, |this, where_clause| this.visit_where_clause(where_clause));
@@ -1005,19 +1011,7 @@ impl Visitor for NodeLogger<'_> {
             this.log_visibility(&mut node.vis);
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
             this.log_opt_indented("Generics", &mut node.generics, |this, generics| this.visit_gen_params(generics));
-            match &mut node.receiver {
-                FnReceiver::None => (),
-                FnReceiver::SelfReceiver { span, is_ref, is_mut } => this.log_indented("Self receiver", |this| {
-                    this.logger.prefixed_log_fmt(format_args!("Is ref: {is_ref}\n"));
-                    this.logger.set_last_at_indent();
-                    this.logger.prefixed_log_fmt(format_args!("Is ref: {is_mut}\n"));
-                }),
-                FnReceiver::SelfTyped { span, is_mut, ty } => this.log_indented("Typed receiver", |this| {
-                    this.logger.prefixed_log_fmt(format_args!("Is mut: {is_mut}\n"));
-                    this.logger.set_last_at_indent();
-                    this.log_single_indented("Type", |this| this.visit_type(ty));
-                }),
-            }
+            this.log_fn_receiver(&mut node.receiver);
             this.log_slice_indented("Params", &mut node.params, |this, param| this.log_fn_param(param));
             this.log_opt_indented("Return Type", &mut node.return_ty, |this, ty| this.visit_type(ty));
             this.log_opt_indented("Where Clause", &mut node.where_clause, |this, where_clause| this.visit_where_clause(where_clause));
