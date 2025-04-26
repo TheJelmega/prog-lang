@@ -421,9 +421,11 @@ impl Parser<'_> {
         let begin = self.last_frame.span;
 
         let start = self.parse_path_start()?;
-        let mut idens = self.parse_punct_separated(Punctuation::Dot, |parser| Self::parse_identifier(parser, false))?;
-
-        
+        let mut idens = if !matches!(start, PathStart::SelfTy(_)) || self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            self.parse_punct_separated(Punctuation::Dot, |parser| Self::parse_identifier(parser, false))?
+        } else {
+            Vec::new()
+        };
 
         let span = self.get_span_to_current(begin);
         Ok(self.add_node(TypePath{
@@ -620,7 +622,7 @@ impl Parser<'_> {
 
         let peek = self.peek()?;
         match peek {
-            Token::StrongKw(StrongKeyword::Fn)  => self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item)),
+            Token::StrongKw(StrongKeyword::Fn)  => self.parse_impl_function(attrs, vis, false, false),
             Token::StrongKw(StrongKeyword::Const) => {
                 let peek_1 = self.try_peek_at(1);
                 let peek_2 = self.try_peek_at(2);
@@ -631,7 +633,7 @@ impl Parser<'_> {
                     peek_4 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const extern "abi" fn.. (invalid)
                     peek_5 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe extenr "abi" fn... (invalid)
                 {
-                    self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item))
+                    self.parse_impl_function(attrs, vis, false, false)
                 } else {
                     self.parse_const_item(attrs, vis).map(|item| ImplItem::Const(item))
                 }
@@ -641,7 +643,7 @@ impl Parser<'_> {
                 if peek_1 == Token::WeakKw(WeakKeyword::Property) {
                     self.parse_property(attrs, vis, false).map(|item| ImplItem::Property(item))
                 } else {
-                    self.parse_function(attrs, vis, false, false).map(|item| ImplItem::Function(item))
+                    self.parse_impl_function(attrs, vis, false, false)
                 }
             },
             Token::StrongKw(StrongKeyword::Type) => self.parse_type_alias(attrs, vis).map(|item| ImplItem::TypeAlias(item)),
@@ -4232,6 +4234,7 @@ impl Parser<'_> {
                 StrongKeyword::Fn)                      => self.parse_fn_type(),
             Token::StrongKw(StrongKeyword::Enum)        => self.parse_enum_record_type(),
             Token::StrongKw(StrongKeyword::Struct)      => self.parse_record_type(),
+            Token::StrongKw(StrongKeyword::SelfTy)      => self.parse_path_type(),
             Token::StrongKw(kw)                         => self.parse_type_from_strong_kw(span, kw),
             _                                           => self.parse_path_type(),
         }

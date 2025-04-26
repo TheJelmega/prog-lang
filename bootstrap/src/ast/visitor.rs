@@ -161,7 +161,7 @@ pub trait Visitor {
 //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &AstNodeRef<Impl>) where Self: Sized {
-        helpers::visit_impl(self, node, true);
+        helpers::visit_impl(self, node, true, true);
     }
     
 //--------------------------------------------------------------
@@ -679,11 +679,12 @@ pub mod helpers {
 
     pub fn visit_use_path<T: Visitor>(visitor: &mut T, node: &AstNodeRef<UsePath>) {
         match &**node {
-            UsePath::SelfPath { span, node_id, alias } => {},
-            UsePath::SubPaths { span, node_id, segments, sub_paths } => for path in sub_paths {
+            UsePath::SelfPath { .. } => {},
+            UsePath::SubPaths { sub_paths, .. } => for path in sub_paths {
                 visitor.visit_use_path(path);
             },
-            UsePath::Alias { span, node_id, segments, alias } => {},
+            UsePath::Alias { .. } => {},
+            UsePath::Wildcard { .. } => {}
         }
     }
 
@@ -1322,7 +1323,7 @@ pub mod helpers {
 
 //--------------------------------------------------------------
 
-    pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Impl>, do_generics: bool) {
+    pub fn visit_impl<T: Visitor>(visitor: &mut T, node: &AstNodeRef<Impl>, do_generics: bool, do_assoc: bool) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
         }
@@ -1343,8 +1344,10 @@ pub mod helpers {
                 visitor.visit_where_clause(where_clause);
             }
         }
-        for item in &node.assoc_items {
-            visitor.visit_assoc_item(item);
+        if do_assoc {
+            for item in &node.assoc_items {
+                visitor.visit_assoc_item(item);
+            }
         }
     }
 

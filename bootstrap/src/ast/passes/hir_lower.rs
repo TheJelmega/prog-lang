@@ -1106,6 +1106,23 @@ impl Visitor for AstToHirLowering<'_> {
         } else {
             None
         };
+
+        let mut idens = Vec::new();
+        for iden in node.idens.iter().rev() {
+            idens.push(self.convert_identifier(iden));
+        }
+        idens.reverse();
+
+        let start = self.convert_path_start(&node.start);
+
+        self.path_stack.push(hir::Path {
+            span: node.span(),
+            node_id: node.node_id,
+            start,
+            idens,
+            fn_end,
+            ctx: hir::PathCtx::new(),
+        });
     }
 
     // =============================================================
@@ -2057,22 +2074,7 @@ impl Visitor for AstToHirLowering<'_> {
     //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &AstNodeRef<Impl>) where Self: Sized {
-        for attr in &node.attrs {
-            self.visit_attribute(attr);
-        }
-        if let Some(vis) = &node.vis {
-            self.visit_visibility(vis);
-        }
-        if let Some(generics) = &node.generics {
-            self.visit_generic_params(generics)
-        }
-        self.visit_type(&node.ty);
-        if let Some(impl_trait) = &node.impl_trait {
-            self.visit_trait_path(impl_trait);
-        }
-        if let Some(where_clause) = &node.where_clause {
-            self.visit_where_clause(where_clause);
-        }
+        helpers::visit_impl(self, node, true, false);
 
         let impl_trait = node.impl_trait.as_ref().map(|_| self.path_stack.pop().unwrap());
         let ty = self.type_stack.pop().unwrap();

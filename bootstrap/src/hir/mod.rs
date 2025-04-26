@@ -2119,7 +2119,8 @@ impl Hir {
 
     pub fn add_method(&mut self, scope: Scope, item: Method) {
         let ctx = FunctionContext::new(scope);
-        todo!();
+        let impl_idx = self.impls.len() - 1;
+        self.methods.push((impl_idx, item, ctx));
     }
 
     pub fn add_type_alias(&mut self, scope: Scope, item: TypeAlias) {
