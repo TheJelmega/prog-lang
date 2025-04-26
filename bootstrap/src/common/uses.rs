@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use crate::lexer::Punctuation;
 
@@ -11,6 +11,21 @@ pub struct UsePath {
     pub path:     Scope,
     pub wildcard: bool,
     pub alias:    Option<String>,
+}
+
+impl fmt::Display for UsePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", &self.lib_path)?;
+        if ! self.path.is_empty() {
+            write!(f, ".{}", &self.path)?;
+        }
+        if self.wildcard {
+            write!(f, ".*")?;
+        } else if let Some(alias) = &self.alias {
+            write!(f, " as {alias}")?;
+        }
+        Ok(())
+    }
 }
 
 #[allow(unused)]
@@ -61,7 +76,7 @@ impl RootUseTable {
             let sub_table = match self.sub_tables.get_mut(&scope[0]) {
                 Some(table) => table,
                 None => {
-                    self.sub_tables.insert(scope[0].clone(), UseTable::new());
+                    self.sub_tables.insert(scope[0].clone(), UseTable::new(scope[0].name.clone()));
                     self.sub_tables.get_mut(&scope[0]).unwrap()
                 },
             };
@@ -155,38 +170,42 @@ impl RootUseTable {
     }
 
     pub fn log_(&self, logger: &mut IndentLogger) {
-        if !self.uses.is_empty() && self.wildcards.is_empty() {
-            logger.prefixed_logln("Uses");
-            logger.set_last_at_indent_if(self.sub_tables.is_empty());
-            logger.push_indent();
-            for use_path in &self.uses {
-                logger.prefixed_log_fmt(format_args!("{}", &use_path.lib_path))
-            }
-            for use_path in &self.wildcards {
-                logger.prefixed_log_fmt(format_args!("{}", &use_path.lib_path))
-            }
-            logger.pop_indent();
-        }
-
+        logger.set_last_at_indent_if(self.wildcards.is_empty() && self.sub_tables.is_empty());
+        logger.log_indented_slice_named("Direct Use Paths", &self.uses, |logger, use_path| {
+            logger.prefixed_log_fmt(format_args!(" {}\n", &use_path))
+        });
+        logger.set_last_at_indent_if(self.sub_tables.is_empty());
+        logger.log_indented_slice_named("Wildcard Use Paths", &self.wildcards, |logger, use_path| {
+            logger.prefixed_log_fmt(format_args!(" {}\n", &use_path))
+        });
+        
         if !self.sub_tables.is_empty() {
+            logger.set_last_at_indent();
+            logger.prefixed_logln("Sub-tables");
+            logger.push_indent();
+
             let end = self.sub_tables.len() - 1;
             for (idx, (_, sub_table)) in self.sub_tables.iter().enumerate() {
                 logger.set_last_at_indent_if(idx == end);
                 sub_table.log_(logger);
             }
+
+            logger.pop_indent();
         }
     }
 }
 
 pub struct UseTable {
+    name:       String,
     uses:       Vec<UsePath>,
     wildcards:  Vec<UsePath>,
     sub_tables: HashMap<ScopeSegment, UseTable>,
 }
 
 impl UseTable {
-    pub fn new() -> Self {
+    pub fn new(name: String) -> Self {
         Self {
+            name,
             uses: Vec::new(),
             wildcards: Vec::new(),
             sub_tables: HashMap::new(),
@@ -205,7 +224,7 @@ impl UseTable {
             let sub_table = match self.sub_tables.get_mut(&scope[0]) {
                 Some(table) => table,
                 None => {
-                    self.sub_tables.insert(scope[0].clone(), UseTable::new());
+                    self.sub_tables.insert(scope[0].clone(), UseTable::new(scope[0].name.clone()));
                     self.sub_tables.get_mut(&scope[0]).unwrap()
                 },
             };
@@ -267,25 +286,30 @@ impl UseTable {
     }
 
     pub fn log_(&self, logger: &mut IndentLogger) {
-        if !self.uses.is_empty() && self.wildcards.is_empty() {
-            logger.prefixed_logln("Uses");
-            logger.set_last_at_indent_if(self.sub_tables.is_empty());
-            logger.push_indent();
-            for use_path in &self.uses {
-                logger.prefixed_log_fmt(format_args!("{}", &use_path.lib_path))
-            }
-            for use_path in &self.wildcards {
-                logger.prefixed_log_fmt(format_args!("{}", &use_path.lib_path))
-            }
-            logger.pop_indent();
-        }
+        logger.prefixed_log_fmt(format_args!("Table: {}\n", &self.name));
+        logger.push_indent();
+
+        logger.set_last_at_indent_if(self.wildcards.is_empty() && self.sub_tables.is_empty());
+        logger.log_indented_slice_named("Direct Use Paths", &self.uses, |logger, use_path| {
+            logger.prefixed_log_fmt(format_args!(" {}\n", &use_path))
+        });
+        logger.set_last_at_indent_if(self.sub_tables.is_empty());
+        logger.log_indented_slice_named("Wildcard Use Paths", &self.wildcards, |logger, use_path| {
+            logger.prefixed_log_fmt(format_args!(" {}\n", &use_path))
+        });
 
         if !self.sub_tables.is_empty() {
+            logger.set_last_at_indent();
+            logger.prefixed_logln("Sub-tables");
+            logger.push_indent();
             let end = self.sub_tables.len() - 1;
             for (idx, (_, sub_table)) in self.sub_tables.iter().enumerate() {
                 logger.set_last_at_indent_if(idx == end);
                 sub_table.log_(logger);
             }
+            logger.pop_indent();
         }
+
+        logger.pop_indent();
     }
 }

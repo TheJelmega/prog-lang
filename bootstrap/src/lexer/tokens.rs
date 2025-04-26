@@ -322,6 +322,7 @@ pub enum Punctuation {
     Or,
     Equals,
     AndAnd,
+    Asterisk,
 
     SingleArrowR,
     SingleArrowL,
@@ -362,6 +363,7 @@ impl Punctuation {
             Self::Or           => "|",
             Self::Equals       => "=",
             Self::AndAnd       => "&&",
+            Self::Asterisk     => "*",
 
             Self::SingleArrowR => "->",
             Self::SingleArrowL => "<-",
@@ -394,6 +396,7 @@ impl Punctuation {
             "|"   => Punctuation::Or,
             "="   => Punctuation::Equals,
             "&&"  => Punctuation::AndAnd,
+            "*"   => Punctuation::Asterisk,
 
             "->"  => Punctuation::SingleArrowR,
             "<-"  => Punctuation::SingleArrowL,

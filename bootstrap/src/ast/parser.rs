@@ -777,6 +777,7 @@ impl Parser<'_> {
         } else {
             let mut segments = Vec::new();
             let mut sub_paths = Vec::new();
+            let mut is_wildcard = false;
 
             segments.push(self.consume_name()?);
     
@@ -797,11 +798,19 @@ impl Parser<'_> {
                         }
                         self.end_scope()?;
                     },
-                    _ => todo!()
+                    Token::Punctuation(Punctuation::Asterisk) => {
+                        is_wildcard = true;
+                        self.consume_single();
+                        break;
+                    },
+                    _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found: peek, for_reason: "Use path" })),
                 }
             }
 
-            if !sub_paths.is_empty() {
+            if is_wildcard {
+                let span = self.get_span_to_current(begin);
+                Ok(self.add_node(UsePath::Wildcard { span, node_id: NodeId::default(), segments }))
+            } else if !sub_paths.is_empty() {
                 let span = self.get_span_to_current(begin);
                 Ok(self.add_node(UsePath::SubPaths { span, node_id: NodeId::default(), segments, sub_paths }))
             } else {

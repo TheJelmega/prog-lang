@@ -118,4 +118,38 @@ impl IndentLogger {
         f(self);
         self.pop_indent();
     }
+
+    pub fn log_indented_slice<T, F>(&mut self, slice: &[T], f: F) where
+        F: Fn(&mut Self, &T)
+    {
+        if slice.is_empty() {
+            return;
+        }
+        
+        let end = slice.len() - 1;
+        for (idx, val) in slice.iter().enumerate() {
+            self.set_last_at_indent_if(idx == end);
+            f(self, val);
+        }
+    }
+
+    pub fn log_indented_slice_named<T, F>(&mut self, name: &str, slice: &[T], f: F) where
+        F: Fn(&mut Self, &T)
+    {
+        if slice.is_empty() {
+            return;
+        }
+
+        self.log_indented(name, |logger| {
+            if slice.is_empty() {
+                return;
+            }
+            
+            let end = slice.len() - 1;
+            for (idx, val) in slice.iter().enumerate() {
+                logger.set_last_at_indent_if(idx == end);
+                f(logger, val);
+            }
+        });
+    }
 }

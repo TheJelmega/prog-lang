@@ -647,6 +647,19 @@ impl AstToHirLowering<'_> {
                     alias: alias.map(|name| self.names[name].to_string()),
                 });
             },
+            UsePath::Wildcard { span, node_id, segments } => {
+                let mut path = base_scope.clone();
+                for segment in segments {
+                    path.push(self.names[*segment].to_string());
+                }
+
+                paths.push(uses::UsePath {
+                    lib_path,
+                    path,
+                    wildcard: true,
+                    alias: None,
+                })
+            }
         }
     }
 

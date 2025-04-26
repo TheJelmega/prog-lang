@@ -568,11 +568,16 @@ pub enum UsePath {
         segments:  Vec<NameId>,
         sub_paths: Vec<AstNodeRef<UsePath>>,
     },
-    Alias{
+    Alias {
         span:     SpanId,
         node_id:  NodeId,
         segments: Vec<NameId>,
         alias:    Option<NameId>,
+    },
+    Wildcard {
+        span:     SpanId,
+        node_id:  NodeId,
+        segments: Vec<NameId>,
     }
 }
 impl AstNode for UsePath {
@@ -581,6 +586,7 @@ impl AstNode for UsePath {
             UsePath::SelfPath { span, .. } => *span,
             UsePath::SubPaths { span, .. } => *span,
             UsePath::Alias { span, .. }    => *span,
+            UsePath::Wildcard { span, .. } => *span,
         }    
     }
 
@@ -589,6 +595,7 @@ impl AstNode for UsePath {
             UsePath::SelfPath { node_id, .. } => *node_id,
             UsePath::SubPaths { node_id, .. } => *node_id,
             UsePath::Alias { node_id, .. }    => *node_id,
+            UsePath::Wildcard { node_id, .. } => *node_id,
         }    
     }
 
@@ -635,6 +642,17 @@ impl AstNode for UsePath {
 
                     logger.logln("");
                 },
+                Self::Wildcard { span, node_id, segments } => {
+                    logger.set_last_at_indent();
+                    logger.prefixed_log("Wildcard Path: ");
+
+                    for (idx, segment) in segments.iter().enumerate() {
+                        if idx != 0 {
+                            logger.log(".");
+                        }
+                        logger.log(logger.resolve_name(*segment));
+                    }
+                }
             }
         });
     }
@@ -646,6 +664,7 @@ impl AstNodeParseHelper for UsePath {
             UsePath::SelfPath { node_id, .. } => *node_id = ast_node_id,
             UsePath::SubPaths { node_id, .. } => *node_id = ast_node_id,
             UsePath::Alias { node_id, .. }    => *node_id = ast_node_id,
+            UsePath::Wildcard { node_id, .. } => *node_id = ast_node_id,
         }
     }
 }
