@@ -60,7 +60,6 @@ Version: 0.0
         4. [Const function](#734-const-function-)
         5. [Method](#735-method)
         6. [Trait function & Method](#736-trait-function--method-)
-            - [Trait function override resolution](#trait-function-override-resolution)
         7. [External function qualifier](#737-external-function-qualifier-)
     4. [Type aliases](#74-type-aliases-)
         1. [Distinct types](#741-distinct-types-)
@@ -1539,15 +1538,12 @@ The receiver can also be defined as a simple receiver, which results in a receiv
 ### 7.3.6. Trait function & method [↵](#73-function-)
 
 ```
-<trait-fn> := { <attribute> }* [ 'override' ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
-<trait-method> := { <attribute> }* [ 'override' ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '('<receiver-param> [ ',' <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
+<trait-fn> := { <attribute> }* [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
+<trait-method> := { <attribute> }* [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '('<receiver-param> [ ',' <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] <trait-fn-body>
 <trait-fn-body> := ';' | <fn-body>
 ```
 A trait function or method declares a signature for impl function or impl method implementation.
 They are similar to a normal function or method, but can be overwritten by an implementation.
-
-Any function that in the base interface may have its default implementation overwritten by the current interface, for this the weak keyword `override` can be used.
-As this might cause some issues between between common 'child' interfaces, for more info about this conflict, please check [here](#trait-function-override-resolution).
 
 If an associated function has its body defined, this definition will act as the default definition of the function.
 The default implementation can be provided which will be used when no explicit type alias is defined within an implementation.
@@ -1596,9 +1592,7 @@ Internally, an opaque type is represented as:
 
 ### 7.4.3. Trait type alias
 ```
-<trait-type-alias> := <trait-type-alias-def> | <trait-type-alias-override>
-<trait-type-alias-def> := 'type' <name> [ <generic-params> ] [ ':' <generic-type-bounds> ] [ '=' <type> ] [ <where-clause> ] ';'
-<trait-type-alias-override> := `override` `type` <name> = <type> ';'
+<trait-type-alias> := 'type' <name> [ <generic-params> ] [ ':' <generic-type-bounds> ] [ '=' <type> ] [ <where-clause> ] ';'
 ```
 
 A trait type alias definition declared a signature for an impl type alias implementation.
@@ -1609,8 +1603,6 @@ When a trait bound is defined, it requires any type which can be used as the ass
 An implicit `Sized` trait is applied on the type alias, but can be relaxed using the `?Sized` bound.
 
 A default type can be provided which will be used when no explicit type alias is defined within an implementation.
-
-An override for a type alias in a base trait is also supported, this only allows a new default type to be defined (which needs to be compatible with the base's bounds).
 
 ## 7.5. Structs [↵](#7-items-)
 
@@ -1939,16 +1931,12 @@ When defined inside of an implementation, the const item will be an associated w
 ### 7.9.1. trait constant [↵](#79-const-item-)
 
 ```
-<trait-const> := <trait-const-def> | <trait-const-override>
-<trait-const-def> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
-<trait-const-override> := 'override' 'const' <name> '=' <expr> ';'
+<trait-const> := 'const' <name> ':' <type> [ '=' <expr> ] ';'
 ```
 
 An trait constant declares a signature for an associated constant implementation, i.e. it declares both the name and the type the associated constant should have.
 
 A default value can be provided which will be used when no explicit constant is defined within an implementation.
-
-An override for a const in a base trait is also supported, this only allows a new default value to be defined (which needs to be compatible with the base's type).
 
 
 ## 7.10. Static item [↵](#7-items-)
@@ -2059,16 +2047,14 @@ property value : Type { set { ... } };
 fn set_value(&self, value: Type) { ... }
 ```
 
-### 7.11.2. Trait properties [↵](#711-properties-)
+### 7.11.2. Direct-bind properties
 
-```
-<trait-property> := <trait-property-def> | <trait-property-override>
+_NOTE: Not implemented yet_
 
-<trait-property-def> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
+A direct-bind property is a special version of a property that is directly bound to a value inside of the type it's implemented on.
+
 <trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
-
-<trait-property-override> := 'override' 'property' <name> '{' { <trait-prop-get-set> }[1, 4] '}'
 ```
 
 An associated trait type declares a signature for an associated propery implementation.
@@ -2078,9 +2064,6 @@ Trait implementation cannot implement additional getters/setters.
 
 A default implementation can be provided which will be used when no explicit property is defined within an implementation.
 If any setter or getter has a default value, all others are also required to have a default.
-
-An override for a property in a base trait is also supported, this only allows a new default implementation to be defined (which needs to be compatible with the base's declaration).
-Overrides also adhere to the same rule of requiring all setters and getters to be defined.
 
 ## 7.12. Trait [↵](#7-items-)
 
@@ -2181,54 +2164,7 @@ An implementation for a type must be defined in the same library as the original
 If a visibility attribute is defined for the block, all items with in the block will default to that visibility.
 If `unsafe` is added to the block, then all functions within the block will be marked as unsafe.
 
-### 7.13.2 Trait override resolution
-
-As traits can override the default implementation of a supertrait without inserting a new item into the current trait,there is a possiblity for these overrides to incur the so-called "diamond problem".
-This "diamond problem" will be explained below, using a overriden function as an example
-
-Imagine a trait `A`, defining a function foo (with or without a default implementation).
-2 traits, `B` and `C` both have `A` as a supertrait and override the default implementation.
-Finally a trait `D` would now be declared, having both `B` and `C` as supertrait.
-
-The trait hierachy is now:
-```
- A
-/ \
-B C
-\ /
- D
-```
-
-Since both `B` and `C` override the functions default implementation, the compiler cannot determine which one to use for `D`, therefore `D` needs to explicitly define the default implementation for hte given function, or a compile error will occur.
-
-This example is illustrated in the following code:
-```
-trait A {
-    fn foo() -> i32;
-}
-
-trait B: A { 
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 1 }
-}
-
-trait C: A {
-    // Create/override the default implementation for A.foo
-    override fn foo() -> i32 { 2 }
-}
-
-trait D: B, C {
-    // Override 'foo' to resolve the conflicting default implementations from B and C
-    // Removing this override will result in a compile error
-    override fn foo() -> i32 { C.foo() }
-}
-```
-
-This is somewhat similar to the resolution for conflicting generic specializations.
-
-_TODO: How to decide what base interface we are overriding here_
-
-### 7.13.3. Trait implementation [↵](#713-implementation-)
+### 7.13.2. Trait implementation [↵](#713-implementation-)
 
 ```
 <trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <impl-item> }* '}'
@@ -2240,8 +2176,6 @@ The trait is known as the _implemented trait_, and the _implementing type_ imple
 
 A trait implementation must define all non-default associated items declared by the implemented trait and it can redefine (i.e. override) an item that has a default implementation.
 It is not allowed to define any implementation that is not defined in the implemented trait.
-
-If an implemented trait contains an override for an associated function, but the implementing type has already implemented it by itself, the overriden default will be ignored.
 
 Unsafe traits require the `unsafe` keyword to be added to the implementation.
 `trait` implementations are not allowed to specify any visibility for items.
@@ -4796,7 +4730,7 @@ All functionality defined inside of the contraint can be used inside a generic i
 <constraint-fn-param> := <name> { ',' <name> }* ':' <type>
 ```
 
-A constraint function or method is similar to a trait function or method, but does not support any of it's override features.
+A constraint function or method is similar to a trait function or method.
 The parameters are simplified version of normal function parameters, as they only correspond to the labels for a given function and doesn't care how they are used in the function implementation.
 
 
@@ -5039,8 +4973,7 @@ Operator items are special traits with its own syntax, which is specified using 
 If a trait does not extend another trait, it needs to have its precedence specified if it contains any infix operators, this will apply to all infix operators defined within the trait.
 Prefix, postfix, and assign operators have a hardcoded precendence and cannot be explicitly defined.
 
-If a trait does extend another trait, it may override the default implementation of operators, but cannot redefine the method or return type.
-Inside the operators are defined, in addition to a set of invariant contracts these operators must adhere to, for example: commutativity.
+In addition to the operators that are defined, in addition to a set of invariant contracts these operators must adhere to, for example: commutativity.
 
 Each operator is defined using its operator kind, these is one of the categories mentioned above.
 
