@@ -1715,11 +1715,8 @@ pub enum TraitItem {
     Function(AstNodeRef<TraitFunction>),
     Method(AstNodeRef<TraitMethod>),
     TypeAlias(AstNodeRef<TraitTypeAlias>),
-    TypeAliasOverride(AstNodeRef<TraitTypeAliasOverride>),
     Const(AstNodeRef<TraitConst>),
-    ConstOverride(AstNodeRef<TraitConstOverride>),
     Property(AstNodeRef<TraitProperty>),
-    PropertyOverride(AstNodeRef<TraitPropertyOverride>),
 }
 
 impl AstNode for TraitItem {
@@ -1728,11 +1725,8 @@ impl AstNode for TraitItem {
             TraitItem::Function(item)          => item.span(),
             TraitItem::Method(item)            => item.span(),
             TraitItem::TypeAlias(item)         => item.span(),
-            TraitItem::TypeAliasOverride(item) => item.span(),
             TraitItem::Const(item)             => item.span(),
-            TraitItem::ConstOverride(item)     => item.span(),
             TraitItem::Property(item)          => item.span(),
-            TraitItem::PropertyOverride(item)  => item.span(),
         }
     }
     
@@ -1741,11 +1735,8 @@ impl AstNode for TraitItem {
             TraitItem::Function(item)          => item.node_id(),
             TraitItem::Method(item)            => item.node_id(),
             TraitItem::TypeAlias(item)         => item.node_id(),
-            TraitItem::TypeAliasOverride(item) => item.node_id(),
             TraitItem::Const(item)             => item.node_id(),
-            TraitItem::ConstOverride(item)     => item.node_id(),
             TraitItem::Property(item)          => item.node_id(),
-            TraitItem::PropertyOverride(item)  => item.node_id(),
         }
     }
 
@@ -1754,11 +1745,8 @@ impl AstNode for TraitItem {
             Self::Function(fn_item)             => logger.log_node_ref(fn_item),
             Self::Method(method)                => logger.log_node_ref(method),
             Self::TypeAlias(type_alias)         => logger.log_node_ref(type_alias),
-            Self::TypeAliasOverride(type_alias) => logger.log_node_ref(type_alias),
             Self::Const(const_item)             => logger.log_node_ref(const_item),
-            Self::ConstOverride(const_item)     => logger.log_node_ref(const_item),
             Self::Property(prop_item)           => logger.log_node_ref(prop_item),
-            Self::PropertyOverride(prop_item)   => logger.log_node_ref(prop_item),
         }
     }
 }
@@ -1767,7 +1755,6 @@ pub struct TraitFunction {
     pub span:         SpanId,
     pub node_id:      NodeId,
     pub attrs:        Vec<AstNodeRef<Attribute>>,
-    pub is_override:  bool,
     pub is_const:     bool,
     pub is_unsafe:    bool,
     pub name:         NameId,
@@ -1792,7 +1779,6 @@ impl AstNode for TraitFunction {
         logger.log_ast_node("Trait Function", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
 
-            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
             logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
             logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
@@ -1822,7 +1808,6 @@ pub struct TraitMethod {
     pub span:         SpanId,
     pub node_id:      NodeId,
     pub attrs:        Vec<AstNodeRef<Attribute>>,
-    pub is_override:  bool,
     pub is_const:     bool,
     pub is_unsafe:    bool,
     pub name:         NameId,
@@ -1848,7 +1833,6 @@ impl AstNode for TraitMethod {
         logger.log_ast_node("Method", |logger| {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
 
-            logger.prefixed_log_fmt(format_args!("Is Override: {}\n", self.is_override));
             logger.prefixed_log_fmt(format_args!("Is Const: {}\n", self.is_const));
             logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
@@ -1914,37 +1898,6 @@ impl AstNodeParseHelper for TraitTypeAlias {
     }
 }
 
-pub struct TraitTypeAliasOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub ty:      Type,
-}
-
-impl AstNode for TraitTypeAliasOverride {
-    fn span(&self) -> SpanId {
-        self.span
-    }
-
-    fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Trait Type Alias Override", |logger| {
-            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
-            logger.set_last_at_indent();
-            logger.log_node(&self.ty);
-        })
-    }
-}
-
-impl AstNodeParseHelper for TraitTypeAliasOverride {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
-    }
-}
-
 pub struct TraitConst {
     pub span:    SpanId,
     pub node_id: NodeId,
@@ -1976,37 +1929,6 @@ impl AstNode for TraitConst {
 }
 
 impl AstNodeParseHelper for TraitConst {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
-    }
-}
-
-pub struct TraitConstOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub expr:    Expr,
-}
-
-impl AstNode for TraitConstOverride {
-    fn span(&self) -> SpanId {
-        self.span
-    }
-
-    fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Trait Constant Override", |logger| {
-            logger.prefixed_log_fmt(format_args!("Name: {}", logger.resolve_name(self.name)));
-            logger.set_last_at_indent();
-            logger.log_node(&self.expr);
-        })
-    }
-}
-
-impl AstNodeParseHelper for TraitConstOverride {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }
@@ -2064,46 +1986,6 @@ impl AstNode for TraitProperty {
 }
 
 impl AstNodeParseHelper for TraitProperty {
-    fn set_node_id(&mut self, node_id: NodeId) {
-        self.node_id = node_id;
-    }
-}
-
-pub struct TraitPropertyOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub get:     Option<Expr>,
-    pub ref_get: Option<Expr>,
-    pub mut_get: Option<Expr>,
-    pub set:     Option<Expr>,
-}
-
-impl AstNode for TraitPropertyOverride {
-    fn span(&self) -> SpanId {
-        self.span
-    }
-    
-    fn node_id(&self) -> NodeId {
-        self.node_id
-    }
-
-    fn log(&self, logger: &mut AstLogger) {
-        logger.log_ast_node("Trait Property", |logger| {
-            logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
-            logger.set_last_at_indent_if(self.ref_get.is_none() && self.mut_get.is_none() && self.set.is_none());
-            logger.log_opt_node(&self.get);
-            logger.set_last_at_indent_if(self.mut_get.is_none() && self.set.is_none());
-            logger.log_opt_node(&self.ref_get);
-            logger.set_last_at_indent_if(self.set.is_none());
-            logger.log_opt_node(&self.mut_get);
-            logger.set_last_at_indent();
-            logger.log_opt_node(&self.set);
-        });
-    }
-}
-
-impl AstNodeParseHelper for TraitPropertyOverride {
     fn set_node_id(&mut self, node_id: NodeId) {
         self.node_id = node_id;
     }

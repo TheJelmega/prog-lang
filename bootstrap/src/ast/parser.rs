@@ -1767,38 +1767,12 @@ impl Parser<'_> {
             },
             Token::StrongKw(StrongKeyword::Type) => self.parse_trait_type_alias(attrs).map(|item| TraitItem::TypeAlias(item)),
             Token::WeakKw(WeakKeyword::Property) => self.parse_trait_property(attrs).map(|item| TraitItem::Property(item)),
-            Token::WeakKw(WeakKeyword::Override) => match self.peek()? {
-                Token::StrongKw(StrongKeyword::Fn) => self.parse_trait_function(attrs),
-                Token::StrongKw(StrongKeyword::Const) => {
-                    let peek_1 = self.try_peek_at(1);
-                    let peek_2 = self.try_peek_at(2);
-                    if  peek_1 == Some(Token::StrongKw(StrongKeyword::Fn)) || // const fn..
-                        peek_2 == Some(Token::StrongKw(StrongKeyword::Fn))    // const unsafe fn..
-                    {
-                        self.parse_trait_function(attrs)
-                    } else {
-                        if !attrs.is_empty() {
-                            return Err(self.gen_error(ParseErrorCode::AttrsNotAllowed { for_reason: "Trait constant overrides" }));
-                        }
-                        self.parse_trait_const_override().map(|item| TraitItem::ConstOverride(item))
-                    }
-                },
-                Token::StrongKw(StrongKeyword::Type) => {
-                    if !attrs.is_empty() {
-                        return Err(self.gen_error(ParseErrorCode::AttrsNotAllowed { for_reason: "Trait constant overrides" }));
-                    }
-                    self.parse_trait_const_override().map(|item| TraitItem::ConstOverride(item))
-                },
-                Token::WeakKw(WeakKeyword::Property) => self.parse_trait_property_override().map(|item| TraitItem::PropertyOverride(item)),
-                _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" })),
-            }
             _ => Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "Item" })),
         }
     }
 
     fn parse_trait_function(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<TraitItem, ParserErr> {
         let begin = self.get_cur_span();
-        let is_override = self.try_consume(Token::WeakKw(WeakKeyword::Override));
         let is_const = self.try_consume(Token::StrongKw(StrongKeyword::Const));
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
 
@@ -1836,7 +1810,6 @@ impl Parser<'_> {
                 span,
                 node_id: NodeId::default(),
                 attrs,
-                is_override,
                 is_const,
                 is_unsafe,
                 name,
@@ -1853,7 +1826,6 @@ impl Parser<'_> {
                 span,
                 node_id: NodeId::default(),
                 attrs,
-                is_override,
                 is_const,
                 is_unsafe,
                 name,
@@ -1909,23 +1881,6 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_trait_type_alias_override(&mut self) -> Result<AstNodeRef<TraitTypeAliasOverride>, ParserErr> {
-        let begin = self.get_cur_span();
-        self.consume_weak_kw(WeakKeyword::Override)?;
-        self.consume_strong_kw(StrongKeyword::Type)?;
-        let name = self.consume_name()?;
-        self.consume_punct(Punctuation::Equals);
-        let ty = self.parse_type()?;
-
-        let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TraitTypeAliasOverride {
-            span,
-            node_id: NodeId::default(),
-            name,
-            ty,
-        }))
-    }
-
     fn parse_trait_const(&mut self, attrs: Vec<AstNodeRef<Attribute>>) -> Result<AstNodeRef<TraitConst>, ParserErr> {
         let begin = self.get_cur_span();
         self.consume_strong_kw(StrongKeyword::Const)?;
@@ -1946,23 +1901,6 @@ impl Parser<'_> {
             name,
             ty,
             def,
-        }))
-    }
-
-    fn parse_trait_const_override(&mut self) -> Result<AstNodeRef<TraitConstOverride>, ParserErr> {
-        let begin = self.get_cur_span();
-        self.consume_weak_kw(WeakKeyword::Override)?;
-        self.consume_strong_kw(StrongKeyword::Const)?;
-        let name = self.consume_name()?;
-        self.consume_punct(Punctuation::Equals);
-        let expr = self.parse_expr(ExprParseMode::General)?;
-
-        let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TraitConstOverride {
-            span,
-            node_id: NodeId::default(),
-            name,
-            expr,
         }))
     }
 
@@ -2037,109 +1975,6 @@ impl Parser<'_> {
             node_id: NodeId::default(),
             attrs,
             is_unsafe,
-            name,
-            get,
-            ref_get,
-            mut_get,
-            set,
-        }))
-    }
-
-    fn parse_trait_property_override(&mut self) -> Result<AstNodeRef<TraitPropertyOverride>, ParserErr> {
-        let begin = self.get_cur_span();
-        self.consume_weak_kw(WeakKeyword::Override)?;
-        self.consume_weak_kw(WeakKeyword::Property)?;
-        let name = self.consume_name()?;
-
-        let mut get = None;
-        let mut ref_get = None;
-        let mut mut_get = None;
-        let mut set = None;
-
-        self.begin_scope(OpenCloseSymbol::Brace)?;
-        while !self.try_end_scope() {
-            let peek = self.peek()?;
-            match peek {
-                Token::WeakKw(WeakKeyword::Get) => {
-                    self.consume_single();
-                    self.consume_punct(Punctuation::Equals);
-                    self.parse_expr(ExprParseMode::General)?;
-
-                    let expr = match self.parse_property_expr()? {
-                        Some(expr) => expr,
-                        None => {
-                            let found = self.peek()?;
-                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
-                        },
-                    };
-
-                    if get.is_some() {
-                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "get" }));
-                    }
-                    
-                    get = Some(expr);
-                },
-                Token::StrongKw(StrongKeyword::Ref) => {
-                    self.consume_single();
-                    self.consume_weak_kw(WeakKeyword::Get)?;
-
-                    let expr = match self.parse_property_expr()? {
-                        Some(expr) => expr,
-                        None => {
-                            let found = self.peek()?;
-                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
-                        },
-                    };
-
-                    if ref_get.is_some() {
-                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "ref get" }));
-                    }
-
-                    ref_get = Some(expr);
-                },
-                Token::StrongKw(StrongKeyword::Mut) => {
-                    self.consume_single();
-                    self.consume_weak_kw(WeakKeyword::Get)?;
-
-                    let expr = match self.parse_property_expr()? {
-                        Some(expr) => expr,
-                        None => {
-                            let found = self.peek()?;
-                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
-                        },
-                    };
-
-                    if mut_get.is_some() {
-                        return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "mut get" }));
-                    }
-                    
-                    mut_get = Some(expr);
-                },
-                Token::WeakKw(WeakKeyword::Set) => {
-                    self.consume_single();
-
-                    let expr = match self.parse_property_expr()? {
-                        Some(expr) => expr,
-                        None => {
-                            let found = self.peek()?;
-                            return Err(self.gen_error(ParseErrorCode::UnexpectedFor { found, for_reason: "Property override expression" }));
-                        },
-                    };
-
-                    if set.is_some() {
-                       return Err(self.gen_error(ParseErrorCode::DuplicateProp{ get_set: "set" }));
-                    }
-                
-                    set = Some(expr);
-                },
-                _ => return Err(self.gen_error(ParseErrorCode::UnexpectedFor{ found: peek, for_reason: "property getter/setter" }))
-            }
-        }
-
-        let span = self.get_span_to_current(begin);
-        Ok(self.add_node(TraitPropertyOverride {
-            span,
-            node_id: NodeId::INVALID,
             name,
             get,
             ref_get,

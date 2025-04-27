@@ -26,12 +26,9 @@ pub enum VisitFlags {
     TraitFunction,
     TraitMethod,
     TraitTypeAlias,
-    TraitTypeAliasOverride,
     TraitConst,
-    TraitConstOverride,
     TraitProperty,
-    TraitPropertyOverride,
-    AnyTrait = Trait | TraitFunction | TraitMethod | TraitTypeAlias | TraitTypeAliasOverride | TraitConst | TraitConst | TraitConstOverride | TraitProperty | TraitPropertyOverride,
+    AnyTrait = Trait | TraitFunction | TraitMethod | TraitTypeAlias | TraitConst | TraitConst | TraitProperty,
     
     Impl,
     ImplFunction,
@@ -152,24 +149,12 @@ pub trait Visitor: Sized {
         helpers::visit_trait_type_alias(self, node);
     }
 
-    fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
-        helpers::visit_trait_type_alias_override(self, node);
-    }
-
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         helpers::visit_trait_const(self, node);
     }
 
-    fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
-        helpers::visit_trait_const_override(self, node);
-    }
-
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         helpers::visit_trait_property(self, node);
-    }
-
-    fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
-        helpers::visit_trait_property_override(self, node);
     }
 
     //--------------------------------------------------------------
@@ -656,16 +641,6 @@ pub(crate) mod helpers {
                     }
                 }
                 
-                if flags.contains(VisitFlags::TraitTypeAliasOverride) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_type_alias_override[type_alias_override_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_type_alias_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        type_alias_override_offset += 1;
-                    }
-                }
-                
                 if flags.contains(VisitFlags::TraitConst) {
                     for (trait_idx, node, ctx) in &mut hir.trait_consts[const_offset..] {
                         if *trait_idx != idx {
@@ -676,16 +651,6 @@ pub(crate) mod helpers {
                     }
                 }
                 
-                if flags.contains(VisitFlags::TraitConstOverride) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_const_overrides[const_override_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_const_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        const_override_offset += 1;
-                    }
-                }
-                
                 if flags.contains(VisitFlags::TraitProperty) {
                     for (trait_idx, node, ctx) in &mut hir.trait_properties[prop_offset..] {
                         if *trait_idx != idx {
@@ -693,16 +658,6 @@ pub(crate) mod helpers {
                         }
                         visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                         prop_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::TraitPropertyOverride) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_property_overides[prop_override_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_property_override(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        prop_override_offset += 1;
                     }
                 }
             }
@@ -1338,10 +1293,6 @@ pub(crate) mod helpers {
         }
     }
 
-    pub fn visit_trait_type_alias_override<T: Visitor>(visitor: &mut T, node: &mut TraitTypeAliasOverride) {
-        visitor.visit_type(&mut node.ty);
-    }
-
     pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &mut TraitConst) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
@@ -1350,10 +1301,6 @@ pub(crate) mod helpers {
         if let Some(def) = &mut node.def {
             visitor.visit_expr(def);
         }
-    }
-
-    pub fn visit_trait_const_override<T: Visitor>(visitor: &mut T, node: &mut TraitConstOverride) {
-        visitor.visit_expr(&mut node.expr);
     }
 
     pub fn visit_trait_property<T: Visitor>(visitor: &mut T, node: &mut TraitProperty) {
@@ -1376,21 +1323,6 @@ pub(crate) mod helpers {
         match &mut node.set {
             TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
             _ => (),
-        }
-    }
-
-    pub fn visit_trait_property_override<T: Visitor>(visitor: &mut T, node: &mut TraitPropertyOverride) {
-        if let Some(expr) = &mut node.get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &mut node.ref_get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &mut node.mut_get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &mut node.set {
-            visitor.visit_expr(expr);
         }
     }
 

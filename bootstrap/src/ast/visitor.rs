@@ -138,24 +138,12 @@ pub trait Visitor {
         helpers::visit_trait_type_alias(self, node, true);
     }
 
-    fn visit_trait_type_alias_override(&mut self, node: &AstNodeRef<TraitTypeAliasOverride>) where Self: Sized {
-        helpers::visit_trait_type_alias_override(self, node);
-    }
-
     fn visit_trait_const(&mut self, node: &AstNodeRef<TraitConst>) where Self: Sized {
         helpers::visit_trait_const(self, node);
     }
 
-    fn visit_trait_const_override(&mut self, node: &AstNodeRef<TraitConstOverride>) where Self: Sized {
-        helpers::visit_trait_const_override(self, node);
-    }
-
     fn visit_trait_property(&mut self, node: &AstNodeRef<TraitProperty>) where Self: Sized {
         helpers::visit_trait_property(self, node);
-    }
-
-    fn visit_trait_property_override(&mut self, node: &AstNodeRef<TraitPropertyOverride>) where Self: Sized {
-        helpers::visit_trait_property_override(self, node);
     }
 
 //--------------------------------------------------------------
@@ -628,11 +616,8 @@ pub mod helpers {
             TraitItem::Function(node)          => visitor.visit_trait_function(node),
             TraitItem::Method(node)            => visitor.visit_trait_method(node),
             TraitItem::TypeAlias(node)         => visitor.visit_trait_type_alias(node),
-            TraitItem::TypeAliasOverride(node) => visitor.visit_trait_type_alias_override(node),
             TraitItem::Const(node)             => visitor.visit_trait_const(node),
-            TraitItem::ConstOverride(node)     => visitor.visit_trait_const_override(node),
             TraitItem::Property(node)          => visitor.visit_trait_property(node),
-            TraitItem::PropertyOverride(node)  => visitor.visit_trait_property_override(node),
         }
     }
 
@@ -1270,10 +1255,6 @@ pub mod helpers {
         }
     }
 
-    pub fn visit_trait_type_alias_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitTypeAliasOverride>) {
-        visitor.visit_type(&node.ty);
-    }
-
     pub fn visit_trait_const<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConst>) {
         for attr in &node.attrs {
             visitor.visit_attribute(attr);
@@ -1282,10 +1263,6 @@ pub mod helpers {
         if let Some(def) = &node.def {
             visitor.visit_expr(def);
         }
-    }
-
-    pub fn visit_trait_const_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitConstOverride>) {
-        visitor.visit_expr(&node.expr);
     }
 
     pub fn visit_trait_property<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitProperty>) {
@@ -1302,21 +1279,6 @@ pub mod helpers {
             visitor.visit_expr(expr);
         }
         if let Some((_, Some(expr))) = &node.set {
-            visitor.visit_expr(expr);
-        }
-    }
-
-    pub fn visit_trait_property_override<T: Visitor>(visitor: &mut T, node: &AstNodeRef<TraitPropertyOverride>) {
-        if let Some(expr) = &node.get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &node.ref_get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &node.mut_get {
-            visitor.visit_expr(expr);
-        }
-        if let Some(expr) = &node.set {
             visitor.visit_expr(expr);
         }
     }

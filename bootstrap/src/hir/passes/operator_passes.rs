@@ -504,7 +504,6 @@ impl Visitor for OpTraitGen<'_> {
             span: node.span,
             node_id: node.node_id,
             attrs: Vec::new(),
-            is_override: false,
             is_const: false,
             is_unsafe: false,
             name: node.name,

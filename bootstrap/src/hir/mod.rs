@@ -477,7 +477,6 @@ pub struct TraitFunction {
     pub span:         SpanId,
     pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
-    pub is_override:  bool,
     pub is_const:     bool,
     pub is_unsafe:    bool,
     pub name:         NameId,
@@ -493,7 +492,6 @@ pub struct TraitMethod {
     pub span:         SpanId,
     pub node_id:      ast::NodeId,
     pub attrs:        Vec<Box<Attribute>>,
-    pub is_override:  bool,
     pub is_const:     bool,
     pub is_unsafe:    bool,
     pub name:         NameId,
@@ -516,13 +514,6 @@ pub struct TraitTypeAlias {
     pub def:          Option<Box<Type>>,
 }
 
-pub struct TraitTypeAliasOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub ty:      Box<Type>,
-}
-
 pub struct TraitConst {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
@@ -530,13 +521,6 @@ pub struct TraitConst {
     pub name:    NameId,
     pub ty:      Box<Type>,
     pub def:     Option<Box<Expr>>,
-}
-
-pub struct TraitConstOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub expr:    Box<Expr>,
 }
 
 pub enum TraitPropertyMember {
@@ -561,16 +545,6 @@ pub struct TraitProperty {
     pub ref_get:   TraitPropertyMember,
     pub mut_get:   TraitPropertyMember,
     pub set:       TraitPropertyMember,
-}
-
-pub struct TraitPropertyOverride {
-    pub span:    SpanId,
-    pub node_id: NodeId,
-    pub name:    NameId,
-    pub get:     Option<Box<Expr>>,
-    pub ref_get: Option<Box<Expr>>,
-    pub mut_get: Option<Box<Expr>>,
-    pub set:     Option<Box<Expr>>,
 }
 
 //--------------------------------------------------------------
@@ -2029,11 +2003,8 @@ pub struct Hir {
     pub trait_functions:           Vec<(usize, TraitFunction, FunctionContext)>,
     pub trait_methods:             Vec<(usize, TraitMethod, FunctionContext)>,
     pub trait_type_alias:          Vec<(usize, TraitTypeAlias, TypeAliasContext)>,
-    pub trait_type_alias_override: Vec<(usize, TraitTypeAliasOverride, TypeAliasContext)>,
     pub trait_consts:              Vec<(usize, TraitConst, ConstContext)>,
-    pub trait_const_overrides:     Vec<(usize, TraitConstOverride, ConstContext)>,
     pub trait_properties:          Vec<(usize, TraitProperty, PropertyContext)>,
-    pub trait_property_overides:   Vec<(usize, TraitPropertyOverride, PropertyContext)>,
     
     // assoc items store the index into the impls array, as it cannot have any impl removed
     pub impls:                     Vec<(Ref<Impl>, Ref<ImplContext>)>,
@@ -2078,11 +2049,8 @@ impl Hir {
             trait_functions:           Vec::new(),
             trait_methods:             Vec::new(),
             trait_type_alias:          Vec::new(),
-            trait_type_alias_override: Vec::new(),
             trait_consts:              Vec::new(),
-            trait_const_overrides:     Vec::new(),
             trait_properties:          Vec::new(),
-            trait_property_overides:   Vec::new(),
             
             impls:                     Vec::new(),
             impl_functions:            Vec::new(),
@@ -2241,34 +2209,16 @@ impl Hir {
         self.trait_type_alias.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_type_alias_override(&mut self, scope: Scope, item: TraitTypeAliasOverride) {
-        let ctx = TypeAliasContext::new(scope);
-        let trait_idx = self.traits.len() - 1;
-        self.trait_type_alias_override.push((trait_idx, item, ctx));
-    }
-
     pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
         let ctx = ConstContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_consts.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_const_override(&mut self, scope: Scope, item: TraitConstOverride) {
-        let ctx = ConstContext::new(scope);
-        let trait_idx = self.traits.len() - 1;
-        self.trait_const_overrides.push((trait_idx, item, ctx));
-    }
-
     pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
         let trait_idx = self.traits.len() - 1;
         let ctx = PropertyContext::new(scope);
         self.trait_properties.push((trait_idx, item, ctx));
-    }
-
-    pub fn add_trait_property_override(&mut self, scope: Scope, item: TraitPropertyOverride) {
-        let trait_idx = self.traits.len() - 1;
-        let ctx = PropertyContext::new(scope);
-        self.trait_property_overides.push((trait_idx, item, ctx));
     }
 
     //--------------------------------------------------------------

@@ -1854,7 +1854,6 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             attrs,
-            is_override: node.is_override,
             is_const: node.is_const,
             is_unsafe: node.is_unsafe,
             name: node.name,
@@ -1900,7 +1899,6 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             node_id: node.node_id,
             attrs,
-            is_override: node.is_override,
             is_const: node.is_const,
             is_unsafe: node.is_unsafe,
             name: node.name,
@@ -1956,22 +1954,6 @@ impl Visitor for AstToHirLowering<'_> {
             generics,
             where_clause,
             def,
-        })
-    }
-
-    fn visit_trait_type_alias_override(&mut self, node: &AstNodeRef<TraitTypeAliasOverride>) where Self: Sized {
-        helpers::visit_trait_type_alias_override(self, node);
-
-        let node_ctx = self.ctx.get_node_for(node);
-        let scope = self.trait_impl_scope.clone();
-
-        let ty = self.type_stack.pop().unwrap();
-
-        self.hir.add_trait_type_alias_override(scope, hir::TraitTypeAliasOverride {
-            span: node.span,
-            node_id: node.node_id,
-            name: node.name,
-            ty,
         })
     }
 
@@ -2041,28 +2023,6 @@ impl Visitor for AstToHirLowering<'_> {
             node_id: node.node_id,
             attrs,
             is_unsafe: node.is_unsafe,
-            name: node.name,
-            get,
-            ref_get,
-            mut_get,
-            set,
-        })
-    }
-
-    fn visit_trait_property_override(&mut self, node: &AstNodeRef<TraitPropertyOverride>) where Self: Sized {
-        helpers::visit_trait_property_override(self, node);
-
-        let ast_ctx = self.ctx.get_node_for(node);
-        let scope = self.trait_impl_scope.clone();
-
-        let set = node.set.as_ref().map(|_| self.expr_stack.pop().unwrap());
-        let mut_get = node.mut_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-        let ref_get = node.ref_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-        let get = node.get.as_ref().map(|_| self.expr_stack.pop().unwrap());
-
-        self.hir.add_trait_property_override(scope, hir::TraitPropertyOverride {
-            span: node.span,
-            node_id: node.node_id,
             name: node.name,
             get,
             ref_get,

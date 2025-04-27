@@ -932,8 +932,7 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.logger.log_fmt(format_args!("{}{}{}fn {}", 
-            if node.is_override { "override " } else { "" },
+        self.logger.log_fmt(format_args!("{}{}fn {}", 
             if node.is_const { "const " } else { "" },
             if node.is_unsafe { "unsafe " } else { "" },
             &self.names[node.name]
@@ -979,8 +978,7 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.logger.prefixed_log_fmt(format_args!("{}{}{}fn {}", 
-            if node.is_override { "override " } else { "" },
+        self.logger.prefixed_log_fmt(format_args!("{}{}fn {}", 
             if node.is_const { "const " } else { "" },
             if node.is_unsafe { "unsafe " } else { "" },
             &self.names[node.name]
@@ -1051,12 +1049,6 @@ impl Visitor for CodePrinter<'_> {
         self.logger.logln(";");
     }
 
-    fn visit_trait_type_alias_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAliasOverride, ctx: &mut TypeAliasContext) {
-        self.logger.prefixed_log_fmt(format_args!("override type {} = ", &self.names[node.name]));
-        self.visit_type(&mut node.ty);
-        self.logger.logln(";");
-    }
-
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
         self.logger.write_prefix();
         for attr in &mut node.attrs {
@@ -1072,12 +1064,6 @@ impl Visitor for CodePrinter<'_> {
         self.logger.logln(";");
     }
     
-    fn visit_trait_const_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConstOverride, ctx: &mut ConstContext) {
-        self.logger.prefixed_log_fmt(format_args!("override const {} = ", &self.names[node.name]));
-        self.visit_expr(&mut node.expr);
-        self.logger.logln(";");
-    }
-
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
         self.logger.write_prefix();
         for attr in &mut node.attrs {
@@ -1111,32 +1097,6 @@ impl Visitor for CodePrinter<'_> {
         log_mem("ref get", &mut node.ref_get);
         log_mem("mut get", &mut node.mut_get);
         log_mem("set", &mut node.set);
-
-        self.logger.prefixed_logln("}");
-    }
-
-    fn visit_trait_property_override(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitPropertyOverride, ctx: &mut PropertyContext) {
-        self.logger.prefixed_log_fmt(format_args!("override property {} {{\n", &self.names[node.name]));
-
-        let mut log_mem = |name: &str, mem: Option<&mut Box<Expr>>| {
-            let Some(expr) = mem else { return; };
-
-            self.logger.prefixed_log(name);
-            if !matches!(&**expr, Expr::Block(_)) {
-                self.logger.log(" = ");
-            }
-            self.visit_expr(expr);
-            if !matches!(&**expr, Expr::Block(_)) {
-                self.logger.logln(";");
-            } else {
-                self.logger.logln("");
-            }
-        };
-
-        log_mem("get", node.get.as_mut());
-        log_mem("ref get", node.ref_get.as_mut());
-        log_mem("mut get", node.mut_get.as_mut());
-        log_mem("set", node.set.as_mut());
 
         self.logger.prefixed_logln("}");
     }
