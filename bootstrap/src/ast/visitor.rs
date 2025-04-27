@@ -1370,9 +1370,6 @@ pub mod helpers {
                     visitor.visit_expr(def);
                 }
             },
-            OpElem::Extend { span, op_type, op, def } => {
-                visitor.visit_expr(def);
-            },
             OpElem::Contract { span, expr } => {
                 visitor.visit_block_expr(expr);
             },

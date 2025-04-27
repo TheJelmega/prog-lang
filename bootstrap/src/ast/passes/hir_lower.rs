@@ -529,17 +529,6 @@ impl AstToHirLowering<'_> {
                     def,
                 });
             },
-            OpElem::Extend { span, op_type, op, def: _ } => {
-                let def = self.expr_stack.pop().unwrap();
-                
-                self.hir.add_op_specialization(scope, hir::OpSpecialization {
-                    span: *span,
-                    node_id,
-                    op_ty: *op_type,
-                    op: *op,
-                    def,
-                });
-            },
             OpElem::Contract { span, expr: _ } => {
                 let expr = self.expr_stack.pop().unwrap();
                 

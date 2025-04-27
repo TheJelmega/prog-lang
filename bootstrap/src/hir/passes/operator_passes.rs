@@ -158,7 +158,7 @@ impl Pass for InfixReorder<'_> {
 
     fn process(&mut self, hir: &mut Hir) {
         let flags = VisitFlags::Function | VisitFlags::TraitFunction | VisitFlags::Method |
-            VisitFlags::OpFunction | VisitFlags::OpSpecialization | VisitFlags::OpContract;
+            VisitFlags::OpFunction | VisitFlags::OpContract;
         
         self.visit(hir, flags);
     }
@@ -346,7 +346,7 @@ impl Pass for OpTraitGen<'_> {
     const NAME: &'static str = "Operator Trait Gen";
 
     fn process(&mut self, hir: &mut Hir) {
-        self.visit(hir, VisitFlags::OpTrait | VisitFlags::OpFunction | VisitFlags::OpSpecialization);
+        self.visit(hir, VisitFlags::OpTrait | VisitFlags::OpFunction);
 
         for entry in mem::take(&mut self.traits) {
             let trait_name =  self.ctx.names.read()[entry.item.name].to_string();

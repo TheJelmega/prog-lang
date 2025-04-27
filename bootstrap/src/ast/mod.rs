@@ -2209,12 +2209,6 @@ pub enum OpElem {
         ret:     Option<Type>,
         def:     Option<Expr>,
     },
-    Extend {
-        span:    SpanId,
-        op_type: OpType,
-        op:      Punctuation,
-        def:     Expr,
-    },
     Contract {
         span:    SpanId,
         expr:    AstNodeRef<BlockExpr>
@@ -2233,12 +2227,6 @@ impl OpElem {
                 logger.log_indented_opt_node("Return Type", ret);
                 logger.set_last_at_indent();
                 logger.log_indented_opt_node("Default Implementation", def);
-            }),
-            OpElem::Extend { span, op_type, op, def } => logger.log_indented("Operator Specialization", |logger| {
-                logger.prefixed_log_fmt(format_args!("Operator Type: {op_type}\n"));
-                logger.prefixed_log_fmt(format_args!("Operator: {}\n", logger.resolve_punctuation(*op)));
-                logger.set_last_at_indent();
-                logger.log_indented_node("Default Implementation", def);
             }),
             OpElem::Contract { span, expr } => logger.log_indented_node_ref("Contract", expr),
         }

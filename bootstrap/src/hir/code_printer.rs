@@ -313,23 +313,14 @@ impl<'a> CodePrinter<'a> {
         self.logger.logln(" {");
 
         let funcs_count = hir.op_functions.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
-        let spec_count = hir.op_specializations.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
         let contract_count = hir.op_contracts.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
         self.logger.push_indent();
         let mut count = 0;
         for (fn_idx, node, ctx) in &mut hir.op_functions {
             if *fn_idx == idx {
-                self.logger.set_last_at_indent_if(count == funcs_count - 1 && spec_count == 0 && contract_count == 0);
+                self.logger.set_last_at_indent_if(count == funcs_count - 1 && contract_count == 0);
                 self.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                count += 1;
-            }
-        }
-        count = 0;
-        for (fn_idx, node, ctx) in &mut hir.op_specializations {
-            if *fn_idx == idx {
-                self.logger.set_last_at_indent_if(count == spec_count - 1 && funcs_count == 0 && contract_count == 0);
-                self.visit_op_specialization(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                 count += 1;
             }
         }
@@ -419,7 +410,6 @@ impl Visitor for CodePrinter<'_> {
         let ignore_op_flags =
             VisitFlags::OpTrait |
             VisitFlags::OpFunction |
-            VisitFlags::OpSpecialization |
             VisitFlags::OpContract;
 
         let ignore_flags = ignore_trait_flags | ignore_impl_flags | ignore_op_flags;
@@ -1260,15 +1250,6 @@ impl Visitor for CodePrinter<'_> {
             self.logger.log(" = ");
             self.visit_expr(expr);
         }
-        self.logger.logln(";");
-    }
-
-    fn visit_op_specialization(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpSpecialization, ctx: &mut OpSpecializationContext) {
-        self.logger.prefixed_log_fmt(format_args!("{} op {} :=",
-            node.op_ty,
-            node.op.as_str(&self.puncts)
-        ));
-        self.visit_expr(&mut node.def);
         self.logger.logln(";");
     }
 

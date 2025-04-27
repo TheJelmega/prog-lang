@@ -42,9 +42,8 @@ pub enum VisitFlags {
 
     OpTrait,
     OpFunction,
-    OpSpecialization,
     OpContract,
-    AnyOpTrait = OpTrait | OpFunction | OpSpecialization | OpContract,
+    AnyOpTrait = OpTrait | OpFunction | OpContract,
 
     Precedence,
 }
@@ -199,10 +198,6 @@ pub trait Visitor: Sized {
 
     fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
         helpers::visit_op_function(self, node, ctx);
-    }
-
-    fn visit_op_specialization(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpSpecialization, ctx: &mut OpSpecializationContext) {
-        helpers::visit_op_specialization(self, node, ctx);
     }
 
     fn visit_op_contract(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
@@ -598,11 +593,8 @@ pub(crate) mod helpers {
             let mut func_offset = 0;
             let mut method_offset = 0;
             let mut type_alias_offset = 0;
-            let mut type_alias_override_offset = 0;
             let mut const_offset = 0;
-            let mut const_override_offset = 0;
             let mut prop_offset = 0;
-            let mut prop_override_offset = 0;
 
             for (idx, (trait_ref, trait_ctx)) in hir.traits.iter_mut().enumerate() {
                 if flags.contains(VisitFlags::Trait) {
@@ -691,7 +683,9 @@ pub(crate) mod helpers {
 
                 if flags.contains(VisitFlags::Method) {
                     for (impl_idx, node, ctx) in &mut hir.methods[method_offset..] {
-
+                        if *impl_idx != idx {
+                            break;
+                        }
                         visitor.visit_method(impl_ref.clone(), impl_ctx.clone(), node, ctx);
                         method_offset += 1;
                     }
@@ -768,16 +762,6 @@ pub(crate) mod helpers {
                         }
                         visitor.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                         func_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::OpSpecialization) {
-                    for (trait_idx, node, ctx) in &mut hir.op_specializations[spec_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_op_specialization(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        spec_offset += 1;
                     }
                 }
                 
@@ -1352,10 +1336,6 @@ pub(crate) mod helpers {
         if let Some(def) = &mut node.def {
             visitor.visit_expr(def);
         }
-    }
-
-    pub fn visit_op_specialization<T: Visitor>(visitor: &mut T, node: &mut OpSpecialization, ctx: &mut OpSpecializationContext) {
-        visitor.visit_expr(&mut node.def);
     }
 
     pub fn visit_op_contract<T: Visitor>(visitor: &mut T, node: &mut OpContract, ctx: &mut OpContractContext) {

@@ -596,14 +596,6 @@ pub struct OpFunction {
     pub def:     Option<Box<Expr>>,
 }
 
-pub struct OpSpecialization {
-    pub span:    SpanId,
-    pub node_id: ast::NodeId,
-    pub op_ty:   OpType,
-    pub op:      Punctuation,
-    pub def:     Box<Expr>,
-}
-
 pub struct OpContract {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
@@ -2019,7 +2011,6 @@ pub struct Hir {
     // op items store the index into the op_traits array, as it cannot have any op_trait removed
     pub op_traits:                 Vec<(Ref<OpTrait>, Ref<OpTraitContext>)>,
     pub op_functions:              Vec<(usize, OpFunction, OpFunctionContext)>,
-    pub op_specializations:        Vec<(usize, OpSpecialization, OpSpecializationContext)>,
     pub op_contracts:              Vec<(usize, OpContract, OpContractContext)>,
 
     pub precedences:               Vec<(Precedence, Ref<PrecedenceContext>)>,
@@ -2063,7 +2054,6 @@ impl Hir {
 
             op_traits:                 Vec::new(),
             op_functions:              Vec::new(),
-            op_specializations:        Vec::new(),
             op_contracts:              Vec::new(),
 
             precedences:               Vec::new(),
@@ -2241,12 +2231,6 @@ impl Hir {
         let op_idx = self.op_traits.len() - 1;
         let ctx = OpFunctionContext::new(scope);
         self.op_functions.push((op_idx, item, ctx));
-    }
-
-    pub fn add_op_specialization(&mut self, scope: Scope, item: OpSpecialization) {
-        let op_idx = self.op_traits.len() - 1;
-        let ctx = OpSpecializationContext::new(scope);
-        self.op_specializations.push((op_idx, item, ctx));
     }
 
     pub fn add_op_contract(&mut self, scope: Scope, item: OpContract) {

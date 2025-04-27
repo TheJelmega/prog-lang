@@ -52,7 +52,6 @@ pub struct CompilerStats {
     pub ast_impl_properties_lowered:          u64,
     pub ast_op_trait_lowered:                 u64,
     pub ast_op_functions_lowered:             u64,
-    pub ast_op_specializations_lowered:       u64,
     pub ast_op_contracts_lowered:             u64,
 
     // HIR
@@ -108,7 +107,6 @@ impl CompilerStats {
             ast_impl_properties_lowered:          0,
             ast_op_trait_lowered:                 0,
             ast_op_functions_lowered:             0,
-            ast_op_specializations_lowered:       0,
             ast_op_contracts_lowered:             0,
 
             num_hir_passes:                       0,
@@ -170,7 +168,6 @@ impl CompilerStats {
         self.ast_impl_properties_lowered = hir.properties.len() as u64;
         self.ast_op_trait_lowered = hir.op_traits.len() as u64;
         self.ast_op_functions_lowered = hir.op_functions.len() as u64;
-        self.ast_op_specializations_lowered = hir.op_specializations.len() as u64;
         self.ast_op_contracts_lowered = hir.op_contracts.len() as u64;
     }
 
@@ -250,7 +247,6 @@ impl CompilerStats {
 
         logger.log_fmt(format_args!("    Op traits lowered:                  {}\n", self.ast_op_trait_lowered));
         logger.log_fmt(format_args!("    Op functions lowered:               {}\n", self.ast_op_functions_lowered));
-        logger.log_fmt(format_args!("    Op specialization lowered:          {}\n", self.ast_op_specializations_lowered));
         logger.log_fmt(format_args!("    Op contract lowered:                {}\n", self.ast_op_contracts_lowered));
         
         logger.logln("- HIR passes:");

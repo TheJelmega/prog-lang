@@ -353,13 +353,12 @@ impl NodeLogger<'_> {
         self.log_node("Op trait", node_id, |this| {
 
             let funcs_count = hir.op_functions.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
-            let spec_count = hir.op_specializations.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
             let contract_count = hir.op_contracts.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
             {
                 let mut node = trait_ref.write();
 
-                let has_items = spec_count == 0 && contract_count == 0 && funcs_count == 0;
+                let has_items = contract_count == 0 && funcs_count == 0;
 
                 this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
                 this.logger.set_last_at_indent_if(node.attrs.is_empty() && node.bases.is_empty() && has_items);
@@ -373,17 +372,8 @@ impl NodeLogger<'_> {
             let mut count = 0;
             for (fn_idx, node, ctx) in &mut hir.op_functions {
                 if *fn_idx == idx {
-                    this.logger.set_last_at_indent_if(count == funcs_count - 1 && spec_count == 0 && contract_count == 0);
+                    this.logger.set_last_at_indent_if(count == funcs_count - 1 && contract_count == 0);
                     this.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                    count += 1;
-                }
-            }
-
-            count = 0;
-            for (fn_idx, node, ctx) in &mut hir.op_specializations {
-                if *fn_idx == idx {
-                    this.logger.set_last_at_indent_if(count == spec_count - 1 && funcs_count == 0 && contract_count == 0);
-                    this.visit_op_specialization(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                     count += 1;
                 }
             }
@@ -448,7 +438,6 @@ impl Visitor for NodeLogger<'_> {
         let ignore_op_flags =
             VisitFlags::OpTrait |
             VisitFlags::OpFunction |
-            VisitFlags::OpSpecialization |
             VisitFlags::OpContract;
 
         let ignore_flags = ignore_trait_flags | ignore_impl_flags | ignore_op_flags;
@@ -1070,15 +1059,6 @@ impl Visitor for NodeLogger<'_> {
             this.log_opt_indented("Return Type", &mut node.ret_ty, |this, ty| this.visit_type(ty));
             this.logger.set_last_at_indent();
             this.log_opt_indented("Default impl", &mut node.def, |this, def| this.visit_expr(def));
-        });
-    }
-
-    fn visit_op_specialization(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpSpecialization, ctx: &mut OpSpecializationContext) {
-        self.log_node("Op specialization", node.node_id, |this| {
-            this.logger.prefixed_log_fmt(format_args!("Op type: {}\n", node.op_ty));
-            this.logger.prefixed_log_fmt(format_args!("Op: {}\n", node.op.as_str(this.puncts)));
-            this.logger.set_last_at_indent();
-            this.log_single_indented("Default impl", |this| this.visit_expr(&mut node.def));
         });
     }
 

@@ -2184,34 +2184,29 @@ impl Parser<'_> {
         self.consume_weak_kw(WeakKeyword::Op)?;
         let op = self.consume_any_punct()?;
 
-        if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
-            let name = self.consume_name()?;
-            let ret = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
-                Some(self.parse_type()?)
-            } else {
-                None
-            };
-            let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
-                Some(self.parse_expr(ExprParseMode::General)?)
-            } else {
-                None
-            };
+        self.consume_punct(Punctuation::Colon)?;
 
-            let span = self.get_span_to_current(begin);
-            Ok(OpElem::Def {
-                span,
-                op_type,
-                op,
-                name,
-                ret,
-                def,
-            })
+        let name = self.consume_name()?;
+        let ret = if self.try_consume(Token::Punctuation(Punctuation::SingleArrowR)) {
+            Some(self.parse_type()?)
         } else {
-            self.consume_punct(Punctuation::ColonEquals)?;
-            let def = self.parse_expr(ExprParseMode::General)?;
-            let span = self.get_span_to_current(begin);
-            Ok(OpElem::Extend { span, op_type, op, def })
-        }
+            None
+        };
+        let def = if self.try_consume(Token::Punctuation(Punctuation::Equals)) {
+            Some(self.parse_expr(ExprParseMode::General)?)
+        } else {
+            None
+        };
+
+        let span = self.get_span_to_current(begin);
+        Ok(OpElem::Def {
+            span,
+            op_type,
+            op,
+            name,
+            ret,
+            def,
+        })
     }
 
     fn parse_op_use(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
