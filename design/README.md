@@ -2053,6 +2053,12 @@ _NOTE: Not implemented yet_
 
 A direct-bind property is a special version of a property that is directly bound to a value inside of the type it's implemented on.
 
+This allows for access to a member of the type, but also allows access to be restricted based on the property definition.
+
+### 7.11.3. Trait properties [↵](#711-properties-)
+
+```
+<trait-property> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
 <trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
 ```
@@ -4953,15 +4959,12 @@ TODO: specify lazy evaluation + chaining operator
 ```
 <op-item>      := <base-op-item> | <ext-op-item>
 <base-op-item> := { <attribute> }* [<vis>] 'op' 'trait' <name> [ '|' <name> ] '{' <op-elems> '}'
-<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <simple-path> { '+' <simple-path> }* '{' <ext-op-elems> '}'
+<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <simple-path> { '&' <simple-path> }* '{' <op-elems> '}'
+
 <op-elems>     := <op-elem> { ',' <op-elem> } [',']
 <op-elem>      := <op-decl> | <op-contract>
 <op-decl>      := <op-kind> 'op' <operator> ':' <name> [ '=' <expr> ]
 <op-kind>      := 'prefix' | 'postfix' | 'infix' | 'assign'
-
-<ext-op-elems> := <ext-op-elem> { ',' <ext-op-elem> } [ ',' ]
-<ext-op-elem>  := <op-spec> | <op-contract>
-<op-spec>      := <op-kind> 'op' <operator> ':=' <expr>
 
 <op-contract> := 'invar' <block-expr>
 ```
