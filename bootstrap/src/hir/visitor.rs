@@ -588,159 +588,18 @@ pub(crate) mod helpers {
 
         // TODO: Visit trait, then all associate elements (same for similar types of things)
 
-    
         if flags.intersects(VisitFlags::AnyTrait) {
-            let mut func_offset = 0;
-            let mut method_offset = 0;
-            let mut type_alias_offset = 0;
-            let mut const_offset = 0;
-            let mut prop_offset = 0;
-
-            for (idx, (trait_ref, trait_ctx)) in hir.traits.iter_mut().enumerate() {
-                if flags.contains(VisitFlags::Trait) {
-                    let mut node = trait_ref.write();
-                    let mut ctx = trait_ctx.write();
-                    visitor.visit_trait(&mut node, &mut ctx);
-                }
-                
-                if flags.contains(VisitFlags::TraitFunction) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_functions[func_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        func_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::TraitMethod) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_methods[method_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        method_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::TraitTypeAlias) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_type_alias[type_alias_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        type_alias_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::TraitConst) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_consts[const_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        const_offset += 1;
-                    }
-                }
-                
-                if flags.contains(VisitFlags::TraitProperty) {
-                    for (trait_idx, node, ctx) in &mut hir.trait_properties[prop_offset..] {
-                        if *trait_idx != idx {
-                            break;
-                        }
-                        visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
-                        prop_offset += 1;
-                    }
-                }
-            }
+            visit_trait_cond(visitor, hir, flags, |visitor, node, ctx| {
+                visitor.visit_trait(node, ctx);
+                true
+            });
         }
 
         if flags.intersects(VisitFlags::AnyImpl) {
-            let mut func_offset = 0;
-            let mut method_offset = 0;
-            let mut type_alias_offset = 0;
-            let mut const_offset = 0;
-            let mut static_offset = 0;
-            let mut tls_static_offset = 0;
-            let mut prop_offset = 0;
-
-            for (idx, (impl_ref, impl_ctx)) in hir.impls.iter_mut().enumerate() {
-                if flags.contains(VisitFlags::Impl) {
-                    let mut node = impl_ref.write();
-                    let mut ctx = impl_ctx.write();
-                    visitor.visit_impl(&mut node, &mut ctx);
-                }
-                
-                if flags.contains(VisitFlags::ImplFunction) {
-                    for (impl_idx, node, ctx) in &mut hir.impl_functions[func_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_impl_function(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        func_offset += 1;
-                    }
-                }
-
-                if flags.contains(VisitFlags::Method) {
-                    for (impl_idx, node, ctx) in &mut hir.methods[method_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_method(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        method_offset += 1;
-                    }
-                }
-
-                if flags.contains(VisitFlags::ImplTypeAlias) {
-                    for (impl_idx, node, ctx) in &mut hir.impl_type_aliases[type_alias_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_impl_type_alias(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        type_alias_offset += 1;
-                    }
-                }
-            
-                if flags.contains(VisitFlags::ImplConst) {
-                    for (impl_idx, node, ctx) in &mut hir.impl_consts[const_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_impl_const(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        const_offset += 1;
-                    }
-                }
-
-                if flags.contains(VisitFlags::ImplStatic) {
-                    for (impl_idx, node, ctx) in &mut hir.impl_statics[static_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_impl_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        static_offset += 1;
-                    }
-                }
-
-                if flags.contains(VisitFlags::ImplTlsStatic) {
-                    for (impl_idx, node, ctx) in &mut hir.impl_tls_statics[tls_static_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_impl_tls_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        tls_static_offset += 1;
-                    }
-                }
-            
-                if flags.contains(VisitFlags::Property) {
-                    for (impl_idx, node, ctx) in &mut hir.properties[prop_offset..] {
-                        if *impl_idx != idx {
-                            break;
-                        }
-                        visitor.visit_property(impl_ref.clone(), impl_ctx.clone(), node, ctx);
-                        prop_offset += 1;
-                    }
-                }
-            }
+            visit_impl_cond(visitor, hir, flags, |visitor, node, ctx| {
+                visitor.visit_impl(node, ctx);
+                true
+            });
         }
 
         if flags.intersects(VisitFlags::AnyOpTrait) {
@@ -1316,6 +1175,15 @@ pub(crate) mod helpers {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
         }
+        if let Some(generics) = &mut node.generics {
+            visitor.visit_gen_params(generics);
+        }
+        if let Some(impl_trait) = &mut node.impl_trait {
+            visitor.visit_path(impl_trait);
+        }
+        if let Some(where_clause) = &mut node.where_clause {
+            visitor.visit_where_clause(where_clause);
+        }
     }
 
     //--------------------------------------------------------------
@@ -1860,4 +1728,224 @@ pub(crate) mod helpers {
     
     // =============================================================
 
+    fn forward_member<T0, T1>(idx: &mut usize, owner_idx: usize, members: &[(usize, T0, T1)]) {
+        for (cur_idx, _, _) in members {
+            if *cur_idx != owner_idx {
+                break;
+            }
+            *idx += 1;
+        }
+    }
+
+    pub fn visit_trait_cond<T, F>(visitor: &mut T, hir: &mut Hir, flags: VisitFlags, mut f: F) where
+        T: Visitor,
+        F: FnMut(&mut T, &mut Trait, &mut TraitContext) -> bool
+    {
+        let mut func_offset = 0;
+        let mut method_offset = 0;
+        let mut type_alias_offset = 0;
+        let mut const_offset = 0;
+        let mut prop_offset = 0;
+
+        for (idx, (trait_ref, trait_ctx)) in hir.traits.iter_mut().enumerate() {
+            let skip = if flags.contains(VisitFlags::Trait) {
+                let mut node = trait_ref.write();
+                let mut ctx = trait_ctx.write();
+                !f(visitor, &mut node, &mut ctx)
+            } else {
+                false
+            };
+            
+            if flags.contains(VisitFlags::TraitFunction) {
+                if !skip {
+                    for (trait_idx, node, ctx) in &mut hir.trait_functions[func_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        func_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut func_offset, idx, &hir.trait_functions);
+                }
+            }
+            
+            if flags.contains(VisitFlags::TraitMethod) {
+                if !skip {
+                    for (trait_idx, node, ctx) in &mut hir.trait_methods[method_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_method(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        method_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut method_offset, idx, &hir.trait_methods);
+                }
+            }
+            
+            if flags.contains(VisitFlags::TraitTypeAlias) {
+                if !skip {
+                    for (trait_idx, node, ctx) in &mut hir.trait_type_alias[type_alias_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_type_alias(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        type_alias_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut type_alias_offset, idx, &hir.trait_type_alias);
+                }
+            }
+            
+            if flags.contains(VisitFlags::TraitConst) {
+                if !skip {
+                    for (trait_idx, node, ctx) in &mut hir.trait_consts[const_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_const(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        const_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut const_offset, idx, &hir.trait_consts);
+                }
+            }
+            
+            if flags.contains(VisitFlags::TraitProperty) {
+                if !skip {
+                    for (trait_idx, node, ctx) in &mut hir.trait_properties[prop_offset..] {
+                        if *trait_idx != idx {
+                            break;
+                        }
+                        visitor.visit_trait_property(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        prop_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut prop_offset, idx, &hir.trait_properties);
+                }
+            }
+        }
+    }
+
+    pub fn visit_impl_cond<T, F>(visitor: &mut T, hir: &mut Hir, flags: VisitFlags, mut f: F) where
+        T: Visitor,
+        F: FnMut(&mut T, &mut Impl, &mut ImplContext) -> bool
+    {
+        let mut func_offset = 0;
+        let mut method_offset = 0;
+        let mut type_alias_offset = 0;
+        let mut const_offset = 0;
+        let mut static_offset = 0;
+        let mut tls_static_offset = 0;
+        let mut prop_offset = 0;
+
+        for (idx, (impl_ref, impl_ctx)) in hir.impls.iter_mut().enumerate() {
+            let skip = if flags.contains(VisitFlags::Impl) {
+                let mut node = impl_ref.write();
+                let mut ctx = impl_ctx.write();
+                !f(visitor, &mut node, &mut ctx)
+            } else {
+                false
+            };
+            
+            if flags.contains(VisitFlags::ImplFunction) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.impl_functions[func_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_function(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        func_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut func_offset, idx, &hir.impl_functions);
+                }
+            }
+        
+            if flags.contains(VisitFlags::Method) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.methods[method_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_method(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        method_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut method_offset, idx, &hir.methods);
+                }
+            }
+        
+            if flags.contains(VisitFlags::ImplTypeAlias) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.impl_type_aliases[type_alias_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_type_alias(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        type_alias_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut type_alias_offset, idx, &hir.impl_type_aliases);
+                }
+            }
+        
+            if flags.contains(VisitFlags::ImplConst) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.impl_consts[const_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_const(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        const_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut const_offset, idx, &hir.impl_consts);
+                }
+            }
+        
+            if flags.contains(VisitFlags::ImplStatic) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.impl_statics[static_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        static_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut static_offset, idx, &hir.impl_statics);
+                }
+            }
+        
+            if flags.contains(VisitFlags::ImplTlsStatic) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.impl_tls_statics[tls_static_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_impl_tls_static(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        tls_static_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut tls_static_offset, idx, &hir.impl_tls_statics);
+                }
+            }
+        
+            if flags.contains(VisitFlags::Property) {
+                if !skip {
+                    for (impl_idx, node, ctx) in &mut hir.properties[prop_offset..] {
+                        if *impl_idx != idx {
+                            break;
+                        }
+                        visitor.visit_property(impl_ref.clone(), impl_ctx.clone(), node, ctx);
+                        prop_offset += 1;
+                    }
+                } else {
+                    forward_member(&mut prop_offset, idx, &hir.properties);
+                }
+            }
+        }
+    }
 }
