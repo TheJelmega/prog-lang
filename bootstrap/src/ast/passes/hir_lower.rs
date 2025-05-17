@@ -1296,7 +1296,7 @@ impl Visitor for AstToHirLowering<'_> {
         // Parser prevent a where clause to be generated here
         let (generics, _) = self.convert_generic_params(node.generics.as_ref(), None);
 
-        self.hir.add_type_alias(scope, hir::TypeAlias {
+        self.hir.add_type_alias(self.in_impl, scope, hir::TypeAlias {
             span: node.span,
             node_id: node.node_id,
             attrs,
