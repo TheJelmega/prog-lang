@@ -326,6 +326,7 @@ struct TraitGenEntry {
     item:         Trait,
     methods:      Vec<TraitMethod>,
     output_alias: Option<TraitTypeAlias>,
+    symbol:       SymbolRef,
 }
 
 pub struct OpTraitGen<'a> {
@@ -352,12 +353,18 @@ impl Pass for OpTraitGen<'_> {
             let trait_name =  self.ctx.names.read()[entry.item.name].to_string();
             hir.add_trait(entry.scope.clone(), entry.item);
 
+            let trait_entry = hir.traits.last_mut().unwrap();
+            trait_entry.1.write().sym = Some(entry.symbol);
+
             let mut scope = entry.scope;
             scope.push(trait_name);
             for method in entry.methods {
                 hir.add_trait_method(scope.clone(), method);
             }
             if let Some(alias) = entry.output_alias {
+                let mut syms = self.ctx.syms.write();
+                syms.add_type_alias(None, &scope, "Output");
+                
                 hir.add_trait_type_alias(scope, alias);
             }
         }
@@ -406,6 +413,8 @@ impl Visitor for OpTraitGen<'_> {
             None
         };
 
+        let symbol = ctx.sym.clone().unwrap();
+
         self.traits.push(TraitGenEntry {
             scope: ctx.scope.clone(),
             item: Trait {
@@ -421,7 +430,8 @@ impl Visitor for OpTraitGen<'_> {
                 where_clause: None,
             },
             methods: Vec::new(),
-            output_alias
+            output_alias,
+            symbol,
         });
     }
 
