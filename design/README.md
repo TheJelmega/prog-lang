@@ -46,7 +46,7 @@ Version: 0.0
         1. [String coninuation sequence](#641-string-continuation-sequence-)
     5. [Literal operators](#65-literal-operators-)
 7. [Items](#7-items-)
-    1. [Module item](#71-module-item-)ccccc
+    1. [Module item](#71-module-item-)
         1. [Inline modules](#711-inline-modules-)
         2. [File modules](#712-file-modules-)
         3. [Path attibute](#713-path-attribute-)
