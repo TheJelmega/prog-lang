@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::{common::Scope, lexer::{OpenCloseSymbol, Token}};
+use crate::{common::{Scope, SymbolPath}, lexer::{OpenCloseSymbol, Token}};
 
 
 // TODO: Split into distinct error subsets
@@ -288,6 +288,20 @@ pub enum HirErrorCode {
 
     ExpectedTraitSymbol { kind: String, path: Scope },
     UnknownSymbol { path: Scope },
+
+    ImplTraitNoMatchingItem {
+        item: String,
+        trait_name: SymbolPath,
+        info: &'static str
+    },
+    ImplNoDefault {
+        item: String,
+    },
+
+    NoHirItemForSymbol { kind: &'static str },
+
+
+    NotSupportedYet { info: &'static str },
 }
 
 impl Display for HirErrorCode {
@@ -310,6 +324,14 @@ impl Display for HirErrorCode {
 
             Self::ExpectedTraitSymbol { kind, path }   => write!(f, "Expected a trait symbol, found a {kind} symbol: {}", &path.to_string()),
             Self::UnknownSymbol { path }               => write!(f, "Cannot find symbol: {}", &path.to_string()),
+
+            Self::ImplTraitNoMatchingItem { item, trait_name, info } =>
+                write!(f, "Implementation trying to implement item ({item}) that does not exist within the trait ({trait_name}) being implemented: {info}"),
+            Self::ImplNoDefault { item }               => write!(f, "Missing implementation for '{item}', as no default exists"),
+
+            Self::NoHirItemForSymbol { kind }          => write!(f, "A {kind} symbol in the current library should always have a corresponding hir {kind} in the current library"),
+
+            Self::NotSupportedYet { info }             => write!(f, "{info} is currently not supported yet"),
 
             #[allow(unreachable_patterns)]
             _                                          => write!(f, "Unknown HIR error"),

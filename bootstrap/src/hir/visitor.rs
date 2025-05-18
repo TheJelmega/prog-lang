@@ -1830,9 +1830,9 @@ pub(crate) mod helpers {
         }
     }
 
-    pub fn visit_impl_cond<T, F>(visitor: &mut T, hir: &mut Hir, flags: VisitFlags, mut f: F) where
+    pub fn visit_impl_cond_unlocked<T, F>(visitor: &mut T, hir: &mut Hir, flags: VisitFlags, mut f: F) where
         T: Visitor,
-        F: FnMut(&mut T, &mut Impl, &mut ImplContext) -> bool
+        F: FnMut(&mut T, Ref<Impl>, Ref<ImplContext>) -> bool
     {
         let mut func_offset = 0;
         let mut method_offset = 0;
@@ -1844,9 +1844,7 @@ pub(crate) mod helpers {
 
         for (idx, (impl_ref, impl_ctx)) in hir.impls.iter_mut().enumerate() {
             let skip = if flags.contains(VisitFlags::Impl) {
-                let mut node = impl_ref.write();
-                let mut ctx = impl_ctx.write();
-                !f(visitor, &mut node, &mut ctx)
+                !f(visitor, impl_ref.clone(), impl_ctx.clone())
             } else {
                 false
             };
@@ -1949,5 +1947,16 @@ pub(crate) mod helpers {
                 }
             }
         }
+    }
+
+    pub fn visit_impl_cond<T, F>(visitor: &mut T, hir: &mut Hir, flags: VisitFlags, mut f: F) where
+        T: Visitor,
+        F: FnMut(&mut T, &mut Impl, &mut ImplContext) -> bool
+    {
+        visit_impl_cond_unlocked(visitor, hir, flags, |this, node, ctx| {
+            let mut node = node.write();
+            let mut ctx = ctx.write();
+            f(this, &mut node, &mut ctx)
+        })
     }
 }

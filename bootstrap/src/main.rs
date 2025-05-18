@@ -514,19 +514,24 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     do_hir_pass(hir, cli, stats, OpTagging::new(ctx));
     do_hir_pass(hir, cli, stats, OpTraitGen::new(ctx));
 
+    // Trait
+    do_hir_pass(hir, cli, stats, TraitItemProcess::new(ctx));
     
-    // Types
+    // Impl
     do_hir_pass(hir, cli, stats, ImplTypeGen::new(ctx));
     do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
+    
+    do_hir_pass(hir, cli, stats, EarlyPathGen::new(ctx));
 
     do_hir_pass(hir, cli, stats, TypeImplSymbolAssoc::new(ctx));
 
+    do_hir_pass(hir, cli, stats, ImplTraitSymResolve::new(ctx));
+    do_hir_pass(hir, cli, stats, ImplTraitItemCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, TraitImpl::new(ctx));
+
 
     let errors = ctx.errors.read();
-    for err in &*errors {
-        println!("{err}");
-    }
-    !errors.is_empty()
+    !ctx.errors.read().is_empty()
 }
 
 fn do_hir_pass<T: hir::Pass>(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut pass: T) {

@@ -41,6 +41,16 @@ pub struct LibraryPath {
     pub library: String,
 }
 
+impl LibraryPath {
+    pub fn new() -> Self {
+        Self {
+            group: None,
+            package: String::new(),
+            library: String::new(),
+        }
+    }
+}
+
 impl fmt::Display for LibraryPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(group) = &self.group {
@@ -50,7 +60,7 @@ impl fmt::Display for LibraryPath {
     }
 }
 
-
+// =============================================================
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Abi {

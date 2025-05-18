@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    ast::{self, NodeId}, common::{Abi, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SymbolRef}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
+    ast::{self, NodeId}, common::{Abi, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SymbolRef, TraitItemRecord}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -170,6 +170,7 @@ pub struct ExternFunctionNoBody {
     pub contracts:    Vec<Box<Contract>>,
 }
 
+#[derive(Clone)]
 pub enum FnReceiver {
     None,
     SelfReceiver {
@@ -1732,30 +1733,39 @@ pub enum AttrMeta {
 pub struct FunctionContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
+    // TODO: Get rid of this here and in other contexts too
+    pub idx:   usize,
 }
 
 impl FunctionContext {
-    fn new(scope: Scope) -> Self {
+    fn new(scope: Scope, idx: usize) -> Self {
         Self {
             scope,
             sym: None,
+            idx,
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct TypeAliasContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
+    pub idx:   usize,
 }
 
 impl TypeAliasContext {
-    fn new(scope: Scope) -> Self {
+    fn new(scope: Scope, idx: usize) -> Self {
         Self {
             scope,
             sym: None,
+            idx,
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct StructContext {
     pub scope: Scope,
@@ -1771,6 +1781,8 @@ impl StructContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct UnionContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
@@ -1785,6 +1797,7 @@ impl UnionContext {
     }
 }
 
+//----------------------------------------------
 
 pub struct AdtEnumContext {
     pub scope: Scope,
@@ -1800,6 +1813,8 @@ impl AdtEnumContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct FlagEnumContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
@@ -1813,6 +1828,8 @@ impl FlagEnumContext {
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct BitfieldContext {
     pub scope: Scope,
@@ -1828,19 +1845,25 @@ impl BitfieldContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct ConstContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
+    pub idx:   usize,
 }
 
 impl ConstContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, idx: usize) -> Self {
         Self {
             scope,
             sym: None,
+            idx,
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct StaticContext {
     pub scope: Scope,
@@ -1856,24 +1879,31 @@ impl StaticContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct PropertyContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
+    pub idx:   usize,
 }
 
 impl PropertyContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, idx: usize) -> Self {
         Self {
             scope,
             sym: None,
+            idx,
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct TraitContext {
     pub scope:   Scope,
     pub sym:     Option<SymbolRef>,
     pub dag_idx: u32,
+    pub items:   Vec<TraitItemRecord>,
 }
 
 impl TraitContext {
@@ -1882,14 +1912,19 @@ impl TraitContext {
             scope,
             sym: None,
             dag_idx: u32::MAX,
+            items: Vec::new(),
         }
     }
 }
 
+//----------------------------------------------
+
 pub struct ImplContext {
-    pub name:  NameId,
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub name:        NameId,
+    pub scope:       Scope,
+    pub sym:         Option<SymbolRef>,
+    pub trait_sym:   Option<SymbolRef>,
+    pub trait_items: Vec<(TraitItemRecord, bool)>,
 }
 
 impl ImplContext {
@@ -1898,9 +1933,13 @@ impl ImplContext {
             name,
             scope,
             sym: None,
+            trait_sym: None,
+            trait_items: Vec::new(),
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct OpTraitContext {
     pub scope:            Scope,
@@ -1922,6 +1961,8 @@ impl OpTraitContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct OpFunctionContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
@@ -1935,6 +1976,8 @@ impl OpFunctionContext {
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct OpSpecializationContext {
     pub scope: Scope,
@@ -1950,6 +1993,8 @@ impl OpSpecializationContext {
     }
 }
 
+//----------------------------------------------
+
 pub struct OpContractContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
@@ -1963,6 +2008,8 @@ impl OpContractContext {
         }
     }
 }
+
+//----------------------------------------------
 
 pub struct PrecedenceContext {
     pub scope:      Scope,
@@ -2085,12 +2132,14 @@ impl Hir {
     }
 
     pub fn add_extern_function(&mut self, scope: Scope, item: ExternFunctionNoBody) {
-        let ctx = FunctionContext::new(scope);
+        let idx = self.extern_functions_no_body.len();
+        let ctx = FunctionContext::new(scope, idx);
         self.extern_functions_no_body.push((item, ctx));
     }
 
     pub fn add_method(&mut self, scope: Scope, item: Method) {
-        let ctx = FunctionContext::new(scope);
+        let idx = self.methods.len();
+        let ctx = FunctionContext::new(scope, idx);
         let impl_idx = self.impls.len() - 1;
         self.methods.push((impl_idx, item, ctx));
     }
@@ -2101,12 +2150,14 @@ impl Hir {
     }
 
     pub fn add_distinct_type(&mut self, scope: Scope, item: DistinctType) {
-        let ctx = TypeAliasContext::new(scope);
+        let idx = self.distinct_types.len();
+        let ctx = TypeAliasContext::new(scope, idx);
         self.distinct_types.push((item, ctx));
     }
 
     pub fn add_opaque_type(&mut self, scope: Scope, item: OpaqueType) {
-        let ctx = TypeAliasContext::new(scope);
+        let idx = self.opaque_types.len();
+        let ctx = TypeAliasContext::new(scope, idx);
         self.opaque_types.push((item, ctx));
     }
 
@@ -2146,11 +2197,14 @@ impl Hir {
     }
 
     pub fn add_const(&mut self, in_impl: bool, scope: Scope, item: Const) {
-        let ctx = ConstContext::new(scope);
         if in_impl {
+            let idx = self.impl_consts.len();
+            let ctx = ConstContext::new(scope, idx);
             let impl_idx = self.impls.len() - 1;
             self.impl_consts.push((impl_idx, item, ctx));
         } else {
+            let idx = self.consts.len();
+            let ctx = ConstContext::new(scope, idx);
             self.consts.push((item, ctx));
         }
     }
@@ -2182,8 +2236,9 @@ impl Hir {
 
     // TODO: Properties are associated to an impl
     pub fn add_property(&mut self, scope: Scope, item: Property) {
+        let idx = self.properties.len();
         let impl_idx = self.impls.len() - 1;
-        let ctx = PropertyContext::new(scope);
+        let ctx = PropertyContext::new(scope, idx);
         self.properties.push((impl_idx, item, ctx));
     }
 
@@ -2196,32 +2251,37 @@ impl Hir {
     }
 
     pub fn add_trait_function(&mut self, scope: Scope, item: TraitFunction) {
-        let ctx = FunctionContext::new(scope);
+        let idx = self.trait_functions.len();
+        let ctx = FunctionContext::new(scope, idx);
         let trait_idx = self.traits.len() - 1;
         self.trait_functions.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_method(&mut self, scope: Scope, item: TraitMethod) {
-        let ctx = FunctionContext::new(scope);
+        let idx = self.trait_methods.len();
+        let ctx = FunctionContext::new(scope, idx);
         let trait_idx = self.traits.len() - 1;
         self.trait_methods.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_type_alias(&mut self, scope: Scope, item: TraitTypeAlias) {
-        let ctx = TypeAliasContext::new(scope);
+        let idx = self.trait_type_alias.len();
+        let ctx = TypeAliasContext::new(scope, idx);
         let trait_idx = self.traits.len() - 1;
         self.trait_type_alias.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
-        let ctx = ConstContext::new(scope);
+        let idx = self.trait_consts.len();
+        let ctx = ConstContext::new(scope, idx);
         let trait_idx = self.traits.len() - 1;
         self.trait_consts.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
+        let idx = self.trait_properties.len();
         let trait_idx = self.traits.len() - 1;
-        let ctx = PropertyContext::new(scope);
+        let ctx = PropertyContext::new(scope, idx);
         self.trait_properties.push((trait_idx, item, ctx));
     }
 

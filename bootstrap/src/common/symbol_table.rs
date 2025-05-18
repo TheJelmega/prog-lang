@@ -22,6 +22,16 @@ pub struct SymbolPath {
     pub name:  String,
 }
 
+impl SymbolPath {
+    pub fn new() -> Self {
+        Self {
+            lib: LibraryPath::new(),
+            scope: Scope::new(),
+            name: String::new(),
+        }
+    }
+}
+
 impl fmt::Display for SymbolPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}{}{}", self.lib, self.scope, if self.scope.is_empty() { "" } else  { "." }, self.name)
@@ -93,21 +103,29 @@ impl Symbol {
     }
 }
 
+//----------------------------------------------
+
 pub struct ModuleSymbol {
     pub path:      SymbolPath,
     pub file_path: PathBuf,
 }
+
+//----------------------------------------------
 
 pub struct PrecedenceSymbol {
     pub path:  SymbolPath,
     pub id:    u16,
 }
 
+//----------------------------------------------
+
 pub struct FunctionSymbol {
     pub path:      SymbolPath,
 
     pub sub_table: SymbolTable,
 }
+
+//----------------------------------------------
 
 pub struct TypeAliasSymbol {
     pub path: SymbolPath,
@@ -122,6 +140,8 @@ pub struct OpaqueTypeSymbol {
     pub path: SymbolPath,
     
 }
+
+//----------------------------------------------
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StructKind {
@@ -145,30 +165,41 @@ pub struct StructSymbol {
     pub kind:  StructKind,
 }
 
+//----------------------------------------------
+
 pub struct UnionSymbol {
     pub path: SymbolPath,
 
 }
+
 
 pub struct AdtEnumSymbol {
     pub path: SymbolPath,
 
 }
 
+//----------------------------------------------
+
 pub struct FlagEnumSymbol {
     pub path: SymbolPath,
 
 }
+
+//----------------------------------------------
 
 pub struct BitfieldSymbol {
     pub path: SymbolPath,
 
 }
 
+//----------------------------------------------
+
 pub struct ConstSymbol {
     pub path: SymbolPath,
 
 }
+
+//----------------------------------------------
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StaticKind {
@@ -192,18 +223,50 @@ pub struct StaticSymbol {
     pub kind: StaticKind,
 }
 
+//----------------------------------------------
+
 pub struct PropertySymbol {
     pub path: SymbolPath,
+
+
+
+//----------------------------------------------
+
+#[derive(Clone)]
+pub enum TraitItemKind {
+    Function,
+    Method,
+    TypeAlias,
+    Const,
+    Property {
+        get:     bool,
+        ref_get: bool,
+        mut_set: bool,
+        set:     bool,
+    },
+}
+
+#[derive(Clone)]
+pub struct TraitItemRecord {
+    pub name:        String,
+    pub kind:        TraitItemKind,
+    pub has_default: bool,
+    pub idx:         usize,
 }
 
 pub struct TraitSymbol {
     pub path:    SymbolPath,
     pub dag_idx: u32,
+    pub items:   Vec<TraitItemRecord>,
 }
+
+//----------------------------------------------
 
 pub struct ImplSymbol {
     pub path: SymbolPath,
 }
+
+//----------------------------------------------
 
 pub type SymbolRef = Arc<RwLock<Symbol>>;
 
@@ -466,6 +529,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             dag_idx: u32::MAX,
+            items: Vec::new(),
         });
         self.add_symbol(scope, &name, &[], sym)
     }

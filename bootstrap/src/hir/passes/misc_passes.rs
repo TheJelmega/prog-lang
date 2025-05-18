@@ -1,16 +1,16 @@
 use crate::{
     ast::NodeId,
-    common::Scope,
+    common::{self, LibraryPath, Scope},
     hir::*,
 };
 
 use super::{Pass, PassContext};
 
-pub struct SimplePathGenPass<'a> {
+pub struct SimplePathGen<'a> {
     ctx: &'a PassContext
 }
 
-impl<'a> SimplePathGenPass<'a> {
+impl<'a> SimplePathGen<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
@@ -18,7 +18,7 @@ impl<'a> SimplePathGenPass<'a> {
     }
 }
 
-impl Visitor for SimplePathGenPass<'_> {
+impl Visitor for SimplePathGen<'_> {
     fn visit_simple_path(&mut self, node: &mut SimplePath) {
         if !node.ctx.path.is_empty() {
             return;
@@ -34,10 +34,49 @@ impl Visitor for SimplePathGenPass<'_> {
     }
 }
 
-impl Pass for SimplePathGenPass<'_> {
+impl Pass for SimplePathGen<'_> {
     const NAME: &'static str = "Simple Path Generation";
 }
 
+//==============================================================================================================================
+
+pub struct EarlyPathGen<'a> {
+    ctx: &'a PassContext
+}
+
+impl<'a> EarlyPathGen<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self {
+            ctx
+        }
+    }
+}
+
+impl Visitor for EarlyPathGen<'_> {
+    fn visit_path(&mut self, node: &mut Path) {
+        if !node.ctx.path.is_empty() {
+            return;
+        }
+
+        let mut path = Scope::new();
+        let names = self.ctx.names.read();
+
+        for iden in &node.idens {
+            match &iden.name {
+                IdenName::Name { name, span } => {
+                    path.push(names[*name].to_string());
+                },
+                IdenName::Disambig { span, trait_path, name, name_span } => todo!(),
+            }
+        }
+
+        node.ctx.path = path;
+    }
+}
+
+impl Pass for EarlyPathGen<'_> {
+    const NAME: &'static str = "Early Path Generation";
+}
 
 enum SelfTyReplaceInfo {
     Invalid,
