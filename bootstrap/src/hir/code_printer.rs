@@ -1059,34 +1059,51 @@ impl Visitor for CodePrinter<'_> {
         for attr in &mut node.attrs {
             self.visit_attribute(attr);
         }
-        self.logger.log_fmt(format_args!("{}property {} {{\n", 
+        self.logger.log_fmt(format_args!("{}property {} : ", 
             if node.is_unsafe { "unsafe " } else { "" },
             &self.names[node.name]
         ));
+        self.visit_type(&mut node.ty);
+        self.logger.logln("{{");
 
-        let mut log_mem = |name: &str, mem: &mut TraitPropertyMember| {
-            match mem {
-                TraitPropertyMember::None => (),
-                TraitPropertyMember::HasProp(_) => self.logger.prefixed_logln("get;"),
-                TraitPropertyMember::Def(_, expr) => {
-                    self.logger.prefixed_log(name);
-                    if !matches!(&**expr, Expr::Block(_)) {
-                        self.logger.log(" = ");
-                    }
+        match &mut node.members {
+            TraitPropMembers::Req { get, ref_get, mut_get, set } => {
+                if get.is_some() {
+                    self.logger.prefixed_logln("get;");
+                }
+                if ref_get.is_some() {
+                    self.logger.prefixed_logln("ref get;");
+                }
+                if mut_get.is_some() {
+                    self.logger.prefixed_logln("mut get;");
+                }
+                if set.is_some() {
+                    self.logger.prefixed_logln("set;");
+                }
+            },
+            TraitPropMembers::Def { get, ref_get, mut_get, set } => {
+                if let Some((_, expr)) = get {
+                    self.logger.prefixed_log("get { ");
                     self.visit_expr(expr);
-                    if !matches!(&**expr, Expr::Block(_)) {
-                        self.logger.logln(";");
-                    } else {
-                        self.logger.logln("");
-                    }
-                },
-            }
-        };
-
-        log_mem("get", &mut node.get);
-        log_mem("ref get", &mut node.ref_get);
-        log_mem("mut get", &mut node.mut_get);
-        log_mem("set", &mut node.set);
+                    self.logger.logln(" }");
+                }
+                if let Some((_, expr)) = ref_get {
+                    self.logger.prefixed_log("ref get { ");
+                    self.visit_expr(expr);
+                    self.logger.logln(" }");
+                }
+                if let Some((_, expr)) = mut_get {
+                    self.logger.prefixed_log("mut get { ");
+                    self.visit_expr(expr);
+                    self.logger.logln(" }");
+                }
+                if let Some((_, expr)) = set {
+                    self.logger.prefixed_log("set { ");
+                    self.visit_expr(expr);
+                    self.logger.logln(" }");
+                }
+            },
+        }
 
         self.logger.prefixed_logln("}");
     }

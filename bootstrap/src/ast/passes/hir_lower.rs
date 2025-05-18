@@ -1971,40 +1971,67 @@ impl Visitor for AstToHirLowering<'_> {
         let ast_ctx = self.ctx.get_node_for(node);
         let scope = self.trait_impl_scope.clone();
 
-        let set = match &node.set {
-            None    => hir::TraitPropertyMember::None,
-            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
-            Some((span, Some(_))) => {
-                let expr = self.expr_stack.pop().unwrap();
-                hir::TraitPropertyMember::Def(*span, expr)
-            },
-        };
-        let mut_get = match &node.mut_get {
-            None    => hir::TraitPropertyMember::None,
-            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
-            Some((span, Some(_))) => {
-                let expr = self.expr_stack.pop().unwrap();
-                hir::TraitPropertyMember::Def(*span, expr)
-            },
-        };
-        let ref_get = match &node.ref_get {
-            None    => hir::TraitPropertyMember::None,
-            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
-            Some((span, Some(_))) => {
-                let expr = self.expr_stack.pop().unwrap();
-                hir::TraitPropertyMember::Def(*span, expr)
-            },
-        };
-        let get = match &node.get {
-            None    => hir::TraitPropertyMember::None,
-            Some((span, None)) => hir::TraitPropertyMember::HasProp(*span),
-            Some((span, Some(_))) => {
-                let expr = self.expr_stack.pop().unwrap();
-                hir::TraitPropertyMember::Def(*span, expr)
-            },
+        let has_def = node.get.as_ref().map_or(false, |get| get.1.is_some()) ||
+            node.ref_get.as_ref().map_or(false, |get| get.1.is_some()) ||
+            node.mut_get.as_ref().map_or(false, |get| get.1.is_some()) ||
+            node.set.as_ref().map_or(false, |get| get.1.is_some());
+
+        let members = if has_def {
+            // First check if all existing ones have a default
+            if let Some((_, expr)) = &node.get {
+                if expr.is_none() {
+                    self.ctx.add_error(AstError {
+                        node_id: node.node_id,
+                        err: AstErrorCode::TraitPropNotAllDefOrNone,
+                    })
+                }
+            }
+            if let Some((_, expr)) = &node.ref_get {
+                if expr.is_none() {
+                    self.ctx.add_error(AstError {
+                        node_id: node.node_id,
+                        err: AstErrorCode::TraitPropNotAllDefOrNone,
+                    })
+                }
+            }
+            if let Some((_, expr)) = &node.mut_get {
+                if expr.is_none() {
+                    self.ctx.add_error(AstError {
+                        node_id: node.node_id,
+                        err: AstErrorCode::TraitPropNotAllDefOrNone,
+                    })
+                }
+            }
+            if let Some((_, expr)) = &node.set {
+                if expr.is_none() {
+                    self.ctx.add_error(AstError {
+                        node_id: node.node_id,
+                        err: AstErrorCode::TraitPropNotAllDefOrNone,
+                    })
+                }
+            }
+
+            let set = node.set.as_ref().map(|(span, _)| (*span, self.expr_stack.pop().unwrap()));
+            let mut_get = node.mut_get.as_ref().map(|(span, _)| (*span, self.expr_stack.pop().unwrap()));
+            let ref_get = node.ref_get.as_ref().map(|(span, _)| (*span, self.expr_stack.pop().unwrap()));
+            let get = node.get.as_ref().map(|(span, _)| (*span, self.expr_stack.pop().unwrap()));
+
+            hir::TraitPropMembers::Def {
+                get,
+                ref_get,
+                mut_get,
+                set,
+            }
+        } else {
+            hir::TraitPropMembers::Req {
+                get: node.get.as_ref().map(|(span, _)| *span),
+                ref_get: node.ref_get.as_ref().map(|(span, _)| *span),
+                mut_get: node.mut_get.as_ref().map(|(span, _)| *span),
+                set: node.set.as_ref().map(|(span, _)| *span),
+            }
         };
 
-
+        let ty = self.type_stack.pop().unwrap();
         let attrs = self.get_attribs(&node.attrs);
     
         self.hir.add_trait_property(scope, hir::TraitProperty {
@@ -2013,10 +2040,8 @@ impl Visitor for AstToHirLowering<'_> {
             attrs,
             is_unsafe: node.is_unsafe,
             name: node.name,
-            get,
-            ref_get,
-            mut_get,
-            set,
+            ty,
+            members,
         })
     }
 

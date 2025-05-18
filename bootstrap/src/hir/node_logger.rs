@@ -912,28 +912,42 @@ impl Visitor for NodeLogger<'_> {
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
-        let log_prop = |this: &mut Self, name: &str, prop: &mut TraitPropertyMember| {
-            match prop {
-                TraitPropertyMember::None => {},
-                TraitPropertyMember::HasProp(_) => this.logger.prefixed_log_fmt(format_args!("Has {name}: {}\n", node.is_unsafe)),
-                TraitPropertyMember::Def(_, expr) => this.log_indented(name, |this| this.visit_expr(expr)),
-            }
-        };
-
         self.log_node("Trait Property", node.node_id, |this| {
             this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[node.name]));
             this.logger.prefixed_log_fmt(format_args!("Is unsafe: {}\n", node.is_unsafe));
             this.logger.set_last_at_indent_if(node.attrs.is_empty());
-            this.logger.set_last_at_indent_if(node.get.is_none() && node.ref_get.is_none() && node.mut_get.is_none() && node.set.is_none());
+            this.visit_type(&mut node.ty);
             this.log_slice_indented("Attributes", &mut node.attrs, |this, attr| this.visit_attribute(attr));
-            this.logger.set_last_at_indent_if(node.ref_get.is_none() && node.mut_get.is_none() && node.set.is_none());
-            log_prop(this, "Get", &mut node.get);
-            this.logger.set_last_at_indent_if(node.mut_get.is_none() && node.set.is_none());
-            log_prop(this, "Ref Get", &mut node.ref_get);
-            this.logger.set_last_at_indent_if(node.set.is_none());
-            log_prop(this, "Mut Get", &mut node.mut_get);
-            this.logger.set_last_at_indent();
-            log_prop(this, "Set", &mut node.set);
+
+            match &mut node.members {
+                TraitPropMembers::Req { get, ref_get, mut_get, set } => {
+                    this.logger.set_last_at_indent_if(ref_get.is_none() && mut_get.is_none() && set.is_none());
+                    if get.is_some() {
+                        this.logger.logln("Get");
+                    }
+                    this.logger.set_last_at_indent_if(mut_get.is_none() && set.is_none());
+                    if ref_get.is_some() {
+                        this.logger.logln("Get");
+                    }
+                    this.logger.set_last_at_indent_if(set.is_none());
+                    if mut_get.is_some() {
+                        this.logger.logln("Get");
+                    }
+                    this.logger.set_last_at_indent();
+                    if set.is_some() {
+                        this.logger.logln("Get");
+                    }
+                },
+                TraitPropMembers::Def { get, ref_get, mut_get, set } => {
+                    this.logger.set_last_at_indent_if(ref_get.is_none() && mut_get.is_none() && set.is_none());
+                    this.log_opt_indented("Ref Get", ref_get, |this, (_, expr)| this.visit_expr(expr));
+                    this.logger.set_last_at_indent_if(mut_get.is_none() && set.is_none());
+                    this.log_opt_indented("Mut Get", mut_get, |this, (_, expr)| this.visit_expr(expr));
+                    this.logger.set_last_at_indent_if(set.is_none());
+                    this.log_opt_indented("Set", set, |this, (_, expr)| this.visit_expr(expr));
+                    this.logger.set_last_at_indent();
+                },
+            }
         });
     }
 

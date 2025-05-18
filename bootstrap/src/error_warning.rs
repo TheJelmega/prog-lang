@@ -222,6 +222,8 @@ pub enum AstErrorCode {
 
     ParamPackExpectedTypeDef{ pos: u32 },
     ParamPackExpectedExprDef{ pos: u32 },
+
+    TraitPropNotAllDefOrNone,
 }
 
 impl Display for AstErrorCode {
@@ -257,6 +259,8 @@ impl Display for AstErrorCode {
 
             Self::ParamPackExpectedTypeDef{ pos } => write!(f, "Expected a type as a paramter pack default in position {pos}"),
             Self::ParamPackExpectedExprDef{ pos } => write!(f, "Expected an expression as a paramter pack default in position {pos}"),
+
+            Self::TraitPropNotAllDefOrNone        => write!(f, "Trait properties must either have no defaults, or all defined getters and/or set require to have defaults"),
 
             #[allow(unreachable_patterns)]
             _                                     => write!(f, "Unknown AST error"),

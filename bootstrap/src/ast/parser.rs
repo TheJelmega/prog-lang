@@ -1909,6 +1909,8 @@ impl Parser<'_> {
         let is_unsafe = self.try_consume(Token::StrongKw(StrongKeyword::Unsafe));
         self.consume_weak_kw(WeakKeyword::Property)?;
         let name = self.consume_name()?;
+        self.consume_punct(Punctuation::Colon)?;
+        let ty = self.parse_type()?;
 
         let mut get = None;
         let mut ref_get = None;
@@ -1976,6 +1978,7 @@ impl Parser<'_> {
             attrs,
             is_unsafe,
             name,
+            ty,
             get,
             ref_get,
             mut_get,

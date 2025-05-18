@@ -1150,22 +1150,24 @@ pub(crate) mod helpers {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
         }
+        visitor.visit_type(&mut node.ty);
 
-        match &mut node.get {
-            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
-            _ => (),
-        }
-        match &mut node.ref_get {
-            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
-            _ => (),
-        }
-        match &mut node.mut_get {
-            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
-            _ => (),
-        }
-        match &mut node.set {
-            TraitPropertyMember::Def(_, expr) => visitor.visit_expr(expr),
-            _ => (),
+        match &mut node.members {
+            TraitPropMembers::Req { get, ref_get, mut_get, set } => (),
+            TraitPropMembers::Def { get, ref_get, mut_get, set } => {
+                if let Some((_, expr)) = get {
+                    visitor.visit_expr(expr);
+                }
+                if let Some((_, expr)) = ref_get {
+                    visitor.visit_expr(expr);
+                }
+                if let Some((_, expr)) = mut_get {
+                    visitor.visit_expr(expr);
+                }
+                if let Some((_, expr)) = set {
+                    visitor.visit_expr(expr);
+                }
+            },
         }
     }
 

@@ -535,16 +535,30 @@ impl TraitPropertyMember {
     }
 }
 
+
+pub enum TraitPropMembers {
+    Req {
+        get:     Option<SpanId>,
+        ref_get: Option<SpanId>,
+        mut_get: Option<SpanId>,
+        set:     Option<SpanId>,
+    },
+    Def {
+        get:     Option<(SpanId, Box<Expr>)>,
+        ref_get: Option<(SpanId, Box<Expr>)>,
+        mut_get: Option<(SpanId, Box<Expr>)>,
+        set:     Option<(SpanId, Box<Expr>)>,
+    }
+}
+
 pub struct TraitProperty {
     pub span:      SpanId,
     pub node_id:   ast::NodeId,
     pub attrs:     Vec<Box<Attribute>>,
     pub is_unsafe: bool,
     pub name:      NameId,
-    pub get:       TraitPropertyMember,
-    pub ref_get:   TraitPropertyMember,
-    pub mut_get:   TraitPropertyMember,
-    pub set:       TraitPropertyMember,
+    pub ty:        Box<Type>,
+    pub members:   TraitPropMembers,
 }
 
 //--------------------------------------------------------------

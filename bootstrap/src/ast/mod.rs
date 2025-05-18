@@ -1940,6 +1940,7 @@ pub struct TraitProperty {
     pub attrs:     Vec<AstNodeRef<Attribute>>,
     pub is_unsafe: bool,
     pub name:      NameId,
+    pub ty:        Type,
     pub get:       Option<(SpanId, Option<Expr>)>,
     pub ref_get:   Option<(SpanId, Option<Expr>)>,
     pub mut_get:   Option<(SpanId, Option<Expr>)>,
@@ -1960,6 +1961,7 @@ impl AstNode for TraitProperty {
             logger.log_indented_node_ref_slice("Attributes", &self.attrs);
             logger.prefixed_log_fmt(format_args!("Is Unsafe: {}\n", self.is_unsafe));
             logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(self.name)));
+            logger.log_indented_node("Type", &self.ty);
 
             match &self.get {
                 Some((_, Some(expr))) => logger.log_indented_node("Get", expr),
