@@ -524,19 +524,6 @@ pub struct TraitConst {
     pub def:     Option<Box<Expr>>,
 }
 
-pub enum TraitPropertyMember {
-    None,
-    HasProp(SpanId),
-    Def(SpanId, Box<Expr>)
-}
-
-impl TraitPropertyMember {
-    pub fn is_none(&self) -> bool {
-        matches!(self, TraitPropertyMember::None)
-    }
-}
-
-
 pub enum TraitPropMembers {
     Req {
         get:     Option<SpanId>,
@@ -1671,7 +1658,6 @@ pub struct Contract {
 
 // =============================================================================================================================
 
-// TODO: Vec to SimplePath
 #[derive(Clone)]
 pub enum Visibility {
     Priv,
@@ -2122,11 +2108,14 @@ impl Hir {
     }
 
     pub fn add_function(&mut self, in_impl: bool, scope: Scope, item: Function) {
-        let ctx = FunctionContext::new(scope);
         if in_impl {
+            let idx = self.impl_functions.len();
+            let ctx = FunctionContext::new(scope, idx);
             let impl_idx = self.impls.len() - 1;
             self.impl_functions.push((impl_idx, item, ctx));
         } else {
+            let idx = self.functions.len();
+            let ctx = FunctionContext::new(scope, idx);
             self.functions.push((item, ctx));
         }
     }
@@ -2144,9 +2133,17 @@ impl Hir {
         self.methods.push((impl_idx, item, ctx));
     }
 
-    pub fn add_type_alias(&mut self, scope: Scope, item: TypeAlias) {
-        let ctx = TypeAliasContext::new(scope);
-        self.type_aliases.push((item, ctx));
+    pub fn add_type_alias(&mut self, in_impl: bool, scope: Scope, item: TypeAlias) {
+        if in_impl {
+            let idx = self.impl_consts.len();
+            let ctx = TypeAliasContext::new(scope, idx);
+            let impl_idx = self.impls.len() - 1;
+            self.impl_type_aliases.push((impl_idx, item, ctx));
+        } else {
+            let idx = self.type_aliases.len();
+            let ctx = TypeAliasContext::new(scope, idx);
+            self.type_aliases.push((item, ctx));
+        }
     }
 
     pub fn add_distinct_type(&mut self, scope: Scope, item: DistinctType) {
