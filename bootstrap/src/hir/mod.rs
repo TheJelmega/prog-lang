@@ -1954,22 +1954,6 @@ impl OpFunctionContext {
 
 //----------------------------------------------
 
-pub struct OpSpecializationContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
-}
-
-impl OpSpecializationContext {
-    pub fn new(scope: Scope) -> Self {
-        Self {
-            scope,
-            sym: None,
-        }
-    }
-}
-
-//----------------------------------------------
-
 pub struct OpContractContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,

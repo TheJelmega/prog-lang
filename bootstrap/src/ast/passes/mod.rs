@@ -43,7 +43,7 @@ pub enum ContextNodeData {
 }
 
 pub struct ContextNode {
-    pub module_scope: Scope, // TODO: rename module_scope to actually mentioned what this scope actually is, so this is not used incorrectly when lowering
+    pub module_scope: Scope,
     pub data:         ContextNodeData,
 }
 
