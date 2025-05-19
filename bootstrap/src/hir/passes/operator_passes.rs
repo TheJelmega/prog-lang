@@ -324,7 +324,7 @@ impl Visitor for OpTagging<'_> {
 struct TraitGenEntry {
     scope:        Scope,
     item:         Trait,
-    methods:      Vec<TraitMethod>,
+    methods:      Vec<(TraitMethod, SymbolRef)>,
     output_alias: Option<TraitTypeAlias>,
     symbol:       SymbolRef,
 }
@@ -358,14 +358,18 @@ impl Pass for OpTraitGen<'_> {
 
             let mut scope = entry.scope;
             scope.push(trait_name);
-            for method in entry.methods {
+            for (method, sym) in entry.methods {
                 hir.add_trait_method(scope.clone(), method);
+                let (_, _, method_ctx) = hir.trait_methods.last_mut().unwrap();
+                method_ctx.sym = Some(sym);
             }
             if let Some(alias) = entry.output_alias {
                 let mut syms = self.ctx.syms.write();
-                syms.add_type_alias(None, &scope, "Output");
+                let sym = syms.add_type_alias(None, &scope, "Output");
                 
                 hir.add_trait_type_alias(scope, alias);
+                let (_, _, alias_ctx) = hir.trait_type_alias.last_mut().unwrap();
+                alias_ctx.sym = Some(sym);
             }
         }
     }
@@ -534,6 +538,10 @@ impl Visitor for OpTraitGen<'_> {
             });
             return;
         };
-        entry.methods.push(method);     
+
+        let mut syms = self.ctx.syms.write();
+        let sym = syms.add_function(None, &entry.scope, &names[node.name]);
+        
+        entry.methods.push((method, sym));     
     }
 }
