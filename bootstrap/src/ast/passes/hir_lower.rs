@@ -1287,8 +1287,6 @@ impl Visitor for AstToHirLowering<'_> {
     fn visit_type_alias(&mut self, node: &AstNodeRef<TypeAlias>) where Self: Sized {
         helpers::visit_type_alias(self, node, false);
 
-        let node_ctx = self.ctx.get_node_for(node);
-        let scope = node_ctx.module_scope.clone();
         let ty = self.type_stack.pop().unwrap();
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
@@ -1296,7 +1294,8 @@ impl Visitor for AstToHirLowering<'_> {
         // Parser prevent a where clause to be generated here
         let (generics, _) = self.convert_generic_params(node.generics.as_ref(), None);
 
-        self.hir.add_type_alias(self.in_impl, scope, hir::TypeAlias {
+        let node_ctx = self.ctx.get_node_for(node);
+        let scope = if self.in_impl { self.trait_impl_scope.clone() } else { node_ctx.module_scope.clone() };
             span: node.span,
             node_id: node.node_id,
             attrs,
