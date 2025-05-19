@@ -156,7 +156,8 @@ impl Pass for TraitItemProcess<'_> {
         self.visit(hir, VisitFlags::AnyTrait);
 
         for (idx, (trait_idx, node, ctx)) in hir.trait_functions.iter().enumerate() {
-            let trait_sym = ctx.sym.as_ref().unwrap();
+            let trait_ctx = hir.traits[*trait_idx].1.read();
+            let trait_sym = trait_ctx.sym.as_ref().unwrap();
             let mut trait_sym = trait_sym.write();
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
@@ -169,7 +170,8 @@ impl Pass for TraitItemProcess<'_> {
         }
 
         for (idx, (trait_idx, node, ctx)) in hir.trait_methods.iter().enumerate() {
-            let trait_sym = ctx.sym.as_ref().unwrap();
+            let trait_ctx = hir.traits[*trait_idx].1.read();
+            let trait_sym = trait_ctx.sym.as_ref().unwrap();
             let mut trait_sym = trait_sym.write();
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
@@ -182,7 +184,8 @@ impl Pass for TraitItemProcess<'_> {
         }
         
         for (idx, (trait_idx, node, ctx)) in hir.trait_type_alias.iter().enumerate() {
-            let trait_sym = ctx.sym.as_ref().unwrap();
+            let trait_ctx = hir.traits[*trait_idx].1.read();
+            let trait_sym = trait_ctx.sym.as_ref().unwrap();
             let mut trait_sym = trait_sym.write();
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
@@ -195,7 +198,8 @@ impl Pass for TraitItemProcess<'_> {
         }
         
         for (idx, (trait_idx, node, ctx)) in hir.trait_consts.iter().enumerate() {
-            let trait_sym = ctx.sym.as_ref().unwrap();
+            let trait_ctx = hir.traits[*trait_idx].1.read();
+            let trait_sym = trait_ctx.sym.as_ref().unwrap();
             let mut trait_sym = trait_sym.write();
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
@@ -219,7 +223,8 @@ impl Pass for TraitItemProcess<'_> {
                 ),
             };
 
-            let trait_sym = ctx.sym.as_ref().unwrap();
+            let trait_ctx = hir.traits[*trait_idx].1.read();
+            let trait_sym = trait_ctx.sym.as_ref().unwrap();
             let mut trait_sym = trait_sym.write();
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
