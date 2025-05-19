@@ -1719,16 +1719,13 @@ pub enum AttrMeta {
 pub struct FunctionContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
-    // TODO: Get rid of this here and in other contexts too
-    pub idx:   usize,
 }
 
 impl FunctionContext {
-    fn new(scope: Scope, idx: usize) -> Self {
+    fn new(scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
-            idx,
         }
     }
 }
@@ -1738,15 +1735,13 @@ impl FunctionContext {
 pub struct TypeAliasContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
-    pub idx:   usize,
 }
 
 impl TypeAliasContext {
-    fn new(scope: Scope, idx: usize) -> Self {
+    fn new(scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
-            idx,
         }
     }
 }
@@ -1836,15 +1831,13 @@ impl BitfieldContext {
 pub struct ConstContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
-    pub idx:   usize,
 }
 
 impl ConstContext {
-    pub fn new(scope: Scope, idx: usize) -> Self {
+    pub fn new(scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
-            idx,
         }
     }
 }
@@ -1870,15 +1863,13 @@ impl StaticContext {
 pub struct PropertyContext {
     pub scope: Scope,
     pub sym:   Option<SymbolRef>,
-    pub idx:   usize,
 }
 
 impl PropertyContext {
-    pub fn new(scope: Scope, idx: usize) -> Self {
+    pub fn new(scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
-            idx,
         }
     }
 }
@@ -1889,7 +1880,6 @@ pub struct TraitContext {
     pub scope:   Scope,
     pub sym:     Option<SymbolRef>,
     pub dag_idx: u32,
-    pub items:   Vec<TraitItemRecord>,
 }
 
 impl TraitContext {
@@ -1898,7 +1888,6 @@ impl TraitContext {
             scope,
             sym: None,
             dag_idx: u32::MAX,
-            items: Vec::new(),
         }
     }
 }
@@ -2108,53 +2097,43 @@ impl Hir {
     }
 
     pub fn add_function(&mut self, in_impl: bool, scope: Scope, item: Function) {
+        let ctx = FunctionContext::new(scope);
         if in_impl {
-            let idx = self.impl_functions.len();
-            let ctx = FunctionContext::new(scope, idx);
             let impl_idx = self.impls.len() - 1;
             self.impl_functions.push((impl_idx, item, ctx));
         } else {
-            let idx = self.functions.len();
-            let ctx = FunctionContext::new(scope, idx);
             self.functions.push((item, ctx));
         }
     }
 
     pub fn add_extern_function(&mut self, scope: Scope, item: ExternFunctionNoBody) {
-        let idx = self.extern_functions_no_body.len();
-        let ctx = FunctionContext::new(scope, idx);
+        let ctx = FunctionContext::new(scope);
         self.extern_functions_no_body.push((item, ctx));
     }
 
     pub fn add_method(&mut self, scope: Scope, item: Method) {
-        let idx = self.methods.len();
-        let ctx = FunctionContext::new(scope, idx);
+        let ctx = FunctionContext::new(scope);
         let impl_idx = self.impls.len() - 1;
         self.methods.push((impl_idx, item, ctx));
     }
 
     pub fn add_type_alias(&mut self, in_impl: bool, scope: Scope, item: TypeAlias) {
+        let ctx = TypeAliasContext::new(scope);
         if in_impl {
-            let idx = self.impl_consts.len();
-            let ctx = TypeAliasContext::new(scope, idx);
             let impl_idx = self.impls.len() - 1;
             self.impl_type_aliases.push((impl_idx, item, ctx));
         } else {
-            let idx = self.type_aliases.len();
-            let ctx = TypeAliasContext::new(scope, idx);
             self.type_aliases.push((item, ctx));
         }
     }
 
     pub fn add_distinct_type(&mut self, scope: Scope, item: DistinctType) {
-        let idx = self.distinct_types.len();
-        let ctx = TypeAliasContext::new(scope, idx);
+        let ctx = TypeAliasContext::new(scope);
         self.distinct_types.push((item, ctx));
     }
 
     pub fn add_opaque_type(&mut self, scope: Scope, item: OpaqueType) {
-        let idx = self.opaque_types.len();
-        let ctx = TypeAliasContext::new(scope, idx);
+        let ctx = TypeAliasContext::new(scope);
         self.opaque_types.push((item, ctx));
     }
 
@@ -2194,14 +2173,11 @@ impl Hir {
     }
 
     pub fn add_const(&mut self, in_impl: bool, scope: Scope, item: Const) {
+        let ctx = ConstContext::new(scope);
         if in_impl {
-            let idx = self.impl_consts.len();
-            let ctx = ConstContext::new(scope, idx);
             let impl_idx = self.impls.len() - 1;
             self.impl_consts.push((impl_idx, item, ctx));
         } else {
-            let idx = self.consts.len();
-            let ctx = ConstContext::new(scope, idx);
             self.consts.push((item, ctx));
         }
     }
@@ -2233,9 +2209,8 @@ impl Hir {
 
     // TODO: Properties are associated to an impl
     pub fn add_property(&mut self, scope: Scope, item: Property) {
-        let idx = self.properties.len();
         let impl_idx = self.impls.len() - 1;
-        let ctx = PropertyContext::new(scope, idx);
+        let ctx = PropertyContext::new(scope);
         self.properties.push((impl_idx, item, ctx));
     }
 
@@ -2248,37 +2223,32 @@ impl Hir {
     }
 
     pub fn add_trait_function(&mut self, scope: Scope, item: TraitFunction) {
-        let idx = self.trait_functions.len();
-        let ctx = FunctionContext::new(scope, idx);
+        let ctx = FunctionContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_functions.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_method(&mut self, scope: Scope, item: TraitMethod) {
-        let idx = self.trait_methods.len();
-        let ctx = FunctionContext::new(scope, idx);
+        let ctx = FunctionContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_methods.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_type_alias(&mut self, scope: Scope, item: TraitTypeAlias) {
-        let idx = self.trait_type_alias.len();
-        let ctx = TypeAliasContext::new(scope, idx);
+        let ctx = TypeAliasContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_type_alias.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
-        let idx = self.trait_consts.len();
-        let ctx = ConstContext::new(scope, idx);
+        let ctx = ConstContext::new(scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_consts.push((trait_idx, item, ctx));
     }
 
     pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
-        let idx = self.trait_properties.len();
         let trait_idx = self.traits.len() - 1;
-        let ctx = PropertyContext::new(scope, idx);
+        let ctx = PropertyContext::new(scope);
         self.trait_properties.push((trait_idx, item, ctx));
     }
 
@@ -2288,6 +2258,65 @@ impl Hir {
         let item = Arc::new(RwLock::new(item));
         let ctx = Arc::new(RwLock::new(ImplContext::new(name, scope)));
         self.impls.push((item, ctx));
+    }
+
+    fn find_impl_def_insert_loc<T0, T1>(arr: &[(usize, T0, T1)], impl_idx: usize) -> usize {
+        match arr.binary_search_by(|(idx, _, _)| idx.cmp(&impl_idx)) {
+            Ok(mut idx) => {
+                // Make sure we insert it at the end, while not really necessary, makes it easier to reason about
+                // If they would make a significant enough impact in the future, this could be changed
+                while idx + 1 < arr.len() && arr[idx + 1].0 == impl_idx {
+                    idx += 1;
+                }
+                idx
+            },
+            Err(idx) => idx,
+        }
+    }
+
+    pub fn add_impl_def_function(&mut self, impl_idx: usize, scope: Scope, item: Function, symbol: SymbolRef) {
+        let idx = Self::find_impl_def_insert_loc(&self.impl_functions, impl_idx);
+
+        let mut ctx = FunctionContext::new(scope, idx);
+        ctx.sym = Some(symbol);
+
+        self.impl_functions.insert(idx, (impl_idx, item, ctx));
+    }
+
+    pub fn add_impl_def_method(&mut self, impl_idx: usize, scope: Scope, item: Method, symbol: SymbolRef) {
+        let idx = Self::find_impl_def_insert_loc(&self.methods, impl_idx);
+
+        let mut ctx = FunctionContext::new(scope, idx);
+        ctx.sym = Some(symbol);
+
+        self.methods.insert(idx, (impl_idx, item, ctx));
+    }
+
+    pub fn add_impl_def_type_alias(&mut self, impl_idx: usize, scope: Scope, item: TypeAlias, symbol: SymbolRef) {
+        let idx = Self::find_impl_def_insert_loc(&self.impl_type_aliases, impl_idx);
+
+        let mut ctx = TypeAliasContext::new(scope, idx);
+        ctx.sym = Some(symbol);
+
+        self.impl_type_aliases.insert(idx, (impl_idx, item, ctx));
+    }
+
+    pub fn add_impl_def_const(&mut self, impl_idx: usize, scope: Scope, item: Const, symbol: SymbolRef) {
+        let idx = Self::find_impl_def_insert_loc(&self.impl_consts, impl_idx);
+
+        let mut ctx = ConstContext::new(scope, idx);
+        ctx.sym = Some(symbol);
+
+        self.impl_consts.insert(idx, (impl_idx, item, ctx));
+    }
+
+    pub fn add_impl_def_property(&mut self, impl_idx: usize, scope: Scope, item: Property, symbol: SymbolRef) {
+        let idx = Self::find_impl_def_insert_loc(&self.properties, impl_idx);
+
+        let mut ctx = PropertyContext::new(scope, idx);
+        ctx.sym = Some(symbol);
+
+        self.properties.insert(idx, (impl_idx, item, ctx));
     }
 
     //--------------------------------------------------------------

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    common::{Scope, Symbol, SymbolPath, TraitItemKind},
+    common::{FunctionSymbol, Scope, Symbol, SymbolPath, TraitItemKind},
     error_warning::HirErrorCode,
     hir::*,
 };
@@ -147,68 +147,6 @@ impl<'a> TraitItemProcess<'a> {
 }
 
 impl Visitor for TraitItemProcess<'_> {
-    fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
-        let mut trait_ctx = trait_ctx.write();
-
-        trait_ctx.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::Function,
-            has_default: node.body.is_some(),
-            idx: ctx.idx,
-        });
-    }
-
-    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
-        let mut trait_ctx = trait_ctx.write();
-        trait_ctx.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::Method,
-            has_default: node.body.is_some(),
-            idx: ctx.idx,
-        });
-    }
-
-    fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
-        let mut trait_ctx = trait_ctx.write();
-        trait_ctx.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::TypeAlias,
-            has_default: node.def.is_some(),
-            idx: ctx.idx,
-        });
-    }
-
-    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
-        let mut trait_ctx = trait_ctx.write();
-        trait_ctx.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::Const,
-            has_default: node.def.is_some(),
-            idx: ctx.idx,
-        });
-    }
-
-    fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
-        let mut trait_ctx = trait_ctx.write();
-
-        let (kind, has_default) = match &node.members {
-            TraitPropMembers::Req { get, ref_get, mut_get, set } => (
-                TraitItemKind::Property { get: get.is_some(), ref_get: ref_get.is_some(), mut_set: mut_get.is_some(), set: set.is_some() },
-                false
-            ),
-            TraitPropMembers::Def { get, ref_get, mut_get, set } => (
-                TraitItemKind::Property { get: get.is_some(), ref_get: ref_get.is_some(), mut_set: mut_get.is_some(), set: set.is_some() },
-                false
-            ),
-        };
-
-        trait_ctx.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind,
-            has_default,
-            idx: ctx.idx,
-        });
-    }
 }
 
 impl Pass for TraitItemProcess<'_> {
@@ -217,14 +155,80 @@ impl Pass for TraitItemProcess<'_> {
     fn process(&mut self, hir: &mut Hir) {
         self.visit(hir, VisitFlags::AnyTrait);
 
-        // TODO: Do this while adding the items
-        for (_, ctx) in &mut hir.traits {
-            let ctx = ctx.read();
-            let sym = ctx.sym.clone().unwrap();
-            let mut sym = sym.write();
-            let Symbol::Trait(sym) = &mut *sym else { unreachable!() };
+        for (idx, (trait_idx, node, ctx)) in hir.trait_functions.iter().enumerate() {
+            let trait_sym = ctx.sym.as_ref().unwrap();
+            let mut trait_sym = trait_sym.write();
+            let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
-            sym.items = ctx.items.clone();
+            trait_sym.items.push(TraitItemRecord {
+                name: self.ctx.names.read()[node.name].to_string(),
+                kind: TraitItemKind::Function,
+                has_default: node.body.is_some(),
+                idx: idx,
+            });
+        }
+
+        for (idx, (trait_idx, node, ctx)) in hir.trait_methods.iter().enumerate() {
+            let trait_sym = ctx.sym.as_ref().unwrap();
+            let mut trait_sym = trait_sym.write();
+            let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
+
+            trait_sym.items.push(TraitItemRecord {
+            name: self.ctx.names.read()[node.name].to_string(),
+            kind: TraitItemKind::Method,
+            has_default: node.body.is_some(),
+            idx: idx,
+        });
+        }
+        
+        for (idx, (trait_idx, node, ctx)) in hir.trait_type_alias.iter().enumerate() {
+            let trait_sym = ctx.sym.as_ref().unwrap();
+            let mut trait_sym = trait_sym.write();
+            let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
+
+            trait_sym.items.push(TraitItemRecord {
+            name: self.ctx.names.read()[node.name].to_string(),
+            kind: TraitItemKind::TypeAlias,
+            has_default: node.def.is_some(),
+            idx: idx,
+        });
+        }
+        
+        for (idx, (trait_idx, node, ctx)) in hir.trait_consts.iter().enumerate() {
+            let trait_sym = ctx.sym.as_ref().unwrap();
+            let mut trait_sym = trait_sym.write();
+            let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
+
+            trait_sym.items.push(TraitItemRecord {
+            name: self.ctx.names.read()[node.name].to_string(),
+            kind: TraitItemKind::Const,
+            has_default: node.def.is_some(),
+            idx: idx,
+        });
+        }
+        
+        for (idx, (trait_idx, node, ctx)) in hir.trait_properties.iter().enumerate() {
+            let (kind, has_default) = match &node.members {
+                TraitPropMembers::Req { get, ref_get, mut_get, set } => (
+                    TraitItemKind::Property { get: get.is_some(), ref_get: ref_get.is_some(), mut_set: mut_get.is_some(), set: set.is_some() },
+                    false
+                ),
+                TraitPropMembers::Def { get, ref_get, mut_get, set } => (
+                    TraitItemKind::Property { get: get.is_some(), ref_get: ref_get.is_some(), mut_set: mut_get.is_some(), set: set.is_some() },
+                    false
+                ),
+            };
+
+            let trait_sym = ctx.sym.as_ref().unwrap();
+            let mut trait_sym = trait_sym.write();
+            let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
+
+            trait_sym.items.push(TraitItemRecord {
+                name: self.ctx.names.read()[node.name].to_string(),
+                kind,
+                has_default,
+                idx: idx,
+            });
         }
     }
 }
@@ -468,14 +472,18 @@ impl Pass for TraitImpl<'_> {
                                 contracts: Vec::new(),
                                 body,
                             };
-                            def_fns.push((impl_idx, ctx.scope.clone(), def_fn));
 
+                            let names = self.ctx.names.read();
+                            let mut syms = self.ctx.syms.write();
+                            let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
+
+                            def_fns.push((impl_idx, ctx.scope.clone(), def_fn, sym));
                         },
                         TraitItemKind::Method => {
                             let Some(entry) = hir.trait_methods.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
                                     node_id: node.read().node_id,
-                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait function" },
+                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait method" },
                                 });
                                 continue;
                             };
@@ -500,13 +508,18 @@ impl Pass for TraitImpl<'_> {
                                 contracts: Vec::new(),
                                 body: body,
                             };
-                            def_methods.push((impl_idx, ctx.scope.clone(), def_method));
+
+                            let names = self.ctx.names.read();
+                            let mut syms = self.ctx.syms.write();
+                            let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
+
+                            def_methods.push((impl_idx, ctx.scope.clone(), def_method, sym));
                         },
                         TraitItemKind::TypeAlias => {
                             let Some(entry) = hir.trait_type_alias.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
                                     node_id: node.read().node_id,
-                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait function" },
+                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait type alias" },
                                 });
                                 continue;
                             };
@@ -525,13 +538,18 @@ impl Pass for TraitImpl<'_> {
                                 generics: trait_alias.generics.clone(),
                                 ty,
                             };
-                            def_type_aliases.push((impl_idx, ctx.scope.clone(), def_alias));
+
+                            let names = self.ctx.names.read();
+                            let mut syms = self.ctx.syms.write();
+                            let sym = syms.add_type_alias(None, &ctx.scope, &names[trait_alias.name]);
+
+                            def_type_aliases.push((impl_idx, ctx.scope.clone(), def_alias, sym));
                         },
                         TraitItemKind::Const => {
                             let Some(entry) = hir.trait_consts.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
                                     node_id: node.read().node_id,
-                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait function" },
+                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait const" },
                                 });
                                 continue;
                             };
@@ -549,13 +567,18 @@ impl Pass for TraitImpl<'_> {
                                 ty: Some(trait_const.ty.clone()),
                                 val,
                             };
-                            def_consts.push((impl_idx, ctx.scope.clone(), def_const));
+
+                            let names = self.ctx.names.read();
+                            let mut syms = self.ctx.syms.write();
+                            let sym = syms.add_const(None, &ctx.scope, &names[trait_const.name]);
+
+                            def_consts.push((impl_idx, ctx.scope.clone(), def_const, sym));
                         },
                         TraitItemKind::Property { get, ref_get, mut_set, set } => {
                             let Some(trait_entry) = hir.trait_properties.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
                                     node_id: node.read().node_id,
-                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait function" },
+                                    err: HirErrorCode::NoHirItemForSymbol { kind: "trait property" },
                                 });
                                 continue;
                             };
@@ -576,7 +599,12 @@ impl Pass for TraitImpl<'_> {
                                 mut_get: mut_get.clone().map(|(_, expr)| expr),
                                 set: set.clone().map(|(_, expr)| expr),
                             };
-                            def_properties.push((impl_idx, ctx.scope.clone(), def_prop));
+                            
+                            let names = self.ctx.names.read();
+                            let mut syms = self.ctx.syms.write();
+                            let sym = syms.add_property(None, &ctx.scope, &names[trait_prop.name]);
+
+                            def_properties.push((impl_idx, ctx.scope.clone(), def_prop, sym));
                         },
                     }
 
@@ -590,72 +618,21 @@ impl Pass for TraitImpl<'_> {
             }
         }
 
-        // Now insert each item
-        let mut insert_idx = 0;
-        for (impl_idx, scope, item) in def_fns {
-            while insert_idx < hir.impl_functions.len() && hir.impl_functions[insert_idx].0 <= insert_idx {
-                insert_idx += 1;
-            }
-
-            let ctx = FunctionContext::new(scope, insert_idx);
-            let tup = (impl_idx, item, ctx);
-            if insert_idx == hir.impl_functions.len() {
-                hir.impl_functions.push(tup)
-            } else {
-                hir.impl_functions.insert(insert_idx, tup);
-            }
+        // And finally insert each item
+        for (impl_idx, scope, item, sym) in def_fns {
+            hir.add_impl_def_function(impl_idx, scope, item, sym);
         }
-        for (impl_idx, scope, item) in def_methods {
-            while insert_idx < hir.methods.len() && hir.methods[insert_idx].0 <= insert_idx {
-                insert_idx += 1;
-            }
-
-            let ctx = FunctionContext::new(scope, insert_idx);
-            let tup = (impl_idx, item, ctx);
-            if insert_idx == hir.methods.len() {
-                hir.methods.push(tup)
-            } else {
-                hir.methods.insert(insert_idx, tup);
-            }
+        for (impl_idx, scope, item, sym) in def_methods {
+            hir.add_impl_def_method(impl_idx, scope, item, sym);
         }
-        for (impl_idx, scope, item) in def_type_aliases {
-            while insert_idx < hir.impl_type_aliases.len() && hir.impl_type_aliases[insert_idx].0 <= insert_idx {
-                insert_idx += 1;
-            }
-
-            let ctx = TypeAliasContext::new(scope, insert_idx);
-            let tup = (impl_idx, item, ctx);
-            if insert_idx == hir.impl_type_aliases.len() {
-                hir.impl_type_aliases.push(tup)
-            } else {
-                hir.impl_type_aliases.insert(insert_idx, tup);
-            }
+        for (impl_idx, scope, item, sym) in def_type_aliases {
+            hir.add_impl_def_type_alias(impl_idx, scope, item, sym);
         }
-        for (impl_idx, scope, item) in def_consts {
-            while insert_idx < hir.impl_consts.len() && hir.impl_consts[insert_idx].0 <= insert_idx {
-                insert_idx += 1;
-            }
-
-            let ctx = ConstContext::new(scope, insert_idx);
-            let tup = (impl_idx, item, ctx);
-            if insert_idx == hir.impl_consts.len() {
-                hir.impl_consts.push(tup)
-            } else {
-                hir.impl_consts.insert(insert_idx, tup);
-            }
+        for (impl_idx, scope, item, sym) in def_consts {
+            hir.add_impl_def_const(impl_idx, scope, item, sym);
         }
-        for (impl_idx, scope, item) in def_properties {
-            while insert_idx < hir.properties.len() && hir.properties[insert_idx].0 <= insert_idx {
-                insert_idx += 1;
-            }
-
-            let ctx = PropertyContext::new(scope, insert_idx);
-            let tup = (impl_idx, item, ctx);
-            if insert_idx == hir.properties.len() {
-                hir.properties.push(tup)
-            } else {
-                hir.properties.insert(insert_idx, tup);
-            }
+        for (impl_idx, scope, item, sym) in def_properties {
+            hir.add_impl_def_property(impl_idx, scope, item, sym);
         }
     }
 }

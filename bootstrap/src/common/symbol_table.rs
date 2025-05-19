@@ -122,7 +122,6 @@ pub struct PrecedenceSymbol {
 pub struct FunctionSymbol {
     pub path:      SymbolPath,
 
-    pub sub_table: SymbolTable,
 }
 
 //----------------------------------------------
@@ -392,8 +391,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
-
-            sub_table: SymbolTable::new(),
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
