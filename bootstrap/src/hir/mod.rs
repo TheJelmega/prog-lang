@@ -2277,7 +2277,7 @@ impl Hir {
     pub fn add_impl_def_function(&mut self, impl_idx: usize, scope: Scope, item: Function, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_functions, impl_idx);
 
-        let mut ctx = FunctionContext::new(scope, idx);
+        let mut ctx = FunctionContext::new(scope);
         ctx.sym = Some(symbol);
 
         self.impl_functions.insert(idx, (impl_idx, item, ctx));
@@ -2286,7 +2286,7 @@ impl Hir {
     pub fn add_impl_def_method(&mut self, impl_idx: usize, scope: Scope, item: Method, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.methods, impl_idx);
 
-        let mut ctx = FunctionContext::new(scope, idx);
+        let mut ctx = FunctionContext::new(scope);
         ctx.sym = Some(symbol);
 
         self.methods.insert(idx, (impl_idx, item, ctx));
@@ -2295,7 +2295,7 @@ impl Hir {
     pub fn add_impl_def_type_alias(&mut self, impl_idx: usize, scope: Scope, item: TypeAlias, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_type_aliases, impl_idx);
 
-        let mut ctx = TypeAliasContext::new(scope, idx);
+        let mut ctx = TypeAliasContext::new(scope);
         ctx.sym = Some(symbol);
 
         self.impl_type_aliases.insert(idx, (impl_idx, item, ctx));
@@ -2304,7 +2304,7 @@ impl Hir {
     pub fn add_impl_def_const(&mut self, impl_idx: usize, scope: Scope, item: Const, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_consts, impl_idx);
 
-        let mut ctx = ConstContext::new(scope, idx);
+        let mut ctx = ConstContext::new(scope);
         ctx.sym = Some(symbol);
 
         self.impl_consts.insert(idx, (impl_idx, item, ctx));
@@ -2313,7 +2313,7 @@ impl Hir {
     pub fn add_impl_def_property(&mut self, impl_idx: usize, scope: Scope, item: Property, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.properties, impl_idx);
 
-        let mut ctx = PropertyContext::new(scope, idx);
+        let mut ctx = PropertyContext::new(scope);
         ctx.sym = Some(symbol);
 
         self.properties.insert(idx, (impl_idx, item, ctx));
