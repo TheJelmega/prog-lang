@@ -530,7 +530,8 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     do_hir_pass(hir, cli, stats, TraitImpl::new(ctx));
 
 
-    let errors = ctx.errors.read();
+    do_hir_pass(hir, cli, stats, VisibilityProcess::new(ctx.lib_path.clone()));
+
     !ctx.errors.read().is_empty()
 }
 

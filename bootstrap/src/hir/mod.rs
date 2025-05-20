@@ -1717,15 +1717,17 @@ pub enum AttrMeta {
 // =============================================================================================================================
 
 pub struct FunctionContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl FunctionContext {
-    fn new(scope: Scope) -> Self {
+    fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1733,15 +1735,17 @@ impl FunctionContext {
 //----------------------------------------------
 
 pub struct TypeAliasContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl TypeAliasContext {
-    fn new(scope: Scope) -> Self {
+    fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1749,15 +1753,17 @@ impl TypeAliasContext {
 //----------------------------------------------
 
 pub struct StructContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl StructContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1765,15 +1771,17 @@ impl StructContext {
 //----------------------------------------------
 
 pub struct UnionContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl UnionContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1781,15 +1789,17 @@ impl UnionContext {
 //----------------------------------------------
 
 pub struct AdtEnumContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl AdtEnumContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1797,15 +1807,17 @@ impl AdtEnumContext {
 //----------------------------------------------
 
 pub struct FlagEnumContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl FlagEnumContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1813,15 +1825,17 @@ impl FlagEnumContext {
 //----------------------------------------------
 
 pub struct BitfieldContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl BitfieldContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1829,15 +1843,17 @@ impl BitfieldContext {
 //----------------------------------------------
 
 pub struct ConstContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl ConstContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1845,15 +1861,17 @@ impl ConstContext {
 //----------------------------------------------
 
 pub struct StaticContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl StaticContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1861,15 +1879,17 @@ impl StaticContext {
 //----------------------------------------------
 
 pub struct PropertyContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl PropertyContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1877,16 +1897,18 @@ impl PropertyContext {
 //----------------------------------------------
 
 pub struct TraitContext {
-    pub scope:   Scope,
-    pub sym:     Option<SymbolRef>,
-    pub dag_idx: u32,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
+    pub dag_idx:    u32,
 }
 
 impl TraitContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
             dag_idx: u32::MAX,
         }
     }
@@ -1898,16 +1920,18 @@ pub struct ImplContext {
     pub name:        NameId,
     pub scope:       Scope,
     pub sym:         Option<SymbolRef>,
+    pub file_scope:  Scope,
     pub trait_sym:   Option<SymbolRef>,
     pub trait_items: Vec<(TraitItemRecord, bool)>,
 }
 
 impl ImplContext {
-    pub fn new(name: NameId, scope: Scope) -> Self {
+    pub fn new(name: NameId, scope: Scope, file_scope: Scope) -> Self {
         Self {
             name,
             scope,
             sym: None,
+            file_scope,
             trait_sym: None,
             trait_items: Vec::new(),
         }
@@ -1919,16 +1943,18 @@ impl ImplContext {
 pub struct OpTraitContext {
     pub scope:            Scope,
     pub sym:              Option<SymbolRef>,
+    pub file_scope:       Scope,
     pub has_generics:     bool,
     pub has_output_alias: bool,
     pub dag_idx:          u32,
 }
 
 impl OpTraitContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
             has_generics: false,
             has_output_alias: false,
             dag_idx: u32::MAX,
@@ -1939,15 +1965,17 @@ impl OpTraitContext {
 //----------------------------------------------
 
 pub struct OpFunctionContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl OpFunctionContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -1955,15 +1983,17 @@ impl OpFunctionContext {
 //----------------------------------------------
 
 pub struct OpContractContext {
-    pub scope: Scope,
-    pub sym:   Option<SymbolRef>,
+    pub scope:      Scope,
+    pub sym:        Option<SymbolRef>,
+    pub file_scope: Scope,
 }
 
 impl OpContractContext {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
+            file_scope,
         }
     }
 }
@@ -2080,8 +2110,8 @@ impl Hir {
         }
     }
 
-    pub fn add_function(&mut self, in_impl: bool, scope: Scope, item: Function) {
-        let ctx = FunctionContext::new(scope);
+    pub fn add_function(&mut self, in_impl: bool, scope: Scope, file_scope: Scope, item: Function) {
+        let ctx = FunctionContext::new(scope, file_scope);
         if in_impl {
             let impl_idx = self.impls.len() - 1;
             self.impl_functions.push((impl_idx, item, ctx));
@@ -2090,19 +2120,19 @@ impl Hir {
         }
     }
 
-    pub fn add_extern_function(&mut self, scope: Scope, item: ExternFunctionNoBody) {
-        let ctx = FunctionContext::new(scope);
+    pub fn add_extern_function(&mut self, scope: Scope, file_scope: Scope, item: ExternFunctionNoBody) {
+        let ctx = FunctionContext::new(scope, file_scope);
         self.extern_functions_no_body.push((item, ctx));
     }
 
-    pub fn add_method(&mut self, scope: Scope, item: Method) {
-        let ctx = FunctionContext::new(scope);
+    pub fn add_method(&mut self, scope: Scope, file_scope: Scope, item: Method) {
+        let ctx = FunctionContext::new(scope, file_scope);
         let impl_idx = self.impls.len() - 1;
         self.methods.push((impl_idx, item, ctx));
     }
 
-    pub fn add_type_alias(&mut self, in_impl: bool, scope: Scope, item: TypeAlias) {
-        let ctx = TypeAliasContext::new(scope);
+    pub fn add_type_alias(&mut self, in_impl: bool, scope: Scope, file_scope: Scope, item: TypeAlias) {
+        let ctx = TypeAliasContext::new(scope, file_scope);
         if in_impl {
             let impl_idx = self.impls.len() - 1;
             self.impl_type_aliases.push((impl_idx, item, ctx));
@@ -2111,53 +2141,53 @@ impl Hir {
         }
     }
 
-    pub fn add_distinct_type(&mut self, scope: Scope, item: DistinctType) {
-        let ctx = TypeAliasContext::new(scope);
+    pub fn add_distinct_type(&mut self, scope: Scope, file_scope: Scope, item: DistinctType) {
+        let ctx = TypeAliasContext::new(scope, file_scope);
         self.distinct_types.push((item, ctx));
     }
 
-    pub fn add_opaque_type(&mut self, scope: Scope, item: OpaqueType) {
-        let ctx = TypeAliasContext::new(scope);
+    pub fn add_opaque_type(&mut self, scope: Scope, file_scope: Scope, item: OpaqueType) {
+        let ctx = TypeAliasContext::new(scope, file_scope);
         self.opaque_types.push((item, ctx));
     }
 
-    pub fn add_struct(&mut self, scope: Scope, item: Struct) {
-        let ctx = StructContext::new(scope);
+    pub fn add_struct(&mut self, scope: Scope, file_scope: Scope, item: Struct) {
+        let ctx = StructContext::new(scope, file_scope);
         self.structs.push((item, ctx));
     }
 
-    pub fn add_tuple_struct(&mut self, scope: Scope, item: TupleStruct) {
-        let ctx = StructContext::new(scope);
+    pub fn add_tuple_struct(&mut self, scope: Scope, file_scope: Scope, item: TupleStruct) {
+        let ctx = StructContext::new(scope, file_scope);
         self.tuple_structs.push((item, ctx));
     }
 
-    pub fn add_unit_struct(&mut self, scope: Scope, item: UnitStruct) {
-        let ctx = StructContext::new(scope);
+    pub fn add_unit_struct(&mut self, scope: Scope, file_scope: Scope, item: UnitStruct) {
+        let ctx = StructContext::new(scope, file_scope);
         self.unit_structs.push((item, ctx));
     }
 
-    pub fn add_union(&mut self, scope: Scope, item: Union) {
-        let ctx = UnionContext::new(scope);
+    pub fn add_union(&mut self, scope: Scope, file_scope: Scope, item: Union) {
+        let ctx = UnionContext::new(scope, file_scope);
         self.unions.push((item, ctx));
     }
 
-    pub fn add_adt_enum(&mut self, scope: Scope, item: AdtEnum) {
-        let ctx = AdtEnumContext::new(scope);
+    pub fn add_adt_enum(&mut self, scope: Scope, file_scope: Scope, item: AdtEnum) {
+        let ctx = AdtEnumContext::new(scope, file_scope);
         self.adt_enums.push((item, ctx))
     }
 
-    pub fn add_flag_enum(&mut self, scope: Scope, item: FlagEnum) {
-        let ctx = FlagEnumContext::new(scope);
+    pub fn add_flag_enum(&mut self, scope: Scope, file_scope: Scope, item: FlagEnum) {
+        let ctx = FlagEnumContext::new(scope, file_scope);
         self.flag_enums.push((item, ctx));
     }
 
-    pub fn add_bitfield(&mut self, scope: Scope, item: Bitfield) {
-        let ctx = BitfieldContext::new(scope);
+    pub fn add_bitfield(&mut self, scope: Scope, file_scope: Scope, item: Bitfield) {
+        let ctx = BitfieldContext::new(scope, file_scope);
         self.bitfields.push((item, ctx));
     }
 
-    pub fn add_const(&mut self, in_impl: bool, scope: Scope, item: Const) {
-        let ctx = ConstContext::new(scope);
+    pub fn add_const(&mut self, in_impl: bool, scope: Scope, file_scope: Scope, item: Const) {
+        let ctx = ConstContext::new(scope, file_scope);
         if in_impl {
             let impl_idx = self.impls.len() - 1;
             self.impl_consts.push((impl_idx, item, ctx));
@@ -2166,8 +2196,8 @@ impl Hir {
         }
     }
 
-    pub fn add_static(&mut self, in_impl: bool, scope: Scope, item: Static) {
-        let ctx = StaticContext::new(scope);
+    pub fn add_static(&mut self, in_impl: bool, scope: Scope, file_scope: Scope, item: Static) {
+        let ctx = StaticContext::new(scope, file_scope);
         if in_impl {
             let impl_idx = self.impls.len() - 1;
             self.impl_statics.push((impl_idx, item, ctx));
@@ -2176,8 +2206,8 @@ impl Hir {
         }
     }
 
-    pub fn add_tls_static(&mut self, in_impl: bool, scope: Scope, item: TlsStatic) {
-        let ctx = StaticContext::new(scope);
+    pub fn add_tls_static(&mut self, in_impl: bool, scope: Scope, file_scope: Scope, item: TlsStatic) {
+        let ctx = StaticContext::new(scope, file_scope);
         if in_impl {
             let impl_idx = self.impls.len() - 1;
             self.impl_tls_statics.push((impl_idx, item, ctx));
@@ -2186,61 +2216,60 @@ impl Hir {
         }
     }
 
-    pub fn add_extern_static(&mut self, scope: Scope, item: ExternStatic) {
-        let ctx = StaticContext::new(scope);
+    pub fn add_extern_static(&mut self, scope: Scope, file_scope: Scope, item: ExternStatic) {
+        let ctx = StaticContext::new(scope, file_scope);
         self.extern_statics.push((item, ctx));
     }
 
-    // TODO: Properties are associated to an impl
-    pub fn add_property(&mut self, scope: Scope, item: Property) {
+    pub fn add_property(&mut self, scope: Scope, file_scope: Scope, item: Property) {
         let impl_idx = self.impls.len() - 1;
-        let ctx = PropertyContext::new(scope);
+        let ctx = PropertyContext::new(scope, file_scope);
         self.properties.push((impl_idx, item, ctx));
     }
 
     //--------------------------------------------------------------
 
-    pub fn add_trait(&mut self, scope: Scope, item: Trait) {
+    pub fn add_trait(&mut self, scope: Scope, file_scope: Scope, item: Trait) {
         let item = Arc::new(RwLock::new(item));
-        let ctx = Arc::new(RwLock::new(TraitContext::new(scope)));
+        let ctx = Arc::new(RwLock::new(TraitContext::new(scope, file_scope)));
         self.traits.push((item, ctx));
     }
 
-    pub fn add_trait_function(&mut self, scope: Scope, item: TraitFunction) {
-        let ctx = FunctionContext::new(scope);
+    pub fn add_trait_function(&mut self, scope: Scope, file_scope: Scope, item: TraitFunction) {
+        let ctx = FunctionContext::new(scope, file_scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_functions.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_method(&mut self, scope: Scope, item: TraitMethod) {
-        let ctx = FunctionContext::new(scope);
+    pub fn add_trait_method(&mut self, scope: Scope, file_scope: Scope, item: TraitMethod) {
+        let ctx = FunctionContext::new(scope, file_scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_methods.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_type_alias(&mut self, scope: Scope, item: TraitTypeAlias) {
-        let ctx = TypeAliasContext::new(scope);
+    pub fn add_trait_type_alias(&mut self, scope: Scope, file_scope: Scope, item: TraitTypeAlias) {
+        let ctx = TypeAliasContext::new(scope, file_scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_type_alias.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_const(&mut self, scope: Scope, item: TraitConst) {
-        let ctx = ConstContext::new(scope);
+    pub fn add_trait_const(&mut self, scope: Scope, file_scope: Scope, item: TraitConst) {
+        let ctx = ConstContext::new(scope, file_scope);
         let trait_idx = self.traits.len() - 1;
         self.trait_consts.push((trait_idx, item, ctx));
     }
 
-    pub fn add_trait_property(&mut self, scope: Scope, item: TraitProperty) {
+    pub fn add_trait_property(&mut self, scope: Scope, file_scope: Scope, item: TraitProperty) {
         let trait_idx = self.traits.len() - 1;
-        let ctx = PropertyContext::new(scope);
+        let ctx = PropertyContext::new(scope, file_scope);
         self.trait_properties.push((trait_idx, item, ctx));
     }
 
     //--------------------------------------------------------------
     
-    pub fn add_impl(&mut self, name: NameId, scope: Scope, item: Impl) {
+    pub fn add_impl(&mut self, name: NameId, scope: Scope, file_scope: Scope, item: Impl) {
         let item = Arc::new(RwLock::new(item));
-        let ctx = Arc::new(RwLock::new(ImplContext::new(name, scope)));
+        let ctx = Arc::new(RwLock::new(ImplContext::new(name, scope, file_scope)));
         self.impls.push((item, ctx));
     }
 
@@ -2258,46 +2287,46 @@ impl Hir {
         }
     }
 
-    pub fn add_impl_def_function(&mut self, impl_idx: usize, scope: Scope, item: Function, symbol: SymbolRef) {
+    pub fn add_impl_def_function(&mut self, impl_idx: usize, scope: Scope, file_scope: Scope, item: Function, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_functions, impl_idx);
 
-        let mut ctx = FunctionContext::new(scope);
+        let mut ctx = FunctionContext::new(scope, file_scope);
         ctx.sym = Some(symbol);
 
         self.impl_functions.insert(idx, (impl_idx, item, ctx));
     }
 
-    pub fn add_impl_def_method(&mut self, impl_idx: usize, scope: Scope, item: Method, symbol: SymbolRef) {
+    pub fn add_impl_def_method(&mut self, impl_idx: usize, scope: Scope, file_scope: Scope, item: Method, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.methods, impl_idx);
 
-        let mut ctx = FunctionContext::new(scope);
+        let mut ctx = FunctionContext::new(scope, file_scope);
         ctx.sym = Some(symbol);
 
         self.methods.insert(idx, (impl_idx, item, ctx));
     }
 
-    pub fn add_impl_def_type_alias(&mut self, impl_idx: usize, scope: Scope, item: TypeAlias, symbol: SymbolRef) {
+    pub fn add_impl_def_type_alias(&mut self, impl_idx: usize, scope: Scope, file_scope: Scope, item: TypeAlias, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_type_aliases, impl_idx);
 
-        let mut ctx = TypeAliasContext::new(scope);
+        let mut ctx = TypeAliasContext::new(scope, file_scope);
         ctx.sym = Some(symbol);
 
         self.impl_type_aliases.insert(idx, (impl_idx, item, ctx));
     }
 
-    pub fn add_impl_def_const(&mut self, impl_idx: usize, scope: Scope, item: Const, symbol: SymbolRef) {
+    pub fn add_impl_def_const(&mut self, impl_idx: usize, scope: Scope, file_scope: Scope, item: Const, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.impl_consts, impl_idx);
 
-        let mut ctx = ConstContext::new(scope);
+        let mut ctx = ConstContext::new(scope, file_scope);
         ctx.sym = Some(symbol);
 
         self.impl_consts.insert(idx, (impl_idx, item, ctx));
     }
 
-    pub fn add_impl_def_property(&mut self, impl_idx: usize, scope: Scope, item: Property, symbol: SymbolRef) {
+    pub fn add_impl_def_property(&mut self, impl_idx: usize, scope: Scope, file_scope: Scope, item: Property, symbol: SymbolRef) {
         let idx = Self::find_impl_def_insert_loc(&self.properties, impl_idx);
 
-        let mut ctx = PropertyContext::new(scope);
+        let mut ctx = PropertyContext::new(scope, file_scope);
         ctx.sym = Some(symbol);
 
         self.properties.insert(idx, (impl_idx, item, ctx));
@@ -2305,21 +2334,21 @@ impl Hir {
 
     //--------------------------------------------------------------
     
-    pub fn add_op_trait(&mut self, scope: Scope, item: OpTrait) {
+    pub fn add_op_trait(&mut self, scope: Scope, file_scope: Scope, item: OpTrait) {
         let item = Arc::new(RwLock::new(item));
-        let ctx = Arc::new(RwLock::new(OpTraitContext::new(scope)));
+        let ctx = Arc::new(RwLock::new(OpTraitContext::new(scope, file_scope)));
         self.op_traits.push((item, ctx));
     }
 
-    pub fn add_op_function(&mut self, scope: Scope, item: OpFunction) {
+    pub fn add_op_function(&mut self, scope: Scope, file_scope: Scope, item: OpFunction) {
         let op_idx = self.op_traits.len() - 1;
-        let ctx = OpFunctionContext::new(scope);
+        let ctx = OpFunctionContext::new(scope, file_scope);
         self.op_functions.push((op_idx, item, ctx));
     }
 
-    pub fn add_op_contract(&mut self, scope: Scope, item: OpContract) {
+    pub fn add_op_contract(&mut self, scope: Scope, file_scope: Scope, item: OpContract) {
         let op_idx = self.op_traits.len() - 1;
-        let ctx = OpContractContext::new(scope);
+        let ctx = OpContractContext::new(scope, file_scope);
         self.op_contracts.push((op_idx, item, ctx));
     }
 

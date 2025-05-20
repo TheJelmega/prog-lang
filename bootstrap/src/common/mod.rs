@@ -78,3 +78,33 @@ impl fmt::Display for Abi {
         }
     }
 }
+
+// =============================================================
+
+#[derive(Clone)]
+pub enum Visibility {
+    Public,
+    Package {
+        group:   Option<String>,
+        package: String,
+    },
+    Lib(LibraryPath),
+    Path(LibraryPath, Scope),
+}
+
+impl fmt::Display for Visibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Visibility::Public                     => write!(f, "public"),
+            Visibility::Package { group, package } => {
+                write!(f, "private(")?;
+                if let Some(group) = group {
+                    write!(f, "{group}.")?
+                };
+                write!(f, "{package})")
+            },
+            Visibility::Lib(lib)                   => write!(f, "private({lib})"),
+            Visibility::Path(lib, path)            => write!(f, "private({lib}.{path})"),
+        }
+    }
+}

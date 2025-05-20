@@ -176,11 +176,11 @@ impl Pass for TraitItemProcess<'_> {
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
             trait_sym.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::Method,
-            has_default: node.body.is_some(),
-            idx: idx,
-        });
+                name: self.ctx.names.read()[node.name].to_string(),
+                kind: TraitItemKind::Method,
+                has_default: node.body.is_some(),
+                idx: idx,
+            });
         }
         
         for (idx, (trait_idx, node, ctx)) in hir.trait_type_alias.iter().enumerate() {
@@ -190,11 +190,11 @@ impl Pass for TraitItemProcess<'_> {
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
             trait_sym.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::TypeAlias,
-            has_default: node.def.is_some(),
-            idx: idx,
-        });
+                name: self.ctx.names.read()[node.name].to_string(),
+                kind: TraitItemKind::TypeAlias,
+                has_default: node.def.is_some(),
+                idx: idx,
+            });
         }
         
         for (idx, (trait_idx, node, ctx)) in hir.trait_consts.iter().enumerate() {
@@ -204,11 +204,11 @@ impl Pass for TraitItemProcess<'_> {
             let Symbol::Trait(trait_sym) = &mut *trait_sym else { unreachable!() };
 
             trait_sym.items.push(TraitItemRecord {
-            name: self.ctx.names.read()[node.name].to_string(),
-            kind: TraitItemKind::Const,
-            has_default: node.def.is_some(),
-            idx: idx,
-        });
+                name: self.ctx.names.read()[node.name].to_string(),
+                kind: TraitItemKind::Const,
+                has_default: node.def.is_some(),
+                idx: idx,
+            });
         }
         
         for (idx, (trait_idx, node, ctx)) in hir.trait_properties.iter().enumerate() {
@@ -482,7 +482,7 @@ impl Pass for TraitImpl<'_> {
                             let mut syms = self.ctx.syms.write();
                             let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
 
-                            def_fns.push((impl_idx, ctx.scope.clone(), def_fn, sym));
+                            def_fns.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_fn, sym));
                         },
                         TraitItemKind::Method => {
                             let Some(entry) = hir.trait_methods.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
@@ -518,7 +518,7 @@ impl Pass for TraitImpl<'_> {
                             let mut syms = self.ctx.syms.write();
                             let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
 
-                            def_methods.push((impl_idx, ctx.scope.clone(), def_method, sym));
+                            def_methods.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_method, sym));
                         },
                         TraitItemKind::TypeAlias => {
                             let Some(entry) = hir.trait_type_alias.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
@@ -548,7 +548,7 @@ impl Pass for TraitImpl<'_> {
                             let mut syms = self.ctx.syms.write();
                             let sym = syms.add_type_alias(None, &ctx.scope, &names[trait_alias.name]);
 
-                            def_type_aliases.push((impl_idx, ctx.scope.clone(), def_alias, sym));
+                            def_type_aliases.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_alias, sym));
                         },
                         TraitItemKind::Const => {
                             let Some(entry) = hir.trait_consts.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
@@ -577,10 +577,10 @@ impl Pass for TraitImpl<'_> {
                             let mut syms = self.ctx.syms.write();
                             let sym = syms.add_const(None, &ctx.scope, &names[trait_const.name]);
 
-                            def_consts.push((impl_idx, ctx.scope.clone(), def_const, sym));
+                            def_consts.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_const, sym));
                         },
                         TraitItemKind::Property { get, ref_get, mut_set, set } => {
-                            let Some(trait_entry) = hir.trait_properties.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
+                            let Some(entry) = hir.trait_properties.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
                                     node_id: node.read().node_id,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait property" },
@@ -588,7 +588,7 @@ impl Pass for TraitImpl<'_> {
                                 continue;
                             };
 
-                            let trait_prop = &trait_entry.1;
+                            let trait_prop = &entry.1;
                             // Exists, otherwise `item.has_default` would have been false
                             let TraitPropMembers::Def { get, ref_get, mut_get, set } = &trait_prop.members else { unreachable!() };
 
@@ -609,7 +609,7 @@ impl Pass for TraitImpl<'_> {
                             let mut syms = self.ctx.syms.write();
                             let sym = syms.add_property(None, &ctx.scope, &names[trait_prop.name]);
 
-                            def_properties.push((impl_idx, ctx.scope.clone(), def_prop, sym));
+                            def_properties.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_prop, sym));
                         },
                     }
 
@@ -624,20 +624,20 @@ impl Pass for TraitImpl<'_> {
         }
 
         // And finally insert each item
-        for (impl_idx, scope, item, sym) in def_fns {
-            hir.add_impl_def_function(impl_idx, scope, item, sym);
+        for (impl_idx, scope, file_scope, item, sym) in def_fns {
+            hir.add_impl_def_function(impl_idx, scope, file_scope, item, sym);
         }
-        for (impl_idx, scope, item, sym) in def_methods {
-            hir.add_impl_def_method(impl_idx, scope, item, sym);
+        for (impl_idx, scope, file_scope, item, sym) in def_methods {
+            hir.add_impl_def_method(impl_idx, scope, file_scope, item, sym);
         }
-        for (impl_idx, scope, item, sym) in def_type_aliases {
-            hir.add_impl_def_type_alias(impl_idx, scope, item, sym);
+        for (impl_idx, scope, file_scope, item, sym) in def_type_aliases {
+            hir.add_impl_def_type_alias(impl_idx, scope, file_scope, item, sym);
         }
-        for (impl_idx, scope, item, sym) in def_consts {
-            hir.add_impl_def_const(impl_idx, scope, item, sym);
+        for (impl_idx, scope, file_scope, item, sym) in def_consts {
+            hir.add_impl_def_const(impl_idx, scope, file_scope, item, sym);
         }
-        for (impl_idx, scope, item, sym) in def_properties {
-            hir.add_impl_def_property(impl_idx, scope, item, sym);
+        for (impl_idx, scope, file_scope, item, sym) in def_properties {
+            hir.add_impl_def_property(impl_idx, scope, file_scope, item, sym);
         }
     }
 }

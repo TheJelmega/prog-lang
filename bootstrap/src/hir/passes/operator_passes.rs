@@ -323,6 +323,7 @@ impl Visitor for OpTagging<'_> {
 
 struct TraitGenEntry {
     scope:        Scope,
+    file_scope:   Scope,
     item:         Trait,
     methods:      Vec<(TraitMethod, SymbolRef)>,
     output_alias: Option<TraitTypeAlias>,
@@ -351,7 +352,7 @@ impl Pass for OpTraitGen<'_> {
 
         for entry in mem::take(&mut self.traits) {
             let trait_name =  self.ctx.names.read()[entry.item.name].to_string();
-            hir.add_trait(entry.scope.clone(), entry.item);
+            hir.add_trait(entry.scope.clone(), entry.file_scope.clone(), entry.item);
 
             let trait_entry = hir.traits.last_mut().unwrap();
             trait_entry.1.write().sym = Some(entry.symbol);
@@ -359,7 +360,7 @@ impl Pass for OpTraitGen<'_> {
             let mut scope = entry.scope;
             scope.push(trait_name);
             for (method, sym) in entry.methods {
-                hir.add_trait_method(scope.clone(), method);
+                hir.add_trait_method(scope.clone(), entry.file_scope.clone(), method);
                 let (_, _, method_ctx) = hir.trait_methods.last_mut().unwrap();
                 method_ctx.sym = Some(sym);
             }
@@ -367,7 +368,7 @@ impl Pass for OpTraitGen<'_> {
                 let mut syms = self.ctx.syms.write();
                 let sym = syms.add_type_alias(None, &scope, "Output");
                 
-                hir.add_trait_type_alias(scope, alias);
+                hir.add_trait_type_alias(scope, entry.file_scope, alias);
                 let (_, _, alias_ctx) = hir.trait_type_alias.last_mut().unwrap();
                 alias_ctx.sym = Some(sym);
             }
@@ -421,6 +422,7 @@ impl Visitor for OpTraitGen<'_> {
 
         self.traits.push(TraitGenEntry {
             scope: ctx.scope.clone(),
+            file_scope: ctx.file_scope.clone(),
             item: Trait {
                 span: node.span,
                 node_id: node.node_id,

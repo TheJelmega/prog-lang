@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 
 use crate::type_system::{Type, TypeHandle, TypeRef};
 
-use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment};
+use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, Visibility};
 
 
 // =============================================================
@@ -121,22 +121,25 @@ pub struct PrecedenceSymbol {
 
 pub struct FunctionSymbol {
     pub path:      SymbolPath,
-
+    pub vis:       Visibility,
 }
 
 //----------------------------------------------
 
 pub struct TypeAliasSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 }
 
 pub struct DistinctTypeSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
     
 }
 
 pub struct OpaqueTypeSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
     
 }
 
@@ -161,19 +164,22 @@ impl fmt::Display for StructKind {
 
 pub struct StructSymbol {
     pub path: SymbolPath,
-    pub kind:  StructKind,
+    pub vis:  Visibility,
+    pub kind: StructKind,
 }
 
 //----------------------------------------------
 
 pub struct UnionSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 
 }
 
 
 pub struct AdtEnumSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 
 }
 
@@ -181,6 +187,7 @@ pub struct AdtEnumSymbol {
 
 pub struct FlagEnumSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 
 }
 
@@ -188,6 +195,7 @@ pub struct FlagEnumSymbol {
 
 pub struct BitfieldSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 
 }
 
@@ -195,6 +203,7 @@ pub struct BitfieldSymbol {
 
 pub struct ConstSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 
 }
 
@@ -219,6 +228,7 @@ impl fmt::Display for StaticKind {
 
 pub struct StaticSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
     pub kind: StaticKind,
 }
 
@@ -226,7 +236,8 @@ pub struct StaticSymbol {
 
 pub struct PropertySymbol {
     pub path: SymbolPath,
-
+    pub vis:  Visibility,
+}
 
 
 //----------------------------------------------
@@ -255,6 +266,7 @@ pub struct TraitItemRecord {
 
 pub struct TraitSymbol {
     pub path:    SymbolPath,
+    pub vis:     Visibility,
     pub dag_idx: u32,
     pub items:   Vec<TraitItemRecord>,
 }
@@ -263,6 +275,7 @@ pub struct TraitSymbol {
 
 pub struct ImplSymbol {
     pub path: SymbolPath,
+    pub vis:  Visibility,
 }
 
 //----------------------------------------------
@@ -403,6 +416,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -414,6 +428,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -425,6 +440,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -436,6 +452,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
             kind,
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -448,6 +465,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -459,6 +477,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -470,6 +489,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -481,6 +501,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -492,6 +513,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -503,6 +525,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
             kind,
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -515,6 +538,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -526,6 +550,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
             dag_idx: u32::MAX,
             items: Vec::new(),
         });
@@ -539,6 +564,7 @@ impl RootSymbolTable {
                 scope: scope.clone(),
                 name: name.to_string(),
             },
+            vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -716,30 +742,35 @@ impl SymbolTableLogger {
                 logger.prefixed_logln("Function");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::TypeAlias(sym) =>
             {
                 logger.prefixed_logln("Type Alias");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::DistinctType(sym) =>
             {
                 logger.prefixed_logln("Distinct Type");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::OpaqueType(sym) =>
             {
                 logger.prefixed_logln("Opaque Type");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Struct(sym) =>
             {
                 logger.prefixed_logln("Struct");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             }, 
             Symbol::Union(sym) =>
@@ -747,36 +778,42 @@ impl SymbolTableLogger {
                 logger.prefixed_logln("Union");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::AdtEnum(sym) =>
             {
                 logger.prefixed_logln("ADT enum");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::FlagEnum(sym) =>
             {
                 logger.prefixed_logln("Flag");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Bitfield(sym) =>
             {
                 logger.prefixed_logln("Bitfield");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Const(sym) =>
             {
                 logger.prefixed_logln("Const");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Static(sym) =>
             {
                 logger.prefixed_logln("Static");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             },
             Symbol::Property(sym) =>
@@ -784,18 +821,21 @@ impl SymbolTableLogger {
                 logger.prefixed_logln("Property");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Trait(sym) =>
             {
                 logger.prefixed_logln("Trait");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
             Symbol::Impl(sym) =>
             {
                 logger.prefixed_logln("Impl");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
         }
 

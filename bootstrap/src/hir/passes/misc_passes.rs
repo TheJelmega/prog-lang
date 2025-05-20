@@ -1,6 +1,6 @@
 use crate::{
     ast::NodeId,
-    common::{self, LibraryPath, Scope},
+    common::{self, LibraryPath, Scope, Symbol},
     hir::*,
 };
 
@@ -77,6 +77,281 @@ impl Visitor for EarlyPathGen<'_> {
 impl Pass for EarlyPathGen<'_> {
     const NAME: &'static str = "Early Path Generation";
 }
+
+//==============================================================================================================================
+
+pub struct VisibilityProcess {
+    lib: LibraryPath
+}
+
+impl VisibilityProcess {
+    pub fn new(lib: LibraryPath) -> Self {
+        Self {
+            lib
+        }
+    }
+
+    fn convert_visibility(vis: &Visibility, lib: &LibraryPath, scope: &Scope, file_scope: &Scope) -> common::Visibility {
+        match vis {
+            Visibility::Priv                         => common::Visibility::Path(lib.clone(), file_scope.clone()),
+            Visibility::Pub { span, node_id }        => common::Visibility::Public,
+            Visibility::Lib { span, node_id }        => common::Visibility::Lib(lib.clone()),
+            Visibility::Package { span, node_id }    => common::Visibility::Package { group: lib.group.clone(), package: lib.package.clone() },
+            Visibility::Super { span, node_id }      => common::Visibility::Path(lib.clone(), scope.parent()),
+            Visibility::Path { span, node_id, path } => common::Visibility::Path(lib.clone(), path.ctx.path.clone()),
+        }
+    }
+}
+
+impl Visitor for VisibilityProcess {
+    fn visit_function(&mut self, node: &mut Function, ctx: &mut FunctionContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_extern_function_no_body(&mut self, node: &mut ExternFunctionNoBody, ctx: &mut FunctionContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_type_alias(&mut self, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_distinct_type(&mut self, node: &mut DistinctType, ctx: &mut TypeAliasContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::DistinctType(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_opaque_type(&mut self, node: &mut OpaqueType, ctx: &mut TypeAliasContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::OpaqueType(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_struct(&mut self, node: &mut Struct, ctx: &mut StructContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Struct(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_tuple_struct(&mut self, node: &mut TupleStruct, ctx: &mut StructContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Struct(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+    
+    fn visit_unit_struct(&mut self, node: &mut UnitStruct, ctx: &mut StructContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Struct(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_union(&mut self, node: &mut Union, ctx: &mut UnionContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Union(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_adt_enum(&mut self, node: &mut AdtEnum, ctx: &mut AdtEnumContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::AdtEnum(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+    
+    fn visit_flag_enum(&mut self, node: &mut FlagEnum, ctx: &mut FlagEnumContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::FlagEnum(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_bitfield(&mut self, node: &mut Bitfield, ctx: &mut BitfieldContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Bitfield(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_static(&mut self, node: &mut Static, ctx: &mut StaticContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Static(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_tls_static(&mut self, node: &mut TlsStatic, ctx: &mut StaticContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Static(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_extern_static(&mut self, node: &mut ExternStatic, ctx: &mut StaticContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Static(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Trait(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
+        let trait_sym = trait_ctx.read();
+        let trait_sym = trait_sym.sym.as_ref().unwrap().read();
+        let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = trait_sym.vis.clone();
+    }
+
+    fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        let trait_sym = trait_ctx.read();
+        let trait_sym = trait_sym.sym.as_ref().unwrap().read();
+        let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = trait_sym.vis.clone();
+    }
+
+    fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+        let trait_sym = trait_ctx.read();
+        let trait_sym = trait_sym.sym.as_ref().unwrap().read();
+        let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };
+        sym.vis = trait_sym.vis.clone();
+    }
+
+    fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
+        let trait_sym = trait_ctx.read();
+        let trait_sym = trait_sym.sym.as_ref().unwrap().read();
+        let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = trait_sym.vis.clone();
+    }
+
+    fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+        let trait_sym = trait_ctx.read();
+        let trait_sym = trait_sym.sym.as_ref().unwrap().read();
+        let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = trait_sym.vis.clone();
+    }
+
+    fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Impl(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Function(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Const(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_impl_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Static, ctx: &mut StaticContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Static(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_impl_tls_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TlsStatic, ctx: &mut StaticContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Static(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+
+    fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
+        let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+        
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::Property(sym) = &mut *sym else { unreachable!() };
+        sym.vis = vis;
+    }
+}
+
+impl Pass for VisibilityProcess {
+    const NAME: &'static str = "Visibility Processing";
+}
+
+//==============================================================================================================================
 
 enum SelfTyReplaceInfo {
     Invalid,
