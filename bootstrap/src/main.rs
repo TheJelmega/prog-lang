@@ -11,8 +11,8 @@ use parking_lot::RwLock;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanRegistry, Symbol, TraitDag};
-use hir::Visitor as _;
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanId, SpanRegistry, Symbol, TraitDag};
+use hir::{FormatHirError, Visitor as _};
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
 use type_system::TypeRegistry;
@@ -357,9 +357,12 @@ fn main() {
             hir_printer.visit(&mut hir, hir::VisitFlags::all());
         }
 
-        
-        for err in &*ctx.errors.read() {
-            println!("{err}");
+        {
+            let spans = span_registry.read();
+            
+            for err in &*ctx.errors.read() {
+                println!("{}", FormatHirError::new(&spans, err.clone()));
+            }
         }
     }
     
@@ -466,7 +469,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
                 cycle_str.push_str(&format!("{}", sym.path));
 
                 ctx.add_error(hir::HirError {
-                    node_id: ast::NodeId::INVALID,
+                    span: SpanId::INVALID,
                     err: error_warning::HirErrorCode::CycleInTraitDag { cycle: cycle_str },
                 })
             }
@@ -497,7 +500,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
                 cycle_str.push_str(&format!("{name}"));
 
                 ctx.add_error(hir::HirError {
-                    node_id: ast::NodeId::INVALID,
+                    span: SpanId::INVALID,
                     err: error_warning::HirErrorCode::CycleInPrecedenceDag { cycle: cycle_str },
                 })
             }
