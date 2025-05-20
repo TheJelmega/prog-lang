@@ -5,12 +5,8 @@
 //!
 //!
 
-pub op trait Pos {
-    prefix op | : pos
-}
-
 pub op trait Neg {
-    prefix op | : neg
+    prefix op - : neg
 }
 
 pub op trait Not {

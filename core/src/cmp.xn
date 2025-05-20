@@ -35,18 +35,6 @@ pub op trait Ord: PartialOrd & Eq {
     // new operator
     infix op <=> : cmp -> Ordering = (self <=>? other)!,
 
-    // operator specializations
-    infix op <   := (self <=> other) == Ordering.Less,
-    infix op <=  := {
-        let ord = (self <=> other);
-        ord == Ordering.Less || ord == Ordering.Equals
-    },
-    infix op >   := (self <=> other) == Ordering.Greater,
-    infix op <=  := {
-        let ord = (self <=> other);
-        ord == Ordering.Greater || ord == Ordering.Equals
-    },
-
     // Contracts
     invar { (self <  other) ==  (other >  self ) },
     invar { (self <  other) == !(self  >= other) },
