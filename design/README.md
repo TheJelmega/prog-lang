@@ -1555,6 +1555,8 @@ The default implementation can be provided which will be used when no explicit t
 
 The `extern` qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
 
+External functions are not allowed to have generics, as this cannot be resolved from an external symbol.
+
 If an extern function does not define a body, then this is a binding to a function declared in an external library.
 If it has a body, then this is a function that gets exported so it can be used from external code.
 
