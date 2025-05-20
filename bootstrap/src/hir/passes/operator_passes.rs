@@ -64,14 +64,14 @@ impl Visitor for OpPrecedenceProcessing<'_> {
 
                 let Some(sym) = self.ctx.syms.read().get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) else {
                     self.ctx.add_error(HirError {
-                        node_id: base.node_id,
+                        span: base.span,
                         err: HirErrorCode::UnknownSymbol { path: search_sym_path },
                     });
                     continue;
                 };
                 let Symbol::Trait(sym) = &*sym.read() else {
                     self.ctx.add_error(HirError {
-                        node_id: base.node_id,
+                        span: base.span,
                         err: HirErrorCode::ExpectedTraitSymbol {
                             kind: sym.read().kind_str().to_string(),
                             path: search_sym_path
@@ -181,7 +181,7 @@ impl Visitor for InfixReorder<'_> {
             Some(op) => op,
             None => {
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::OperatorDoesNotExist { op: node.op.as_str(&puncts).to_string() },
                 });
                 return;
@@ -189,7 +189,7 @@ impl Visitor for InfixReorder<'_> {
         };
         if op.precedence_id == u16::MAX {
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::OperatorNoPrecedence { op: node.op.as_str(&puncts).to_string() },
             });
         }
@@ -198,7 +198,7 @@ impl Visitor for InfixReorder<'_> {
             Some(op) => op,
             None => {
                 self.ctx.add_error(HirError {
-                    node_id: right.node_id,
+                    span: right.span,
                     err: HirErrorCode::OperatorDoesNotExist { op: right.op.as_str(&puncts).to_string() },
                 });
                 return;
@@ -206,7 +206,7 @@ impl Visitor for InfixReorder<'_> {
         };
         if right_op.precedence_id == u16::MAX {
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::OperatorNoPrecedence { op: right.op.as_str(&puncts).to_string() },
             });
         }
@@ -216,7 +216,7 @@ impl Visitor for InfixReorder<'_> {
                 let op0 = node.op.as_str(&puncts).to_string();
                 let op1 = right.op.as_str(&puncts).to_string();
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::OperatorNoOrder { op0, op1 },
                 });
             },
@@ -535,7 +535,7 @@ impl Visitor for OpTraitGen<'_> {
         let op_trait = op_trait_ref.read();
         let Some(entry) = self.traits.iter_mut().find(|entry| entry.item.node_id == op_trait.node_id) else {
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::InternalError("Processing function for op trait that was not generated"),
             });
             return;

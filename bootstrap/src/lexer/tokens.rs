@@ -621,7 +621,7 @@ impl TokenStore {
                 Token::Underscore => write!(&mut print_buf, "Underscore"),
             };
 
-            println!("{print_buf:64} | {}", FormatSpan{ registry: spans, span: meta.span_id });
+            println!("{print_buf:64} | {}", FormatSpan::new(spans, meta.span_id));
         }
     }
 

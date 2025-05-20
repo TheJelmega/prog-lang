@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    ast::{self, NodeId}, common::{Abi, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SymbolRef, TraitItemRecord}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
+    ast, common::{Abi, FormatSpan, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SpanRegistry, SymbolRef, TraitItemRecord}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -28,16 +28,37 @@ pub use passes::Pass;
 
 #[derive(Clone)]
 pub struct HirError {
-    pub node_id: ast::NodeId,
-    pub err:     HirErrorCode
+    pub span: SpanId,
+    pub err:  HirErrorCode
 }
 
 impl fmt::Display for HirError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.node_id == NodeId::INVALID {
+        if self.span == SpanId::INVALID {
             write!(f, "{}", self.err)
         } else {
-            write!(f, "{}: {}", self.node_id, self.err)
+            write!(f, "{}: {}", self.span, self.err)
+        }
+    }
+}
+
+pub struct FormatHirError<'a> {
+    spans: &'a SpanRegistry,
+    error: HirError
+}
+
+impl<'a> FormatHirError<'a> {
+    pub fn new(spans: &'a SpanRegistry, error: HirError) -> Self {
+        Self { spans, error }
+    }
+}
+
+impl fmt::Display for FormatHirError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.error.span == SpanId::INVALID {
+            write!(f, "{}", self.error.err)
+        } else {
+            write!(f, "{}: {}", FormatSpan::new(self.spans, self.error.span), self.error.err)
         }
     }
 }
@@ -777,7 +798,7 @@ impl Expr {
         }
     }
 
-    pub fn node_id(&self) -> NodeId {
+    pub fn node_id(&self) -> ast::NodeId {
         match self {
             Expr::Unit(node) => node.node_id,
             Expr::FullRange(node) => node.node_id,
@@ -810,7 +831,7 @@ impl Expr {
             Expr::Throw(node) => node.node_id,
             Expr::Comma(node) => node.node_id,
             Expr::When(node) => node.node_id,
-            Expr::Irrefutable => NodeId::INVALID,
+            Expr::Irrefutable => ast::NodeId::INVALID,
         }
     }
 }
@@ -880,11 +901,11 @@ impl PathExpr {
         }
     }
 
-    pub fn node_id(&self) -> NodeId {
+    pub fn node_id(&self) -> ast::NodeId {
         match self {
             PathExpr::Named { node_id, .. } => *node_id,
             PathExpr::SelfPath { node_id, .. } => *node_id,
-            PathExpr::Expanded { .. } => NodeId::INVALID,
+            PathExpr::Expanded { .. } => ast::NodeId::INVALID,
         }
     }
 }
@@ -967,7 +988,7 @@ pub struct TupleExpr {
 #[derive(Clone)]
 pub struct ArrayExpr {
     pub span:    SpanId,
-    pub node_id: NodeId,
+    pub node_id: ast::NodeId,
     pub value:   Box<Expr>,
     pub count:   Box<Expr>,
 }
@@ -1423,7 +1444,7 @@ pub struct PathType {
 }
 
 impl PathType {
-    pub fn from_name(name: NameId, span: SpanId, node_id: NodeId) -> Type {
+    pub fn from_name(name: NameId, span: SpanId, node_id: ast::NodeId) -> Type {
         Type::Path(PathType {
             span,
             node_id,
@@ -1445,7 +1466,7 @@ impl PathType {
         })
     }
 
-    pub fn self_ty(span: SpanId, node_id: NodeId) -> Type {
+    pub fn self_ty(span: SpanId, node_id: ast::NodeId) -> Type {
         Type::Path(PathType {
             span,
             node_id,
@@ -1541,7 +1562,7 @@ pub struct FnType {
 #[derive(Clone)]
 pub struct GenericParams {
     pub span:    SpanId,
-    pub node_id: NodeId,
+    pub node_id: ast::NodeId,
     pub params:  Vec<GenericParam>,
     pub pack:    Option<GenericParamPack>,
 }
@@ -1607,7 +1628,7 @@ pub enum GenericParamPackElem {
 #[derive(Clone)]
 pub struct GenericArgs {
     pub span:    SpanId,
-    pub node_id: NodeId,
+    pub node_id: ast::NodeId,
     pub args:    Vec<GenericArg>,
 }
 
@@ -1621,7 +1642,7 @@ pub enum GenericArg {
 #[derive(Clone)]
 pub struct WhereClause {
     pub span:    SpanId,
-    pub node_id: NodeId,
+    pub node_id: ast::NodeId,
     pub bounds:  Vec<WhereBound>,
 }
 
@@ -1646,7 +1667,7 @@ pub enum WhereBound {
 #[derive(Clone)]
 pub struct TraitBounds {
     pub span:    SpanId,
-    pub node_id: NodeId,
+    pub node_id: ast::NodeId,
     pub bounds:  Vec<Box<Path>>,
 }
 

@@ -35,6 +35,12 @@ impl SpanId {
     pub const INVALID: SpanId = SpanId(usize::MAX);
 }
 
+impl fmt::Display for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "span_id({})", self.0)
+    }
+}
+
 pub struct SpanRegistry {
     pub files: Vec<String>,
     pub spans: Vec<Span>,
@@ -132,6 +138,12 @@ impl fmt::Display for FormatSpanLoc<'_> {
 pub struct FormatSpan<'a> {
     pub registry: &'a SpanRegistry,
     pub span:     SpanId
+}
+
+impl<'a> FormatSpan<'a> {
+    pub fn new(registry: &'a SpanRegistry, span: SpanId) -> Self {
+        Self { registry, span }
+    }
 }
 
 impl fmt::Display for FormatSpan<'_> {

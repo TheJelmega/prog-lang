@@ -67,7 +67,7 @@ impl Visitor for ExplicitTypeGenHelper<'_> {
             },
             None => {
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::UnknownSymbol { path: node.path.ctx.path.clone() },
                 });
 

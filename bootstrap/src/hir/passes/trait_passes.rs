@@ -40,7 +40,7 @@ impl Pass for TraitDagGen<'_> {
             let mut sym = sym.write();
             let Symbol::Trait(sym) = &mut *sym else {
                 self.ctx.add_error(HirError {
-                    node_id: node.read().node_id,
+                    span: node.read().span,
                     err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
                 });
                 continue;
@@ -58,7 +58,7 @@ impl Pass for TraitDagGen<'_> {
             let mut sym = sym.write();
             let Symbol::Trait(sym) = &mut *sym else {
                 self.ctx.add_error(HirError {
-                    node_id: node.read().node_id,
+                    span: node.read().span,
                     err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
                 });
                 continue;
@@ -80,7 +80,7 @@ impl Pass for TraitDagGen<'_> {
                     let scope = &path.ctx.path;
                     let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
                         self.ctx.add_error(HirError {
-                            node_id: bound.node_id,
+                            span: bound.span,
                             err: HirErrorCode::UnknownSymbol { path: scope.clone() },
                         });
                         continue;
@@ -88,7 +88,7 @@ impl Pass for TraitDagGen<'_> {
                     let mut sym = sym.write();
                     let Symbol::Trait(sym) = &mut *sym else {
                         self.ctx.add_error(HirError {
-                            node_id: bound.node_id,
+                            span: bound.span,
                             err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
                         });
                         continue;
@@ -108,7 +108,7 @@ impl Pass for TraitDagGen<'_> {
 
                 let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
                     self.ctx.add_error(HirError {
-                        node_id: node.node_id,
+                        span: node.span,
                         err: HirErrorCode::UnknownSymbol { path: scope.clone() },
                     });
                     continue;
@@ -116,7 +116,7 @@ impl Pass for TraitDagGen<'_> {
                 let mut sym = sym.write();
                 let Symbol::Trait(sym) = &mut *sym else {
                     self.ctx.add_error(HirError {
-                        node_id: node.node_id,
+                        span: node.span,
                         err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
                     });
                     continue;
@@ -334,7 +334,7 @@ impl<'a> TraitImpl<'a> {
         }
     }
 
-    fn item_check(&mut self, name: NameId, node_id: NodeId) {
+    fn item_check(&mut self, name: NameId, span: SpanId) {
         let names = self.ctx.names.read();
         let name = &names[name];
 
@@ -355,7 +355,7 @@ impl<'a> TraitImpl<'a> {
             Some(idx) => impl_ctx.trait_items[idx].1 = true,
             // otherwise we will report errors later on
             None => self.ctx.add_error(HirError {
-                node_id: node_id,
+                span: span,
                 err: HirErrorCode::ImplTraitNoMatchingItem {
                     item: name.to_string(),
                     trait_name: self.trait_name.clone(),
@@ -368,23 +368,23 @@ impl<'a> TraitImpl<'a> {
 
 impl Visitor for TraitImpl<'_> {
     fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
-        self.item_check(node.name, node.node_id);
+        self.item_check(node.name, node.span);
     }
 
     fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
-        self.item_check(node.name, node.node_id);
+        self.item_check(node.name, node.span);
     }
 
     fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
-        self.item_check(node.name, node.node_id);
+        self.item_check(node.name, node.span);
     }
 
     fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
-        self.item_check(node.name, node.node_id);
+        self.item_check(node.name, node.span);
     }
 
     fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
-        self.item_check(node.name, node.node_id);
+        self.item_check(node.name, node.span);
     }
 }
 
@@ -418,7 +418,7 @@ impl Pass for TraitImpl<'_> {
 
             let Some(trait_entry) = hir.traits.iter().find(|(_, ctx)| Arc::ptr_eq(ctx.read().sym.as_ref().unwrap(), &trait_sym_ref)) else {
                 self.ctx.add_error(HirError {
-                    node_id: node.read().node_id,
+                    span: node.read().span,
                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait" },
                 });
                 continue;
@@ -432,7 +432,7 @@ impl Pass for TraitImpl<'_> {
                 
                 if !item.has_default {
                     self.ctx.add_error(HirError {
-                        node_id: node.read().node_id,
+                        span: node.read().span,
                         err: HirErrorCode::ImplNoDefault { item: item.name.clone() },
                     });
                     continue;
@@ -451,7 +451,7 @@ impl Pass for TraitImpl<'_> {
                         TraitItemKind::Function => {
                             let Some(entry) = hir.trait_functions.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
-                                    node_id: node.read().node_id,
+                                    span: node.read().span,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait function" },
                                 });
                                 continue;
@@ -462,8 +462,8 @@ impl Pass for TraitImpl<'_> {
                             let body = trait_fn.body.clone().unwrap();
                             
                             let def_fn = Function {
-                                span: trait_fn.span,
                                 node_id: trait_fn.node_id,
+                                span: trait_fn.span,
                                 attrs: Vec::new(),
                                 vis: vis.clone(),
                                 is_const: trait_fn.is_const,
@@ -487,7 +487,7 @@ impl Pass for TraitImpl<'_> {
                         TraitItemKind::Method => {
                             let Some(entry) = hir.trait_methods.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
-                                    node_id: node.read().node_id,
+                                    span: node.read().span,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait method" },
                                 });
                                 continue;
@@ -498,8 +498,8 @@ impl Pass for TraitImpl<'_> {
                             let body = trait_fn.body.clone().unwrap();
 
                             let def_method = Method {
-                                span: trait_fn.span,
                                 node_id: trait_fn.node_id,
+                                span: trait_fn.span,
                                 attrs: Vec::new(),
                                 vis: vis.clone(),
                                 is_const: trait_fn.is_const,
@@ -523,7 +523,7 @@ impl Pass for TraitImpl<'_> {
                         TraitItemKind::TypeAlias => {
                             let Some(entry) = hir.trait_type_alias.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
-                                    node_id: node.read().node_id,
+                                    span: node.read().span,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait type alias" },
                                 });
                                 continue;
@@ -535,8 +535,8 @@ impl Pass for TraitImpl<'_> {
                             let ty = trait_alias.def.clone().unwrap();
 
                             let def_alias = TypeAlias {
-                                span: trait_alias.span,
                                 node_id: trait_alias.node_id,
+                                span: trait_alias.span,
                                 attrs: Vec::new(),
                                 vis: vis.clone(),
                                 name: trait_alias.name,
@@ -553,7 +553,7 @@ impl Pass for TraitImpl<'_> {
                         TraitItemKind::Const => {
                             let Some(entry) = hir.trait_consts.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
-                                    node_id: node.read().node_id,
+                                    span: node.read().span,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait const" },
                                 });
                                 continue;
@@ -564,8 +564,8 @@ impl Pass for TraitImpl<'_> {
                             let val = trait_const.def.clone().unwrap();
 
                             let def_const = Const {
-                                span: trait_const.span,
                                 node_id: trait_const.node_id,
+                                span: trait_const.span,
                                 attrs: Vec::new(),
                                 vis: vis.clone(),
                                 name: trait_const.name,
@@ -582,7 +582,7 @@ impl Pass for TraitImpl<'_> {
                         TraitItemKind::Property { get, ref_get, mut_set, set } => {
                             let Some(entry) = hir.trait_properties.iter().find(|(_, _,  ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {
                                 self.ctx.add_error(HirError {
-                                    node_id: node.read().node_id,
+                                    span: node.read().span,
                                     err: HirErrorCode::NoHirItemForSymbol { kind: "trait property" },
                                 });
                                 continue;
@@ -593,8 +593,8 @@ impl Pass for TraitImpl<'_> {
                             let TraitPropMembers::Def { get, ref_get, mut_get, set } = &trait_prop.members else { unreachable!() };
 
                             let def_prop = Property {
-                                span: trait_prop.span,
                                 node_id: trait_prop.node_id,
+                                span: trait_prop.span,
                                 attrs: Vec::new(),
                                 vis: vis.clone(),
                                 is_unsafe: trait_prop.is_unsafe,
@@ -616,7 +616,7 @@ impl Pass for TraitImpl<'_> {
                 } else {
                     // We now need to somehow get this from an external library
                     self.ctx.add_error(HirError {
-                        node_id: NodeId::INVALID,
+                        span: SpanId::INVALID,
                         err: HirErrorCode::NotSupportedYet { info: "Retrieving default implementations from external libraries" }, 
                     });
                 }

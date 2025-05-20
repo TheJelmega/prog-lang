@@ -45,7 +45,7 @@ impl Visitor for PrecedenceAttrib<'_> {
             }
 
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Unsupported path: {path}, only `builtin` is supported") },
             });
             return;
@@ -53,7 +53,7 @@ impl Visitor for PrecedenceAttrib<'_> {
 
         if &self.ctx.names.read()[node.path.names[0]] != "builtin" {
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Unsupported path: {}, only `builtin` is supported", &self.ctx.names.read()[node.path.names[0]]) },
             });
             return;
@@ -61,7 +61,7 @@ impl Visitor for PrecedenceAttrib<'_> {
 
         if node.metas.len() != 1 {
             self.ctx.add_error(HirError {
-                node_id: node.node_id,
+                span: node.span,
                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only 1 meta element is supported") },
             });
             return;
@@ -71,7 +71,7 @@ impl Visitor for PrecedenceAttrib<'_> {
             AttrMeta::Simple { path } => {
                 if path.names.len() != 1 {
                     self.ctx.add_error(HirError {
-                        node_id: node.node_id,
+                        span: node.span,
                         err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                     });
                     return;
@@ -82,7 +82,7 @@ impl Visitor for PrecedenceAttrib<'_> {
                         let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
                         if ctx.is_highest {
                             self.ctx.add_error(HirError {
-                                node_id: path.node_id,
+                                span: path.span,
                                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
                             });
                         }
@@ -92,7 +92,7 @@ impl Visitor for PrecedenceAttrib<'_> {
                         let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
                         if ctx.is_lowest {
                             self.ctx.add_error(HirError {
-                                node_id: path.node_id,
+                                span: path.span,
                                 err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
                             });
                         }
@@ -100,7 +100,7 @@ impl Visitor for PrecedenceAttrib<'_> {
                     },
                     _ => {
                         self.ctx.add_error(HirError {
-                            node_id: path.node_id,
+                            span: path.span,
                             err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                         });
                         return;
@@ -109,7 +109,7 @@ impl Visitor for PrecedenceAttrib<'_> {
             },
             _ => {
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("Only `builtin(highest_precedence)` and `builtin(lowest_precedence)` are supported") },
                 });
             },
@@ -183,7 +183,7 @@ impl Visitor for PrecedenceConnect<'_> {
         if let Some((lower_than, _)) = node.lower_than {
             if ctx.is_highest {
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Highest precedence cannot be lower than other precedences".to_string() },
                 });
             } else {
@@ -195,7 +195,7 @@ impl Visitor for PrecedenceConnect<'_> {
         if let Some((higher_than, _)) = node.higher_than {
             if ctx.is_highest {
                 self.ctx.add_error(HirError {
-                    node_id: node.node_id,
+                    span: node.span,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Lowest precedence cannot be higher than other precedences".to_string() },
                 });
             } else {
