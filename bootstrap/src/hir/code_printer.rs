@@ -519,15 +519,9 @@ impl Visitor for CodePrinter<'_> {
             node.abi,
             &self.names[node.name]
         ));
-        if let Some(generics) = &mut node.generics {
-            self.visit_gen_params(generics);
-        }
         if let Some(ty) = &mut node.return_ty {
             self.logger.log(" -> ");
             self.visit_type(ty);
-        }
-        if let Some(where_clause) = &mut node.where_clause {
-            self.visit_where_clause(where_clause);
         }
         if node.params.is_empty() {
             self.logger.log("()");

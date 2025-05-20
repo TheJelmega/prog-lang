@@ -1228,7 +1228,17 @@ impl Visitor for AstToHirLowering<'_> {
         let attrs = self.get_attribs(&node.attrs);
         let body = node.body.as_ref().map(|body| self.convert_fn_body(body, node.returns.as_ref(), return_ty.as_ref()));
 
-        let (generics, where_clause) = self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref());
+        let (generics, where_clause) = if node.abi.is_some() {
+            if node.generics.is_some() || node.where_clause.is_some() {
+                self.ctx.add_error(AstError {
+                    node_id: node.node_id,
+                    err: AstErrorCode::ExternFuncHasGenerics,
+                });
+            }
+            (None, None)
+        } else {
+            self.convert_generic_params(node.generics.as_ref(), node.where_clause.as_ref())
+        };
 
         let node_ctx = self.ctx.get_node_for(node);
 
@@ -1260,10 +1270,8 @@ impl Visitor for AstToHirLowering<'_> {
                 is_unsafe: node.is_unsafe,
                 abi,
                 name: node.name,
-                generics,
                 params,
                 return_ty,
-                where_clause,
                 contracts,
             });
         }

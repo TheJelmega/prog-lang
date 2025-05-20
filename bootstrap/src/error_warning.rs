@@ -224,6 +224,8 @@ pub enum AstErrorCode {
     ParamPackExpectedExprDef{ pos: u32 },
 
     TraitPropNotAllDefOrNone,
+
+    ExternFuncHasGenerics,
 }
 
 impl Display for AstErrorCode {
@@ -261,6 +263,8 @@ impl Display for AstErrorCode {
             Self::ParamPackExpectedExprDef{ pos } => write!(f, "Expected an expression as a paramter pack default in position {pos}"),
 
             Self::TraitPropNotAllDefOrNone        => write!(f, "Trait properties must either have no defaults, or all defined getters and/or set require to have defaults"),
+
+            Self::ExternFuncHasGenerics          => write!(f, "External functions are not allowed to have generics"),
 
             #[allow(unreachable_patterns)]
             _                                     => write!(f, "Unknown AST error"),

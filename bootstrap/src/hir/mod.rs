@@ -184,10 +184,8 @@ pub struct ExternFunctionNoBody {
     pub is_unsafe:    bool,
     pub abi:          Abi,
     pub name:         NameId,
-    pub generics:     Option<Box<GenericParams>>,
     pub params:       Vec<FnParam>,
     pub return_ty:    Option<Box<Type>>,
-    pub where_clause: Option<Box<WhereClause>>,
     pub contracts:    Vec<Box<Contract>>,
 }
 
