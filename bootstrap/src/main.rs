@@ -517,21 +517,18 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     // Trait
     do_hir_pass(hir, cli, stats, TraitItemProcess::new(ctx));
     
-    // Impl
+    // Impl trait processing
     do_hir_pass(hir, cli, stats, ImplTypeGen::new(ctx));
-    do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
-    
-    do_hir_pass(hir, cli, stats, EarlyPathGen::new(ctx));
-
+    do_hir_pass(hir, cli, stats, ImplTraitPathGen::new(ctx));
     do_hir_pass(hir, cli, stats, TypeImplSymbolAssoc::new(ctx));
-
     do_hir_pass(hir, cli, stats, ImplTraitSymResolve::new(ctx));
     do_hir_pass(hir, cli, stats, ImplTraitItemCollection::new(ctx));
     do_hir_pass(hir, cli, stats, TraitImpl::new(ctx));
-
-
+    
+    // Misc
     do_hir_pass(hir, cli, stats, VisibilityProcess::new(ctx.lib_path.clone()));
-
+    do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
+    
     !ctx.errors.read().is_empty()
 }
 

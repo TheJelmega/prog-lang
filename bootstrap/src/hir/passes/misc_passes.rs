@@ -40,11 +40,11 @@ impl Pass for SimplePathGen<'_> {
 
 //==============================================================================================================================
 
-pub struct EarlyPathGen<'a> {
+pub struct ImplTraitPathGen<'a> {
     ctx: &'a PassContext
 }
 
-impl<'a> EarlyPathGen<'a> {
+impl<'a> ImplTraitPathGen<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx
@@ -52,30 +52,34 @@ impl<'a> EarlyPathGen<'a> {
     }
 }
 
-impl Visitor for EarlyPathGen<'_> {
+impl Visitor for ImplTraitPathGen<'_> {
     fn visit_path(&mut self, node: &mut Path) {
-        if !node.ctx.path.is_empty() {
-            return;
-        }
-
         let mut path = Scope::new();
         let names = self.ctx.names.read();
 
         for iden in &node.idens {
             match &iden.name {
-                IdenName::Name { name, span } => {
-                    path.push(names[*name].to_string());
-                },
-                IdenName::Disambig { span, trait_path, name, name_span } => todo!(),
+                IdenName::Name { name, span } => path.push(names[*name].to_string()),
+                IdenName::Disambig { span, trait_path, name, name_span } => unreachable!("Disambiguation in trait path are disallowed in the parser"),
             }
         }
 
         node.ctx.path = path;
     }
+
+    fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
+        if let Some(path) = &mut node.impl_trait {
+            self.visit_path(path);
+        }
+    }
 }
 
-impl Pass for EarlyPathGen<'_> {
-    const NAME: &'static str = "Early Path Generation";
+impl Pass for ImplTraitPathGen<'_> {
+    const NAME: &'static str = "Implementation Trait Path Generation";
+
+    fn process(&mut self, hir: &mut Hir) {
+        self.visit(hir, VisitFlags::Impl);
+    }
 }
 
 //==============================================================================================================================
