@@ -763,19 +763,12 @@ pub(crate) mod helpers {
             visitor.visit_attribute(attr);
         }
 
-        if let Some(generics) = &mut node.generics {
-            visitor.visit_gen_params(generics);
-        }
-
         for param in &mut node.params {
             helpers::visit_fn_param(visitor, param);
         }
 
         if let Some(ret_ty) = &mut node.return_ty {
             visitor.visit_type(ret_ty);
-        }
-        if let Some(where_clause) = &mut node.where_clause {
-            visitor.visit_where_clause(where_clause);
         }
 
         for contract in &mut node.contracts {
