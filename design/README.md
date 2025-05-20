@@ -184,7 +184,8 @@ Version: 0.0
     26. [Underscore expression](#926-underscore-expression-)
     27. [Throw expression](#927-throw-expression-)
     28. [Comma expression](#928-comma-expression-)
-    28. [When expression](#929-when-expression-)
+    29. [When expression](#929-when-expression-)
+    30. [Template string expression](#930-template-string-expressions-)
 10. [Patterns](#10-patterns-)
     1. [Literal pattern](#101-literal-pattern-)
     2. [Identifier pattern](#102-identifier-pattern-)
@@ -1991,19 +1992,30 @@ When declaring a static within a external block, `extern` has to be left out.
 ```
 <property> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
 <prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
-<prop-get> := 'get' <expr-no-block> ';'
-            | 'get' <expr-with-block>
-<prop-ref-get> := 'ref' 'get' <expr-no-block> ';'
-                | 'ref' 'get' <expr-with-block>
-<prop-mut-get> := 'mut' 'get' <expr-no-block> ';'
-                | 'mut' 'get' <expr-with-block>
-<prop-get> := 'set' <expr-no-block> ';'
-            | 'set' <expr-with-block>
+<prop-get> := [ <vis> ]'get' <expr-no-block> ';'
+            | [ <vis> ]'get' <expr-with-block>
+<prop-ref-get> := [ <vis> ]'ref' 'get' <expr-no-block> ';'
+                | [ <vis> ]'ref' 'get' <expr-with-block>
+<prop-mut-get> := [ <vis> ]'mut' 'get' <expr-no-block> ';'
+                | [ <vis> ]'mut' 'get' <expr-with-block>
+<prop-get> := [ <vis> ]'set' <expr-no-block> ';'
+            | [ <vis> ]'set' <expr-with-block>
+
+<property-direct-bind> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <property-direct-bound-get-det> }[1,4] '}' ':=' <name> ';'
+<property-direct-bind-get-set> := [ <vis> ] [ [ 'mut' ] 'ref' ] 'get'
+                                | [ <vis> ] 'set'
 ```
 
 A property allows a field-like value to be associated with a set of expressions that handle the underlying value changes.
 
-Properties are implemented as having either _getters_, a _setter_ or both.
+Properties are implemented as having either _getters_, a _setter_ or both, these are know as accessors.
+
+Accessors can have their own visibility assigned, although they may not have a broader visibility and may only narrow the visibility of the accessors relative to the property.
+If no explicit visibility is provided, the visibility of the property will be used.
+
+A property may also be a so-called direct-bind property, meaning that the property directly refers to a field within the implementing type.
+The main use of this is to restrict the use of the given field.
+Direct bind propery do not allow a custom implementation and the compiler should emit normal field accesses for these fields.
 
 The program needs to be aware that using properties may result in slower code, depending on the underlying implementation.
 
@@ -2070,6 +2082,8 @@ Trait implementation cannot implement additional getters/setters.
 
 A default implementation can be provided which will be used when no explicit property is defined within an implementation.
 If any setter or getter has a default value, all others are also required to have a default.
+
+When implementing a property, if any getter or a setter is explicitly set, all others are also required to be explicitly defined.
 
 ## 7.12. Trait [↵](#7-items-)
 
@@ -3298,7 +3312,7 @@ Unlike languages with exception, this expression can be seen as a 'fancy' return
 Comma expressions are a set of expressions separated by commas.
 It is a very niche expression type that has a very limited amount of places it can be used.
 
-## 9.29. When expressions
+## 9.29. When expression [↵](#9-expressions-)
 
 ```
 <when-expression> := 'when' <expr> <block> [ 'else' <expr-with-block> ]
@@ -3313,6 +3327,30 @@ The `else` can only be followed by a block, or another `when` expression.
 This can be thought of as containing code marked with the cfg attribute.
 
 _Todo: this might be allowed outside of expressions in the future_
+
+## 9.30. Template string expressions [↵](#9-expressions-)
+
+_NOTE: Not implemented yet_
+
+```
+<template-string-epxr> := ( '$' | <name> ) <string-literal>
+```
+
+A template string expressions can be seen as a special function call to a template string function, but works by directly prepending the name of it in front of the string literal.
+They allow values from the current scope to be encoded within the string, by placing it in between braces, i.e. `{` or `}`.
+If a `{` or `}` needs to be used, they can be escaped by doubling up the character, i.e. `{{` or `}}`.
+
+The value that can be found inbetween `{` and `}` needs to be a name of a variable or constant.
+Modifiers can be added to  each value by having `:` follow the value, of which the meaning is defined by the specific template string expression.
+
+A special template string exists which is prefixed by `$`, this will call the formatting template string function defined within the implicit context, 
+and can therefore only be used in a context where the implicit context is available.
+
+> _Note_: This functionality will likely also be supported in a function form, which allows parameters for missing values to be added behind it.
+>         This will allow for no explicit value to be passed between `{` and `}`, and it to pick for the additional values provided after the template string.
+>         A literal will also be possible to be provided, signalling the index of the value in the expressions passed to the function.
+
+_TODO: Figure out specific syntax for a template string function_
 
 # 10. Patterns [↵](#tables-of-contents)
 
@@ -5395,6 +5433,10 @@ In these cases, the relevant function associated with the wanted implementation 
 If multiple libraries are imported using an `op use`, this will cause a compiler error, only 1 version of each operator should be imported within the current scope, unless the operator is defined within the current library, as this will take priority over imported operators.
 
 Unlike importing their associated traits, `op use`s are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root, and must not be nested within a module in that file.
+
+One of the main purposes of this rule is to keep a consistent meaning of operators accross a library, i.e. avoiding a situation where an operator in 1 file has a different meaning than in another file, even if both are in the same library.
+
+The core operators will always be implicitly imported and cannot be overridden
 
 # 15. Precedence [↵](#tables-of-contents)
 
