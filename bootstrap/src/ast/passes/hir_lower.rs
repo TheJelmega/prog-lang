@@ -725,7 +725,8 @@ impl AstToHirLowering<'_> {
                         hir_params.push(hir::GenericParam::Type(hir::GenericTypeParam {
                             span: param.span,
                             name: param.name,
-                            def, 
+                            def,
+                            ctx: hir::GenericParamContext::new(),
                         }));
 
                         if !where_bounds.is_empty() {
@@ -766,6 +767,7 @@ impl AstToHirLowering<'_> {
                             name: param.name,
                             ty,
                             def,
+                            ctx: hir::GenericParamContext::new(),
                         }));
                     },
                     GenericParam::ConstSpec(param) => {
@@ -809,6 +811,7 @@ impl AstToHirLowering<'_> {
                                         name_span: name.1,
                                         ty_span: *span,
                                         defs,
+                                        ctx: hir::GenericParamContext::new(),
                                     })
                                 },
                                 GenericParamPackDesc::TypeBounds(span, bounds) => {
@@ -835,7 +838,8 @@ impl AstToHirLowering<'_> {
                                         name: name.0,
                                         name_span: name.1,
                                         ty_span: SpanId::INVALID,
-                                        defs
+                                        defs,
+                                        ctx: hir::GenericParamContext::new(),
                                     });
 
                                     let mut hir_bounds = Vec::new();

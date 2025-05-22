@@ -1743,7 +1743,7 @@ impl Visitor for NodeLogger<'_> {
                 this.log_indented("Parameter Pack", |this| {
                     for elem in &mut pack.elems {
                         match elem {
-                            GenericParamPackElem::Type { name, name_span, ty_span, defs } => this.log_indented("Parameter Pack Type Element", |this| {
+                            GenericParamPackElem::Type { name, defs, .. } => this.log_indented("Parameter Pack Type Element", |this| {
                                 this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
                                 this.logger.set_last_at_indent();
                                 if !defs.is_empty() {
@@ -1752,7 +1752,7 @@ impl Visitor for NodeLogger<'_> {
                                     });
                                 }
                             }),
-                            GenericParamPackElem::Const { name, name_span, ty, defs } => this.log_indented("Parameter Pack Expression Type Element", |this| {
+                            GenericParamPackElem::Const { name, ty, defs, .. } => this.log_indented("Parameter Pack Expression Type Element", |this| {
                                 this.logger.prefixed_log_fmt(format_args!("Name: {}\n", &this.names[*name]));
                                 this.log_indented("Type", |this| this.visit_type(ty));
                                 if !defs.is_empty() {

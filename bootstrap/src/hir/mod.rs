@@ -1558,6 +1558,19 @@ pub struct FnType {
 // =============================================================================================================================
 
 #[derive(Clone)]
+pub struct GenericParamContext {
+    pub sym: Option<SymbolRef>,
+}
+
+impl GenericParamContext {
+    pub fn new() -> Self {
+        Self {
+            sym: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct GenericParams {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
@@ -1578,6 +1591,7 @@ pub struct GenericTypeParam {
     pub span: SpanId,
     pub name: NameId,
     pub def:  Option<Box<Type>>,
+    pub ctx:  GenericParamContext,
 }
 
 #[derive(Clone)]
@@ -1592,6 +1606,7 @@ pub struct GenericConstParam {
     pub name: NameId,
     pub ty:   Box<Type>,
     pub def:  Option<Box<Expr>>,
+    pub ctx:  GenericParamContext,
 }
 
 #[derive(Clone)]
@@ -1614,12 +1629,14 @@ pub enum GenericParamPackElem {
         name_span: SpanId,
         ty_span:   SpanId,
         defs:      Vec<Box<Type>>,
+        ctx:       GenericParamContext,
     },
     Const {
         name:      NameId,
         name_span: SpanId,
         ty:        Box<Type>,
         defs:      Vec<Box<Expr>>,
+        ctx:       GenericParamContext,
     }
 }
 

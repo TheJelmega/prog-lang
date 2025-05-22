@@ -57,6 +57,8 @@ pub enum Symbol {
     Property(PropertySymbol),
     Trait(TraitSymbol),
     Impl(ImplSymbol),
+    TypeGeneric(TypeGenericSymbol),
+    ValueGeneric(ValueGenericSymbol),
 }
 
 impl Symbol {
@@ -78,6 +80,8 @@ impl Symbol {
             Symbol::Property(_)     => "property",
             Symbol::Trait(_)        => "trait",
             Symbol::Impl(_)         => "impl",
+            Symbol::TypeGeneric(_)  => "type generic",
+            Symbol::ValueGeneric(_) => "value generic"
         }
     }
 
@@ -99,6 +103,8 @@ impl Symbol {
             Symbol::Property(sym)     => &sym.path,
             Symbol::Trait(sym)        => &sym.path,
             Symbol::Impl(sym)         => &sym.path,
+            Symbol::TypeGeneric(sym)  => &sym.path,
+            Symbol::ValueGeneric(sym) => &sym.path,
         }
     }
 }
@@ -276,6 +282,20 @@ pub struct TraitSymbol {
 pub struct ImplSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+}
+
+//----------------------------------------------
+
+pub struct TypeGenericSymbol {
+    pub path:    SymbolPath,
+    pub vis:     Visibility,
+    pub in_pack: bool,
+}
+
+pub struct ValueGenericSymbol {
+    pub path:    SymbolPath,
+    pub vis:     Visibility,
+    pub in_pack: bool,
 }
 
 //----------------------------------------------
@@ -569,6 +589,32 @@ impl RootSymbolTable {
         self.add_symbol(scope, &name, &[], sym)
     }
 
+    pub fn add_type_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
+        let sym = Symbol::TypeGeneric(TypeGenericSymbol {
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
+            vis: Visibility::Public, // Placeholder visibility
+            in_pack,
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
+    pub fn add_value_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
+        let sym = Symbol::ValueGeneric(ValueGenericSymbol {
+            path: SymbolPath {
+                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope: scope.clone(),
+                name: name.to_string(),
+            },
+            vis: Visibility::Public, // Placeholder visibility
+            in_pack,
+        });
+        self.add_symbol(scope, &name, &[], sym)
+    }
+
     fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
         // SAFETY: We always add the table for `self.cur_lib`, so we know it exists
         let cur_table = self.tables.get_mut(&self.cur_lib).unwrap();
@@ -723,119 +769,117 @@ impl SymbolTableLogger {
 
     fn log_symbol(logger: &mut IndentLogger, sym: &Symbol, sub_table: Option<&SymbolTable>) {
         match sym {
-            Symbol::Module(sym) =>
-            {
+            Symbol::Module(sym) => {
                 logger.prefixed_logln("Module");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("File Path: {}\n", sym.file_path.to_str().unwrap()));
             },
-            Symbol::Precedence(sym) =>
-            {
+            Symbol::Precedence(sym) => {
                 logger.prefixed_logln("Precedence");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Id: {}\n", sym.id));
             },
-            Symbol::Function(sym) =>
-            {
+            Symbol::Function(sym) => {
                 logger.prefixed_logln("Function");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::TypeAlias(sym) =>
-            {
+            Symbol::TypeAlias(sym) => {
                 logger.prefixed_logln("Type Alias");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::DistinctType(sym) =>
-            {
+            Symbol::DistinctType(sym) => {
                 logger.prefixed_logln("Distinct Type");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::OpaqueType(sym) =>
-            {
+            Symbol::OpaqueType(sym) => {
                 logger.prefixed_logln("Opaque Type");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Struct(sym) =>
-            {
+            Symbol::Struct(sym) => {
                 logger.prefixed_logln("Struct");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             }, 
-            Symbol::Union(sym) =>
-            {   
+            Symbol::Union(sym) => {   
                 logger.prefixed_logln("Union");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::AdtEnum(sym) =>
-            {
+            Symbol::AdtEnum(sym) => {
                 logger.prefixed_logln("ADT enum");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::FlagEnum(sym) =>
-            {
+            Symbol::FlagEnum(sym) => {
                 logger.prefixed_logln("Flag");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Bitfield(sym) =>
-            {
+            Symbol::Bitfield(sym) => {
                 logger.prefixed_logln("Bitfield");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Const(sym) =>
-            {
+            Symbol::Const(sym) => {
                 logger.prefixed_logln("Const");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Static(sym) =>
-            {
+            Symbol::Static(sym) => {
                 logger.prefixed_logln("Static");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
                 logger.prefixed_log_fmt(format_args!("Kind: {}\n", sym.kind));
             },
-            Symbol::Property(sym) =>
-            {
+            Symbol::Property(sym) => {
                 logger.prefixed_logln("Property");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Trait(sym) =>
-            {
+            Symbol::Trait(sym) => {
                 logger.prefixed_logln("Trait");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
             },
-            Symbol::Impl(sym) =>
-            {
+            Symbol::Impl(sym) => {
                 logger.prefixed_logln("Impl");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
+            },
+            Symbol::TypeGeneric(sym) => {
+                logger.prefixed_logln("Type Generic");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
+                logger.prefixed_log_fmt(format_args!("In Parameter Pack: {}\n", sym.in_pack));
+            },
+            Symbol::ValueGeneric(sym) => {
+                logger.prefixed_logln("Value Generic");
+                logger.push_indent();
+                logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+                logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
+                logger.prefixed_log_fmt(format_args!("In Parameter Pack: {}\n", sym.in_pack));
             },
         }
 

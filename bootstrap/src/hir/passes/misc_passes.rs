@@ -105,11 +105,51 @@ impl VisibilityProcess {
             Visibility::Path { span, node_id, path } => common::Visibility::Path(lib.clone(), path.ctx.path.clone()),
         }
     }
+
+    fn process_generic_params(params: &mut GenericParams, vis: &common::Visibility) {
+        for param in &mut params.params {
+            match param {
+                GenericParam::Type(param) => {
+                    let mut sym = param.ctx.sym.as_ref().unwrap().write();
+                    let Symbol::TypeGeneric(sym) = &mut *sym else { unreachable!() };
+                    sym.vis = vis.clone();
+                },
+                GenericParam::TypeSpec(_) => (),
+                GenericParam::Const(param) => {
+                    let mut sym = param.ctx.sym.as_ref().unwrap().write();
+                    let Symbol::ValueGeneric(sym) = &mut *sym else { unreachable!() };
+                    sym.vis = vis.clone();
+                },
+                GenericParam::ConstSpec(_) => (),
+            }
+        }
+
+        if let Some(pack) = &mut params.pack {
+            for elem in &mut pack.elems {
+                match elem {
+                    GenericParamPackElem::Type { name, name_span, ty_span, defs, ctx } => {
+                        let mut sym = ctx.sym.as_ref().unwrap().write();
+                        let Symbol::TypeGeneric(sym) = &mut *sym else { unreachable!() };
+                        sym.vis = vis.clone();
+                    },
+                    GenericParamPackElem::Const { name, name_span, ty, defs, ctx } => {
+                    let mut sym = ctx.sym.as_ref().unwrap().write();
+                    let Symbol::ValueGeneric(sym) = &mut *sym else { unreachable!() };
+                    sym.vis = vis.clone();
+                },
+                }
+            }
+        }
+    }
 }
 
 impl Visitor for VisibilityProcess {
     fn visit_function(&mut self, node: &mut Function, ctx: &mut FunctionContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Function(sym) = &mut *sym else { unreachable!() };
@@ -126,6 +166,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_type_alias(&mut self, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };
@@ -134,6 +178,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_distinct_type(&mut self, node: &mut DistinctType, ctx: &mut TypeAliasContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::DistinctType(sym) = &mut *sym else { unreachable!() };
@@ -150,6 +198,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_struct(&mut self, node: &mut Struct, ctx: &mut StructContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Struct(sym) = &mut *sym else { unreachable!() };
@@ -158,6 +210,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_tuple_struct(&mut self, node: &mut TupleStruct, ctx: &mut StructContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Struct(sym) = &mut *sym else { unreachable!() };
@@ -174,6 +230,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_union(&mut self, node: &mut Union, ctx: &mut UnionContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Union(sym) = &mut *sym else { unreachable!() };
@@ -182,6 +242,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_adt_enum(&mut self, node: &mut AdtEnum, ctx: &mut AdtEnumContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::AdtEnum(sym) = &mut *sym else { unreachable!() };
@@ -198,6 +262,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_bitfield(&mut self, node: &mut Bitfield, ctx: &mut BitfieldContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Bitfield(sym) = &mut *sym else { unreachable!() };
@@ -230,6 +298,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Trait(sym) = &mut *sym else { unreachable!() };
@@ -240,30 +312,46 @@ impl Visitor for VisibilityProcess {
         let trait_sym = trait_ctx.read();
         let trait_sym = trait_sym.sym.as_ref().unwrap().read();
         let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+        let vis = trait_sym.vis.clone();
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
+        
 
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Function(sym) = &mut *sym else { unreachable!() };
-        sym.vis = trait_sym.vis.clone();
+        sym.vis = vis;
     }
 
     fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
         let trait_sym = trait_ctx.read();
         let trait_sym = trait_sym.sym.as_ref().unwrap().read();
         let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+        let vis = trait_sym.vis.clone();
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
 
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Function(sym) = &mut *sym else { unreachable!() };
-        sym.vis = trait_sym.vis.clone();
+        sym.vis = vis;
     }
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         let trait_sym = trait_ctx.read();
         let trait_sym = trait_sym.sym.as_ref().unwrap().read();
         let Symbol::Trait(trait_sym) = &*trait_sym else { unreachable!() };
+        let vis = trait_sym.vis.clone();
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
 
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };
-        sym.vis = trait_sym.vis.clone();
+        sym.vis = vis;
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
@@ -288,6 +376,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Impl(sym) = &mut *sym else { unreachable!() };
@@ -296,6 +388,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Function(sym) = &mut *sym else { unreachable!() };
@@ -304,6 +400,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Function(sym) = &mut *sym else { unreachable!() };
@@ -312,6 +412,10 @@ impl Visitor for VisibilityProcess {
 
     fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         let vis = Self::convert_visibility(&node.vis, &self.lib, &ctx.scope, &ctx.file_scope);
+
+        if let Some(generics) = &mut node.generics {
+            Self::process_generic_params(generics, &vis);
+        }
         
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::TypeAlias(sym) = &mut *sym else { unreachable!() };

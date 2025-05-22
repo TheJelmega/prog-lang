@@ -384,10 +384,20 @@ impl Visitor for OpTraitGen<'_> {
             let name = names.add("Rhs");
             let def = Some(Box::new(PathType::self_ty(node.span, node.node_id)));
 
+            let mut syms = self.ctx.syms.write();
+            let mut gen_scope = ctx.scope.clone();
+            gen_scope.push(names[node.name].to_string());
+            let rhs_sym = syms.add_type_generic(None, &gen_scope, "Rhs", false);
+
+            let ctx = GenericParamContext {
+                sym: Some(rhs_sym),
+            };
+
             let param = GenericParam::Type(GenericTypeParam {
                 span: node.span,
                 name,
                 def,
+                ctx,
             });
 
             Some(Box::new(GenericParams {
