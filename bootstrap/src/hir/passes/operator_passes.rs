@@ -551,9 +551,7 @@ impl Visitor for OpTraitGen<'_> {
             return;
         };
 
-        let mut syms = self.ctx.syms.write();
-        let sym = syms.add_function(None, &entry.scope, &names[node.name]);
-        
+        let sym = ctx.sym.clone().unwrap();
         entry.methods.push((method, sym));     
     }
 }
