@@ -25,8 +25,10 @@ pub use operator_passes::*;
 mod trait_passes;
 pub use trait_passes::*;
 
-mod explicit_type_passes;
-pub use explicit_type_passes::*;
+
+mod type_pass_utils;
+mod type_passes;
+pub use type_passes::*;
 
 #[derive(Clone)]
 pub struct PassContext {

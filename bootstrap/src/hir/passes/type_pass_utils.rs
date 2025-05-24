@@ -1,17 +1,15 @@
-use crate::{
-    common::Scope,
-    error_warning::HirErrorCode,
-    hir::*
-};
+use passes::PassContext;
 
-use super::{Pass, PassContext};
+use crate::hir::*;
 
-pub struct ExplicitTypeGenHelper<'a> {
+
+pub struct TypeGenUtils<'a> {
     ctx:           &'a PassContext,
     pub cur_scope: Scope,
 }
 
-impl<'a> ExplicitTypeGenHelper<'a> {
+
+impl<'a> TypeGenUtils<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
@@ -20,7 +18,8 @@ impl<'a> ExplicitTypeGenHelper<'a> {
     }
 }
 
-impl Visitor for ExplicitTypeGenHelper<'_> {
+
+impl Visitor for TypeGenUtils<'_> {
     fn visit_unit_type(&mut self, node: &mut UnitType) {
         if node.ctx.ty.is_some() {
             return;
@@ -56,28 +55,9 @@ impl Visitor for ExplicitTypeGenHelper<'_> {
             return;
         }
 
-        let syms = self.ctx.syms.read();
-        let uses = self.ctx.uses.read();
-
-        let sym = match syms.get_symbol_with_uses(&uses, &self.cur_scope, None, &node.path.ctx.path) {
-            Some(sym) => {
-                let mut registry = self.ctx.type_reg.write();
-                let ty = registry.create_path_type(sym);
-                node.ctx.ty = Some(ty);
-            },
-            None => {
-                self.ctx.add_error(HirError {
-                    span: node.span,
-                    err: HirErrorCode::UnknownSymbol { path: node.path.ctx.path.clone() },
-                });
-
-                let mut registry = self.ctx.type_reg.write();
-                let ty = registry.create_unit_type();
-                node.ctx.ty = Some(ty);
-            },
-        };
-
-        
+        let mut registry = self.ctx.type_reg.write();
+        let ty = registry.create_path_type(node.path.ctx.path.clone());
+        node.ctx.ty = Some(ty);
     }
 
     fn visit_tuple_type(&mut self, node: &mut TupleType) {
@@ -183,34 +163,5 @@ impl Visitor for ExplicitTypeGenHelper<'_> {
         let mut registry = self.ctx.type_reg.write();
         let ty = registry.create_unit_type();
         node.ctx.ty = Some(ty);
-    }
-}
-
-
-pub struct ImplTypeGen<'a> {
-    ctx:    &'a PassContext,
-    helper: ExplicitTypeGenHelper<'a>
-}
-
-impl<'a> ImplTypeGen<'a> {
-    pub fn new(ctx: &'a PassContext) -> Self {
-        Self {
-            ctx,
-            helper: ExplicitTypeGenHelper::new(ctx),
-        }
-    }
-}
-
-impl Visitor for ImplTypeGen<'_> {
-    fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
-        self.helper.visit_type(&mut node.ty);
-    }
-}
-
-impl Pass for ImplTypeGen<'_> {
-    const NAME: &'static str = "Impl Type Generation";
-
-    fn process(&mut self, hir: &mut Hir) {
-        self.visit(hir, VisitFlags::Impl);
     }
 }

@@ -2,9 +2,11 @@ use std::{ops::Deref, sync::Arc};
 
 use parking_lot::RwLock;
 
-use crate::common::{Logger, SymbolPath, SymbolRef};
+use crate::common::{Logger, Scope, SymbolPath, SymbolRef};
 
 use super::*;
+
+// TODO: Handle creation after replacements correctly
 
 pub struct TypeRegistry {
     prim_types:      Vec<Option<TypeHandle>>,
@@ -73,7 +75,7 @@ impl TypeRegistry {
             for prim_ty in &self.prim_types {
                 if let Some(prim_ty) = prim_ty {
                     let prim_ty = prim_ty.get();
-                    logger.log_fmt(format_args!("    {prim_ty}\n"));
+                    logger.log_fmt(format_args!("    - {prim_ty}\n"));
                 }
             }
         }
@@ -82,7 +84,7 @@ impl TypeRegistry {
             logger.logln("- String slice types:");
             for str_slice_ty in &self.str_slice_types {
                 if let Some(str_slice_ty) = str_slice_ty {
-                    logger.log_fmt(format_args!("    {str_slice_ty}\n"));
+                    logger.log_fmt(format_args!("    - {str_slice_ty}\n"));
                 }
             }
         }
@@ -90,42 +92,54 @@ impl TypeRegistry {
         if !self.path_types.is_empty() {
             logger.logln("- Path types:");
             for path_ty in &self.path_types {
-                logger.log_fmt(format_args!("    {path_ty}\n"));
+                let ty = path_ty.get();
+                let Type::Path(ty) = &*ty else { unreachable!() };
+                let resolved = if ty.sym.is_some() {
+                    "  (symbol resolved)"
+                } else {
+                    ""
+                };
+                // We first write it in a string, as rust decided to limit how you can format it, but doesn't even handle it for you.
+                // So we are just gonna let the string formatting handle it for us.
+                // Then why not allow completely custom format specifiers. smh.
+                // And no, I'm not gonna handle all possible specifiers in each implementation of display I'm gonna make.
+                let ty_str = format!("{path_ty}");
+                logger.log_fmt(format_args!("    - {ty_str:96}{resolved}\n"));
             }
         }
 
         if !self.tuple_types.is_empty() {
             logger.logln("- Tuple types:");
             for tup_ty in &self.tuple_types {
-                logger.log_fmt(format_args!("    {tup_ty}\n"));
+                logger.log_fmt(format_args!("    - {tup_ty}\n"));
             }
         }
 
         if !self.array_types.is_empty() {
             logger.logln("- Array types:");
             for arr_ty in &self.array_types {
-                logger.log_fmt(format_args!("    {arr_ty}\n"));
+                logger.log_fmt(format_args!("    - {arr_ty}\n"));
             }
         }
 
         if !self.slice_types.is_empty() {
             logger.logln("- Slice types:");
             for slice_ty in &self.slice_types {
-                logger.log_fmt(format_args!("    {slice_ty}\n"));
+                logger.log_fmt(format_args!("    - {slice_ty}\n"));
             }
         }
 
         if !self.pointer_types.is_empty() {
             logger.logln("- Pointer types:");
             for ptr_ty in &self.pointer_types {
-                logger.log_fmt(format_args!("    {ptr_ty}\n"));
+                logger.log_fmt(format_args!("    - {ptr_ty}\n"));
             }
         }
 
         if !self.reference_types.is_empty() {
             logger.logln("- Reference types:");
             for ref_ty in &self.reference_types {
-                logger.log_fmt(format_args!("    {ref_ty}\n"));
+                logger.log_fmt(format_args!("    - {ref_ty}\n"));
             }
         }
     }
@@ -182,15 +196,33 @@ impl TypeRegistry {
         }
     }
 
-    pub fn create_path_type(&mut self, sym: SymbolRef) -> TypeHandle {
+    pub fn create_sym_path_type(&mut self, sym: SymbolRef) -> TypeHandle {
+        let path = {
+            let sym = sym.read();
+            let mut path = sym.path().scope.clone();
+            path.push(sym.path().name.clone());
+            path
+        };
+
         for path_ty in &self.path_types {
-            let Type::Path(PathType{ sym: inner_sym }) = &*path_ty.get() else { unreachable!() };
-            if Arc::ptr_eq(inner_sym, &sym) {
-                return path_ty.clone();
+            let Type::Path(PathType{ sym: inner_sym, .. }) = &*path_ty.get() else { unreachable!() };
+            if let Some(inner_sym) = inner_sym {   
+                if Arc::ptr_eq(inner_sym, &sym) {
+                    return path_ty.clone();
+                }
             }
         }
+        
+        let ty = TypeHandle::new(Type::Path(PathType { path, sym: Some(sym) }));
+        self.path_types.push(ty.clone());
+        ty
+    }
 
-        let ty = TypeHandle::new(Type::Path(PathType { sym  }));
+    pub fn create_path_type(&mut self, path: Scope) -> TypeHandle {
+        // We don't have enough info to actually resolves what the path points to, i.e. don't know the full path, just the local one
+        // So just create a new type, we can later on redirect it to the correct path
+        // But there does need to be a better way to do it, but generics make this a harder problem to solve atm without further work on type resolution
+        let ty = TypeHandle::new(Type::Path(PathType{ path, sym: None }));
         self.path_types.push(ty.clone());
         ty
     }

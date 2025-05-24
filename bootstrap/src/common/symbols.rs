@@ -107,6 +107,29 @@ impl Symbol {
             Symbol::ValueGeneric(sym) => &sym.path,
         }
     }
+
+    pub fn get_type(&self) -> Option<&TypeHandle> {
+        match self {
+            Symbol::Module(sym) => None,
+            Symbol::Precedence(sym) => None,
+            Symbol::Function(sym) => sym.ty.as_ref(),
+            Symbol::TypeAlias(sym) => sym.ty.as_ref(),
+            Symbol::DistinctType(sym) => sym.ty.as_ref(),
+            Symbol::OpaqueType(sym) => sym.ty.as_ref(),
+            Symbol::Struct(sym) => sym.ty.as_ref(),
+            Symbol::Union(sym) => sym.ty.as_ref(),
+            Symbol::AdtEnum(sym) => sym.ty.as_ref(),
+            Symbol::FlagEnum(sym) => sym.ty.as_ref(),
+            Symbol::Bitfield(sym) => sym.ty.as_ref(),
+            Symbol::Const(sym) => sym.ty.as_ref(),
+            Symbol::Static(sym) => sym.ty.as_ref(),
+            Symbol::Property(sym) => sym.ty.as_ref(),
+            Symbol::Trait(sym) => sym.ty.as_ref(),
+            Symbol::Impl(sym) => None,
+            Symbol::TypeGeneric(sym) => sym.ty.as_ref(),
+            Symbol::ValueGeneric(sym) => sym.ty.as_ref(),
+        }
+    }
 }
 
 //----------------------------------------------
@@ -126,8 +149,9 @@ pub struct PrecedenceSymbol {
 //----------------------------------------------
 
 pub struct FunctionSymbol {
-    pub path:      SymbolPath,
-    pub vis:       Visibility,
+    pub path: SymbolPath,
+    pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 }
 
 //----------------------------------------------
@@ -135,17 +159,20 @@ pub struct FunctionSymbol {
 pub struct TypeAliasSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 }
 
 pub struct DistinctTypeSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
     
 }
 
 pub struct OpaqueTypeSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
     
 }
 
@@ -172,6 +199,7 @@ pub struct StructSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
     pub kind: StructKind,
+    pub ty:   Option<TypeHandle>,
 }
 
 //----------------------------------------------
@@ -179,6 +207,7 @@ pub struct StructSymbol {
 pub struct UnionSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 
 }
 
@@ -186,6 +215,7 @@ pub struct UnionSymbol {
 pub struct AdtEnumSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 
 }
 
@@ -194,6 +224,7 @@ pub struct AdtEnumSymbol {
 pub struct FlagEnumSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 
 }
 
@@ -202,6 +233,7 @@ pub struct FlagEnumSymbol {
 pub struct BitfieldSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 
 }
 
@@ -210,7 +242,7 @@ pub struct BitfieldSymbol {
 pub struct ConstSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
-
+    pub ty:   Option<TypeHandle>,
 }
 
 //----------------------------------------------
@@ -236,6 +268,7 @@ pub struct StaticSymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
     pub kind: StaticKind,
+    pub ty:   Option<TypeHandle>,
 }
 
 //----------------------------------------------
@@ -243,6 +276,7 @@ pub struct StaticSymbol {
 pub struct PropertySymbol {
     pub path: SymbolPath,
     pub vis:  Visibility,
+    pub ty:   Option<TypeHandle>,
 }
 
 
@@ -273,6 +307,7 @@ pub struct TraitItemRecord {
 pub struct TraitSymbol {
     pub path:    SymbolPath,
     pub vis:     Visibility,
+    pub ty:      Option<TypeHandle>,
     pub dag_idx: u32,
     pub items:   Vec<TraitItemRecord>,
 }
@@ -289,12 +324,14 @@ pub struct ImplSymbol {
 pub struct TypeGenericSymbol {
     pub path:    SymbolPath,
     pub vis:     Visibility,
+    pub ty:      Option<TypeHandle>,
     pub in_pack: bool,
 }
 
 pub struct ValueGenericSymbol {
     pub path:    SymbolPath,
     pub vis:     Visibility,
+    pub ty:      Option<TypeHandle>,
     pub in_pack: bool,
 }
 
@@ -425,6 +462,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -437,6 +475,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -449,6 +488,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -461,6 +501,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -473,6 +514,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
             kind,
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -486,6 +528,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -498,6 +541,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -510,6 +554,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -522,6 +567,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -534,6 +580,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -547,6 +594,7 @@ impl RootSymbolTable {
             },
             vis: Visibility::Public, // Placeholder visibility
             kind,
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -559,6 +607,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
         });
         self.add_symbol(scope, &name, &[], sym)
     }
@@ -571,6 +620,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
             dag_idx: u32::MAX,
             items: Vec::new(),
         });
@@ -597,6 +647,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
             in_pack,
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -610,6 +661,7 @@ impl RootSymbolTable {
                 name: name.to_string(),
             },
             vis: Visibility::Public, // Placeholder visibility
+            ty: None,
             in_pack,
         });
         self.add_symbol(scope, &name, &[], sym)

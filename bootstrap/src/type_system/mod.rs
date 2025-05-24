@@ -155,7 +155,7 @@ impl fmt::Display for Type {
             Type::Reference(ty)       => write!(f, "{ty}"),
             Type::Optional        => todo!(),
             Type::Func            => todo!(),
-            Type::FuncPtr(ty)         => write!(f, "<inferred>"),
+            Type::FuncPtr(ty)         => write!(f, "{ty}"),
             Type::Closure         => todo!(),
             Type::Inferred            => write!(f, "<inferred>"),
             Type::TraitObject(ty)     => write!(f, "{ty}"),
