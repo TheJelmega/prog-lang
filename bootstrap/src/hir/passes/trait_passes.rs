@@ -599,6 +599,7 @@ impl Pass for TraitImpl<'_> {
                                 vis: vis.clone(),
                                 is_unsafe: trait_prop.is_unsafe,
                                 name: trait_prop.name,
+                                ty: Some(trait_prop.ty.clone()),
                                 get: get.clone().map(|(_, expr)| expr),
                                 ref_get: ref_get.clone().map(|(_, expr)| expr),
                                 mut_get: mut_get.clone().map(|(_, expr)| expr),

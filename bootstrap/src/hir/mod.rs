@@ -589,6 +589,7 @@ pub struct Property {
     pub vis:       Visibility,
     pub is_unsafe: bool,
     pub name:      NameId,
+    pub ty:        Option<Box<Type>>,
     pub get:       Option<Box<Expr>>,
     pub ref_get:   Option<Box<Expr>>,
     pub mut_get:   Option<Box<Expr>>,

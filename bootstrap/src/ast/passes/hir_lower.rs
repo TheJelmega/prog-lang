@@ -2141,6 +2141,8 @@ impl Visitor for AstToHirLowering<'_> {
         let ref_get = node.ref_get.as_ref().map(|_| self.expr_stack.pop().unwrap());
         let get = node.get.as_ref().map(|_| self.expr_stack.pop().unwrap());
 
+        let ty = node.ty.as_ref().map(|_| self.type_stack.pop().unwrap());
+
         let vis = self.get_vis(node.vis.as_ref());
         let attrs = self.get_attribs(&node.attrs);
 
@@ -2151,6 +2153,7 @@ impl Visitor for AstToHirLowering<'_> {
             vis,
             is_unsafe: node.is_unsafe,
             name: node.name,
+            ty,
             get,
             ref_get,
             mut_get,

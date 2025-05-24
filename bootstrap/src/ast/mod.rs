@@ -1625,6 +1625,7 @@ pub struct Property {
     pub vis:       Option<AstNodeRef<Visibility>>,
     pub is_unsafe: bool,
     pub name:      NameId,
+    pub ty:        Option<Type>,
     pub get:       Option<(SpanId, Expr)>,
     pub ref_get:   Option<(SpanId, Expr)>,
     pub mut_get:   Option<(SpanId, Expr)>,
