@@ -18,8 +18,8 @@ pub use operators::*;
 mod names;
 pub use names::*;
 
-mod symbol_table;
-pub use symbol_table::*;
+mod symbols;
+pub use symbols::*;
 
 pub mod uses;
 pub use uses::*;
