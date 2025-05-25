@@ -547,6 +547,12 @@ impl Visitor for SelfTyReplacePass<'_> {
         helpers::visit_impl(self, node);
     }
 
+    fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
+        self.self_ty = self.create_path_type(&ctx.scope, node.name, node.generics.as_ref(), node.span, node.node_id);
+        self.trait_path = None;
+        helpers::visit_trait(self, node);
+    }
+
     //--------------------------------------------------------------
 
     fn visit_path(&mut self, path: &mut Path) {
@@ -599,6 +605,7 @@ impl Pass for SelfTyReplacePass<'_> {
                   | VisitFlags::Union
                   | VisitFlags::AdtEnum
                   | VisitFlags::Union
+                  | VisitFlags::AnyImpl
                   | VisitFlags::AnyTrait;
 
         self.visit(hir, flags);
