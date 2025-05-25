@@ -52,12 +52,16 @@ pub use impl_trait::*;
 mod registry;
 pub use registry::*;
 
+mod dependency;
+pub use dependency::*;
+
 pub type TypeRef = Arc<Type>;
 //pub type TypeHandle = Arc<RwLock<TypeHandleInner>>;
 
 struct TypeHandleInner {
     ty:       TypeRef,
     resolved: Option<TypeRef>,
+    dag_idx:  u32,
 }
 
 impl TypeHandleInner {
@@ -66,6 +70,14 @@ impl TypeHandleInner {
             Some(resolved) => resolved.clone(),
             None           => self.ty.clone(),
         }
+    }
+
+    pub fn dag_idx(&self) -> u32 {
+        self.dag_idx
+    }
+
+    pub fn set_dag_idx(&mut self, idx: u32) {
+        self.dag_idx = idx;
     }
 }
 
@@ -79,6 +91,7 @@ impl TypeHandle {
         let handle = Arc::new(RwLock::new(TypeHandleInner {
             ty: Arc::new(ty),
             resolved: None,
+            dag_idx: u32::MAX,
         }));
         Self {
             handle,

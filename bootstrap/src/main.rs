@@ -393,8 +393,12 @@ fn main() {
     }
 
     if cli.print_type_registry {
+        println!("-[types]------------------------");
         type_registry.read().log();
-        println!("--------------------------------");
+    }
+    if cli.print_type_dependencies {
+        println!("-[type dependencies]------------");
+        type_registry.read().log_dependencies();
     }
 
     if cli.timings {

@@ -1,6 +1,8 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Display};
 
 use bootstrap_macros::flags;
+
+use super::IndentLogger;
 
 
 
@@ -263,6 +265,37 @@ impl<T> Dag<T> {
 
     pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> {
         IterMut { iter: self.nodes.iter_mut() }
+    }
+}
+
+impl<T> Dag<T> {
+    pub fn log_nodes<U, F>(&self, skip_no_dependencies: bool, f: F) where 
+        U: Display,
+        F: Fn(&T) -> &U
+    {
+        let mut logger = IndentLogger::new("  ", "--", "+-");
+        for node in &self.nodes {
+            if !skip_no_dependencies || !node.predecessors.is_empty() {
+                
+                self.log_node_(&mut logger, node, true, &f);
+            }
+        }
+    }
+
+    fn log_node_<U, F>(&self, logger: &mut IndentLogger, node: &DagNode<T>, first: bool, f: &F) where
+        U: Display,
+        F: Fn(&T) -> &U
+    {
+        logger.log(if first { "-" } else { " " });
+        logger.prefixed_log_fmt(format_args!("{}\n", f(&node.data)));
+        let end = if node.predecessors.is_empty() { 0 } else { node.predecessors.len() - 1 };
+        for (elem_idx, dag_idx) in node.predecessors.iter().enumerate() {
+            logger.set_last_at_indent_if(elem_idx == end);
+            logger.push_indent();
+            let node = &self.nodes[*dag_idx as usize];
+            self.log_node_(logger, node, false, f);
+            logger.pop_indent();
+        }
     }
 }
 

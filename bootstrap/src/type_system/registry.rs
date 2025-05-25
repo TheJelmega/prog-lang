@@ -9,6 +9,8 @@ use super::*;
 // TODO: Handle creation after replacements correctly
 
 pub struct TypeRegistry {
+    dependencies:    DependencyDag,
+
     prim_types:      Vec<Option<TypeHandle>>,
     str_slice_types: Vec<Option<TypeHandle>>,
     unit_ty:         Option<TypeHandle>,
@@ -25,6 +27,8 @@ pub struct TypeRegistry {
 impl TypeRegistry {
     pub fn new() -> Self {
         Self {
+            dependencies: DependencyDag::new(),
+
             prim_types: Vec::new(),
             str_slice_types: Vec::new(),
             unit_ty: None,
@@ -146,6 +150,10 @@ impl TypeRegistry {
         }
     }
 
+    pub fn log_dependencies(&self) {
+        self.dependencies.log_nodes();
+    }
+
     pub fn create_primitive_type(&mut self, ty: PrimitiveType) -> TypeHandle {
         let idx = ty as usize;
         if idx < self.prim_types.len() {
@@ -159,6 +167,7 @@ impl TypeRegistry {
             self.prim_types.resize(idx + 1, None);
         }
         self.prim_types[idx] = Some(ty.clone());
+        self.dependencies.add(ty.clone());
         ty
     }
 
@@ -175,6 +184,7 @@ impl TypeRegistry {
             self.str_slice_types.resize(idx + 1, None);
         }
         self.str_slice_types[idx] = Some(ty.clone());
+        self.dependencies.add(ty.clone());
         ty
     }
 
@@ -184,6 +194,7 @@ impl TypeRegistry {
         } else {
             let ty = TypeHandle::new(Type::Unit(UnitType));
             self.unit_ty = Some(ty.clone());
+            self.dependencies.add(ty.clone());
             ty
         }
     }
@@ -194,6 +205,7 @@ impl TypeRegistry {
         } else {
             let ty = TypeHandle::new(Type::Never(NeverType));
             self.unit_ty = Some(ty.clone());
+            self.dependencies.add(ty.clone());
             ty
         }
     }
@@ -215,8 +227,22 @@ impl TypeRegistry {
             }
         }
         
-        let ty = TypeHandle::new(Type::Path(PathType { path, sym: Some(sym) }));
+        let ty = TypeHandle::new(Type::Path(PathType { path: path.clone(), sym: Some(sym) }));
         self.path_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        for segment in path.segments() {
+            for arg in &segment.gen_args {
+                match arg {
+                    crate::common::ScopeGenArg::Type { ty } => {
+                        let base_idx = ty.handle.read().dag_idx();
+                        self.dependencies.set_dependency(dag_idx, base_idx);
+                    },
+                    _ => (),
+                }
+            }
+        }
         ty
     }
 
@@ -224,8 +250,23 @@ impl TypeRegistry {
         // We don't have enough info to actually resolves what the path points to, i.e. don't know the full path, just the local one
         // So just create a new type, we can later on redirect it to the correct path
         // But there does need to be a better way to do it, but generics make this a harder problem to solve atm without further work on type resolution
-        let ty = TypeHandle::new(Type::Path(PathType{ path, sym: None }));
+        let ty = TypeHandle::new(Type::Path(PathType{ path: path.clone(), sym: None }));
         self.path_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        for segment in path.segments() {
+            for arg in &segment.gen_args {
+                match arg {
+                    crate::common::ScopeGenArg::Type { ty } => {
+                        let base_idx = ty.handle.read().dag_idx();
+                        self.dependencies.set_dependency(dag_idx, base_idx);
+                    },
+                    _ => (),
+                }
+            }
+        }
+        
         ty
     }
 
@@ -247,57 +288,83 @@ impl TypeRegistry {
 
         let ty = TypeHandle::new(Type::Tuple(TupleType { types: Vec::from(types) }));
         self.tuple_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        for ty in types {
+            let base_idx = ty.handle.read().dag_idx();
+            self.dependencies.set_dependency(dag_idx, base_idx);
+        }
+
         ty
     }
 
-    pub fn create_array_type(&mut self, ty: TypeHandle, size: Option<usize>) -> TypeHandle {
+    pub fn create_array_type(&mut self, elem_ty: TypeHandle, size: Option<usize>) -> TypeHandle {
         for arr_ty in &self.array_types {
             let Type::Array(ArrayType { ty: inner_ty, size: inner_size }) = &*arr_ty.get() else { unreachable!() };
-            if TypeHandle::ptr_eq(inner_ty, &ty) && *inner_size == size {
+            if TypeHandle::ptr_eq(inner_ty, &elem_ty) && *inner_size == size {
                 return arr_ty.clone();
             }
         }
 
-        let ty = TypeHandle::new(Type::Array(ArrayType { ty, size }));
+        let ty = TypeHandle::new(Type::Array(ArrayType { ty: elem_ty.clone(), size }));
         self.array_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        let base_idx = elem_ty.handle.read().dag_idx();
+        self.dependencies.set_dependency(dag_idx, base_idx);
+
         ty
     }
 
-    pub fn create_slice_type(&mut self, ty: TypeHandle) -> TypeHandle {
+    pub fn create_slice_type(&mut self, elem_ty: TypeHandle) -> TypeHandle {
         for arr_ty in &self.slice_types {
             let Type::Slice(SliceType { ty: inner_ty }) = &*arr_ty.get() else { unreachable!() };
-            if TypeHandle::ptr_eq(inner_ty, &ty) {
+            if TypeHandle::ptr_eq(inner_ty, &elem_ty) {
                 return arr_ty.clone();
             }
         }
 
-        let ty = TypeHandle::new(Type::Slice(SliceType { ty }));
+        let ty = TypeHandle::new(Type::Slice(SliceType { ty: elem_ty.clone() }));
         self.slice_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        let base_idx = elem_ty.handle.read().dag_idx();
+        self.dependencies.set_dependency(dag_idx, base_idx);
+
         ty
     }
 
-    pub fn create_pointer_type(&mut self, ty: TypeHandle, is_multi: bool) -> TypeHandle {
+    pub fn create_pointer_type(&mut self, elem_ty: TypeHandle, is_multi: bool) -> TypeHandle {
         for ptr_ty in &self.pointer_types {
             let Type::Pointer(PointerType { ty: inner_ty, is_multi: inner_multi }) = &*ptr_ty.get() else { unreachable!() };
-            if TypeHandle::ptr_eq(inner_ty, &ty) && *inner_multi == is_multi {
+            if TypeHandle::ptr_eq(inner_ty, &elem_ty) && *inner_multi == is_multi {
                 return ptr_ty.clone();
             }
         }
 
-        let ty = TypeHandle::new(Type::Pointer(PointerType { ty, is_multi }));
+        let ty = TypeHandle::new(Type::Pointer(PointerType { ty: elem_ty.clone(), is_multi }));
         self.pointer_types.push(ty.clone());
+
+        self.dependencies.add(ty.clone());
+        let dag_idx = ty.handle.read().dag_idx();
+        let base_idx = elem_ty.handle.read().dag_idx();
+        self.dependencies.set_dependency(dag_idx, base_idx);
+
         ty
     }
 
-    pub fn create_reference_type(&mut self, ty: TypeHandle, is_mut: bool) -> TypeHandle {
+    pub fn create_reference_type(&mut self, elem_ty: TypeHandle, is_mut: bool) -> TypeHandle {
         for ref_ty in &self.reference_types {
             let Type::Reference(ReferenceType { ty: inner_ty, is_mut: inner_mut }) = &*ref_ty.get() else { unreachable!() };
-            if TypeHandle::ptr_eq(inner_ty, &ty) && *inner_mut == is_mut {
+            if TypeHandle::ptr_eq(inner_ty, &elem_ty) && *inner_mut == is_mut {
                 return ref_ty.clone();
             }
         }
 
-        let ty = TypeHandle::new(Type::Reference(ReferenceType { ty, is_mut }));
+        let ty = TypeHandle::new(Type::Reference(ReferenceType { ty: elem_ty.clone(), is_mut }));
         self.reference_types.push(ty.clone());
         ty
     }
@@ -305,6 +372,7 @@ impl TypeRegistry {
     pub fn create_placeholder_type(&mut self) -> TypeHandle {
         let ty = TypeHandle::new(Type::Placeholder);
         self.placeholders.push(ty.clone());
+        self.dependencies.add(ty.clone());
         ty
     }
 }

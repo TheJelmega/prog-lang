@@ -8,6 +8,7 @@ mod stats;
 pub use stats::*;
 
 mod dag;
+pub use dag::Dag;
 
 mod precedence;
 pub use precedence::*;
