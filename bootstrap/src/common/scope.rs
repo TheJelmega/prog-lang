@@ -3,25 +3,28 @@ use std::{
     fmt,
 };
 
+use crate::type_system::TypeHandle;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum ScopeGenArg {
+    Type {
+        ty: TypeHandle,
+    },
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ScopeSegment {
-    pub name:   String,
-    pub params: Vec<String>
+    pub name:     String,
+    pub params:   Vec<String>,
+    pub gen_args: Vec<ScopeGenArg>,
 }
 
 impl ScopeSegment {
-    fn new(name: String) -> Self {
-        Self {
-            name,
-            params: Vec::new(),
-        }
-    }
-
-    fn new_with_params(name: String, params: Vec<String>) -> Self {
+    pub fn new(name: String, params: Vec<String>, gen_args: Vec<ScopeGenArg>) -> Self {
         Self {
             name,
             params,
+            gen_args,
         }
     }
 }
@@ -40,11 +43,11 @@ impl Scope {
     }
 
     pub fn push(&mut self, name: String) {
-        self.segments.push(ScopeSegment::new(name));
+        self.segments.push(ScopeSegment::new(name, Vec::new(), Vec::new()));
     }
 
     pub fn push_with_params(&mut self, name: String, params: Vec<String>) {
-        self.segments.push(ScopeSegment::new_with_params(name, params));
+        self.segments.push(ScopeSegment::new(name, params, Vec::new()));
     }
 
     pub fn push_segment(&mut self, segment: ScopeSegment) {
@@ -121,6 +124,19 @@ impl fmt::Display for Scope {
             }
 
             write!(f, "{}", &segment.name)?;
+            if !segment.gen_args.is_empty() {
+                write!(f, "[")?;
+                for (idx, arg) in segment.gen_args.iter().enumerate() {
+                    if idx != 0 {
+                        write!(f, ", ")?
+                    }
+
+                    match arg {
+                        ScopeGenArg::Type { ty } => write!(f, "{ty}")?,
+                    }
+                }
+                write!(f, "]")?;
+            }
             if !segment.params.is_empty() {
                 write!(f, "(")?;
 

@@ -138,6 +138,7 @@ pub enum Type {
     Inferred,
     TraitObject(TraitObjectType),
     ImplTrait(ImplTraitType),
+    Placeholder,
 }
 
 impl fmt::Display for Type {
@@ -160,6 +161,7 @@ impl fmt::Display for Type {
             Type::Inferred            => write!(f, "<inferred>"),
             Type::TraitObject(ty)     => write!(f, "{ty}"),
             Type::ImplTrait(ty)       => write!(f, "{ty}"),
+            Type::Placeholder         => write!(f, "<placeholder>"),
         }
     }
 }

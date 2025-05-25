@@ -529,7 +529,8 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     // Misc
     do_hir_pass(hir, cli, stats, VisibilityProcess::new(ctx.lib_path.clone()));
     do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
-    
+    do_hir_pass(hir, cli, stats, PathGen::new(ctx));
+
     // Types
     do_hir_pass(hir, cli, stats, ItemLevelTypeGen::new(ctx));
     do_hir_pass(hir, cli, stats, TypeImplSymbolAssoc::new(ctx));

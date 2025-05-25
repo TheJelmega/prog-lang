@@ -30,6 +30,9 @@ mod type_pass_utils;
 mod type_passes;
 pub use type_passes::*;
 
+mod path_passes;
+pub use path_passes::*;
+
 #[derive(Clone)]
 pub struct PassContext {
     pub names:          Arc<RwLock<NameTable>>,

@@ -19,6 +19,7 @@ pub struct TypeRegistry {
     slice_types:     Vec<TypeHandle>,
     pointer_types:   Vec<TypeHandle>,
     reference_types: Vec<TypeHandle>,
+    placeholders:    Vec<TypeHandle>,
 }
 
 impl TypeRegistry {
@@ -34,6 +35,7 @@ impl TypeRegistry {
             slice_types: Vec::new(),
             pointer_types: Vec::new(),
             reference_types: Vec::new(),
+            placeholders: Vec::new(),
         }
     }
 
@@ -300,4 +302,9 @@ impl TypeRegistry {
         ty
     }
 
+    pub fn create_placeholder_type(&mut self) -> TypeHandle {
+        let ty = TypeHandle::new(Type::Placeholder);
+        self.placeholders.push(ty.clone());
+        ty
+    }
 }

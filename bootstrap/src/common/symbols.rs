@@ -810,6 +810,7 @@ impl SymbolTableLogger {
                     let segment = ScopeSegment {
                         name: name.clone(),
                         params: params.clone(),
+                        gen_args: Vec::new(), // TODO
                     };
                     let sub_table = table.get_sub_table(&[segment]);
                     logger.log_indented(&params_s, |logger| Self::log_symbol(logger, &sym.read(), sub_table));
