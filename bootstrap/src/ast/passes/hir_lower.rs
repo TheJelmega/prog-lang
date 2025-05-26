@@ -2356,6 +2356,7 @@ impl Visitor for AstToHirLowering<'_> {
             span: node.span,
             stmts,
             expr,
+            ctx: hir::BlockContext::new(),
         });
     }
 
@@ -3458,6 +3459,7 @@ impl Visitor for AstToHirLowering<'_> {
                 }))
             ],
             expr: None,
+            ctx: hir::BlockContext::new(),
         };
 
         // (6)
@@ -3613,6 +3615,7 @@ impl Visitor for AstToHirLowering<'_> {
                 }))
             ],
             expr: None,
+            ctx: hir::BlockContext::new(),
         };
         // (1)
         self.push_expr(hir::Expr::Loop(hir::LoopExpr {

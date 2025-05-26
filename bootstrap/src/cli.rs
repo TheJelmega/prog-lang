@@ -44,6 +44,8 @@ pub struct Cli {
     pub print_type_registry: bool,
     #[arg(long)]
     pub print_type_dependencies: bool,
+    #[arg(long)]
+    pub print_var_info:      bool,
 
     #[arg(long)]
     pub timings:             bool,

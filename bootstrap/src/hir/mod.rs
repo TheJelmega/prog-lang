@@ -7,7 +7,7 @@ use std::{fmt, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::{
-    ast, common::{Abi, FormatSpan, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SpanRegistry, SymbolRef, TraitItemRecord}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
+    ast, common::{Abi, FormatSpan, NameId, OpType, PrecedenceAssocKind, Scope, SpanId, SpanRegistry, SymbolRef, TraitItemRecord, VarInfoId, VarScopeId, VariableInfo}, error_warning::{HirErrorCode, LexErrorCode}, lexer::Punctuation, literals::LiteralId, type_system
 };
 
 mod visitor;
@@ -189,6 +189,7 @@ pub struct ExternFunctionNoBody {
     pub contracts:    Vec<Box<Contract>>,
 }
 
+// TODO: combine into single receiver, i.e. &mut self becomes self: &mut Self
 #[derive(Clone)]
 pub enum FnReceiver {
     None,
@@ -221,6 +222,7 @@ pub enum FnParam {
         ty:      Box<Type>,
         def:     Box<Expr>,
     },
+    // TODO: allow this to be mut
     Variadic {
         span:    SpanId,
         attrs:   Vec<Box<Attribute>>,
@@ -645,10 +647,25 @@ pub struct Precedence {
 // =============================================================================================================================
 
 #[derive(Clone)]
+pub struct BlockContext {
+    var_scope: VarScopeId,
+}
+
+impl BlockContext {
+    pub fn new() -> Self {
+        Self {
+            var_scope: VarScopeId::INVALID,
+        }
+    }
+}
+
+
+#[derive(Clone)]
 pub struct Block {
     pub span:  SpanId,
     pub stmts: Vec<Box<Stmt>>,
     pub expr:  Option<Box<Expr>>,
+    pub ctx:   BlockContext
 }
 
 // =============================================================================================================================
@@ -1757,6 +1774,7 @@ pub struct FunctionContext {
     pub scope:      Scope,
     pub sym:        Option<SymbolRef>,
     pub file_scope: Scope,
+    pub var_info:   VarInfoId,
 }
 
 impl FunctionContext {
@@ -1765,6 +1783,7 @@ impl FunctionContext {
             scope,
             sym: None,
             file_scope,
+            var_info: VarInfoId::INVALID,
         }
     }
 }

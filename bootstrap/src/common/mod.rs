@@ -34,6 +34,9 @@ pub use span::*;
 mod traits;
 pub use traits::*;
 
+mod expr_utils;
+pub use expr_utils::*;
+
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct LibraryPath {

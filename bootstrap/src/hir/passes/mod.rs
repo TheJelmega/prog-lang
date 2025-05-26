@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag},
+    common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag, VarInfoMap},
     lexer::{Punctuation, PuncutationTable},
     literals::LiteralTable,
     type_system::TypeRegistry
@@ -33,6 +33,9 @@ pub use type_passes::*;
 mod path_passes;
 pub use path_passes::*;
 
+mod expr_passes;
+pub use expr_passes::*;
+
 #[derive(Clone)]
 pub struct PassContext {
     pub names:          Arc<RwLock<NameTable>>,
@@ -47,6 +50,8 @@ pub struct PassContext {
 
     pub precedence_dag: Arc<RwLock<PrecedenceDAG>>,
     pub op_table:       Arc<RwLock<OperatorTable>>,
+
+    pub var_infos:      Arc<RwLock<VarInfoMap>>,
 
     pub lib_path:       LibraryPath,
 

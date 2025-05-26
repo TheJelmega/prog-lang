@@ -523,6 +523,7 @@ impl Visitor for OpTraitGen<'_> {
                 span: node.span,
                 stmts: Vec::new(),
                 expr: Some(expr.clone()),
+                ctx: BlockContext::new(),
             })
         });
 

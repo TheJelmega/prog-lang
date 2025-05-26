@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use clap::Parser as _;
 use ast::{Parser, Visitor as _};
 use cli::Cli;
-use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanId, SpanRegistry, Symbol, TraitDag};
+use common::{CompilerStats, FormatSpanLoc, LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, Scope, SpanId, SpanRegistry, Symbol, TraitDag, VarInfoMap};
 use hir::{FormatHirError, Visitor as _};
 use lexer::{Lexer, PuncutationTable};
 use literals::LiteralTable;
@@ -70,6 +70,8 @@ fn main() {
 
     let span_registry = SpanRegistry::new();
     let span_registry = Arc::new(RwLock::new(span_registry));
+
+    let var_info_map = Arc::new(RwLock::new(VarInfoMap::new()));
 
     let mut asts = Vec::new();
 
@@ -339,6 +341,7 @@ fn main() {
             uses: use_table.clone(),
             precedence_dag: precedences.clone(),
             op_table: operators.clone(),
+            var_infos: var_info_map.clone(),
             lib_path: library_path.clone(),
             errors: Arc::new(RwLock::new(Vec::new())),
         };
@@ -399,6 +402,11 @@ fn main() {
     if cli.print_type_dependencies {
         println!("-[type dependencies]------------");
         type_registry.read().log_dependencies();
+    }
+
+    if cli.print_var_info {
+        println!("-[Variable Info]----------------");
+        var_info_map.read().log();
     }
 
     if cli.timings {
@@ -534,6 +542,10 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     do_hir_pass(hir, cli, stats, VisibilityProcess::new(ctx.lib_path.clone()));
     do_hir_pass(hir, cli, stats, SelfTyReplacePass::new(ctx));
     do_hir_pass(hir, cli, stats, PathGen::new(ctx));
+
+    // Variable collection
+    do_hir_pass(hir, cli, stats, VariableScopeCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, VariableCollection::new(ctx));
 
     // Types
     do_hir_pass(hir, cli, stats, ItemLevelTypeGen::new(ctx));
