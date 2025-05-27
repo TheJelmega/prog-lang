@@ -555,13 +555,33 @@ impl Visitor for SelfTyReplacePass<'_> {
 
     //--------------------------------------------------------------
 
+    fn visit_type(&mut self, node: &mut Type) {
+        match node {
+            Type::Path(path) => {
+                let act_path = &mut path.path;
+                if act_path.idens.is_empty() {
+                    assert!(matches!(&act_path.start, PathStart::SelfTy { .. }));
+                    // This can only exist after this represents a path type
+                    // So this is either starting with a type or a path, we handle the type specially here, otherwise we just pass this along to `visit_path_type`
+                    if let SelfTyReplaceInfo::Type(ty) = &self.self_ty {
+                        *node = *ty.clone();
+                    } else {
+                        self.visit_path_type(path);
+                    }
+                } else {
+                    helpers::visit_path_type(self, path)
+                }
+            },
+            _ => helpers::visit_type(self, node)
+        }
+    }
+
     fn visit_path(&mut self, path: &mut Path) {
         helpers::visit_path(self, path);
 
         if !matches!(&path.start, PathStart::SelfTy { .. }) {
             return;
         }
-
 
         match &self.self_ty {
             SelfTyReplaceInfo::Invalid => {
