@@ -113,17 +113,19 @@ impl Visitor for PathGen<'_> {
         let mut path = Scope::new();
         let names = self.ctx.names.read();
 
-        for iden in &node.idens {
+        for iden in &mut node.idens {
             let name = match &iden.name {
                 IdenName::Name { name, span } => names[*name].to_string(),
                 IdenName::Disambig { span, trait_path, name, name_span } => todo!(),
             };
 
             let mut args = Vec::new();
-            if let Some(gen_args) = &iden.gen_args {
-                for arg in &gen_args.args {
+            if let Some(gen_args) = &mut iden.gen_args {
+                for arg in &mut gen_args.args {
                     match arg {
-                        GenericArg::Type(_) => {
+                        GenericArg::Type(ty) => {
+                            self.visit_type(ty);
+
                             let mut type_reg = self.ctx.type_reg.write();
                             let ty = type_reg.create_placeholder_type();
                             args.push(ScopeGenArg::Type { ty });

@@ -154,6 +154,11 @@ impl TypeRegistry {
         self.dependencies.log_nodes();
     }
 
+    // TODO: Add some info in the registry to fix up and propagate resolved types (if this is actually needed at some point)
+    pub fn set_resolved(&mut self, ty: &TypeHandle, resolved: TypeHandle) {
+        ty.handle.write().resolved = Some(resolved);
+    }
+
     pub fn create_primitive_type(&mut self, ty: PrimitiveType) -> TypeHandle {
         let idx = ty as usize;
         if idx < self.prim_types.len() {

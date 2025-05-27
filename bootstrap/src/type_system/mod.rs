@@ -60,14 +60,14 @@ pub type TypeRef = Arc<Type>;
 
 struct TypeHandleInner {
     ty:       TypeRef,
-    resolved: Option<TypeRef>,
+    resolved: Option<TypeHandle>,
     dag_idx:  u32,
 }
 
 impl TypeHandleInner {
     pub fn get(&self) -> TypeRef {
         match &self.resolved {
-            Some(resolved) => resolved.clone(),
+            Some(resolved) => resolved.get(),
             None           => self.ty.clone(),
         }
     }

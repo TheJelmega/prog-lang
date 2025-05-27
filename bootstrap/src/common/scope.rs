@@ -69,6 +69,10 @@ impl Scope {
         &self.segments
     }
 
+    pub fn mut_segments(&mut self) -> &mut Vec<ScopeSegment> {
+        &mut self.segments
+    }
+
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
