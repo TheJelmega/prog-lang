@@ -101,7 +101,7 @@ impl<'a> PathGen<'a> {
 }
 
 impl Visitor for PathGen<'_> {
-    fn set_cur_scope(&mut self, scope: &Scope) {
+    fn set_cur_scope(&mut self, scope: &Scope, item_name: NameId) {
         self.cur_scope = scope.clone();
     }
     
