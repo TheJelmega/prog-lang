@@ -21,6 +21,7 @@ use crate::{common::{Scope, SymbolPath}, lexer::{OpenCloseSymbol, Token}};
 
 // Range: E2000 - E2999
 #[derive(Debug)]
+#[repr(C, u16)] // Do this, so we can safely extract the descrimant by using some unsafe casting
 pub enum LexErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
@@ -111,7 +112,7 @@ impl Display for LexErrorCode {
 
 // Range: E2000 - E2999
 #[derive(Debug)]
-#[repr(u16)]
+#[repr(C, u16)] // Do this, so we can safely extract the descrimant by using some unsafe casting
 pub enum ParseErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
@@ -199,6 +200,7 @@ impl Display for ParseErrorCode {
 // Range: E3000 - E3999
 // TODO: Better description of "param name"
 #[derive(Debug)]
+#[repr(C, u16)] // Do this, so we can safely extract the descrimant by using some unsafe casting
 pub enum AstErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
@@ -276,6 +278,7 @@ impl Display for AstErrorCode {
 
 // Range: E4000 - E4999
 #[derive(Debug, Clone)]
+#[repr(C, u16)] // Do this, so we can safely extract the descrimant by using some unsafe casting
 pub enum HirErrorCode {
     #[allow(unused)]
     InternalError(&'static str),
