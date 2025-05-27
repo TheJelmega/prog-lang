@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 
 use crate::type_system::TypeHandle;
 
-use super::{IndentLogger, Logger, NameId, SpanId, SymbolRef};
+use super::{IndentLogger, Logger, NameId, SpanId, SpanRegistry, SymbolRef};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VarScopeId(usize);
@@ -70,6 +70,43 @@ impl VariableInfo {
         });
     }
 
+    pub fn get_var(&self, scope_id: VarScopeId, name: NameId, span: SpanId, span_registry: &SpanRegistry) -> Option<&VariableEntry> {
+        let span = &span_registry[span];
+
+        // PERF: not the most perfomant as we are going over all entries multiple times
+        let mut scope_id_opt = Some(scope_id);
+        while let Some(scope_id) = scope_id_opt {
+            for var in &self.entries {
+                // Same scope
+                if var.scope != scope_id {
+                    continue;
+                }
+                // Same name
+                if var.name != name {
+                    continue;
+                }
+
+                // Was it declared before the current scope
+                let decl_span = &span_registry[var.decl_span];
+                if span < decl_span {
+                    continue;
+                }
+
+                // Check if it the variable wasn't shadowed yet
+                if let Some(shadow_span) = var.shadow_span {
+                    let shadow_span = &span_registry[shadow_span];
+                    if span > shadow_span {
+                        continue;
+                    }
+                }
+
+                return Some(var)
+            }
+            scope_id_opt = self.scopes[scope_id.0].parent;
+        }
+
+        None
+    }
 
     pub fn log(&self) {
         let mut logger = IndentLogger::new("    ", "    ", "    ");

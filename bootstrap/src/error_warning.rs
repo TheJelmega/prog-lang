@@ -292,6 +292,7 @@ pub enum HirErrorCode {
 
     ExpectedTraitSymbol { kind: String, path: Scope },
     UnknownSymbol { path: Scope },
+    UnknownSymbolOrVar { name: String },
 
     ImplTraitNoMatchingItem {
         item: String,
@@ -328,6 +329,7 @@ impl Display for HirErrorCode {
 
             Self::ExpectedTraitSymbol { kind, path }   => write!(f, "Expected a trait symbol, found a {kind} symbol: {}", &path.to_string()),
             Self::UnknownSymbol { path }               => write!(f, "Cannot find symbol: {}", &path.to_string()),
+            Self::UnknownSymbolOrVar { name }          => write!(f, "Cannot find symbol or variable in the current scope called: {name}"),
 
             Self::ImplTraitNoMatchingItem { item, trait_name, info } =>
                 write!(f, "Implementation trying to implement item ({item}) that does not exist within the trait ({trait_name}) being implemented: {info}"),

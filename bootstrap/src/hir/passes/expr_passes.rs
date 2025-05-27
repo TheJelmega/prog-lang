@@ -104,6 +104,11 @@ impl Visitor for VariableScopeCollection<'_> {
 
         self.scope_stack.pop();
     }
+
+    fn visit_path(&mut self, path: &mut Path) {
+        let var_scope = *self.scope_stack.last().unwrap();
+        path.ctx.var_scope = var_scope;
+    }
 }
 
 impl Pass for VariableScopeCollection<'_> {

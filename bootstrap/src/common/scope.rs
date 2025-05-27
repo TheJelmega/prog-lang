@@ -10,6 +10,7 @@ pub enum ScopeGenArg {
     Type {
         ty: TypeHandle,
     },
+    Value,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -133,6 +134,7 @@ impl fmt::Display for Scope {
 
                     match arg {
                         ScopeGenArg::Type { ty } => write!(f, "{ty}")?,
+                        ScopeGenArg::Value       => write!(f, "")?,
                     }
                 }
                 write!(f, "]")?;

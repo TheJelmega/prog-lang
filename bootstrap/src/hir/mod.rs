@@ -67,13 +67,15 @@ impl fmt::Display for FormatHirError<'_> {
 
 #[derive(Clone)]
 pub struct PathCtx {
-    pub path: Scope,
+    pub path:      Scope,
+    pub var_scope: VarScopeId,
 }
 
 impl PathCtx {
     pub fn new() -> Self {
         Self {
-            path: Scope::new(),
+            path:      Scope::new(),
+            var_scope: VarScopeId::INVALID,
         }
     }
 }

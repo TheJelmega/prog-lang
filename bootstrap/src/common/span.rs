@@ -1,4 +1,4 @@
-use std::{fmt, ops::Index};
+use std::{cmp, fmt, ops::Index};
 
 
 
@@ -23,9 +23,23 @@ pub struct Span {
     pub column_end: u32,
 }
 
-impl Span {
+// Order via row/column
+impl PartialOrd for Span {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let column_cmp = self.column.cmp(&self.row);
+        if column_cmp != cmp::Ordering::Equal {
+            Some(column_cmp)
+        } else {
+            Some(self.row.cmp(&other.row))
+        }
+    }
 }
 
+impl Ord for Span {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -335,6 +335,7 @@ fn main() {
             names: name_table.clone(),
             puncts: punct_table.clone(),
             lits: literal_table.clone(),
+            spans: span_registry.clone(),
             syms: symbol_table.clone(),
             type_reg: type_registry.clone(),
             trait_dag: trait_dag.clone(),

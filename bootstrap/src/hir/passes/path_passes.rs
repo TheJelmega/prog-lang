@@ -86,17 +86,29 @@ impl Pass for ImplTraitPathGen<'_> {
 
 pub struct PathGen<'a> {
     ctx: &'a PassContext,
+    var_info_id: VarInfoId,
+    cur_scope:   Scope,
 }
 
 impl<'a> PathGen<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
+            var_info_id: VarInfoId::INVALID,
+            cur_scope: Scope::new(),
         }
     }
 }
 
 impl Visitor for PathGen<'_> {
+    fn set_cur_scope(&mut self, scope: &Scope) {
+        self.cur_scope = scope.clone();
+    }
+    
+    fn set_cur_var_info_id(&mut self, id: VarInfoId) {
+        self.var_info_id = id;
+    }
+
     fn visit_path(&mut self, node: &mut Path) {
         let mut path = Scope::new();
         let names = self.ctx.names.read();
@@ -117,9 +129,46 @@ impl Visitor for PathGen<'_> {
                             args.push(ScopeGenArg::Type { ty });
                         },
                         GenericArg::Value(_) => todo!(),
-                        GenericArg::Name(_, _) => {
-                            // TODO: For now, just assume a type, we'll fix this once we figured out type generics more
-                            // We can do this by also collecting all possible variables withing the current scope, and then check which one it is
+                        GenericArg::Name(span, name) => {
+                            // First check if there is a variable (We don't resolve this yet in the HIR level, but we use this to determine if this is a value or a type generic)
+                            let var_infos = self.ctx.var_infos.read();
+                            let var_info = var_infos.get(self.var_info_id);
+                            let var_info = var_info.read();
+                            let span_registry = self.ctx.spans.read();
+                            let local_var = var_info.get_var(node.ctx.var_scope, *name, *span, &span_registry);
+                            if local_var.is_some() {
+                                args.push(ScopeGenArg::Value);
+                                continue;
+                            }
+                            
+                            // Not a local var, so needs to be a symbol accessible to the current scope (which does not use any generics)
+                            let syms = self.ctx.syms.write();
+                            let uses = self.ctx.uses.read();
+                            let names = self.ctx.names.read();
+
+                            let mut sym_path = Scope::new();
+                            sym_path.push(names[*name].to_string());
+
+                            let sym = syms.get_symbol_with_uses(&uses, &self.cur_scope, None, &sym_path);
+                            if let Some(sym) = sym {
+                                let sym = sym.read();
+                                if matches!(&*sym,
+                                    Symbol::Const(_) |
+                                    Symbol::Property(_) |
+                                    Symbol::Static(_) |
+                                    Symbol::ValueGeneric(_)
+                                ) {
+                                    args.push(ScopeGenArg::Value);
+                                    continue;
+                                }
+                            } else {
+                                self.ctx.add_error(HirError {
+                                    span: *span,
+                                    err: HirErrorCode::UnknownSymbolOrVar { name: names[*name].to_string() }, 
+                                });
+                            }
+
+                            // No matter if the name doesn't correspond to a value or type, just add a type placeholder so we can at least process it until we report the error
                             let mut type_reg = self.ctx.type_reg.write();
                             let ty = type_reg.create_placeholder_type();
                             args.push(ScopeGenArg::Type { ty });

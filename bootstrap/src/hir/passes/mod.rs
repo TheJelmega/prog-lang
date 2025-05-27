@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, TraitDag, VarInfoMap},
+    common::{LibraryPath, NameTable, OperatorTable, PrecedenceDAG, RootSymbolTable, RootUseTable, SpanRegistry, TraitDag, VarInfoMap},
     lexer::{Punctuation, PuncutationTable},
     literals::LiteralTable,
     type_system::TypeRegistry
@@ -41,6 +41,7 @@ pub struct PassContext {
     pub names:          Arc<RwLock<NameTable>>,
     pub puncts:         Arc<RwLock<PuncutationTable>>,
     pub lits:           Arc<RwLock<LiteralTable>>,
+    pub spans:          Arc<RwLock<SpanRegistry>>,
 
     pub syms:           Arc<RwLock<RootSymbolTable>>,
     pub uses:           Arc<RwLock<RootUseTable>>,
