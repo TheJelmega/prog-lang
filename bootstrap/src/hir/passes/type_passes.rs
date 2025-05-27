@@ -30,9 +30,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
 
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
@@ -44,9 +44,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
     fn visit_extern_function_no_body(&mut self, node: &mut ExternFunctionNoBody, ctx: &mut FunctionContext) {
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
@@ -277,9 +277,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
 
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
@@ -306,9 +306,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
         }
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
@@ -349,9 +349,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
 
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
@@ -378,9 +378,9 @@ impl Visitor for ItemLevelTypeGen<'_> {
         }
         for param in &mut node.params {
             match param {
-                FnParam::Param { span, attrs, label, pattern, ty } => self.visit_type(ty),
-                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.visit_type(ty),
-                FnParam::Variadic { span, attrs, name, ty } => self.visit_type(ty),
+                FnParam::Param { span, attrs, label, pattern, ty } => self.helper.visit_type(ty),
+                FnParam::Opt { span, attrs, label, pattern, ty, def } => self.helper.visit_type(ty),
+                FnParam::Variadic { span, attrs, name, ty } => self.helper.visit_type(ty),
             }
         }
         if let Some(ret_ty) = &mut node.return_ty {
