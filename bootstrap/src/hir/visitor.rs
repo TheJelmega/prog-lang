@@ -55,6 +55,7 @@ pub trait Visitor: Sized {
     }
 
     fn set_cur_scope(&mut self, scope: &Scope) {}
+    fn set_cur_var_info_id(&mut self, id: VarInfoId) {}
 
     // =============================================================
 
@@ -70,6 +71,7 @@ pub trait Visitor: Sized {
 
     fn visit_function(&mut self, node: &mut Function, ctx: &mut FunctionContext) {
         self.set_cur_scope(&ctx.scope);
+        self.set_cur_var_info_id(ctx.var_info);
         helpers::visit_function(self, node);
     }
 
@@ -157,11 +159,13 @@ pub trait Visitor: Sized {
 
     fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
         self.set_cur_scope(&ctx.scope);
+        self.set_cur_var_info_id(ctx.var_info);
         helpers::visit_trait_function(self, node);
     }
 
     fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
         self.set_cur_scope(&ctx.scope);
+        self.set_cur_var_info_id(ctx.var_info);
         helpers::visit_trait_method(self, node);
     }
 
@@ -189,11 +193,13 @@ pub trait Visitor: Sized {
 
     fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         self.set_cur_scope(&ctx.scope);
+        self.set_cur_var_info_id(ctx.var_info);
         helpers::visit_function(self, node);
     }
 
     fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         self.set_cur_scope(&ctx.scope);
+        self.set_cur_var_info_id(ctx.var_info);
         helpers::visit_method(self, node);
     }
 
