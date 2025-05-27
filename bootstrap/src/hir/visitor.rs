@@ -54,6 +54,8 @@ pub trait Visitor: Sized {
         helpers::visit(self, hir, flags)
     }
 
+    fn set_cur_scope(&mut self, scope: &Scope) {}
+
     // =============================================================
 
     fn visit_simple_path(&mut self, path: &mut SimplePath) {
@@ -67,126 +69,156 @@ pub trait Visitor: Sized {
     // =============================================================
 
     fn visit_function(&mut self, node: &mut Function, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_function(self, node);
     }
 
     fn visit_extern_function_no_body(&mut self, node: &mut ExternFunctionNoBody, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_extern_function(self, node);
     }
 
     fn visit_type_alias(&mut self, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_type_alias(self, node);
     }
 
     fn visit_distinct_type(&mut self, node: &mut DistinctType, ctx: &mut TypeAliasContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_distinct_type(self, node);
     }
 
     fn visit_opaque_type(&mut self, node: &mut OpaqueType, ctx: &mut TypeAliasContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_opaque_type(self, node);
     }
 
     fn visit_struct(&mut self, node: &mut Struct, ctx: &mut StructContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_struct(self, node);
     }
 
     fn visit_tuple_struct(&mut self, node: &mut TupleStruct, ctx: &mut StructContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_tuple_struct(self, node);
     }
 
     fn visit_unit_struct(&mut self, node: &mut UnitStruct, ctx: &mut StructContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_unit_struct(self, node);
     }
 
     fn visit_union(&mut self, node: &mut Union, ctx: &mut UnionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_union(self, node);
     }
 
     fn visit_adt_enum(&mut self, node: &mut AdtEnum, ctx: &mut AdtEnumContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_adt_enum(self, node);
     }
 
     fn visit_flag_enum(&mut self, node: &mut FlagEnum, ctx: &mut FlagEnumContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_flag_enum(self, node);
     }
 
     fn visit_bitfield(&mut self, node: &mut Bitfield, ctx: &mut BitfieldContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_bitfield(self, node);
     }
 
     fn visit_const(&mut self, node: &mut Const, ctx: &mut ConstContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_const(self, node);
     }
 
     fn visit_static(&mut self, node: &mut Static, ctx: &mut StaticContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_static(self, node);
     }
 
     fn visit_tls_static(&mut self, node: &mut TlsStatic, ctx: &mut StaticContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_tls_static(self, node);
     }
 
     fn visit_extern_static(&mut self, node: &mut ExternStatic, ctx: &mut StaticContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_extern_static(self, node);
     }
 
     //--------------------------------------------------------------
 
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait(self, node);
     }
 
     fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait_function(self, node);
     }
 
     fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait_method(self, node);
     }
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait_type_alias(self, node);
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait_const(self, node);
     }
 
     fn visit_trait_property(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitProperty, ctx: &mut PropertyContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_trait_property(self, node);
     }
 
     //--------------------------------------------------------------
 
     fn visit_impl(&mut self, node: &mut Impl, ctx: &mut ImplContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_impl(self, node);
     }
 
     fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_function(self, node);
     }
 
     fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_method(self, node);
     }
 
     fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_type_alias(self, node);
     }
 
     fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_const(self, node);
     }
 
     fn visit_impl_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Static, ctx: &mut StaticContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_static(self, node);
     }
 
     fn visit_impl_tls_static(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TlsStatic, ctx: &mut StaticContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_tls_static(self, node);
     }
 
     fn visit_property(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Property, ctx: &mut PropertyContext) {
+        self.set_cur_scope(&ctx.scope);
         helpers::visit_propety(self, node);
     }
 
