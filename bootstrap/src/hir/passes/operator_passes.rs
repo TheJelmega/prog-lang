@@ -62,13 +62,18 @@ impl Visitor for OpPrecedenceProcessing<'_> {
                     search_sym_path.push(self.ctx.names.read()[*name].to_string());
                 }
 
-                let Some(sym) = self.ctx.syms.read().get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) else {
-                    self.ctx.add_error(HirError {
-                        span: base.span,
-                        err: HirErrorCode::UnknownSymbol { path: search_sym_path },
-                    });
-                    continue;
+                let syms = self.ctx.syms.read();
+                let sym = match syms.get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) {
+                    Ok(sym) => sym,
+                    Err(err) => {
+                        self.ctx.add_error(HirError {
+                            span: base.span,
+                            err: HirErrorCode::UnknownSymbol { err },
+                        });
+                        continue;
+                    },
                 };
+
                 let Symbol::Trait(sym) = &*sym.read() else {
                     self.ctx.add_error(HirError {
                         span: base.span,

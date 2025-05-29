@@ -339,6 +339,35 @@ pub struct ValueGenericSymbol {
 
 pub type SymbolRef = Arc<RwLock<Symbol>>;
 
+//==============================================================================================================================
+
+#[derive(Clone, Debug)]
+pub enum SymbolLookupError {
+    Unknown { path: Scope },
+    Ambiguous {
+        path: Scope,
+        possible_paths: Vec<SymbolPath>,
+    }
+}
+
+impl fmt::Display for SymbolLookupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SymbolLookupError::Unknown { path } => write!(f, "Unknown symbol: {path}"),
+            SymbolLookupError::Ambiguous { path, possible_paths } => {
+                write!(f, "Ambiguous symbol for '{path}', possible symbols: ")?;
+                for (idx, path) in possible_paths.iter().enumerate() {
+                    if idx != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{path}")?;
+                }
+                Ok(())
+            },
+        }
+    }
+}
+
 pub struct SymbolTable {
     symbols:    HashMap<String, Vec<(Vec<String>, SymbolRef)>>,
     sub_tables: HashMap<ScopeSegment, SymbolTable>,
@@ -365,7 +394,7 @@ impl SymbolTable {
         syms.push((Vec::from(params), sym));
     }
 
-    pub fn get_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
+    pub fn get_direct_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
         let sub_table = self.get_sub_table(scope.segments())?;
         sub_table.get_symbol_from_name(name)
     }
@@ -686,16 +715,18 @@ impl RootSymbolTable {
     pub fn get_symbol(&self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> Option<SymbolRef> {
         let lib = lib.unwrap_or(&self.cur_lib);
         let table = self.tables.get(lib)?;
-        table.get_symbol(scope, name)
+        table.get_direct_symbol(scope, name)
     }
+
+    // TODO: Go over use table and make sure all paths actually point to valid symbols
 
     /// Get a symbol, while also searching all available scopes
     /// 
     /// * `cur_scope` - Scope of the symbol being processed
-    /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function)
+    /// * `cur_sub_scope` - Scope within the symbol being processed (e.g. scope relative to a function), used for resolving all scoped `use` statements
     /// * `sym_path` - Path of the symbol as it occurs within code
     // TODO: lib path
-    pub fn get_symbol_with_uses(&self, use_table: &RootUseTable, cur_scope: &Scope, cur_sub_scope: Option<&Scope>, sym_path: &Scope) -> Option<SymbolRef> { 
+    pub fn get_symbol_with_uses(&self, use_table: &RootUseTable, cur_scope: &Scope, use_cur_sub_scope: Option<&Scope>, sym_path: &Scope) -> Result<SymbolRef, SymbolLookupError> { 
         assert!(!sym_path.is_empty());
 
         let sym_name = &sym_path.last().unwrap().name;
@@ -704,44 +735,58 @@ impl RootSymbolTable {
         // Look into the current scope first
         let cur_table = self.tables.get(&self.cur_lib).unwrap();
         if let Some(local_sub_table) = cur_table.get_sub_table(cur_scope.segments()) {
-            if let Some(sym) = local_sub_table.get_symbol(&sym_scope, &sym_name) {
-                return Some(sym);
+            if let Some(sym) = local_sub_table.get_direct_symbol(&sym_scope, &sym_name) {
+                return Ok(sym);
             }
         }
 
-        // Then look into the use table
-        let mut use_loc_path = cur_scope.clone();
-        if let Some(sub_scope) = cur_sub_scope {
-            use_loc_path.extend(sub_scope);
+        // The get all possible use paths and try to find it there
+        let mut use_lookup_path = cur_scope.clone();
+        if let Some(sub_scope) = use_cur_sub_scope {
+            use_lookup_path.extend(sub_scope);
         }
-        let mut found_sym = None;
-        use_table.with_uses(&use_loc_path, |use_path| {
-            let root = sym_path.root().unwrap();
-            let mut act_sym_path = use_path.path.clone();
+        let uses = use_table.get_use_paths(&use_lookup_path);
+
+        let mut found_syms = Vec::new();
+        for use_path in uses {
+            let mut search_path = use_path.path.clone();
+
+            // Handle aliases, i.e. if the root name matches the alias, we should look for the symbol's path without the matching root,
+            // otherwise we just add the path on the end
             if let Some(alias) = &use_path.alias {
+                let root = sym_path.root().unwrap();
                 if !root.params.is_empty() || root.name != *alias {
-                    return false;
+                    continue;
                 }
-                act_sym_path.extend(&sym_path.sub_path());
+                search_path.extend(&sym_scope.sub_path());
             } else {
-                act_sym_path.extend(sym_path);
+                search_path.extend(&sym_scope);
             };
 
-            let Some(table) = self.tables.get(&use_path.lib_path) else {
-                return false;
-            };
+            // Now we have a path we can actually use to find the symbol
+            let table = self.tables.get(&use_path.lib_path).expect("If you see this, it means the use table was not validated before being used to look up a symbol");
 
-            if let Some(sym) = table.get_symbol(&act_sym_path.parent(), sym_name) {
-                if found_sym.is_some() {
-                    todo!("Error, ambiguous symbol");
-                }
-                found_sym = Some(sym);
-                return true;
+            if let Some(sym) = table.get_direct_symbol(&search_path, &sym_name) {
+                found_syms.push(sym);
             }
-            false
-        });
 
-        found_sym
+            // If we hit the end of a scope, check for duplicates or return the found symbol
+            // TODO: clarify in design that if a symbol is found within a scope, the outer scopes will be ignored
+            if use_path.last_in_scope {
+                if found_syms.len() == 1 {
+                    return Ok(found_syms[0].clone());
+                } else if found_syms.len() > 1 {
+                    return Err(SymbolLookupError::Ambiguous {
+                        path: sym_path.clone(),
+                        possible_paths: found_syms.iter()
+                            .map(|sym| sym.read().path().clone())
+                            .collect(),
+                    })
+                }
+            }
+        }
+
+        Err(SymbolLookupError::Unknown { path: sym_path.clone() })
     }
 
     pub fn log(&self) {

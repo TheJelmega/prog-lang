@@ -78,12 +78,15 @@ impl Pass for TraitDagGen<'_> {
             if let Some(bound) = &node.bounds {
                 for path in &bound.bounds {
                     let scope = &path.ctx.path;
-                    let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
-                        self.ctx.add_error(HirError {
-                            span: bound.span,
-                            err: HirErrorCode::UnknownSymbol { path: scope.clone() },
-                        });
-                        continue;
+                    let sym = match syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) {
+                        Ok(sym) => sym,
+                        Err(err) => {
+                            self.ctx.add_error(HirError {
+                                span: bound.span,
+                                err: HirErrorCode::UnknownSymbol { err },
+                            });
+                            continue;
+                        },
                     };
                     let mut sym = sym.write();
                     let Symbol::Trait(sym) = &mut *sym else {
@@ -106,12 +109,15 @@ impl Pass for TraitDagGen<'_> {
             for path in &node.bases {
                 let scope = &path.ctx.path;
 
-                let Some(sym) = syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) else {
-                    self.ctx.add_error(HirError {
-                        span: node.span,
-                        err: HirErrorCode::UnknownSymbol { path: scope.clone() },
-                    });
-                    continue;
+                let sym = match syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) {
+                    Ok(sym) => sym,
+                    Err(err) => {
+                        self.ctx.add_error(HirError {
+                            span: node.span,
+                            err: HirErrorCode::UnknownSymbol { err },
+                        });
+                        continue;
+                    },
                 };
                 let mut sym = sym.write();
                 let Symbol::Trait(sym) = &mut *sym else {
@@ -260,9 +266,15 @@ impl Visitor for ImplTraitSymResolve<'_> {
 
         let syms = self.ctx.syms.read();
         let uses = self.ctx.uses.read();
-        let sym = syms.get_symbol_with_uses(&uses, &ctx.scope, None, sym_path);
-        
-        ctx.trait_sym = sym;
+        let sym = match syms.get_symbol_with_uses(&uses, &ctx.scope, None, sym_path) {
+            Ok(sym) => ctx.trait_sym = Some(sym),
+            Err(err) => {
+                self.ctx.add_error(HirError {
+                    span: node.span,
+                    err: HirErrorCode::UnknownSymbol { err },
+                });
+            },
+        };
     }
 }
 

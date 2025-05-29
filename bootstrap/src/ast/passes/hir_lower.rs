@@ -614,6 +614,7 @@ impl AstToHirLowering<'_> {
                     path: base_scope.clone(),
                     wildcard: true,
                     alias: alias.map(|name| self.names[name].to_string()),
+                    last_in_scope: false,
                 });
             },
             UsePath::SubPaths { span, node_id, segments, sub_paths } => {
@@ -636,6 +637,7 @@ impl AstToHirLowering<'_> {
                     path,
                     wildcard: false,
                     alias: alias.map(|name| self.names[name].to_string()),
+                    last_in_scope: false,
                 });
             },
             UsePath::Wildcard { span, node_id, segments } => {
@@ -649,6 +651,7 @@ impl AstToHirLowering<'_> {
                     path,
                     wildcard: true,
                     alias: None,
+                    last_in_scope: false,
                 })
             }
         }
@@ -1045,6 +1048,11 @@ impl Visitor for AstToHirLowering<'_> {
             Item::PrecedenceUse(item) => self.ctx.get_node_for(item),
         };
         self.file_scope = ast_ctx.module_scope.clone();
+
+        // Only need to add file use roots for sub-scopes, a library level path is always done by default
+        if !self.file_scope.is_empty() {
+            self.use_table.add_file_use_root(&self.file_scope);
+        }
 
         // Then process all items
         for item in &ast.items {

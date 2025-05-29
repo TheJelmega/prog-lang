@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::{common::{Scope, SymbolPath}, lexer::{OpenCloseSymbol, Token}};
+use crate::{common::{Scope, SymbolLookupError, SymbolPath, UseTableError}, lexer::{OpenCloseSymbol, Token}};
 
 
 // TODO: Split into distinct error subsets
@@ -294,8 +294,8 @@ pub enum HirErrorCode {
     CycleInPrecedenceDag { cycle: String },
 
     ExpectedTraitSymbol { kind: String, path: Scope },
-    UnknownSymbol { path: Scope },
-    UnknownSymbolOrVar { name: String },
+    UnknownSymbol{ err: SymbolLookupError },
+    UnknownSymbolOrVar { name: String, err: SymbolLookupError },
 
     ImplTraitNoMatchingItem {
         item: String,
@@ -308,6 +308,8 @@ pub enum HirErrorCode {
 
     NoHirItemForSymbol { kind: &'static str },
 
+
+    UseTable { err: UseTableError },
 
     NotSupportedYet { info: &'static str },
 }
@@ -331,14 +333,16 @@ impl Display for HirErrorCode {
             Self::CycleInPrecedenceDag { cycle }       => write!(f, "Cycle in precedence DAG: {cycle}"),
 
             Self::ExpectedTraitSymbol { kind, path }   => write!(f, "Expected a trait symbol, found a {kind} symbol: {}", &path.to_string()),
-            Self::UnknownSymbol { path }               => write!(f, "Cannot find symbol: {}", &path.to_string()),
-            Self::UnknownSymbolOrVar { name }          => write!(f, "Cannot find symbol or variable in the current scope called: {name}"),
+            Self::UnknownSymbol { err }                 => write!(f, "Failed to find symbol: {err}"),
+            Self::UnknownSymbolOrVar { name, err }     => write!(f, "Cannot find any variable names {name} in the current scope, or any symbol: {err}"),
 
             Self::ImplTraitNoMatchingItem { item, trait_name, info } =>
                 write!(f, "Implementation trying to implement item ({item}) that does not exist within the trait ({trait_name}) being implemented: {info}"),
             Self::ImplNoDefault { item }               => write!(f, "Missing implementation for '{item}', as no default exists"),
 
             Self::NoHirItemForSymbol { kind }          => write!(f, "A {kind} symbol in the current library should always have a corresponding hir {kind} in the current library"),
+
+            Self::UseTable { err }                     => write!(f, "{err}"),
 
             Self::NotSupportedYet { info }             => write!(f, "{info} is currently not supported yet"),
 

@@ -276,7 +276,7 @@ fn main() {
 
     // TODO: External operator importing happens here
 
-    let use_table = Arc::new(RwLock::new(RootUseTable::new()));
+    let use_table = Arc::new(RwLock::new(RootUseTable::new(library_path.clone())));
 
 
     let mut hir = hir::Hir::new();
@@ -320,14 +320,6 @@ fn main() {
         println!("HIR use table");
         use_table.read().log();
         println!("--------------------------------")
-    }
-
-    let use_ambiguities = use_table.write().check_non_wildcard_ambiguity();
-    if !use_ambiguities.is_empty() {
-        println!("Use table ambiguities:");
-        for (scope, name) in use_ambiguities {
-            println!("- {scope}: {name}");
-        }
     }
 
     {
@@ -462,6 +454,20 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     // base passes
     do_hir_pass(hir, cli, stats, SimplePathGen::new(ctx));
     do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
+
+    {
+        let mut uses = ctx.uses.write();
+        let syms = ctx.syms.read();
+        if let Err(err) = uses.finalize(&syms) {
+            ctx.add_error(hir::HirError {
+                span: SpanId::INVALID,
+                err: error_warning::HirErrorCode::UseTable { err },
+            });
+            return false;
+        }
+    }
+
+
     do_hir_pass(hir, cli, stats, TraitDagGen::new(ctx));
 
     {

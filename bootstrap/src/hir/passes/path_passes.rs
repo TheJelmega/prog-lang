@@ -152,22 +152,25 @@ impl Visitor for PathGen<'_> {
                             sym_path.push(names[*name].to_string());
 
                             let sym = syms.get_symbol_with_uses(&uses, &self.cur_scope, None, &sym_path);
-                            if let Some(sym) = sym {
-                                let sym = sym.read();
-                                if matches!(&*sym,
-                                    Symbol::Const(_) |
-                                    Symbol::Property(_) |
-                                    Symbol::Static(_) |
-                                    Symbol::ValueGeneric(_)
-                                ) {
-                                    args.push(ScopeGenArg::Value);
-                                    continue;
-                                }
-                            } else {
-                                self.ctx.add_error(HirError {
-                                    span: *span,
-                                    err: HirErrorCode::UnknownSymbolOrVar { name: names[*name].to_string() }, 
-                                });
+                            match sym {
+                                Ok(sym) => {
+                                    let sym = sym.read();
+                                    if matches!(&*sym,
+                                        Symbol::Const(_) |
+                                        Symbol::Property(_) |
+                                        Symbol::Static(_) |
+                                        Symbol::ValueGeneric(_)
+                                    ) {
+                                        args.push(ScopeGenArg::Value);
+                                        continue;
+                                    }
+                                },
+                                Err(err) => {
+                                    self.ctx.add_error(HirError {
+                                        span: *span,
+                                        err: HirErrorCode::UnknownSymbolOrVar { name: names[*name].to_string(), err }, 
+                                    });
+                                },
                             }
 
                             // No matter if the name doesn't correspond to a value or type, just add a type placeholder so we can at least process it until we report the error
