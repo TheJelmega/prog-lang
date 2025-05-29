@@ -294,7 +294,7 @@ fn main() {
 
     // TODO: implicit prelude
 
-    if cli.print_hir_nodes {
+    if cli.print_lowered_hir_nodes {
         let names = name_table.read();
         let puncts = punct_table.read();
         let lits = literal_table.read();
@@ -305,7 +305,7 @@ fn main() {
         println!("--------------------------------")
     }
 
-    if cli.print_hir_code {
+    if cli.print_lowered_hir_code {
         let names = name_table.read();
         let puncts = punct_table.read();
         let lits = literal_table.read();
@@ -316,7 +316,7 @@ fn main() {
         println!("--------------------------------")
     }
 
-    if cli.print_hir_use_table {
+    if cli.print_lowered_hir_use_table {
         println!("HIR use table");
         use_table.read().log();
         println!("--------------------------------")
@@ -465,6 +465,13 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
             });
             return false;
         }
+
+        if cli.print_hir_use_table {
+            println!("HIR use table");
+            uses.log();
+            println!("--------------------------------")
+        }
+
     }
 
 
