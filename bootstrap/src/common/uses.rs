@@ -7,14 +7,21 @@ use crate::lexer::Punctuation;
 
 use super::{IndentLogger, LibraryPath, RootSymbolTable, Scope, ScopeSegment};
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum UsePathKind {
+    Explicit,
+    Alias(String),
+    Wildcard,
+    GenericOnly,
+    FileRoot,
+}
 
 #[derive(Clone, Debug)]
 pub struct UsePath {
     // User defined library path or defaulted to current library
     pub lib_path:      LibraryPath,
     pub path:          Scope,
-    pub wildcard:      bool,
-    pub alias:         Option<String>,
+    pub kind:          UsePathKind,
     pub last_in_scope: bool,
 }
 
@@ -22,8 +29,7 @@ impl PartialEq for UsePath {
     fn eq(&self, other: &Self) -> bool {
         self.lib_path == other.lib_path &&
         self.path == other.path &&
-        self.wildcard == other.wildcard &&
-        self.alias == other.alias
+        self.kind == other.kind
     }
 }
 
@@ -33,12 +39,14 @@ impl fmt::Display for UsePath {
         if ! self.path.is_empty() {
             write!(f, ".{}", &self.path)?;
         }
-        if self.wildcard {
-            write!(f, ".*")?;
-        } else if let Some(alias) = &self.alias {
-            write!(f, " as {alias}")?;
+
+        match &self.kind {
+            UsePathKind::Explicit => Ok(()),
+            UsePathKind::Alias(alias) => write!(f, " as {alias}"),
+            UsePathKind::Wildcard => write!(f, ".*"),
+            UsePathKind::GenericOnly => write!(f, " (generics only)"),
+            UsePathKind::FileRoot => write!(f, " (file use root)"),
         }
-        Ok(())
     }
 }
 
@@ -91,6 +99,7 @@ pub struct RootUseTable {
     // Uses defined within a given scope
     uses:             Vec<UsePath>,
     wildcards:        Vec<UsePath>,
+    generic:          Option<UsePath>,
     sub_tables:       HashMap<ScopeSegment, UseTable>,
     op_paths:         Vec<OpUsePath>,
     precedence_paths: Vec<PrecedenceUsePath>
@@ -102,6 +111,7 @@ impl RootUseTable {
             lib_path,
             uses: Vec::new(),
             wildcards: Vec::new(),
+            generic: None,
             sub_tables: HashMap::new(),
             op_paths: Vec::new(),
             precedence_paths: Vec::new(),
@@ -116,16 +126,26 @@ impl RootUseTable {
         sub_table.add_file_use_root(lib_path, &segments[1..], scope);
     }
 
+    pub fn add_generic_use(&mut self, scope: Scope) {
+        assert!(!scope.is_empty());
+
+        let segments = scope.segments();
+        let lib_path = self.lib_path.clone();
+        let sub_table = self.get_or_add_sub_table(segments[0].clone());
+        sub_table.add_generic_use(lib_path, &segments[1..], scope.clone());
+    }
+
     pub fn add_use(&mut self, scope: &Scope, use_path: UsePath) {
         self.add_use_(scope.segments(), use_path);
     }
 
     fn add_use_(&mut self, scope: &[ScopeSegment], use_path: UsePath) {
         if scope.is_empty() {
-            if use_path.wildcard {
-                self.wildcards.push(use_path);
-            } else {
-                self.uses.push(use_path);
+            match &use_path.kind {
+                UsePathKind::Wildcard => self.wildcards.push(use_path),
+                UsePathKind::GenericOnly => panic!("Generic use paths cannot be added using RootUseTable::add_use"),
+                UsePathKind::FileRoot => panic!("File use root paths cannot be added using RootUseTable::add_use"),
+                _ => self.uses.push(use_path),
             }
         } else {
             let sub_table = self.get_or_add_sub_table(scope[0].clone());
@@ -154,9 +174,11 @@ impl RootUseTable {
         let mut check_map = HashMap::<String, Vec<UsePath>>::new();
 
         for use_path in &self.uses {
-            let name = use_path.alias.as_ref().unwrap_or_else(|| {
-                &use_path.path.last().unwrap().name
-            });
+            let name = match &use_path.kind {
+                UsePathKind::Explicit => &use_path.path.last().unwrap().name,
+                UsePathKind::Alias(alias) => alias,
+                _ => continue,
+            };
 
             match check_map.get_mut(name) {
                 Some(entry) => {
@@ -186,13 +208,12 @@ impl RootUseTable {
         // Exact duplicate paths are paths with the same:
         // - libary path
         // - path
-        // - wildcard flag
+        // - kind
         // - alias
         //
         // explicit paths that are duplicate with a wildcard, if they have:
         // - same library path
         // - a path parent that is the same as a wildcard path
-        // - no alias
 
         // First remove duplicates in the wildcards
         let mut wildcards = Vec::new();
@@ -210,7 +231,7 @@ impl RootUseTable {
             let mut is_dup = uses.iter().find(|cur_use| **cur_use == use_path).is_some();
             if !is_dup {
                 is_dup = self.wildcards.iter().find(|wildcard| {
-                    use_path.alias.is_none() &&
+                    use_path.kind == UsePathKind::Wildcard &&
                     use_path.lib_path == wildcard.lib_path &&
                     use_path.path.parent() == wildcard.path
                 }).is_some();
@@ -284,14 +305,19 @@ impl RootUseTable {
             use_paths.insert(0, UsePath {
                 lib_path: self.lib_path.clone(),
                 path: Scope::new(),
-                wildcard: false,
-                alias: None,
+                kind: UsePathKind::FileRoot,
                 last_in_scope: false,
             });
             use_paths.extend_from_slice(&self.uses);
             use_paths.extend_from_slice(&self.wildcards);
         }
 
+        if let Some(generic_use_path) = &self.generic {
+            use_paths.push(generic_use_path.clone());
+        }
+
+        // Make sure to set this as the last symbol within a scope, this is required to handle resolving the symbol correctly
+        use_paths.last_mut().unwrap().last_in_scope = true;
         use_paths
     }
 
@@ -378,8 +404,7 @@ impl UseTable {
             self.file_use_root = Some(UsePath {
                 lib_path,
                 path: scope,
-                wildcard: false,
-                alias: None,
+                kind: UsePathKind::FileRoot,
                 last_in_scope: false,
             });
         } else {
@@ -388,12 +413,26 @@ impl UseTable {
         }
     }
 
+    fn add_generic_use(&mut self, lib_path: LibraryPath, segments: &[ScopeSegment], scope: Scope) {
+        if segments.is_empty() {
+            self.uses.push(UsePath {
+                lib_path,
+                path: scope,
+                kind: UsePathKind::GenericOnly,
+                last_in_scope: false,
+            })
+        } else {
+            let sub_table = self.get_or_add_sub_table(segments[0].clone());
+            sub_table.add_generic_use(lib_path, &segments[1..], scope);
+        }
+    }
+
     fn add_use_(&mut self, scope: &[ScopeSegment], use_path: UsePath) {
         if scope.is_empty() {
-            if use_path.wildcard {
-                self.wildcards.push(use_path);
-            } else {
-                self.uses.push(use_path);
+            match &use_path.kind {
+                UsePathKind::Wildcard => self.wildcards.push(use_path),
+                UsePathKind::GenericOnly => panic!("Generic use paths cannot be added using RootUseTable::add_use"),
+                _ => self.uses.push(use_path),
             }
         } else {
             let sub_table = self.get_or_add_sub_table(scope[0].clone());
@@ -406,9 +445,11 @@ impl UseTable {
         let mut check_map = HashMap::<String, Vec<UsePath>>::new();
 
         for use_path in &self.uses {
-            let name = use_path.alias.as_ref().unwrap_or_else(|| {
-                &use_path.path.last().unwrap().name
-            });
+            let name = match &use_path.kind {
+                UsePathKind::Explicit => &use_path.path.last().unwrap().name,
+                UsePathKind::Alias(alias) => alias,
+                _ => continue,
+            };
 
             match check_map.get_mut(name) {
                 Some(entry) => {
@@ -450,7 +491,7 @@ impl UseTable {
             let mut is_dup = uses.iter().find(|cur_use| **cur_use == use_path).is_some();
             if !is_dup {
                 is_dup = self.wildcards.iter().find(|wildcard| {
-                    use_path.alias.is_none() &&
+                    use_path.kind == UsePathKind::Wildcard &&
                     use_path.lib_path == wildcard.lib_path &&
                     use_path.path.parent() == wildcard.path
                 }).is_some();

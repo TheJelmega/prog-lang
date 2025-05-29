@@ -30,14 +30,16 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
 
         let sym = self.ctx.syms.write().add_function(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_extern_function_no_body(&mut self, node: &mut ExternFunctionNoBody, ctx: &mut FunctionContext) {
@@ -51,28 +53,32 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_type_alias(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_distinct_type(&mut self, node: &mut DistinctType, ctx: &mut TypeAliasContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_distinct_type(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_opaque_type(&mut self, node: &mut OpaqueType, ctx: &mut TypeAliasContext) {
@@ -86,14 +92,16 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_struct(None, &ctx.scope, name, StructKind::Normal);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_tuple_struct(&mut self, node: &mut TupleStruct, ctx: &mut StructContext) {
@@ -118,28 +126,32 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_union(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_adt_enum(&mut self, node: &mut AdtEnum, ctx: &mut AdtEnumContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_adt_enum(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_flag_enum(&mut self, node: &mut FlagEnum, ctx: &mut FlagEnumContext) {
@@ -153,14 +165,16 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_bitfield(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_const(&mut self, node: &mut Const, ctx: &mut ConstContext) {
@@ -195,56 +209,64 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_trait(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_trait_function(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitFunction, ctx: &mut FunctionContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_function(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_trait_method(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitMethod, ctx: &mut FunctionContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_function(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_trait_type_alias(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitTypeAlias, ctx: &mut TypeAliasContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_type_alias(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_trait_const(&mut self, trait_ref: Ref<Trait>, trait_ctx: Ref<TraitContext>, node: &mut TraitConst, ctx: &mut ConstContext) {
@@ -265,56 +287,64 @@ impl Visitor for SymbolGeneration<'_> {
         let name = &self.ctx.names.read()[ctx.name];
 
         let sym = self.ctx.syms.write().add_impl(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_impl_function(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Function, ctx: &mut FunctionContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_function(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_method(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Method, ctx: &mut FunctionContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_function(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_impl_type_alias(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut TypeAlias, ctx: &mut TypeAliasContext) {
         let name = &self.ctx.names.read()[node.name];
         
         let sym = self.ctx.syms.write().add_type_alias(None, &ctx.scope, name);
-        ctx.sym = Some(sym);
-
+        
         if let Some(generics) = &mut node.generics {
-            let mut generic_scope = ctx.scope.clone();
-            generic_scope.push(name.to_string());
-            self.generic_scope = generic_scope;
+            let sym = sym.read();
+            self.generic_scope = sym.path().get_full_scope();
+            let mut  uses = self.ctx.uses.write();
+            uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
         }
+
+        ctx.sym = Some(sym);
     }
 
     fn visit_impl_const(&mut self, impl_ref: Ref<Impl>, impl_ctx: Ref<ImplContext>, node: &mut Const, ctx: &mut ConstContext) {

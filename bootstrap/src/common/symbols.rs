@@ -8,7 +8,7 @@ use std::{
 };
 use parking_lot::RwLock;
 
-use crate::type_system::{Type, TypeHandle, TypeRef};
+use crate::{common::UsePathKind, type_system::{Type, TypeHandle, TypeRef}};
 
 use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, Visibility};
 
@@ -19,6 +19,7 @@ use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, Visibi
 pub struct SymbolPath {
     pub lib:   LibraryPath,
     pub scope: Scope,
+    // TODO: replace with name + param names + generics
     pub name:  String,
 }
 
@@ -29,6 +30,12 @@ impl SymbolPath {
             scope: Scope::new(),
             name: String::new(),
         }
+    }
+
+    pub fn get_full_scope(&self) -> Scope {
+        let mut scope = self.scope.clone();
+        scope.push(self.name.clone());
+        scope
     }
 }
 
@@ -749,25 +756,81 @@ impl RootSymbolTable {
 
         let mut found_syms = Vec::new();
         for use_path in uses {
-            let mut search_path = use_path.path.clone();
-
-            // Handle aliases, i.e. if the root name matches the alias, we should look for the symbol's path without the matching root,
-            // otherwise we just add the path on the end
-            if let Some(alias) = &use_path.alias {
-                let root = sym_path.root().unwrap();
-                if !root.params.is_empty() || root.name != *alias {
-                    continue;
-                }
-                search_path.extend(&sym_scope.sub_path());
-            } else {
-                search_path.extend(&sym_scope);
-            };
-
-            // Now we have a path we can actually use to find the symbol
+            // We will look into the library pointed by the usepath, so already get it here, as we might need it when generating the search path
             let table = self.tables.get(&use_path.lib_path).expect("If you see this, it means the use table was not validated before being used to look up a symbol");
-
+            
+            let mut search_path = use_path.path.clone();
+            
+            // otherwise we just add the path on the end
+            match &use_path.kind {
+                UsePathKind::Explicit => {
+                    // Explicit paths require the tail of the search path is either:
+                    // - if the `sym_scope` is emtpy, the `sym_name`, or
+                    // - the root of the `sym_scope`
+                    let tail = search_path.last().unwrap();
+                    if sym_scope.is_empty() {
+                        if tail.name != *sym_name {
+                            continue;
+                        }    
+                    } else {
+                        let root = sym_path.root().unwrap();
+                        if root == tail {
+                            search_path.extend(&sym_scope.sub_path());
+                        } else {
+                            continue;
+                        }
+                    }
+                },
+                UsePathKind::Alias(alias) => {
+                    // If the root name matches the alias, we should look for the symbol's path without the matching root,
+                    let root = sym_path.root().unwrap();
+                    if !root.params.is_empty() || root.name != *alias {
+                        continue;
+                    }
+                    search_path.extend(&sym_scope.sub_path());
+                },
+                UsePathKind::Wildcard => search_path.extend(&sym_scope),
+                UsePathKind::GenericOnly => (),
+                UsePathKind::FileRoot => {
+                    // File roots are both explicit use paths and wildcards, so first process it as explicit, and then as a wildcard using the default impl
+                    let explicit_path = {
+                        let mut search_path = search_path.clone();
+                        let tail = search_path.last().unwrap();
+                        if sym_scope.is_empty() {
+                            if tail.name != *sym_name {
+                                None
+                            } else {
+                                search_path.extend(&sym_scope.sub_path());
+                                Some(search_path)
+                            }
+                        } else {
+                            let root = sym_path.root().unwrap();
+                            if root == tail {
+                                search_path.extend(&sym_scope.sub_path());
+                                Some(search_path)
+                            } else {
+                                None
+                            }
+                        }
+                    };
+                    if let Some(search_path) = explicit_path {
+                        if let Some(sym) = table.get_direct_symbol(&search_path, &sym_name) {
+                            if use_path.kind != UsePathKind::GenericOnly || matches!(&*sym.read(), Symbol::TypeGeneric(_) | Symbol::ValueGeneric(_)) {
+                                found_syms.push(sym);
+                            }
+                        }
+                    }
+                    
+                    // Then act as if it's just a wildcard
+                    search_path.extend(&sym_scope);
+                },
+            };
+            
+            // Now we have a path we can actually use to find the symbol
             if let Some(sym) = table.get_direct_symbol(&search_path, &sym_name) {
-                found_syms.push(sym);
+                if use_path.kind != UsePathKind::GenericOnly || matches!(&*sym.read(), Symbol::TypeGeneric(_) | Symbol::ValueGeneric(_)) {
+                    found_syms.push(sym);
+                }
             }
 
             // If we hit the end of a scope, check for duplicates or return the found symbol
@@ -782,6 +845,9 @@ impl RootSymbolTable {
                             .map(|sym| sym.read().path().clone())
                             .collect(),
                     })
+                } else if sym_path.is_simple() && sym_path.segments().len() == 1 {
+                    // Special case for generics parameters, as they are allowed to be refered to by name only
+
                 }
             }
         }

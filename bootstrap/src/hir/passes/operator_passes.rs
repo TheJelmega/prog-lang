@@ -394,6 +394,10 @@ impl Visitor for OpTraitGen<'_> {
             gen_scope.push(names[node.name].to_string());
             let rhs_sym = syms.add_type_generic(None, &gen_scope, "Rhs", false);
 
+            // Update the uses table to take in account that we have a new generic scope we should look into
+            let mut uses = self.ctx.uses.write();
+            uses.add_generic_use(gen_scope.clone());
+
             let ctx = GenericParamContext {
                 sym: Some(rhs_sym),
             };

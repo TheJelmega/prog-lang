@@ -4,7 +4,7 @@ use fmt::format;
 
 use crate::{
     ast::*,
-    common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable}, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry},
+    common::{uses::{self, OpUsePath, PrecedenceUsePath, RootUseTable, UsePathKind}, Abi, LibraryPath, NameId, NameTable, Scope, SpanId, SpanRegistry},
     error_warning::AstErrorCode,
     hir::{self, Visitor as _},
     literals::{LiteralId, LiteralTable},
@@ -609,11 +609,15 @@ impl AstToHirLowering<'_> {
     fn get_use_subpaths(&mut self, use_path: &AstNodeRef<UsePath>, lib_path: LibraryPath, base_scope: Scope, paths: &mut Vec<uses::UsePath>) {
         match &**use_path {
             UsePath::SelfPath { span, node_id, alias } => {
+                let kind = match alias {
+                    Some(alias) => UsePathKind::Alias(self.names[*alias].to_string()),
+                    None => UsePathKind::Explicit,
+                };
+
                 paths.push(uses::UsePath {
                     lib_path: lib_path.clone(),
                     path: base_scope.clone(),
-                    wildcard: true,
-                    alias: alias.map(|name| self.names[name].to_string()),
+                    kind,
                     last_in_scope: false,
                 });
             },
@@ -632,11 +636,15 @@ impl AstToHirLowering<'_> {
                 for segment in segments {
                     path.push(self.names[*segment].to_string());
                 }
+
+                let kind = match alias {
+                    Some(alias) => UsePathKind::Alias(self.names[*alias].to_string()),
+                    None => UsePathKind::Explicit,
+                };
                 paths.push(uses::UsePath {
                     lib_path: lib_path.clone(),
                     path,
-                    wildcard: false,
-                    alias: alias.map(|name| self.names[name].to_string()),
+                    kind,
                     last_in_scope: false,
                 });
             },
@@ -649,8 +657,7 @@ impl AstToHirLowering<'_> {
                 paths.push(uses::UsePath {
                     lib_path,
                     path,
-                    wildcard: true,
-                    alias: None,
+                    kind: UsePathKind::Wildcard,
                     last_in_scope: false,
                 })
             }
