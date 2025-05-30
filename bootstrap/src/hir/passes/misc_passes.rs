@@ -471,7 +471,7 @@ impl SelfTyReplacePass<'_> {
 
     fn create_path_type(&mut self, scope: &Scope, name: NameId, generics: Option<&Box<GenericParams>>, span: SpanId, node_id: NodeId) -> SelfTyReplaceInfo {
         let mut idens = Vec::new();
-        for segment in scope.segments() {
+        for segment in scope.idens() {
             let name = self.ctx.names.read().get_id_for_str(&segment.name);
 
             idens.push(Identifier {

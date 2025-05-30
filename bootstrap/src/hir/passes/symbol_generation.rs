@@ -33,7 +33,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -56,7 +56,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -72,7 +72,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -95,7 +95,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -129,7 +129,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -145,7 +145,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -168,7 +168,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -212,7 +212,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -228,7 +228,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -244,7 +244,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -260,7 +260,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -290,7 +290,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -306,7 +306,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -322,7 +322,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);
@@ -338,7 +338,7 @@ impl Visitor for SymbolGeneration<'_> {
         
         if let Some(generics) = &mut node.generics {
             let sym = sym.read();
-            self.generic_scope = sym.path().get_full_scope();
+            self.generic_scope = sym.path().to_full_scope();
             let mut  uses = self.ctx.uses.write();
             uses.add_generic_use(self.generic_scope.clone());
             self.visit_gen_params(generics);

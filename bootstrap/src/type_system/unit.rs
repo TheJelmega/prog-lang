@@ -2,6 +2,7 @@ use std::fmt;
 
 use super::TypeInfo;
 
+#[derive(Debug)]
 pub struct UnitType;
 
 impl fmt::Display for UnitType {

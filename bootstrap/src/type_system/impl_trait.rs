@@ -4,6 +4,7 @@ use crate::common::SymbolPath;
 
 use super::TypeInfo;
 
+#[derive(Debug)]
 pub struct ImplTraitType {
     pub traits: Vec<SymbolPath>    
 }

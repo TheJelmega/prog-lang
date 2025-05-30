@@ -4,6 +4,7 @@ use parking_lot::RwLock;
 
 use super::{Type, TypeHandle, TypeInfo};
 
+#[derive(Debug)]
 pub struct TupleType {
     pub types: Vec<TypeHandle>,
 }

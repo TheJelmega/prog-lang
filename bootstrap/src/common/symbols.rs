@@ -10,40 +10,7 @@ use parking_lot::RwLock;
 
 use crate::{common::UsePathKind, type_system::{Type, TypeHandle, TypeRef}};
 
-use super::{IndentLogger, LibraryPath, RootUseTable, Scope, ScopeSegment, Visibility};
-
-
-// =============================================================
-
-#[derive(Clone, Debug)]
-pub struct SymbolPath {
-    pub lib:   LibraryPath,
-    pub scope: Scope,
-    // TODO: replace with name + param names + generics
-    pub name:  String,
-}
-
-impl SymbolPath {
-    pub fn new() -> Self {
-        Self {
-            lib: LibraryPath::new(),
-            scope: Scope::new(),
-            name: String::new(),
-        }
-    }
-
-    pub fn get_full_scope(&self) -> Scope {
-        let mut scope = self.scope.clone();
-        scope.push(self.name.clone());
-        scope
-    }
-}
-
-impl fmt::Display for SymbolPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}{}{}", self.lib, self.scope, if self.scope.is_empty() { "" } else  { "." }, self.name)
-    }
-}
+use super::{IndentLogger, LibraryPath, RootUseTable, Scope, PathIden, SymbolPath, Visibility};
 
 // =============================================================
 
@@ -377,7 +344,7 @@ impl fmt::Display for SymbolLookupError {
 
 pub struct SymbolTable {
     symbols:    HashMap<String, Vec<(Vec<String>, SymbolRef)>>,
-    sub_tables: HashMap<ScopeSegment, SymbolTable>,
+    sub_tables: HashMap<PathIden, SymbolTable>,
 }
 
 impl SymbolTable {
@@ -395,18 +362,18 @@ impl SymbolTable {
     }
 
     fn add_symbol_(&mut self, scope: &Scope, name: &str, params: &[String], sym: SymbolRef) {
-        let sub_table = self.get_or_insert_sub_table(scope.segments());
+        let sub_table = self.get_or_insert_sub_table(scope.idens());
         let entry = sub_table.symbols.entry(name.to_string());
         let syms = entry.or_insert(Vec::new());
         syms.push((Vec::from(params), sym));
     }
 
     pub fn get_direct_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
-        let sub_table = self.get_sub_table(scope.segments())?;
+        let sub_table = self.get_sub_table(scope.idens())?;
         sub_table.get_symbol_from_name(name)
     }
 
-    fn get_sub_table(&self, segments: &[ScopeSegment]) -> Option<&SymbolTable> {
+    fn get_sub_table(&self, segments: &[PathIden]) -> Option<&SymbolTable> {
         if segments.is_empty() {
             return Some(self);
         }
@@ -424,7 +391,7 @@ impl SymbolTable {
         None
     }
 
-    fn get_or_insert_sub_table(&mut self, segments: &[ScopeSegment]) -> &mut SymbolTable {
+    fn get_or_insert_sub_table(&mut self, segments: &[PathIden]) -> &mut SymbolTable {
         if segments.is_empty() {
             return self;
         }
@@ -468,11 +435,11 @@ impl RootSymbolTable {
     
     pub fn add_module(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, file_path: PathBuf) -> SymbolRef {
         let sym = Symbol::Module(ModuleSymbol{
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             file_path,
         });
         self.add_symbol(scope, name, &[], sym)
@@ -480,11 +447,11 @@ impl RootSymbolTable {
 
     pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Precedence(PrecedenceSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             id: u16::MAX,
         }); 
         self.add_symbol(scope, &name, &[], sym)
@@ -492,11 +459,11 @@ impl RootSymbolTable {
 
     pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Function(FunctionSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -505,11 +472,11 @@ impl RootSymbolTable {
 
     pub fn add_type_alias(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::TypeAlias(TypeAliasSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -518,11 +485,11 @@ impl RootSymbolTable {
 
     pub fn add_distinct_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::DistinctType(DistinctTypeSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -531,11 +498,11 @@ impl RootSymbolTable {
 
     pub fn add_opaque_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -544,11 +511,11 @@ impl RootSymbolTable {
 
     pub fn add_struct(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StructKind) -> SymbolRef {
         let sym = Symbol::Struct(StructSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             kind,
@@ -558,11 +525,11 @@ impl RootSymbolTable {
 
     pub fn add_union(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Union(UnionSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -571,11 +538,11 @@ impl RootSymbolTable {
 
     pub fn add_adt_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::AdtEnum(AdtEnumSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -584,11 +551,11 @@ impl RootSymbolTable {
 
     pub fn add_flag_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::FlagEnum(FlagEnumSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -597,11 +564,11 @@ impl RootSymbolTable {
 
     pub fn add_bitfield(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Bitfield(BitfieldSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -610,11 +577,11 @@ impl RootSymbolTable {
 
     pub fn add_const(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Const(ConstSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -623,11 +590,11 @@ impl RootSymbolTable {
 
     pub fn add_static(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StaticKind) -> SymbolRef {
         let sym = Symbol::Static(StaticSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             kind,
             ty: None,
@@ -637,11 +604,11 @@ impl RootSymbolTable {
 
     pub fn add_property(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Property(PropertySymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
@@ -650,11 +617,11 @@ impl RootSymbolTable {
 
     pub fn add_trait(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Trait(TraitSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             dag_idx: u32::MAX,
@@ -665,11 +632,11 @@ impl RootSymbolTable {
 
     pub fn add_impl(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
         let sym = Symbol::Impl(ImplSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
         });
         self.add_symbol(scope, &name, &[], sym)
@@ -677,11 +644,11 @@ impl RootSymbolTable {
 
     pub fn add_type_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
         let sym = Symbol::TypeGeneric(TypeGenericSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             in_pack,
@@ -691,11 +658,11 @@ impl RootSymbolTable {
 
     pub fn add_value_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
         let sym = Symbol::ValueGeneric(ValueGenericSymbol {
-            path: SymbolPath {
-                lib: lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope: scope.clone(),
-                name: name.to_string(),
-            },
+            path: SymbolPath::new(
+                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                scope.clone(),
+                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+            ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             in_pack,
@@ -741,7 +708,7 @@ impl RootSymbolTable {
 
         // Look into the current scope first
         let cur_table = self.tables.get(&self.cur_lib).unwrap();
-        if let Some(local_sub_table) = cur_table.get_sub_table(cur_scope.segments()) {
+        if let Some(local_sub_table) = cur_table.get_sub_table(cur_scope.idens()) {
             if let Some(sym) = local_sub_table.get_direct_symbol(&sym_scope, &sym_name) {
                 return Ok(sym);
             }
@@ -915,7 +882,7 @@ impl SymbolTableLogger {
                         write!(&mut params_s, ")");
                     }
 
-                    let segment = ScopeSegment {
+                    let segment = PathIden {
                         name: name.clone(),
                         params: params.clone(),
                         gen_args: Vec::new(), // TODO

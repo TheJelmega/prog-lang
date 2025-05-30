@@ -2,6 +2,7 @@ use std::{fmt, sync::Arc};
 
 use super::{Type, TypeInfo};
 
+#[derive(Debug)]
 pub struct FnPtrType {
     pub params: Vec<Arc<Type>>,
     pub ret:    Option<Arc<Type>>,

@@ -341,7 +341,7 @@ impl<'a> TraitImpl<'a> {
         Self {
             ctx,
             impl_ctx: None,
-            trait_name: SymbolPath::new(),
+            trait_name: SymbolPath::default(),
             impl_idx: 0,
         }
     }
@@ -453,12 +453,11 @@ impl Pass for TraitImpl<'_> {
                 let syms = self.ctx.syms.read();
 
                 let trait_path = trait_sym.path();
-                let mut scope = trait_path.scope.clone();
-                scope.push(trait_path.name.clone());
-                let item_sym = syms.get_symbol(Some(&trait_path.lib), &scope, &item.name).unwrap();
+                let mut scope = trait_path.to_full_scope();
+                let item_sym = syms.get_symbol(Some(trait_path.lib()), &scope, &item.name).unwrap();
 
                 // We just find the local hir implementation
-                if trait_path.lib == self.ctx.lib_path {
+                if *trait_path.lib() == self.ctx.lib_path {
                     match item.kind {
                         TraitItemKind::Function => {
                             let Some(entry) = hir.trait_functions.iter().find(|(_, _, ctx)| Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &item_sym)) else {

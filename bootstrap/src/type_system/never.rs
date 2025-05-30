@@ -2,6 +2,7 @@ use std::fmt;
 
 use super::TypeInfo;
 
+#[derive(Debug)]
 pub struct NeverType;
 
 impl fmt::Display for NeverType {

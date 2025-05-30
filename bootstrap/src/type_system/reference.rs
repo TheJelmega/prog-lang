@@ -2,6 +2,7 @@ use std::{fmt, sync::Arc};
 
 use super::{Type, TypeHandle, TypeInfo};
 
+#[derive(Debug)]
 pub struct ReferenceType {
     pub ty:     TypeHandle,
     pub is_mut: bool,

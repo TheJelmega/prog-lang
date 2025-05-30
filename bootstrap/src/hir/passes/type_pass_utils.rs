@@ -1,6 +1,6 @@
 use passes::PassContext;
 
-use crate::{common::ScopeGenArg, hir::*};
+use crate::{common::PathGeneric, hir::*};
 
 
 pub struct TypeGenUtils<'a> {
@@ -178,7 +178,7 @@ impl Visitor for TypeGenUtils<'_> {
 
         let mut path = node.ctx.path.clone();
 
-        for (iden, segment) in node.idens.iter_mut().zip(path.mut_segments().iter_mut()) {
+        for (iden, segment) in node.idens.iter_mut().zip(path.mut_idens().iter_mut()) {
             if let Some(hir_args) = &mut iden.gen_args {
                 for (hir_arg, arg) in hir_args.args.iter_mut().zip(segment.gen_args.iter()) {
                     match hir_arg {
@@ -186,11 +186,11 @@ impl Visitor for TypeGenUtils<'_> {
                             self.visit_type(hir_ty);
 
                             let mut type_reg = self.ctx.type_reg.write();
-                            let ScopeGenArg::Type { ty } = arg else { unreachable!() };
+                            let PathGeneric::Type { ty } = arg else { unreachable!() };
                             type_reg.set_resolved(ty, hir_ty.ctx().ty.clone().unwrap());
                         },
                         GenericArg::Value(_) => todo!(),
-                        GenericArg::Name(_, name) => if let ScopeGenArg::Type { ty } = arg {
+                        GenericArg::Name(_, name) => if let PathGeneric::Type { ty } = arg {
                             let mut type_reg = self.ctx.type_reg.write();
                             let mut path = Scope::new();
                             path.push(names[*name].to_string());

@@ -4469,7 +4469,7 @@ impl Visitor for AstToHirLowering<'_> {
 
 fn base_type_path_from_scope(scope: &Scope, names: &mut NameTable, span: SpanId, node_id: NodeId) -> hir::Path {
     let mut idens = Vec::new();
-    for segment in scope.segments() {
+    for segment in scope.idens() {
         let name = names.add(&segment.name);
         idens.push(hir::Identifier {
             name: hir::IdenName::Name { name, span },

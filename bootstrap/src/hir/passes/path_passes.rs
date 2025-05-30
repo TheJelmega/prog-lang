@@ -1,6 +1,6 @@
 use crate::{
     ast::NodeId,
-    common::{self, LibraryPath, Scope, ScopeGenArg, ScopeSegment, Symbol},
+    common::{self, LibraryPath, PathGeneric, PathIden, Scope, Symbol},
     hir::*,
 };
 
@@ -128,7 +128,7 @@ impl Visitor for PathGen<'_> {
 
                             let mut type_reg = self.ctx.type_reg.write();
                             let ty = type_reg.create_placeholder_type();
-                            args.push(ScopeGenArg::Type { ty });
+                            args.push(PathGeneric::Type { ty });
                         },
                         GenericArg::Value(_) => todo!(),
                         GenericArg::Name(span, name) => {
@@ -139,7 +139,7 @@ impl Visitor for PathGen<'_> {
                             let span_registry = self.ctx.spans.read();
                             let local_var = var_info.get_var(node.ctx.var_scope, *name, *span, &span_registry);
                             if local_var.is_some() {
-                                args.push(ScopeGenArg::Value);
+                                args.push(PathGeneric::Value {});
                                 continue;
                             }
                             
@@ -161,7 +161,7 @@ impl Visitor for PathGen<'_> {
                                         Symbol::Static(_) |
                                         Symbol::ValueGeneric(_)
                                     ) {
-                                        args.push(ScopeGenArg::Value);
+                                        args.push(PathGeneric::Value {});
                                         continue;
                                     }
                                 },
@@ -176,13 +176,13 @@ impl Visitor for PathGen<'_> {
                             // No matter if the name doesn't correspond to a value or type, just add a type placeholder so we can at least process it until we report the error
                             let mut type_reg = self.ctx.type_reg.write();
                             let ty = type_reg.create_placeholder_type();
-                            args.push(ScopeGenArg::Type { ty });
+                            args.push(PathGeneric::Type { ty });
                         },
                     }
                 }
             }
 
-            path.push_segment(ScopeSegment::new(name, Vec::new(), args));
+            path.push_iden(PathIden::new(name, Vec::new(), args));
         }
 
         node.ctx.path = path;

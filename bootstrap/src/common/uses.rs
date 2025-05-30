@@ -5,7 +5,7 @@ use std::{
 
 use crate::lexer::Punctuation;
 
-use super::{IndentLogger, LibraryPath, RootSymbolTable, Scope, ScopeSegment};
+use super::{IndentLogger, LibraryPath, PathIden, RootSymbolTable, Scope};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum UsePathKind {
@@ -100,7 +100,7 @@ pub struct RootUseTable {
     uses:             Vec<UsePath>,
     wildcards:        Vec<UsePath>,
     generic:          Option<UsePath>,
-    sub_tables:       HashMap<ScopeSegment, UseTable>,
+    sub_tables:       HashMap<PathIden, UseTable>,
     op_paths:         Vec<OpUsePath>,
     precedence_paths: Vec<PrecedenceUsePath>
 }
@@ -120,7 +120,7 @@ impl RootUseTable {
 
     pub fn add_file_use_root(&mut self, file_scope: &Scope) {
         let scope = file_scope.clone();
-        let segments = file_scope.segments();
+        let segments = file_scope.idens();
         let lib_path = self.lib_path.clone();
         let sub_table = self.get_or_add_sub_table(segments[0].clone());
         sub_table.add_file_use_root(lib_path, &segments[1..], scope);
@@ -129,17 +129,17 @@ impl RootUseTable {
     pub fn add_generic_use(&mut self, scope: Scope) {
         assert!(!scope.is_empty());
 
-        let segments = scope.segments();
+        let segments = scope.idens();
         let lib_path = self.lib_path.clone();
         let sub_table = self.get_or_add_sub_table(segments[0].clone());
         sub_table.add_generic_use(lib_path, &segments[1..], scope.clone());
     }
 
     pub fn add_use(&mut self, scope: &Scope, use_path: UsePath) {
-        self.add_use_(scope.segments(), use_path);
+        self.add_use_(scope.idens(), use_path);
     }
 
-    fn add_use_(&mut self, scope: &[ScopeSegment], use_path: UsePath) {
+    fn add_use_(&mut self, scope: &[PathIden], use_path: UsePath) {
         if scope.is_empty() {
             match &use_path.kind {
                 UsePathKind::Wildcard => self.wildcards.push(use_path),
@@ -197,7 +197,7 @@ impl RootUseTable {
 
         for (segment, table) in &self.sub_tables {
             let mut sub_scope = scope.clone();
-            sub_scope.push_segment(segment.clone());
+            sub_scope.push_iden(segment.clone());
             table.check_non_wildcard_ambiguity_(sub_scope, ambiguities);
         }
     }
@@ -268,7 +268,7 @@ impl RootUseTable {
 
         let mut scope = Scope::new();
         for (segment, sub_table) in &self.sub_tables {
-            scope.push_segment(segment.clone());
+            scope.push_iden(segment.clone());
             sub_table.validate_paths(sym_table, &mut scope, &mut invalid_paths);
             scope.pop();
         }
@@ -286,7 +286,7 @@ impl RootUseTable {
         
         // Get all use paths in the current scope, and if possible, the inner most file use root
         let file_root = if !scope.is_empty() {
-            let segments = scope.segments();
+            let segments = scope.idens();
             if let Some(sub_table) = self.sub_tables.get(&segments[0]) {
                 sub_table.get_use_paths(&segments[1..], &mut use_paths)
             } else {
@@ -321,7 +321,7 @@ impl RootUseTable {
         use_paths
     }
 
-    fn get_or_add_sub_table(&mut self, segment: ScopeSegment) -> &mut UseTable {
+    fn get_or_add_sub_table(&mut self, segment: PathIden) -> &mut UseTable {
         let name = segment.name.clone();
         let entry = self.sub_tables.entry(segment);
         entry.or_insert_with(|| UseTable::new(name))
@@ -378,7 +378,7 @@ pub struct UseTable {
     file_use_root: Option<UsePath>,
     uses:          Vec<UsePath>,
     wildcards:     Vec<UsePath>,
-    sub_tables:    HashMap<ScopeSegment, UseTable>,
+    sub_tables:    HashMap<PathIden, UseTable>,
 }
 
 impl UseTable {
@@ -393,13 +393,13 @@ impl UseTable {
         }
     }
 
-    fn get_or_add_sub_table(&mut self, segment: ScopeSegment) -> &mut UseTable {
+    fn get_or_add_sub_table(&mut self, segment: PathIden) -> &mut UseTable {
         let name = segment.name.clone();
         let entry = self.sub_tables.entry(segment);
         entry.or_insert_with(|| UseTable::new(name))
     }
 
-    fn add_file_use_root(&mut self, lib_path: LibraryPath, segments: &[ScopeSegment], scope: Scope) {
+    fn add_file_use_root(&mut self, lib_path: LibraryPath, segments: &[PathIden], scope: Scope) {
         if segments.is_empty() {
             self.file_use_root = Some(UsePath {
                 lib_path,
@@ -413,7 +413,7 @@ impl UseTable {
         }
     }
 
-    fn add_generic_use(&mut self, lib_path: LibraryPath, segments: &[ScopeSegment], scope: Scope) {
+    fn add_generic_use(&mut self, lib_path: LibraryPath, segments: &[PathIden], scope: Scope) {
         if segments.is_empty() {
             self.uses.push(UsePath {
                 lib_path,
@@ -427,7 +427,7 @@ impl UseTable {
         }
     }
 
-    fn add_use_(&mut self, scope: &[ScopeSegment], use_path: UsePath) {
+    fn add_use_(&mut self, scope: &[PathIden], use_path: UsePath) {
         if scope.is_empty() {
             match &use_path.kind {
                 UsePathKind::Wildcard => self.wildcards.push(use_path),
@@ -468,7 +468,7 @@ impl UseTable {
 
         for (segment, table) in &self.sub_tables {
             let mut sub_scope = scope.clone();
-            sub_scope.push_segment(segment.clone());
+            sub_scope.push_iden(segment.clone());
             table.check_non_wildcard_ambiguity_(sub_scope, ambiguities);
         }
     }
@@ -525,13 +525,13 @@ impl UseTable {
         }
 
         for (segment, sub_table) in &self.sub_tables {
-            scope.push_segment(segment.clone());
+            scope.push_iden(segment.clone());
             sub_table.validate_paths(sym_table, scope, invalid_paths);
             scope.pop();
         }
     }
 
-    fn get_use_paths(&self, scope: &[ScopeSegment], use_paths: &mut Vec<UsePath>) -> Option<UsePath> {
+    fn get_use_paths(&self, scope: &[PathIden], use_paths: &mut Vec<UsePath>) -> Option<UsePath> {
         // First get the inner uses
         let file_root = if !scope.is_empty() {
             if let Some(sub_table) = self.sub_tables.get(&scope[0]) {

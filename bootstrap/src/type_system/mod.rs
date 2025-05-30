@@ -58,6 +58,7 @@ pub use dependency::*;
 pub type TypeRef = Arc<Type>;
 //pub type TypeHandle = Arc<RwLock<TypeHandleInner>>;
 
+#[derive(Debug)]
 struct TypeHandleInner {
     ty:       TypeRef,
     resolved: Option<TypeHandle>,
@@ -81,7 +82,7 @@ impl TypeHandleInner {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeHandle {
     handle: Arc<RwLock<TypeHandleInner>>
 }
@@ -133,6 +134,7 @@ impl Eq for TypeHandle {
     
 }
 
+#[derive(Debug)]
 pub enum Type {
     Primitive(PrimitiveType),
     Unit(UnitType),

@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use parking_lot::RwLock;
 
-use crate::common::{Logger, Scope, SymbolPath, SymbolRef};
+use crate::common::{Logger, PathGeneric, Scope, SymbolPath, SymbolRef};
 
 use super::*;
 
@@ -216,12 +216,7 @@ impl TypeRegistry {
     }
 
     pub fn create_sym_path_type(&mut self, sym: SymbolRef) -> TypeHandle {
-        let path = {
-            let sym = sym.read();
-            let mut path = sym.path().scope.clone();
-            path.push(sym.path().name.clone());
-            path
-        };
+        let path = sym.read().path().to_full_scope();
 
         for path_ty in &self.path_types {
             let Type::Path(PathType{ sym: inner_sym, .. }) = &*path_ty.get() else { unreachable!() };
@@ -237,10 +232,10 @@ impl TypeRegistry {
 
         self.dependencies.add(ty.clone());
         let dag_idx = ty.handle.read().dag_idx();
-        for segment in path.segments() {
+        for segment in path.idens() {
             for arg in &segment.gen_args {
                 match arg {
-                    crate::common::ScopeGenArg::Type { ty } => {
+                    PathGeneric::Type { ty } => {
                         let base_idx = ty.handle.read().dag_idx();
                         self.dependencies.set_dependency(dag_idx, base_idx);
                     },
@@ -260,10 +255,10 @@ impl TypeRegistry {
 
         self.dependencies.add(ty.clone());
         let dag_idx = ty.handle.read().dag_idx();
-        for segment in path.segments() {
+        for segment in path.idens() {
             for arg in &segment.gen_args {
                 match arg {
-                    crate::common::ScopeGenArg::Type { ty } => {
+                    PathGeneric::Type { ty } => {
                         let base_idx = ty.handle.read().dag_idx();
                         self.dependencies.set_dependency(dag_idx, base_idx);
                     },

@@ -8,6 +8,14 @@ pub struct PathType {
     pub sym:  Option<SymbolRef>
 }
 
+impl fmt::Debug for PathType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PathType")
+            .field("path", &self.path)
+        .finish()
+    }
+}
+
 impl fmt::Display for PathType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.sym {

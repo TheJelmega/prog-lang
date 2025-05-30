@@ -2,6 +2,7 @@ use std::{fmt, sync::Arc};
 
 use super::{Type, TypeHandle, TypeInfo};
 
+#[derive(Debug)]
 pub struct SliceType {
     pub ty: TypeHandle,
     // TODO: sentinel

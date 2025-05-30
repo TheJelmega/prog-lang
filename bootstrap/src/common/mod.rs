@@ -25,8 +25,8 @@ pub use symbols::*;
 pub mod uses;
 pub use uses::*;
 
-mod scope;
-pub use scope::*;
+mod paths;
+pub use paths::*;
 
 mod span;
 pub use span::*;
