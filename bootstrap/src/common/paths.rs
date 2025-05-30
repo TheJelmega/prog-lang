@@ -56,13 +56,17 @@ impl Default for PathIden {
 impl fmt::Display for PathIden {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
+        if !self.gen_args.is_empty() {
+            write!(f, "[")?;
+            for (idx, arg) in self.gen_args.iter().enumerate() {
+                write!(f, "{}{arg}", if idx != 0 { ", " } else { "" });
+            }
+            write!(f, "]")?;
+        }
         if !self.params.is_empty() {
             write!(f, "(")?;
             for (idx, param) in self.params.iter().enumerate() {
                 write!(f, "{}{param}", if idx != 0 { ", " } else { "" });
-            }
-            for (idx, arg) in self.gen_args.iter().enumerate() {
-                write!(f, "{}{arg}", if idx != 0 { ", " } else { "" });
             }
             write!(f, ")")?;
         }
@@ -74,93 +78,93 @@ impl fmt::Display for PathIden {
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Scope {
-    segments: Vec<PathIden>,
+    idens: Vec<PathIden>,
 }
 
 #[allow(unused)]
 impl Scope {
     pub fn new() -> Self {
         Self {
-            segments: Vec::new(),
+            idens: Vec::new(),
         }
     }
 
     pub fn push(&mut self, name: String) {
-        self.segments.push(PathIden::new(name, Vec::new(), Vec::new()));
+        self.idens.push(PathIden::new(name, Vec::new(), Vec::new()));
     }
 
     pub fn push_with_params(&mut self, name: String, params: Vec<String>) {
-        self.segments.push(PathIden::new(name, params, Vec::new()));
+        self.idens.push(PathIden::new(name, params, Vec::new()));
     }
 
     pub fn push_iden(&mut self, segment: PathIden) {
-        self.segments.push(segment);
+        self.idens.push(segment);
     }
 
     pub fn extend(&mut self, extension: &Scope) {
-        for segment in &extension.segments {
+        for segment in &extension.idens {
             self.push_iden(segment.clone());
         }
     }
 
     pub fn pop(&mut self) -> Option<PathIden> {
-        self.segments.pop()
+        self.idens.pop()
     }
 
     pub fn idens(&self) -> &Vec<PathIden> {
-        &self.segments
+        &self.idens
     }
 
     pub fn mut_idens(&mut self) -> &mut Vec<PathIden> {
-        &mut self.segments
+        &mut self.idens
     }
 
     pub fn is_empty(&self) -> bool {
-        self.segments.is_empty()
+        self.idens.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.segments.len()
+        self.idens.len()
     }
     
     pub fn parent(&self) -> Scope {
-        if self.segments.len() <= 1 {
+        if self.idens.len() <= 1 {
             return Scope::new();
         }
 
         let mut parent = Scope::new();
-        for segment in &self.segments[..self.segments.len() - 1] {
-            parent.segments.push(segment.clone());
+        for segment in &self.idens[..self.idens.len() - 1] {
+            parent.idens.push(segment.clone());
         }
         parent
     }
 
     // Get the path without it's root
     pub fn sub_path(&self) -> Scope {
-        if self.segments.len() <= 1 {
+        if self.idens.len() <= 1 {
             return Scope::new();
         }
 
         let mut sub_path = Scope::new();
-        for segment in &self.segments[1..] {
-            sub_path.segments.push(segment.clone());
+        for segment in &self.idens[1..] {
+            sub_path.idens.push(segment.clone());
         }
         sub_path
     }
 
     pub fn root(&self) -> Option<&PathIden> {
-        self.segments.first()
+        self.idens.first()
     }
 
     pub fn last(&self) -> Option<&PathIden> {
-        self.segments.last()
+        self.idens.last()
     }
 }
 
 impl fmt::Display for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (idx, iden) in self.segments.iter().enumerate() {
-            write!(f, "{}{iden}", if idx != 0 { "," } else { "" })?;
+        for (idx, iden) in self.idens.iter().enumerate() {
+            write!(f, "{}{iden}", if idx != 0 { "." } else { "" })?;
         }
         Ok(())
     }
