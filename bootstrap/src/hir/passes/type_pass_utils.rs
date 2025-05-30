@@ -150,6 +150,8 @@ impl Visitor for TypeGenUtils<'_> {
             return;
         }
 
+        helpers::visit_optional_type(self, node);
+
         // TODO
         let mut registry = self.ctx.type_reg.write();
         let ty = registry.create_unit_type();
@@ -160,6 +162,8 @@ impl Visitor for TypeGenUtils<'_> {
         if node.ctx.ty.is_some() {
             return;
         }
+
+        helpers::visit_fn_type(self, node);
 
         // TODO
         let mut registry = self.ctx.type_reg.write();
