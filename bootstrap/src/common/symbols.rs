@@ -845,9 +845,6 @@ impl RootSymbolTable {
                             .map(|sym| sym.read().path().clone())
                             .collect(),
                     })
-                } else if sym_path.is_simple() && sym_path.segments().len() == 1 {
-                    // Special case for generics parameters, as they are allowed to be refered to by name only
-
                 }
             }
         }
