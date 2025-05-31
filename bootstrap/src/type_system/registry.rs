@@ -216,7 +216,7 @@ impl TypeRegistry {
     }
 
     pub fn create_sym_path_type(&mut self, sym: SymbolRef) -> TypeHandle {
-        let path = sym.read().path().to_full_scope();
+        let path = sym.read().path().clone();
 
         for path_ty in &self.path_types {
             let Type::Path(PathType{ sym: inner_sym, .. }) = &*path_ty.get() else { unreachable!() };
@@ -232,7 +232,7 @@ impl TypeRegistry {
 
         self.dependencies.add(ty.clone());
         let dag_idx = ty.handle.read().dag_idx();
-        for segment in path.idens() {
+        for segment in path.scope().idens() {
             for arg in &segment.gen_args {
                 match arg {
                     PathGeneric::Type { ty } => {
@@ -243,10 +243,19 @@ impl TypeRegistry {
                 }
             }
         }
+        for arg in &path.iden().gen_args {
+            match arg {
+                PathGeneric::Type { ty } => {
+                    let base_idx = ty.handle.read().dag_idx();
+                    self.dependencies.set_dependency(dag_idx, base_idx);
+                },
+                _ => (),
+            }
+        }
         ty
     }
 
-    pub fn create_path_type(&mut self, path: Scope) -> TypeHandle {
+    pub fn create_path_type(&mut self, path: SymbolPath) -> TypeHandle {
         // We don't have enough info to actually resolves what the path points to, i.e. don't know the full path, just the local one
         // So just create a new type, we can later on redirect it to the correct path
         // But there does need to be a better way to do it, but generics make this a harder problem to solve atm without further work on type resolution
@@ -255,7 +264,7 @@ impl TypeRegistry {
 
         self.dependencies.add(ty.clone());
         let dag_idx = ty.handle.read().dag_idx();
-        for segment in path.idens() {
+        for segment in path.scope().idens() {
             for arg in &segment.gen_args {
                 match arg {
                     PathGeneric::Type { ty } => {
@@ -266,7 +275,15 @@ impl TypeRegistry {
                 }
             }
         }
-        
+        for arg in &path.iden().gen_args {
+            match arg {
+                PathGeneric::Type { ty } => {
+                    let base_idx = ty.handle.read().dag_idx();
+                    self.dependencies.set_dependency(dag_idx, base_idx);
+                },
+                _ => (),
+            }
+        }
         ty
     }
 

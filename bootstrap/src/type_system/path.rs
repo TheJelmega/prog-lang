@@ -1,10 +1,10 @@
 use std::fmt;
 
-use crate::common::{Scope, SymbolRef};
+use crate::common::{Scope, SymbolPath, SymbolRef};
 
 
 pub struct PathType {
-    pub path: Scope,
+    pub path: SymbolPath,
     pub sym:  Option<SymbolRef>
 }
 

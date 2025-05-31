@@ -41,6 +41,14 @@ impl PathIden {
             gen_args,
         }
     }
+
+    pub fn from_name(name: String) -> Self {
+        Self {
+            name,
+            params: Vec::new(),
+            gen_args: Vec::new(),
+        }
+    }
 }
 
 impl Default for PathIden {

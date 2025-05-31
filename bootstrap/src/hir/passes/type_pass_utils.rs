@@ -1,6 +1,6 @@
 use passes::PassContext;
 
-use crate::{common::PathGeneric, hir::*};
+use crate::{common::{LibraryPath, PathGeneric, PathIden, SymbolPath}, hir::*};
 
 
 pub struct TypeGenUtils<'a> {
@@ -58,7 +58,8 @@ impl Visitor for TypeGenUtils<'_> {
         helpers::visit_path_type(self, node);
 
         let mut registry = self.ctx.type_reg.write();
-        let ty = registry.create_path_type(node.path.ctx.path.clone());
+        let path = SymbolPath::from_scope(LibraryPath::new(), node.path.ctx.path.clone()).unwrap();
+        let ty = registry.create_path_type(path);
         node.ctx.ty = Some(ty);
     }
 
@@ -192,8 +193,9 @@ impl Visitor for TypeGenUtils<'_> {
                         GenericArg::Value(_) => todo!(),
                         GenericArg::Name(_, name) => if let PathGeneric::Type { ty } = arg {
                             let mut type_reg = self.ctx.type_reg.write();
-                            let mut path = Scope::new();
-                            path.push(names[*name].to_string());
+
+                            let iden = PathIden::from_name(names[*name].to_string());
+                            let path = SymbolPath::new(LibraryPath::new(), Scope::new(), iden);
                             let new_ty = type_reg.create_path_type(path);
                             type_reg.set_resolved(ty, new_ty);
                         },

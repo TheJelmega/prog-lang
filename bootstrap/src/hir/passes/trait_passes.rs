@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    common::{FunctionSymbol, Scope, Symbol, SymbolPath, TraitItemKind},
+    common::{FunctionSymbol, PathIden, Scope, Symbol, SymbolPath, TraitItemKind},
     error_warning::HirErrorCode,
     hir::*,
 };
@@ -491,7 +491,9 @@ impl Pass for TraitImpl<'_> {
 
                             let names = self.ctx.names.read();
                             let mut syms = self.ctx.syms.write();
-                            let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
+                            let trait_sym = entry.2.sym.clone().unwrap();
+                            let iden = trait_sym.read().path().iden().clone();
+                            let sym = syms.add_function(None, &ctx.scope, iden);
 
                             def_fns.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_fn, sym));
                         },
@@ -527,7 +529,9 @@ impl Pass for TraitImpl<'_> {
 
                             let names = self.ctx.names.read();
                             let mut syms = self.ctx.syms.write();
-                            let sym = syms.add_function(None, &ctx.scope, &names[trait_fn.name]);
+                            let trait_sym = entry.2.sym.clone().unwrap();
+                            let iden = trait_sym.read().path().iden().clone();
+                            let sym = syms.add_function(None, &ctx.scope, iden);
 
                             def_methods.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_method, sym));
                         },
@@ -557,7 +561,9 @@ impl Pass for TraitImpl<'_> {
 
                             let names = self.ctx.names.read();
                             let mut syms = self.ctx.syms.write();
-                            let sym = syms.add_type_alias(None, &ctx.scope, &names[trait_alias.name]);
+                            let trait_sym = entry.2.sym.clone().unwrap();
+                            let iden = trait_sym.read().path().iden().clone();
+                            let sym = syms.add_type_alias(None, &ctx.scope, iden);
 
                             def_type_aliases.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_alias, sym));
                         },
@@ -586,7 +592,9 @@ impl Pass for TraitImpl<'_> {
 
                             let names = self.ctx.names.read();
                             let mut syms = self.ctx.syms.write();
-                            let sym = syms.add_const(None, &ctx.scope, &names[trait_const.name]);
+                            let trait_sym = entry.2.sym.clone().unwrap();
+                            let iden = trait_sym.read().path().iden().clone();
+                            let sym = syms.add_const(None, &ctx.scope, iden);
 
                             def_consts.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_const, sym));
                         },
@@ -619,7 +627,8 @@ impl Pass for TraitImpl<'_> {
                             
                             let names = self.ctx.names.read();
                             let mut syms = self.ctx.syms.write();
-                            let sym = syms.add_property(None, &ctx.scope, &names[trait_prop.name]);
+                            let iden = PathIden::from_name(names[trait_prop.name].to_string());
+                            let sym = syms.add_property(None, &ctx.scope, iden);
 
                             def_properties.push((impl_idx, ctx.scope.clone(), entry.2.file_scope.clone(), def_prop, sym));
                         },

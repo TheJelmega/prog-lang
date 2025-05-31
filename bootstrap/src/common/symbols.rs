@@ -355,17 +355,17 @@ impl SymbolTable {
         }
     }
 
-    fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
+    fn add_symbol(&mut self, scope: &Scope, iden: PathIden, sym: Symbol) -> SymbolRef {
         let sym = Arc::new(RwLock::new(sym));
-        self.add_symbol_(scope, name, params, sym.clone());
+        self.add_symbol_(scope, iden, sym.clone());
         sym
     }
 
-    fn add_symbol_(&mut self, scope: &Scope, name: &str, params: &[String], sym: SymbolRef) {
+    fn add_symbol_(&mut self, scope: &Scope, iden: PathIden, sym: SymbolRef) {
         let sub_table = self.get_or_insert_sub_table(scope.idens());
-        let entry = sub_table.symbols.entry(name.to_string());
+        let entry = sub_table.symbols.entry(iden.name);
         let syms = entry.or_insert(Vec::new());
-        syms.push((Vec::from(params), sym));
+        syms.push((Vec::from(iden.params), sym));
     }
 
     pub fn get_direct_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
@@ -434,246 +434,250 @@ impl RootSymbolTable {
 
     
     pub fn add_module(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, file_path: PathBuf) -> SymbolRef {
+        let iden = PathIden::new(name.to_string(), Vec::new(), Vec::new());
         let sym = Symbol::Module(ModuleSymbol{
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             file_path,
         });
-        self.add_symbol(scope, name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Precedence(PrecedenceSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
-                scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                scope.clone(), 
+                iden.clone(),
             ),
             id: u16::MAX,
         }); 
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Function(FunctionSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_type_alias(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_type_alias(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::TypeAlias(TypeAliasSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_distinct_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_distinct_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::DistinctType(DistinctTypeSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_opaque_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_opaque_type(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::OpaqueType(OpaqueTypeSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_struct(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StructKind) -> SymbolRef {
+    pub fn add_struct(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden, kind: StructKind) -> SymbolRef {
         let sym = Symbol::Struct(StructSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             kind,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_union(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_union(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Union(UnionSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_adt_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_adt_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::AdtEnum(AdtEnumSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_flag_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_flag_enum(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::FlagEnum(FlagEnumSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_bitfield(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_bitfield(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Bitfield(BitfieldSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_const(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_const(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Const(ConstSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
     pub fn add_static(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, kind: StaticKind) -> SymbolRef {
+        let iden = PathIden::new(name.to_string(), Vec::new(), Vec::new());
         let sym = Symbol::Static(StaticSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             kind,
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_property(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_property(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Property(PropertySymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_trait(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_trait(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Trait(TraitSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             dag_idx: u32::MAX,
             items: Vec::new(),
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_impl(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> SymbolRef {
+    pub fn add_impl(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
         let sym = Symbol::Impl(ImplSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
     pub fn add_type_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
+        let iden = PathIden::new(name.to_string(), Vec::new(), Vec::new());
         let sym = Symbol::TypeGeneric(TypeGenericSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             in_pack,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
     pub fn add_value_generic(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: &str, in_pack: bool) -> SymbolRef {
+        let iden = PathIden::new(name.to_string(), Vec::new(), Vec::new());
         let sym = Symbol::ValueGeneric(ValueGenericSymbol {
             path: SymbolPath::new(
                 lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
                 scope.clone(),
-                PathIden::new(name.to_string(), Vec::new(), Vec::new()),
+                iden.clone(),
             ),
             vis: Visibility::Public, // Placeholder visibility
             ty: None,
             in_pack,
         });
-        self.add_symbol(scope, &name, &[], sym)
+        self.add_symbol(scope, iden, sym)
     }
 
-    fn add_symbol(&mut self, scope: &Scope, name: &str, params: &[String], sym: Symbol) -> SymbolRef {
+    fn add_symbol(&mut self, scope: &Scope, iden: PathIden, sym: Symbol) -> SymbolRef {
         // SAFETY: We always add the table for `self.cur_lib`, so we know it exists
         let cur_table = self.tables.get_mut(&self.cur_lib).unwrap();
-        cur_table.add_symbol(scope, name, params, sym)
+        cur_table.add_symbol(scope, iden, sym)
     }
 
 

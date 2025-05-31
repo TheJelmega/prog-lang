@@ -4,7 +4,7 @@ use std::{collections::VecDeque, mem};
 use passes::PassContext;
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolTable, UseTable},
+    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PathIden, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolPath, SymbolTable, UseTable},
     hir::*, lexer::PuncutationTable
 };
 
@@ -369,7 +369,7 @@ impl Pass for OpTraitGen<'_> {
             }
             if let Some(alias) = entry.output_alias {
                 let mut syms = self.ctx.syms.write();
-                let sym = syms.add_type_alias(None, &scope, "Output");
+                let sym = syms.add_type_alias(None, &scope, PathIden::from_name("Output".to_string()));
                 
                 hir.add_trait_type_alias(scope, entry.file_scope, alias);
                 let (_, _, alias_ctx) = hir.trait_type_alias.last_mut().unwrap();
