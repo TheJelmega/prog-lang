@@ -258,6 +258,13 @@ impl Visitor for ItemLevelTypeGen<'_> {
     }
 
     fn visit_trait(&mut self, node: &mut Trait, ctx: &mut TraitContext) {
+        if let Some(generics) = &mut node.generics {
+            self.helper.visit_gen_params(generics);
+        }
+        if let Some(where_clause) = &mut node.where_clause {
+            self.helper.visit_where_clause(where_clause);
+        }
+
         let mut ty_reg = self.ctx.type_reg.write();
         let sym = ctx.sym.clone().unwrap();
         let ty = ty_reg.create_sym_path_type(sym.clone());

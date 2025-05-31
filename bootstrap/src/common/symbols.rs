@@ -869,33 +869,10 @@ impl SymbolTableLogger {
                 logger.set_last_at_indent();
             }
 
-            if symbols.len() == 1 && symbols[0].0.is_empty() {
+            for (_, sym) in symbols {
                 let sub_table = table.get_direct_sub_table_from_name(name);
-                Self::log_symbol(logger, &symbols[0].1.read(), sub_table);
-            } else { 
-                for (params, sym) in symbols {
-                    let mut params_s = String::new();
-                    if !params.is_empty() {
-                        write!(&mut params_s, "(");
-                        for (idx, param) in params.iter().enumerate() {
-                            if idx != 0 {
-                                write!(&mut params_s, ", ");
-                            }
-                            write!(&mut params_s, "{}", param);
-                        }
-                        write!(&mut params_s, ")");
-                    }
-
-                    let segment = PathIden {
-                        name: name.clone(),
-                        params: params.clone(),
-                        gen_args: Vec::new(), // TODO
-                    };
-                    let sub_table = table.get_sub_table(&[segment]);
-                    logger.log_indented(&params_s, |logger| Self::log_symbol(logger, &sym.read(), sub_table));
-                }
+                Self::log_symbol(logger, &sym.read(), sub_table);
             }
-
         }
     }
 
