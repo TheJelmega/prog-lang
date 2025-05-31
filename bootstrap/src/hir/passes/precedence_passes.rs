@@ -7,6 +7,34 @@ use crate::{
 
 use super::Pass;
 
+pub struct PrecedenceSymGen<'a> {
+    ctx: &'a PassContext,
+}
+
+impl<'a> PrecedenceSymGen<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self { ctx, }
+    }
+}
+
+impl Visitor for PrecedenceSymGen<'_> {
+    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
+        let name = self.ctx.names.read()[node.name].to_string();
+        let mut ctx = ctx.write();
+        let sym = self.ctx.syms.write().add_precedence(None, &ctx.scope, name);
+        ctx.sym = Some(sym);
+    }
+}
+
+impl Pass for PrecedenceSymGen<'_> {
+    const NAME: &'static str = "Precedence Symbol Generation";
+
+    fn process(&mut self, hir: &mut Hir) {
+        self.visit(hir, VisitFlags::Precedence);
+    }
+}
+
+//==============================================================================================================================
 
 pub struct PrecedenceAttrib<'a> {
     ctx:            &'a PassContext,
@@ -117,6 +145,8 @@ impl Visitor for PrecedenceAttrib<'_> {
     }
 }
 
+//==============================================================================================================================
+
 pub struct PrecedenceCollection<'a> {
     ctx: &'a PassContext
 }
@@ -126,14 +156,6 @@ impl<'a> PrecedenceCollection<'a> {
         Self {
             ctx
         }
-    }
-}
-
-impl Pass for PrecedenceCollection<'_> {
-    const NAME: &'static str = "Precedence Collection";
-    
-    fn process(&mut self, hir: &mut Hir) {
-        self.visit(hir, VisitFlags::Precedence);
     }
 }
 
@@ -156,6 +178,16 @@ impl Visitor for PrecedenceCollection<'_> {
     }
 }
 
+impl Pass for PrecedenceCollection<'_> {
+    const NAME: &'static str = "Precedence Collection";
+    
+    fn process(&mut self, hir: &mut Hir) {
+        self.visit(hir, VisitFlags::Precedence);
+    }
+}
+
+//==============================================================================================================================
+
 pub struct PrecedenceConnect<'a> {
     ctx: &'a PassContext
 }
@@ -166,10 +198,6 @@ impl<'a> PrecedenceConnect<'a> {
             ctx
         }
     }
-}
-
-impl Pass for PrecedenceConnect<'_> {
-    const NAME: &'static str = "Precedence Connecting";
 }
 
 impl Visitor for PrecedenceConnect<'_> {
@@ -204,4 +232,8 @@ impl Visitor for PrecedenceConnect<'_> {
             }
         }
     }
+}
+
+impl Pass for PrecedenceConnect<'_> {
+    const NAME: &'static str = "Precedence Connecting";
 }

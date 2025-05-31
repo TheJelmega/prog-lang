@@ -451,10 +451,55 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
 
     use hir::passes::*;
     
-    // base passes
+    // Base pass
     do_hir_pass(hir, cli, stats, SimplePathGen::new(ctx));
-    do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
 
+    // Precedences
+    do_hir_pass(hir, cli, stats, PrecedenceSymGen::new(ctx));
+    {
+        let mut uses = ctx.uses.write();
+        let syms = ctx.syms.read();
+        if let Err(err) = uses.finalize_precedences(&syms) {
+            ctx.add_error(hir::HirError {
+                span: SpanId::INVALID,
+                err: error_warning::HirErrorCode::UseTable { err },
+            });
+            return false;
+        }
+    }
+
+    do_hir_pass(hir, cli, stats, PrecedenceAttrib::new(ctx));
+    do_hir_pass(hir, cli, stats, PrecedenceCollection::new(ctx));
+    do_hir_pass(hir, cli, stats, PrecedenceConnect::new(ctx));
+    {
+        let mut precedence_dag = ctx.precedence_dag.write();
+
+        let cycles = precedence_dag.check_cycles();
+        if !cycles.is_empty() {
+            for cycle in cycles {
+                let mut cycle_str = String::new();
+
+                for idx in &cycle {
+                    let name = precedence_dag.get_name(*idx).unwrap();
+                    cycle_str.push_str(&format!("{name} -> "));
+                }
+                let name = precedence_dag.get_name(cycle[0]).unwrap();
+                cycle_str.push_str(&format!("{name}"));
+
+                ctx.add_error(hir::HirError {
+                    span: SpanId::INVALID,
+                    err: error_warning::HirErrorCode::CycleInPrecedenceDag { cycle: cycle_str },
+                })
+            }
+            
+            return false;
+        }
+        precedence_dag.calculate_order();
+    }
+
+    
+    // TO MOVE
+    do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
     {
         let mut uses = ctx.uses.write();
         let syms = ctx.syms.read();
@@ -474,7 +519,7 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
 
     }
 
-
+    // Trait
     do_hir_pass(hir, cli, stats, TraitDagGen::new(ctx));
 
     {
@@ -503,37 +548,6 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
             return false;
         }
         trait_dag.calculate_predecessors();
-    }
-
-    // Precedences
-    do_hir_pass(hir, cli, stats, PrecedenceAttrib::new(ctx));
-    do_hir_pass(hir, cli, stats, PrecedenceCollection::new(ctx));
-    do_hir_pass(hir, cli, stats, PrecedenceConnect::new(ctx));
-
-    {
-        let mut precedence_dag = ctx.precedence_dag.write();
-
-        let cycles = precedence_dag.check_cycles();
-        if !cycles.is_empty() {
-            for cycle in cycles {
-                let mut cycle_str = String::new();
-
-                for idx in &cycle {
-                    let name = precedence_dag.get_name(*idx).unwrap();
-                    cycle_str.push_str(&format!("{name} -> "));
-                }
-                let name = precedence_dag.get_name(cycle[0]).unwrap();
-                cycle_str.push_str(&format!("{name}"));
-
-                ctx.add_error(hir::HirError {
-                    span: SpanId::INVALID,
-                    err: error_warning::HirErrorCode::CycleInPrecedenceDag { cycle: cycle_str },
-                })
-            }
-            
-            return false;
-        }
-        precedence_dag.calculate_order();
     }
     
     // Operators

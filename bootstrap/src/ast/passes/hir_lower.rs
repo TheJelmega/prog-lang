@@ -2338,14 +2338,20 @@ impl Visitor for AstToHirLowering<'_> {
             return;
         }
 
-        let lib_path = self.get_lib_path(node.group, node.package, node.library);
-
-        for precedence in &node.precedences {
-            let precedence = self.names[*precedence].to_string();
-            self.use_table.add_precedence_us(PrecedenceUsePath {
-                lib_path: lib_path.clone(),
-                precedence,
+        let lib = self.get_lib_path(node.group, node.package, node.library);
+        if node.precedences.is_empty() {
+            self.use_table.add_precedence_use(PrecedenceUsePath {
+                lib,
+                precedence: None,
             })
+        } else {
+            for precedence in &node.precedences {
+                let precedence = self.names[*precedence].to_string();
+                self.use_table.add_precedence_use(PrecedenceUsePath {
+                    lib: lib.clone(),
+                    precedence: Some(precedence),
+                });
+            }
         }
     }
 

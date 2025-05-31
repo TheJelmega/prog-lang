@@ -50,6 +50,22 @@ impl fmt::Display for UsePath {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PrecedenceUsePath {
+    pub lib:        LibraryPath,
+    pub precedence: Option<String>,
+}
+
+impl fmt::Display for PrecedenceUsePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.lib)?;
+        if let Some(precedence) = &self.precedence {
+            write!(f, ".{precedence}")?;
+        }
+        Ok(())
+    }
+}
+
 #[allow(unused)]
 #[derive(Clone)]
 pub struct OpUsePath {
@@ -57,31 +73,32 @@ pub struct OpUsePath {
     pub op:       Punctuation,
 }
 
-#[allow(unused)]
-#[derive(Clone)]
-pub struct PrecedenceUsePath {
-    pub lib_path:   LibraryPath,
-    pub precedence: String,
-}
-
 #[derive(Clone, Debug)]
 pub enum UseTableError {
-    InvalidPaths { paths: Vec<(Scope, UsePath)> },
+    InvalidPrecedences { paths: Vec<PrecedenceUsePath> },
+    InvalidSymbols{ paths: Vec<(Scope, UsePath)> },
     AmbiguousUses { ambiguities: Vec<(Scope, String, Vec<UsePath>)> }
 }
 
 impl fmt::Display for UseTableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UseTableError::InvalidPaths { paths } => {
+            UseTableError::InvalidPrecedences { paths } => {
+                writeln!(f, "Use table contains ambiguous precedences")?;
+                for path in paths {
+                    writeln!(f, "- {path}")?;
+                }
+                Ok(())
+            },
+            UseTableError::InvalidSymbols { paths } => {
                 writeln!(f, "Use table contains ambiguous symbols:")?;
                 for (scope, path) in paths {
-                    writeln!(f, "{scope}: {path}")?;
+                    writeln!(f, "- {scope}: {path}")?;
                 }
                 Ok(())
             },
             UseTableError::AmbiguousUses { ambiguities } => {
-                writeln!(f, "Ambiguous uses found: ")?;
+                writeln!(f, "Use table contains ambiguous uses: ")?;
                 for (scope, name, paths) in ambiguities {
                     writeln!(f, "- '{name}' in {scope}:")?;
                     for path in paths {
@@ -106,15 +123,15 @@ pub struct RootUseTable {
 }
 
 impl RootUseTable {
-    pub fn new(lib_path: LibraryPath) -> Self {
+    pub fn new(lib: LibraryPath) -> Self {
         Self {
-            lib_path,
+            lib_path: lib.clone(),
             uses: Vec::new(),
             wildcards: Vec::new(),
             generic: None,
             sub_tables: HashMap::new(),
             op_paths: Vec::new(),
-            precedence_paths: Vec::new(),
+            precedence_paths: vec![PrecedenceUsePath { lib, precedence: None }],
         }
     }
 
@@ -153,8 +170,28 @@ impl RootUseTable {
         }
     }
 
+    pub fn finalize_precedences(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
+        let mut invalid_precedences = Vec::new();
+        for use_path in &self.precedence_paths {
+            match &use_path.precedence {
+                Some(name) => if sym_table.get_direct_precedence(use_path.lib.clone(), name).is_none() {
+                    invalid_precedences.push(use_path.clone());
+                },
+                None => if !sym_table.has_precedence_for_lib(&use_path.lib) {
+                    invalid_precedences.push(use_path.clone());
+                },
+            }
+        }
+
+        if invalid_precedences.is_empty() {
+            Ok(())
+        } else {
+            Err(UseTableError::InvalidPrecedences { paths: invalid_precedences })
+        }
+    }
+
     pub fn finalize(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
-        self.validate_paths(sym_table).map_err(|paths| UseTableError::InvalidPaths { paths })?;
+        self.validate_paths(sym_table).map_err(|paths| UseTableError::InvalidSymbols{ paths })?;
         self.check_non_wildcard_ambiguity().map_err(|ambiguities| UseTableError::AmbiguousUses { ambiguities })?;
         self.remove_dup_uses();
         Ok(())
@@ -242,41 +279,59 @@ impl RootUseTable {
         }
         self.uses = uses;
 
-
         for (_, sub_table) in &mut self.sub_tables {
             sub_table.remove_dup_uses();
+        }
+
+        let mut precedences = Vec::new();
+        for path in &self.precedence_paths {
+            match &path.precedence {
+                Some(precedence) => {
+                    let is_dup = self.precedence_paths.iter().find(|path| 
+                        path.precedence.is_none() ||
+                        path.precedence.as_ref() == Some(precedence)
+                    ).is_some();
+                    if !is_dup {
+                        precedences.push(path)
+                    }
+                },
+                None => {
+                    precedences.retain(|precedence| precedence.lib != path.lib);
+                    precedences.push(path);
+                },
+            }
         }
     }
 
     fn validate_paths(&self, sym_table: &RootSymbolTable) -> Result<(), Vec<(Scope, UsePath)>> {
-        let mut invalid_paths = Vec::new();
+        let mut invalid_symbols = Vec::new();
 
         for use_path in &self.uses {
             let scope = use_path.path.parent();
             let name = use_path.path.last().unwrap().name.clone();
             if sym_table.get_symbol(Some(&use_path.lib_path), &scope, &name).is_none() {
-                invalid_paths.push((Scope::new(), use_path.clone()));
+                invalid_symbols.push((Scope::new(), use_path.clone()));
             }
         }
         for wildcard in &self.wildcards {
             let scope = wildcard.path.parent();
             let name = wildcard.path.last().unwrap().name.clone();
             if sym_table.get_symbol(Some(&wildcard.lib_path), &scope, &name).is_none() {
-                invalid_paths.push((Scope::new(), wildcard.clone()));
+                invalid_symbols.push((Scope::new(), wildcard.clone()));
             }
         }
 
         let mut scope = Scope::new();
         for (segment, sub_table) in &self.sub_tables {
             scope.push_iden(segment.clone());
-            sub_table.validate_paths(sym_table, &mut scope, &mut invalid_paths);
+            sub_table.validate_paths(sym_table, &mut scope, &mut invalid_symbols);
             scope.pop();
         }
 
-        if invalid_paths.is_empty() {
+        if invalid_symbols.is_empty() {
             Ok(())
         } else {
-            Err(invalid_paths)
+            Err(invalid_symbols)
         }
     }
 
@@ -335,8 +390,12 @@ impl RootUseTable {
 
     //==============================================================
 
-    pub fn add_precedence_us(&mut self, precedence_path: PrecedenceUsePath) {
+    pub fn add_precedence_use(&mut self, precedence_path: PrecedenceUsePath) {
         self.precedence_paths.push(precedence_path);
+    }
+
+    pub fn precedence_paths(&self) -> &Vec<PrecedenceUsePath> {
+        &self.precedence_paths
     }
 
     //==============================================================

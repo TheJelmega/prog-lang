@@ -314,10 +314,26 @@ pub struct ValueGenericSymbol {
 pub type SymbolRef = Arc<RwLock<Symbol>>;
 
 //==============================================================================================================================
+#[derive(Clone, Debug)]
+pub enum SymbolLookupKind {
+    Precedence,
+    Operator,
+    Symbol,
+}
+
+impl fmt::Display for SymbolLookupKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SymbolLookupKind::Precedence => write!(f, "precedence"),
+            SymbolLookupKind::Operator   => write!(f, "operator"),
+            SymbolLookupKind::Symbol     => write!(f, "symbol"),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum SymbolLookupError {
-    Unknown { path: Scope },
+    Unknown { path: Scope, kind: SymbolLookupKind },
     Ambiguous {
         path: Scope,
         possible_paths: Vec<SymbolPath>,
@@ -327,9 +343,9 @@ pub enum SymbolLookupError {
 impl fmt::Display for SymbolLookupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SymbolLookupError::Unknown { path } => write!(f, "Unknown symbol: {path}"),
+            SymbolLookupError::Unknown { path ,kind } => write!(f, "Unknown {kind}: {path}"),
             SymbolLookupError::Ambiguous { path, possible_paths } => {
-                write!(f, "Ambiguous symbol for '{path}', possible symbols: ")?;
+                write!(f, "Ambiguous symbol for '{path}', possible  symbols: ")?;
                 for (idx, path) in possible_paths.iter().enumerate() {
                     if idx != 0 {
                         write!(f, ", ")?;
@@ -418,6 +434,7 @@ pub struct RootSymbolTable {
     cur_lib:  LibraryPath,
     tables:   HashMap<LibraryPath, SymbolTable>,
     ty_table: HashMap<TypeHandle, Vec<SymbolRef>>,
+    precedences: HashMap<LibraryPath, HashMap<String, SymbolRef>>,
 }
 
 impl RootSymbolTable {
@@ -429,6 +446,7 @@ impl RootSymbolTable {
             cur_lib,
             tables,
             ty_table: HashMap::new(),
+            precedences: HashMap::new(),
         }
     }
 
@@ -446,16 +464,23 @@ impl RootSymbolTable {
         self.add_symbol(scope, iden, sym)
     }
 
-    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
+    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: String) -> SymbolRef {
+        let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
         let sym = Symbol::Precedence(PrecedenceSymbol {
             path: SymbolPath::new(
-                lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone()),
+                lib.clone(),
                 scope.clone(), 
-                iden.clone(),
+                PathIden::from_name(name.clone()),
             ),
             id: u16::MAX,
         }); 
-        self.add_symbol(scope, iden, sym)
+
+        let table = self.precedences.entry(lib);
+        let table = table.or_insert(HashMap::new());
+
+        let sym = Arc::new(RwLock::new(sym));
+        table.insert(name, sym.clone());
+        sym
     }
 
     pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
@@ -820,13 +845,48 @@ impl RootSymbolTable {
             }
         }
 
-        Err(SymbolLookupError::Unknown { path: sym_path.clone() })
+        Err(SymbolLookupError::Unknown { path: sym_path.clone(), kind: SymbolLookupKind::Symbol })
+    }
+
+    pub fn get_direct_precedence(&self, lib: LibraryPath, name: &str) -> Option<SymbolRef> {
+        let table = match self.precedences.get(&lib) {
+            Some(table) => table,
+            None => return None,
+        };
+        table.get(name).cloned()
+    }
+
+    pub fn get_precedence(&self, uses: &RootUseTable, name: &str) -> Result<SymbolRef, SymbolLookupError> {
+        let precedence_paths = uses.precedence_paths();
+
+        for use_path in precedence_paths {
+            if let Some(precedence) = &use_path.precedence {
+                if precedence != name {
+                    continue;
+                }
+            }
+
+            if let Some(sym) = self.get_direct_precedence(use_path.lib.clone(), name) {
+                // Use table SHOULD have been validated at this point, so there aren't going to be any duplicate precedences that are possible
+                return Ok(sym);
+            }
+        }
+
+        let mut path = Scope::new();
+        path.push(name.to_string());
+        Err(SymbolLookupError::Unknown { path, kind: SymbolLookupKind::Precedence })
+    }
+
+    pub fn has_precedence_for_lib(&self, lib: &LibraryPath) -> bool {
+        self.precedences.contains_key(lib)
     }
 
     pub fn log(&self) {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
         let end = self.tables.len() - 1;
         for (idx, (lib_path, table)) in self.tables.iter().enumerate() {
+            let precedences = self.precedences.get(&lib_path);
+
             logger.set_last_at_indent_if(idx == end && self.ty_table.is_empty());
 
             logger.log_indented("Table", |logger| {
@@ -836,7 +896,15 @@ impl RootSymbolTable {
                 logger.prefixed_log_fmt(format_args!("Package: {}\n", &lib_path.package));
                 logger.prefixed_log_fmt(format_args!("Library: {}\n", &lib_path.library));
 
-                SymbolTableLogger::log_table(logger, table)
+                SymbolTableLogger::log_table(logger, table, precedences.is_some());
+                
+                if let Some(precedences) = precedences {
+                    let end = precedences.len() - 1;
+                    for (idx, (_, precedence)) in precedences.iter().enumerate() {
+                        logger.set_last_at_indent_if(idx == end);
+                        SymbolTableLogger::log_symbol(logger, &precedence.read(), None);
+                    }
+                }
             });
         }
 
@@ -863,12 +931,9 @@ struct SymbolTableLogger;
 
 #[allow(unused)]
 impl SymbolTableLogger {
-    fn log_table(logger: &mut IndentLogger, table: &SymbolTable) {
+    fn log_table(logger: &mut IndentLogger, table: &SymbolTable, has_syms_following: bool) {
         for (idx, (name, symbols)) in table.symbols.iter().enumerate() {
-            if idx == table.symbols.len() - 1 {
-                logger.set_last_at_indent();
-            }
-
+            logger.set_last_at_indent_if(!has_syms_following && idx == table.symbols.len() - 1);
             for (_, sym) in symbols {
                 let sub_table = table.get_direct_sub_table_from_name(name);
                 Self::log_symbol(logger, &sym.read(), sub_table);
@@ -993,7 +1058,7 @@ impl SymbolTableLogger {
         }
 
         if let Some(sub_table) = sub_table {
-            Self::log_table(logger, sub_table);
+            Self::log_table(logger, sub_table, false);
         }
 
         logger.pop_indent();

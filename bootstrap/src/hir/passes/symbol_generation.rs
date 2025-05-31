@@ -486,13 +486,6 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
-    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
-        let iden = self.get_symbol_iden(node.name, None, None);
-        let mut ctx = ctx.write();
-        let sym = self.ctx.syms.write().add_precedence(None, &ctx.scope, iden);
-        ctx.sym = Some(sym);
-    }
-
     fn visit_gen_params(&mut self, node: &mut GenericParams) {
         for param in &mut node.params {
             match param {
