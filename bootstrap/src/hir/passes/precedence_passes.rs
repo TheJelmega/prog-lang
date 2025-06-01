@@ -1,7 +1,7 @@
 use passes::PassContext;
 
 use crate::{
-    common::{NameTable, PrecedenceDAG, Symbol},
+    common::{NameTable, PrecedenceDAG, PrecedenceOrderKind, Symbol},
     hir::*, literals::{Literal, LiteralTable},
 };
 
@@ -21,7 +21,17 @@ impl Visitor for PrecedenceSymGen<'_> {
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
         let name = self.ctx.names.read()[node.name].to_string();
         let mut ctx = ctx.write();
-        let sym = self.ctx.syms.write().add_precedence(None, &ctx.scope, name);
+
+        let kind = if ctx.is_highest {
+            PrecedenceOrderKind::Highest
+        } else if ctx.is_lowest {
+            PrecedenceOrderKind::Lowest
+        } else {
+            PrecedenceOrderKind::User
+        };
+        let assoc = node.assoc.as_ref().map_or(PrecedenceAssocKind::None, |assoc| assoc.kind);
+
+        let sym = self.ctx.syms.write().add_precedence(None, &ctx.scope, name, kind, assoc);
         ctx.sym = Some(sym);
     }
 }
@@ -38,14 +48,14 @@ impl Pass for PrecedenceSymGen<'_> {
 
 pub struct PrecedenceAttrib<'a> {
     ctx:            &'a PassContext,
-    precedence_ctx: Option<Ref<PrecedenceContext>>,
+    sym: Option<SymbolRef>,
 }
 
 impl<'a> PrecedenceAttrib<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
-            precedence_ctx: None,
+            sym: None,
         }
     }
 }
@@ -60,9 +70,9 @@ impl Pass for PrecedenceAttrib<'_> {
 
 impl Visitor for PrecedenceAttrib<'_> {
     fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
-        self.precedence_ctx = Some(ctx.clone());
+        self.sym = Some(ctx.read().sym.clone().unwrap());
         helpers::visit_precedence(self, node);
-        self.precedence_ctx = None;
+        self.sym = None;
     }
 
     fn visit_attribute(&mut self, node: &mut Attribute) {
@@ -105,27 +115,9 @@ impl Visitor for PrecedenceAttrib<'_> {
                     return;
                 }
 
-                match &self.ctx.names.read()[path.names[0]] {
-                    "lowest_precedence" => {
-                        let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
-                        if ctx.is_highest {
-                            self.ctx.add_error(HirError {
-                                span: path.span,
-                                err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
-                            });
-                        }
-                        ctx.is_lowest = true;
-                    },
-                    "highest_precedence" => {
-                        let mut ctx = self.precedence_ctx.as_ref().unwrap().write();
-                        if ctx.is_lowest {
-                            self.ctx.add_error(HirError {
-                                span: path.span,
-                                err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
-                            });
-                        }
-                        ctx.is_highest = true;
-                    },
+                let kind = match &self.ctx.names.read()[path.names[0]] {
+                    "lowest_precedence"  => PrecedenceOrderKind::Lowest,
+                    "highest_precedence" => PrecedenceOrderKind::Highest,
                     _ => {
                         self.ctx.add_error(HirError {
                             span: path.span,
@@ -133,7 +125,17 @@ impl Visitor for PrecedenceAttrib<'_> {
                         });
                         return;
                     }
+                };
+
+                let mut sym = self.sym.as_ref().unwrap().write();
+                let Symbol::Precedence(sym) = &mut *sym else { unreachable!() };
+                if sym.order_kind != PrecedenceOrderKind::User {
+                    self.ctx.add_error(HirError {
+                        span: path.span,
+                        err: HirErrorCode::PrecedenceUnsupportedAttrib { info: format!("A precedence cannot be both `highest_precedence` and `lowest_precedence` at the same time") },
+                    });
                 }
+                sym.order_kind = kind;
             },
             _ => {
                 self.ctx.add_error(HirError {
@@ -142,47 +144,6 @@ impl Visitor for PrecedenceAttrib<'_> {
                 });
             },
         }
-    }
-}
-
-//==============================================================================================================================
-
-pub struct PrecedenceCollection<'a> {
-    ctx: &'a PassContext
-}
-
-impl<'a> PrecedenceCollection<'a> {
-    pub fn new(ctx: &'a PassContext) -> Self {
-        Self {
-            ctx
-        }
-    }
-}
-
-impl Visitor for PrecedenceCollection<'_> {
-    fn visit_precedence(&mut self, node: &mut Precedence, ctx: Ref<PrecedenceContext>) {
-        let ctx = ctx.read();
-        let mut sym = ctx.sym.as_ref().unwrap().write();
-        let Symbol::Precedence(sym) = &mut *sym else { unreachable!("Precedence HIR nodes should always have Precedence symbols") };
-
-        let mut dag = self.ctx.precedence_dag.write();
-
-        let id = dag.add_precedence(self.ctx.names.read()[node.name].to_string());
-        sym.id = id;
-
-        if ctx.is_lowest {
-            dag.set_lowest(id);
-        } else if ctx.is_highest {
-            dag.set_highest(id);
-        }
-    }
-}
-
-impl Pass for PrecedenceCollection<'_> {
-    const NAME: &'static str = "Precedence Collection";
-    
-    fn process(&mut self, hir: &mut Hir) {
-        self.visit(hir, VisitFlags::Precedence);
     }
 }
 
@@ -206,29 +167,45 @@ impl Visitor for PrecedenceConnect<'_> {
         let mut sym = ctx.sym.as_ref().unwrap().write();
         let Symbol::Precedence(sym) = &mut *sym else { unreachable!("Precedence HIR nodes should always have Precedence symbols") };
 
-        let mut dag = self.ctx.precedence_dag.write();
-
-        if let Some((lower_than, _)) = node.lower_than {
-            if ctx.is_highest {
+        let syms = self.ctx.syms.read();
+        let uses = self.ctx.uses.read();
+        let names = self.ctx.names.read();
+        
+        if let Some((lower_than, span)) = node.lower_than {
+            if sym.order_kind == PrecedenceOrderKind::Highest {
+                // Pretty niche error that only really happens for the core libary, as it contains the corresponding language item
                 self.ctx.add_error(HirError {
-                    span: node.span,
+                    span,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Highest precedence cannot be lower than other precedences".to_string() },
-                });
+                })
             } else {
-                let higher = dag.get(&self.ctx.names.read()[lower_than]).unwrap();
-                dag.set_order(sym.id, higher);
+                let lower_than_name = &names[lower_than];
+                match syms.get_precedence(&uses, lower_than_name) {
+                    Ok(lower) => sym.lower_than = Some(Arc::downgrade(&lower)),
+                    Err(err) => self.ctx.add_error(HirError {
+                        span,
+                        err: HirErrorCode::UnknownSymbol { err },
+                    }),
+                };
             }
         }
 
-        if let Some((higher_than, _)) = node.higher_than {
-            if ctx.is_highest {
+        if let Some((higher_than, span)) = node.higher_than {
+            if sym.order_kind == PrecedenceOrderKind::Lowest {
+                // Pretty niche error that only really happens for the core libary, as it contains the corresponding language item
                 self.ctx.add_error(HirError {
-                    span: node.span,
+                    span,
                     err: HirErrorCode::PrecedenceInvalidOrder { info: "Lowest precedence cannot be higher than other precedences".to_string() },
-                });
+                })
             } else {
-                let lower = dag.get(&self.ctx.names.read()[higher_than]).unwrap();
-                dag.set_order(lower, sym.id)
+                let higher_than_name = &names[higher_than];
+                match syms.get_precedence(&uses, higher_than_name) {
+                    Ok(lower) => sym.higher_than = Some(Arc::downgrade(&lower)),
+                    Err(err) => self.ctx.add_error(HirError {
+                        span,
+                        err: HirErrorCode::UnknownSymbol { err },
+                    }),
+                };
             }
         }
     }

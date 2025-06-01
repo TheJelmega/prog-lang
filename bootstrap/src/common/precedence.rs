@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::{dag::Dag, Logger};
+use super::{dag::Dag, Logger, RootSymbolTable, RootUseTable, Symbol};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrecedenceAssocKind {
@@ -48,12 +48,73 @@ impl PrecedenceDAG {
         }
     }
 
-    pub(crate) fn set_highest(&mut self, id: u16) {
-        self.highest = id;
-    }
+    pub fn build_from_syms(&mut self, syms: &RootSymbolTable, uses: &RootUseTable) {
+        let set_paths = uses.precedence_paths();
+        let mut all_used_precedences = Vec::new();
 
-    pub(crate) fn set_lowest(&mut self, id: u16) {
-        self.lowest = id;
+        // Add all precedences
+        for path in set_paths {
+            match &path.precedence {
+                Some(precedence) => {
+                    let sym_arc = syms.get_direct_precedence(&path.lib, precedence).unwrap();
+                    let idx = self.add_precedence(precedence.clone());
+
+                    let mut sym = sym_arc.write();
+                    let Symbol::Precedence(sym) = &mut *sym else { unreachable!() };
+                    sym.id = idx;
+
+                    all_used_precedences.push(sym_arc.clone());
+
+                    match sym.order_kind {
+                        super::PrecedenceOrderKind::User    => (),
+                        super::PrecedenceOrderKind::Lowest  => self.lowest = idx,
+                        super::PrecedenceOrderKind::Highest => self.highest = idx,
+                    }
+                },
+                None => {
+                    let precedences = syms.get_precedences_for_lib(&path.lib).unwrap();
+                    all_used_precedences.reserve(precedences.len());
+                    for (_, sym_arc) in precedences {
+                        let mut sym = sym_arc.write();
+                        let Symbol::Precedence(sym) = &mut *sym else { unreachable!() };
+
+                        let name = sym.path.iden().name.clone();
+                        let idx = self.add_precedence(name);
+
+                        sym.id = idx;
+                        
+                        all_used_precedences.push(sym_arc.clone());
+
+                        match sym.order_kind {
+                            super::PrecedenceOrderKind::User    => (),
+                            super::PrecedenceOrderKind::Lowest  => self.lowest = idx,
+                            super::PrecedenceOrderKind::Highest => self.highest = idx,
+                        }
+                    }
+                },
+            }
+        }
+
+        // Now set all preceding precedences
+        for sym in all_used_precedences {
+            let sym = sym.read();
+            let Symbol::Precedence(sym) = &* sym else { unreachable!() };
+
+            if let Some(lower) = &sym.lower_than {
+                let lower = lower.upgrade().unwrap();
+                let lower = lower.read();
+                let Symbol::Precedence(lower) = &*lower else { unreachable!() };
+
+                self.set_order(lower.id, sym.id);
+            }
+            if let Some(higher) = &sym.higher_than {
+                let higher = higher.upgrade().unwrap();
+                let higher = higher.read();
+                let Symbol::Precedence(higher) = &*higher else { unreachable!() };
+
+                self.set_order(sym.id, higher.id);
+            }
+        }
     }
 
     pub fn add_precedence(&mut self, name: String) -> u16 {

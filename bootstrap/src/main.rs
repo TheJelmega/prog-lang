@@ -469,10 +469,12 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     }
 
     do_hir_pass(hir, cli, stats, PrecedenceAttrib::new(ctx));
-    do_hir_pass(hir, cli, stats, PrecedenceCollection::new(ctx));
     do_hir_pass(hir, cli, stats, PrecedenceConnect::new(ctx));
     {
         let mut precedence_dag = ctx.precedence_dag.write();
+        let syms = ctx.syms.read();
+        let uses = ctx.uses.read();
+        precedence_dag.build_from_syms(&syms, &uses);
 
         let cycles = precedence_dag.check_cycles();
         if !cycles.is_empty() {

@@ -4,13 +4,13 @@ use std::{
     collections::HashMap,
     fmt::{self, Write},
     path::PathBuf,
-    sync::Arc
+    sync::{Arc, Weak}
 };
 use parking_lot::RwLock;
 
 use crate::{common::UsePathKind, type_system::{Type, TypeHandle, TypeRef}};
 
-use super::{IndentLogger, LibraryPath, RootUseTable, Scope, PathIden, SymbolPath, Visibility};
+use super::{IndentLogger, LibraryPath, OpType, PathIden, PrecedenceAssocKind, RootUseTable, Scope, SymbolPath, Visibility};
 
 // =============================================================
 
@@ -115,9 +115,32 @@ pub struct ModuleSymbol {
 
 //----------------------------------------------
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PrecedenceOrderKind {
+    User,
+    Lowest,
+    Highest,
+}
+
+impl fmt::Display for PrecedenceOrderKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrecedenceOrderKind::User    => write!(f, "user"),
+            PrecedenceOrderKind::Lowest  => write!(f, "lowest"),
+            PrecedenceOrderKind::Highest => write!(f, "highest"),
+        }
+    }
+}
+
 pub struct PrecedenceSymbol {
-    pub path:  SymbolPath,
-    pub id:    u16,
+    pub path:        SymbolPath,
+    pub order_kind:  PrecedenceOrderKind,
+    pub assoc:       PrecedenceAssocKind,
+    pub lower_than:  Option<WeakSymbolRef>,
+    pub higher_than: Option<WeakSymbolRef>,
+
+    // dag id
+    pub id:          u16,
 }
 
 //----------------------------------------------
@@ -462,25 +485,6 @@ impl RootSymbolTable {
             file_path,
         });
         self.add_symbol(scope, iden, sym)
-    }
-
-    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: String) -> SymbolRef {
-        let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
-        let sym = Symbol::Precedence(PrecedenceSymbol {
-            path: SymbolPath::new(
-                lib.clone(),
-                scope.clone(), 
-                PathIden::from_name(name.clone()),
-            ),
-            id: u16::MAX,
-        }); 
-
-        let table = self.precedences.entry(lib);
-        let table = table.or_insert(HashMap::new());
-
-        let sym = Arc::new(RwLock::new(sym));
-        table.insert(name, sym.clone());
-        sym
     }
 
     pub fn add_function(&mut self, lib: Option<&LibraryPath>, scope: &Scope, iden: PathIden) -> SymbolRef {
@@ -848,8 +852,32 @@ impl RootSymbolTable {
         Err(SymbolLookupError::Unknown { path: sym_path.clone(), kind: SymbolLookupKind::Symbol })
     }
 
-    pub fn get_direct_precedence(&self, lib: LibraryPath, name: &str) -> Option<SymbolRef> {
-        let table = match self.precedences.get(&lib) {
+    //--------------------------------------------------------------
+
+    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: String, kind: PrecedenceOrderKind, assoc: PrecedenceAssocKind) -> SymbolRef {
+        let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
+        let sym = Symbol::Precedence(PrecedenceSymbol {
+            path: SymbolPath::new(
+                lib.clone(),
+                scope.clone(), 
+                PathIden::from_name(name.clone()),
+            ),
+            order_kind: kind,
+            assoc,
+            lower_than: None,
+            higher_than: None,
+            id: u16::MAX,
+        }); 
+
+        let table = self.precedences.entry(lib).or_default();
+
+        let sym = Arc::new(RwLock::new(sym));
+        table.insert(name, sym.clone());
+        sym
+    }
+
+    pub fn get_direct_precedence(&self, lib: &LibraryPath, name: &str) -> Option<SymbolRef> {
+        let table = match self.precedences.get(lib) {
             Some(table) => table,
             None => return None,
         };
@@ -866,7 +894,7 @@ impl RootSymbolTable {
                 }
             }
 
-            if let Some(sym) = self.get_direct_precedence(use_path.lib.clone(), name) {
+            if let Some(sym) = self.get_direct_precedence(&use_path.lib, name) {
                 // Use table SHOULD have been validated at this point, so there aren't going to be any duplicate precedences that are possible
                 return Ok(sym);
             }
@@ -879,6 +907,10 @@ impl RootSymbolTable {
 
     pub fn has_precedence_for_lib(&self, lib: &LibraryPath) -> bool {
         self.precedences.contains_key(lib)
+    }
+
+    pub fn get_precedences_for_lib(&self, lib: &LibraryPath) -> Option<&HashMap<String, SymbolRef>> {
+        self.precedences.get(lib)
     }
 
     pub fn log(&self) {
@@ -953,7 +985,17 @@ impl SymbolTableLogger {
                 logger.prefixed_logln("Precedence");
                 logger.push_indent();
                 logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
-                logger.prefixed_log_fmt(format_args!("Id: {}\n", sym.id));
+                logger.prefixed_log_fmt(format_args!("Order kind: {}\n", sym.order_kind));
+                logger.prefixed_log_fmt(format_args!("Accociativity: {}\n", sym.assoc));
+                if let Some(lower_than) = &sym.lower_than {
+                    let lower_than = lower_than.upgrade().unwrap();
+                    logger.prefixed_log_fmt(format_args!("Lower than: {}\n", lower_than.read().path()));
+                }
+                if let Some(higher_than) = &sym.higher_than {
+                    let higher_than = higher_than.upgrade().unwrap();
+                    logger.prefixed_log_fmt(format_args!("Higher than: {}\n", higher_than.read().path()));
+                }
+                logger.prefixed_log_fmt(format_args!("DAG id: {}\n", sym.id));
             },
             Symbol::Function(sym) => {
                 logger.prefixed_logln("Function");

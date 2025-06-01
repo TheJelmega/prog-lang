@@ -77,13 +77,14 @@ pub struct OpUsePath {
 pub enum UseTableError {
     InvalidPrecedences { paths: Vec<PrecedenceUsePath> },
     InvalidSymbols{ paths: Vec<(Scope, UsePath)> },
+    AmbiguousPrecedences { ambiguities: Vec<(String, Vec<PrecedenceUsePath>)> },
     AmbiguousUses { ambiguities: Vec<(Scope, String, Vec<UsePath>)> }
 }
 
 impl fmt::Display for UseTableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UseTableError::InvalidPrecedences { paths } => {
+            Self::InvalidPrecedences { paths } => {
                 writeln!(f, "Use table contains ambiguous precedences")?;
                 for path in paths {
                     writeln!(f, "- {path}")?;
@@ -97,8 +98,18 @@ impl fmt::Display for UseTableError {
                 }
                 Ok(())
             },
-            UseTableError::AmbiguousUses { ambiguities } => {
-                writeln!(f, "Use table contains ambiguous uses: ")?;
+            Self::AmbiguousPrecedences { ambiguities } => {
+                writeln!(f, "Use table contains ambiguous precedences (may be included via a wildcard)")?;
+                for (name, paths) in ambiguities {
+                    writeln!(f, "- '{name}' via:")?;
+                    for path in paths {
+                        writeln!(f, "   - {path}")?;
+                    }
+                }
+                Ok(())
+            }
+            Self::AmbiguousUses { ambiguities } => {
+                writeln!(f, "Use table contains ambiguous uses:")?;
                 for (scope, name, paths) in ambiguities {
                     writeln!(f, "- '{name}' in {scope}:")?;
                     for path in paths {
@@ -170,11 +181,13 @@ impl RootUseTable {
         }
     }
 
+    // TODO: matching precedence names in 2 'wildcard' paths should result in an error
     pub fn finalize_precedences(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
+        // Check for invalid precedence paths
         let mut invalid_precedences = Vec::new();
         for use_path in &self.precedence_paths {
             match &use_path.precedence {
-                Some(name) => if sym_table.get_direct_precedence(use_path.lib.clone(), name).is_none() {
+                Some(name) => if sym_table.get_direct_precedence(&use_path.lib, name).is_none() {
                     invalid_precedences.push(use_path.clone());
                 },
                 None => if !sym_table.has_precedence_for_lib(&use_path.lib) {
@@ -182,11 +195,77 @@ impl RootUseTable {
                 },
             }
         }
+        if !invalid_precedences.is_empty() {
+            return Err(UseTableError::InvalidPrecedences { paths: invalid_precedences });
+        }
+ 
+        // Remove overlapping precedence paths (i.e. explicit and wildcard)
+        // Also check for ambiguity between explicit precedence uses
+        let mut precedences = Vec::<PrecedenceUsePath>::new();
+        for path in mem::take(&mut self.precedence_paths) {
+            match &path.precedence {
+                Some(name) => {
+                    let is_dup = precedences.iter().find(|prec| prec.lib != path.lib && 
+                        (prec.precedence.is_none() || prec.precedence.as_ref() == Some(name))
+                    ).is_some();
+                    if !is_dup {
+                        precedences.push(path);
+                    }
+                },
+                None => {
+                    precedences.retain(|prec| prec.lib != path.lib);
+                    precedences.push(path);
+                },
+            }
+        }
+        self.precedence_paths = precedences;
 
-        if invalid_precedences.is_empty() {
+        // Check if there are no duplicate precedences included via wildcards
+        let mut collected_paths = HashMap::<String, Vec<PrecedenceUsePath>>::new();
+        for path in &self.precedence_paths {
+            match &path.precedence {
+                Some(name) => {
+                    let entry = collected_paths.entry(name.clone()).or_default();
+                    entry.push(path.clone());
+                },
+                None => for (name, _) in sym_table.get_precedences_for_lib(&path.lib).unwrap() {
+                    let entry = collected_paths.entry(name.clone()).or_default();
+                    entry.push(path.clone());
+                },
+            }
+        }
+
+        let mut ambiguities = Vec::new();
+        for (name, paths) in collected_paths {
+            if paths.len() > 1 {
+                ambiguities.push((name, paths));
+            }
+        }
+
+        if !ambiguities.is_empty() {
+            return Err(UseTableError::AmbiguousPrecedences { ambiguities })
+        }
+        Ok(())
+    }
+
+    // TODO: matching precedence names in 2 'wildcard' paths should result in an error
+    pub fn finalize_operators(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
+        let mut invalid_op_sets = Vec::new();
+        for op_use in &self.op_paths {
+            match &op_use.op_set {
+                Some(op_set) => if sym_table.get_direct_op_set(&op_use.lib, op_set).is_none() {
+                    invalid_op_sets.push(op_use.clone());
+                },
+                None =>  if !sym_table.has_op_set_for_lib(&op_use.lib) {
+                    invalid_op_sets.push(op_use.clone());
+                },
+            }
+        }
+
+        if invalid_op_sets.is_empty() {
             Ok(())
         } else {
-            Err(UseTableError::InvalidPrecedences { paths: invalid_precedences })
+            Err(UseTableError::InvalidOperators { paths: invalid_op_sets })
         }
     }
 
