@@ -4997,9 +4997,9 @@ In the future, an additional way of separating these might be decided.
 TODO: specify lazy evaluation + chaining operator
 
 ```
-<op-item>      := <base-op-item> | <ext-op-item>
-<base-op-item> := { <attribute> }* [<vis>] 'op' 'trait' <name> [ '|' <name> ] '{' <op-elems> '}'
-<ext-op-item>  := { <attribute> }* [<vis>] 'op' 'trait' <name> ':' <simple-path> { '&' <simple-path> }* '{' <op-elems> '}'
+<op-set>      := <base-op-set> | <ext-op-set>
+<base-op-set> := { <attribute> }* 'op' 'trait' <name> [ '|' <name> ] '{' <op-elems> '}'
+<ext-op-set>  := { <attribute> }* 'op' 'trait' <name> ':' <simple-path> { '&' <simple-path> }* '{' <op-elems> '}'
 
 <op-elems>     := <op-elem> { ',' <op-elem> } [',']
 <op-elem>      := <op-decl> | <op-contract>
@@ -5009,29 +5009,43 @@ TODO: specify lazy evaluation + chaining operator
 <op-contract> := 'invar' <block-expr>
 ```
 
-Operator items are used to declare new operators and their related properties.
+Operator sets are used to declare new operators and their related properties.
 The majority of core operators are also implemented using this system.
 
-Operator items are special traits with its own syntax, which is specified using the `op` keyword.
-If a trait does not extend another trait, it needs to have its precedence specified if it contains any infix operators, this will apply to all infix operators defined within the trait.
-Prefix, postfix, and assign operators have a hardcoded precendence and cannot be explicitly defined.
+Operator sets also create the associated trait and underlying methods to use these within code.
+All operator sets and associated operators are public symbols.
 
-In addition to the operators that are defined, in addition to a set of invariant contracts these operators must adhere to, for example: commutativity.
+An operator set is allowed to define one of the following:
+- A precedence wich will be used by all infix operators within the set, or
+- Other operators set that this set extends, and therefore requires to have implemented to implement the 'derived' operator set.
 
-Each operator is defined using its operator kind, these is one of the categories mentioned above.
+Each operator within the set must have the following properties:
+- An operator kind
+- The operator's punctuation in code
+- The name of the corresponding method
 
-The allowed characters in operators can be found in [allowed-symbols.md]
+And optionally contains:
+- return type
+- default implementation
 
-Afterwards, the syntax depends on whether this operator trait is being extended or not.
+Operators are defined within this set, starting with the kind of operator, these are:
+- Prefix operators that apply to the expression on the right of them
+- Postfix operators that apply to the expression on the left of them
+- Infix operators that apply to the expressions on either side of the operator
+- Assign operators that modify the expression on left of them using the expression on the right
 
-If not extended, the following is used:
+Precedence is only applied on the infix operators. Prefix, postfix, and assign expressions have hardcoded precedences, and can therefore not be defined explicitly.
 
-The operator must then define the name of the function associate with the operand, this may then also have a optional return type, which requires any implementation to adhere to.
-If no explicit return type is specified, this will then be defined using the `Output` typealias within the implementation.
+Operator punctuation may contains a range of different characters, which can be found [here](allowed-symbols.md).
 
-This may then ultimately be followed an optional default implementation.
+If no return type is provided, the operator will return the operator trait's associate `Output` type alias. Assign operator cannot have a return type.
 
 
+When any infix operator is defined, but no precendence of set to extend is provided, the expression containing the infix operator and its operands will be required to be surrounded by parentheses, if these are other operator expressions.
+
+> _Note_: While extending another set allows new operators to be added, any operator contained within the set being extended cannot be overriden
+
+Operator sets can also define a set of invariant contracts, to which all contained operators must adhere to, for example: commutativity.
 
 TODO: disallow identical looking sets of characters
 
