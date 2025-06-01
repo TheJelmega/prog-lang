@@ -54,7 +54,7 @@ precedence BitOr {
 
 precedence Select {
     lower_than: BitOr,
-    associativity: right
+    associativity: left
 }
 
 precedence Compare {
