@@ -5022,7 +5022,7 @@ An operator set is allowed to define one of the following:
 Each operator within the set must have the following properties:
 - An operator kind
 - The operator's punctuation in code
-- The name of the corresponding method
+- The name of the corresponding method (needs to be unique for each operator)
 
 And optionally contains:
 - return type
@@ -5437,22 +5437,21 @@ A mutable borrow to the assignee is automatically taken
 ## 14.5. Operator scoping and use
 
 ```
-<operator-use> := 'op' 'use' <use-root> [ '.' '{' <operator> { ',' <operator> }* [ ',' ] '}' ]
+<operator-use> := 'op' 'use' <use-root> [ '.' '{' <name> { ',' <name> }* [ ',' ] '}' ]
 ```
 
 Operators have some special scoping rules, as they are not scoped relative to the module that contains them, but they are exclusivly at the global scope.
-Note that this only counts for operators and not their associated traits, as an `op trait` is a combined declaration of both operators in the global scope and their associated traits at the module scope.
+Only the actual operator set will be at a global level, but their respective traits will still be scoped like any other symbol.
 
-If a type implements multiple traits, which in their turn define the same operator, this will cause an ambiguous operator overload and will cause an error.
-In these cases, the relevant function associated with the wanted implementation of the operator needs to be called.
+Operators are imported using an `op use`, this will import all or specific operator sets from a given library into the global scope.
+An imported operator set will always import all of its operators.
 
-If multiple libraries are imported using an `op use`, this will cause a compiler error, only 1 version of each operator should be imported within the current scope, unless the operator is defined within the current library, as this will take priority over imported operators.
+If any of the imported operator set would result in a duplicate operator, defined by it's punctuation and operator type, it will result in an error.
 
-Unlike importing their associated traits, `op use`s are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root, and must not be nested within a module in that file.
-
+Unlike importing their associated traits, `op use`s are required to be within the main file of the library, i.e. in either the `main.xn` or `lib.xn` root, and must not be nested within a module in that file. 
 One of the main purposes of this rule is to keep a consistent meaning of operators accross a library, i.e. avoiding a situation where an operator in 1 file has a different meaning than in another file, even if both are in the same library.
 
-The core operators will always be implicitly imported and cannot be overridden
+The core operators will be included by default via the core prelude.
 
 # 15. Precedence [↵](#tables-of-contents)
 
