@@ -854,12 +854,12 @@ impl RootSymbolTable {
 
     //--------------------------------------------------------------
 
-    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, scope: &Scope, name: String, kind: PrecedenceOrderKind, assoc: PrecedenceAssocKind) -> SymbolRef {
+    pub fn add_precedence(&mut self, lib: Option<&LibraryPath>, name: String, kind: PrecedenceOrderKind, assoc: PrecedenceAssocKind) -> SymbolRef {
         let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
         let sym = Symbol::Precedence(PrecedenceSymbol {
             path: SymbolPath::new(
                 lib.clone(),
-                scope.clone(), 
+                Scope::new(), 
                 PathIden::from_name(name.clone()),
             ),
             order_kind: kind,

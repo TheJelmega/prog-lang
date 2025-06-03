@@ -31,7 +31,7 @@ impl Visitor for PrecedenceSymGen<'_> {
         };
         let assoc = node.assoc.as_ref().map_or(PrecedenceAssocKind::None, |assoc| assoc.kind);
 
-        let sym = self.ctx.syms.write().add_precedence(None, &ctx.scope, name, kind, assoc);
+        let sym = self.ctx.syms.write().add_precedence(None, name, kind, assoc);
         ctx.sym = Some(sym);
     }
 }
