@@ -31,6 +31,7 @@ impl TraitDag {
         self.dag.get_data(idx)
     }
 
+    #[allow(unused)]
     pub fn get_base_ids(&self, idx: u32) -> &[u32] {
         self.dag.get_precomputed_predecessor_idxs(idx)
     }

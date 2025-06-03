@@ -125,6 +125,7 @@ impl PrecedenceDAG {
         }) as u16
     }
 
+    #[allow(unused)]
     pub fn get(&self, name: &str) -> Option<u16> {
         self.dag.find_map(|id, data| if data.name == name {
             Some(id as u16)

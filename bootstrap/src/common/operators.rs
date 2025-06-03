@@ -53,7 +53,6 @@ pub struct OperatorInfo {
 
 pub struct OperatorTable {
     pub tables: [HashMap<Punctuation, OperatorInfo>; OpType::COUNT],
-    pub trait_precedences: HashMap<Scope, (String, u16)>,
 }
 
 impl OperatorTable {
@@ -65,7 +64,6 @@ impl OperatorTable {
                 HashMap::new(),
                 HashMap::new(),
             ],
-            trait_precedences: HashMap::new(),
         }
     }
 
@@ -121,10 +119,6 @@ impl OperatorTable {
         table.insert(info.op, info);
     }
 
-    pub fn add_trait_precedence(&mut self, scope: Scope, name: String, id: u16) {
-        self.trait_precedences.insert(scope, (name, id));
-    }
-
     pub fn get(&self, op_type: OpType, op: Punctuation) -> Option<&OperatorInfo> {
         if op_type == OpType::Infix {
             let table = &self.tables[op_type as usize];
@@ -141,17 +135,8 @@ impl OperatorTable {
         }
     }
 
-    pub fn get_trait_precedence(&self, scope: &Scope) -> Option<(&str, u16)> {
-        self.trait_precedences.get(scope).map(|(s, id)| (s.as_str(), *id))
-    }
-
     pub fn log(&self, puncts: &PuncutationTable) {
         let logger = Logger::new();
-
-        logger.log("Trait Precedences:\n");
-        for (path, (pred, id)) in &self.trait_precedences {
-            logger.log_fmt(format_args!("    - {}: {} ({})\n", path, pred, id));
-        }
 
         let op_types = [
             OpType::Prefix,

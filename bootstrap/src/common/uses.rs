@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, fmt, hash::{self, Hash}, mem
+    collections::HashMap, fmt, hash, mem
 };
 
 use crate::{common::{OpType, Symbol}, lexer::Punctuation};
