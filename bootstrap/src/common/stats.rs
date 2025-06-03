@@ -50,8 +50,8 @@ pub struct CompilerStats {
     pub ast_impl_statics_lowered:             u64,
     pub ast_impl_tls_statics_lowered:         u64,
     pub ast_impl_properties_lowered:          u64,
-    pub ast_op_trait_lowered:                 u64,
-    pub ast_op_functions_lowered:             u64,
+    pub ast_op_sets_lowered:                  u64,
+    pub ast_operators_lowered:                u64,
     pub ast_op_contracts_lowered:             u64,
 
     // HIR
@@ -105,8 +105,8 @@ impl CompilerStats {
             ast_impl_statics_lowered:             0,
             ast_impl_tls_statics_lowered:         0,
             ast_impl_properties_lowered:          0,
-            ast_op_trait_lowered:                 0,
-            ast_op_functions_lowered:             0,
+            ast_op_sets_lowered:                  0,
+            ast_operators_lowered:                0,
             ast_op_contracts_lowered:             0,
 
             num_hir_passes:                       0,
@@ -166,8 +166,8 @@ impl CompilerStats {
         self.ast_impl_statics_lowered = hir.impl_statics.len() as u64;
         self.ast_impl_tls_statics_lowered = hir.impl_tls_statics.len() as u64;
         self.ast_impl_properties_lowered = hir.properties.len() as u64;
-        self.ast_op_trait_lowered = hir.op_traits.len() as u64;
-        self.ast_op_functions_lowered = hir.op_functions.len() as u64;
+        self.ast_op_sets_lowered = hir.op_sets.len() as u64;
+        self.ast_operators_lowered = hir.operators.len() as u64;
         self.ast_op_contracts_lowered = hir.op_contracts.len() as u64;
     }
 
@@ -245,8 +245,8 @@ impl CompilerStats {
         logger.log_fmt(format_args!("    Impl TLS statics lowered:           {}\n", self.ast_impl_tls_statics_lowered));
         logger.log_fmt(format_args!("    Impl properties lowered:            {}\n", self.ast_impl_properties_lowered));
 
-        logger.log_fmt(format_args!("    Op traits lowered:                  {}\n", self.ast_op_trait_lowered));
-        logger.log_fmt(format_args!("    Op functions lowered:               {}\n", self.ast_op_functions_lowered));
+        logger.log_fmt(format_args!("    Op sets lowered:                    {}\n", self.ast_op_sets_lowered));
+        logger.log_fmt(format_args!("    Operators lowered:                  {}\n", self.ast_operators_lowered));
         logger.log_fmt(format_args!("    Op contract lowered:                {}\n", self.ast_op_contracts_lowered));
         
         logger.logln("- HIR passes:");

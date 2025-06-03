@@ -292,8 +292,8 @@ impl<'a> CodePrinter<'a> {
         self.logger.prefixed_logln("}");
     }
 
-    pub fn log_op_trait(&mut self, hir: &mut Hir, idx: usize) {
-        let (trait_ref, trait_ctx) = &hir.op_traits[idx];
+    pub fn log_op_set(&mut self, hir: &mut Hir, idx: usize) {
+        let (trait_ref, trait_ctx) = &hir.op_sets[idx];
 
         let mut node = trait_ref.write();
         for attr in &mut node.attrs {
@@ -303,24 +303,24 @@ impl<'a> CodePrinter<'a> {
         self.logger.log_fmt(format_args!("op trait {}", &self.names[node.name] ));
         if !node.bases.is_empty() {
             self.logger.log(" : ");
-            for (idx, base) in node.bases.iter_mut().enumerate() {
+            for (idx, (base, _)) in node.bases.iter_mut().enumerate() {
                 if idx != 0 {
                     self.logger.log(" + ");
                 }
-                self.visit_simple_path(base)
+                self.logger.log(&self.names[*base]);
             }
         }
         self.logger.logln(" {");
 
-        let funcs_count = hir.op_functions.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
+        let funcs_count = hir.operators.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
         let contract_count = hir.op_contracts.iter().filter(|(search_idx, _, _)| *search_idx == idx).count();
 
         self.logger.push_indent();
         let mut count = 0;
-        for (fn_idx, node, ctx) in &mut hir.op_functions {
+        for (fn_idx, node, ctx) in &mut hir.operators {
             if *fn_idx == idx {
                 self.logger.set_last_at_indent_if(count == funcs_count - 1 && contract_count == 0);
-                self.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                self.visit_operator(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                 count += 1;
             }
         }
@@ -408,8 +408,8 @@ impl Visitor for CodePrinter<'_> {
             VisitFlags::Property;
 
         let ignore_op_flags =
-            VisitFlags::OpTrait |
-            VisitFlags::OpFunction |
+            VisitFlags::OpSet |
+            VisitFlags::Operator |
             VisitFlags::OpContract;
 
         let ignore_flags = ignore_trait_flags | ignore_impl_flags | ignore_op_flags;
@@ -423,8 +423,8 @@ impl Visitor for CodePrinter<'_> {
             self.log_impl(hir, idx);
         }
 
-        for idx in 0..hir.op_traits.len() {
-            self.log_op_trait(hir, idx);
+        for idx in 0..hir.op_sets.len() {
+            self.log_op_set(hir, idx);
         }
     }
 
@@ -988,9 +988,11 @@ impl Visitor for CodePrinter<'_> {
         }
         if !node.params.is_empty() {
             self.logger.logln(",");
+            self.logger.push_indent();
             for param in &mut node.params {
                 self.log_fn_param(param);
             }
+            self.logger.pop_indent();
             self.logger.write_prefix();
         }
         self.logger.log(")");
@@ -1243,11 +1245,11 @@ impl Visitor for CodePrinter<'_> {
 
     //--------------------------------------------------------------
 
-    fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
-        // handled in log_op_trait
+    fn visit_op_set(&mut self, node: &mut OpSet, ctx: &mut OpSetContext) {
+        // handled in log_op_set
     }
 
-    fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
+    fn visit_operator(&mut self, op_set_ref: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut Operator, ctx: &mut OperatorContext) {
         self.logger.prefixed_log_fmt(format_args!("{} op {} : {}",
             node.op_ty,
             node.op.as_str(&self.puncts),
@@ -1264,7 +1266,7 @@ impl Visitor for CodePrinter<'_> {
         self.logger.logln(";");
     }
 
-    fn visit_op_contract(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
+    fn visit_op_contract(&mut self, op_set: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
         if let Expr::Block(block_expr) = &mut *node.expr {
             self.logger.prefixed_log("invar ");
             self.visit_block_expr(block_expr);

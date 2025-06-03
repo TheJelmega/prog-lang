@@ -209,6 +209,7 @@ pub enum FnReceiver {
 
 #[derive(Clone)]
 pub enum FnParam {
+    // TODO: split pattern off in name and destructuring within the function
     Param {
         span:    SpanId,
         attrs:   Vec<Box<Attribute>>,
@@ -602,17 +603,17 @@ pub struct Property {
 
 //--------------------------------------------------------------
 
-pub struct OpTrait {
+pub struct OpSet {
     pub span:       SpanId,
     pub node_id:    ast::NodeId,
     pub attrs:      Vec<Box<Attribute>>,
     pub vis:        Visibility,
     pub name:       NameId,
-    pub bases:      Vec<SimplePath>,
+    pub bases:      Vec<(NameId, SpanId)>,
     pub precedence: Option<NameId>,
 }
 
-pub struct OpFunction {
+pub struct Operator {
     pub span:    SpanId,
     pub node_id: ast::NodeId,
     pub op_ty:   OpType,
@@ -969,7 +970,6 @@ pub struct InfixExpr {
     pub left:        Box<Expr>,
     pub op:          Punctuation,
     pub right:       Box<Expr>,
-    pub can_reorder: bool,
 }
 
 #[derive(Clone)]
@@ -1998,42 +1998,44 @@ impl ImplContext {
 
 //----------------------------------------------
 
-pub struct OpTraitContext {
+pub struct OpSetContext {
     pub scope:            Scope,
     pub sym:              Option<SymbolRef>,
     pub file_scope:       Scope,
-    pub has_generics:     bool,
-    pub has_output_alias: bool,
+    pub tagging_done:     bool,
     pub dag_idx:          u32,
+    pub trait_idx:        usize,
 }
 
-impl OpTraitContext {
+impl OpSetContext {
     pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
             file_scope,
-            has_generics: false,
-            has_output_alias: false,
+            tagging_done: false,
             dag_idx: u32::MAX,
+            trait_idx: usize::MAX,
         }
     }
 }
 
 //----------------------------------------------
 
-pub struct OpFunctionContext {
-    pub scope:      Scope,
-    pub sym:        Option<SymbolRef>,
-    pub file_scope: Scope,
+pub struct OperatorContext {
+    pub scope:            Scope,
+    pub sym:              Option<SymbolRef>,
+    pub file_scope:       Scope,
+    pub trait_method_idx: usize,
 }
 
-impl OpFunctionContext {
+impl OperatorContext {
     pub fn new(scope: Scope, file_scope: Scope) -> Self {
         Self {
             scope,
             sym: None,
             file_scope,
+            trait_method_idx: usize::MAX,
         }
     }
 }
@@ -2116,9 +2118,9 @@ pub struct Hir {
     pub impl_tls_statics:          Vec<(usize, TlsStatic, StaticContext)>,
     pub properties:                Vec<(usize, Property, PropertyContext)>,
 
-    // op items store the index into the op_traits array, as it cannot have any op_trait removed
-    pub op_traits:                 Vec<(Ref<OpTrait>, Ref<OpTraitContext>)>,
-    pub op_functions:              Vec<(usize, OpFunction, OpFunctionContext)>,
+    // operators store the index into the sets array, as it cannot have any op_set removed
+    pub op_sets:                   Vec<(Ref<OpSet>, Ref<OpSetContext>)>,
+    pub operators:                 Vec<(usize, Operator, OperatorContext)>,
     pub op_contracts:              Vec<(usize, OpContract, OpContractContext)>,
 
     pub precedences:               Vec<(Precedence, Ref<PrecedenceContext>)>,
@@ -2160,8 +2162,8 @@ impl Hir {
             impl_tls_statics:          Vec::new(),
             properties:                Vec::new(),
 
-            op_traits:                 Vec::new(),
-            op_functions:              Vec::new(),
+            op_sets:                 Vec::new(),
+            operators:              Vec::new(),
             op_contracts:              Vec::new(),
 
             precedences:               Vec::new(),
@@ -2392,20 +2394,20 @@ impl Hir {
 
     //--------------------------------------------------------------
     
-    pub fn add_op_trait(&mut self, scope: Scope, file_scope: Scope, item: OpTrait) {
+    pub fn add_op_set(&mut self, scope: Scope, file_scope: Scope, item: OpSet) {
         let item = Arc::new(RwLock::new(item));
-        let ctx = Arc::new(RwLock::new(OpTraitContext::new(scope, file_scope)));
-        self.op_traits.push((item, ctx));
+        let ctx = Arc::new(RwLock::new(OpSetContext::new(scope, file_scope)));
+        self.op_sets.push((item, ctx));
     }
 
-    pub fn add_op_function(&mut self, scope: Scope, file_scope: Scope, item: OpFunction) {
-        let op_idx = self.op_traits.len() - 1;
-        let ctx = OpFunctionContext::new(scope, file_scope);
-        self.op_functions.push((op_idx, item, ctx));
+    pub fn add_operator(&mut self, scope: Scope, file_scope: Scope, item: Operator) {
+        let op_idx = self.op_sets.len() - 1;
+        let ctx = OperatorContext::new(scope, file_scope);
+        self.operators.push((op_idx, item, ctx));
     }
 
     pub fn add_op_contract(&mut self, scope: Scope, file_scope: Scope, item: OpContract) {
-        let op_idx = self.op_traits.len() - 1;
+        let op_idx = self.op_sets.len() - 1;
         let ctx = OpContractContext::new(scope, file_scope);
         self.op_contracts.push((op_idx, item, ctx));
     }

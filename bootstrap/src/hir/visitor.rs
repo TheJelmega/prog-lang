@@ -40,10 +40,10 @@ pub enum VisitFlags {
     Property,
     AnyImpl = Impl | ImplFunction | Method | ImplTypeAlias | ImplConst | ImplStatic | ImplTlsStatic | Property,
 
-    OpTrait,
-    OpFunction,
+    OpSet,
+    Operator,
     OpContract,
-    AnyOpTrait = OpTrait | OpFunction | OpContract,
+    AnyOp = OpSet | Operator | OpContract,
 
     Precedence,
 }
@@ -230,15 +230,15 @@ pub trait Visitor: Sized {
 
     //--------------------------------------------------------------
 
-    fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
-        helpers::visit_op_trait(self, node, ctx);
+    fn visit_op_set(&mut self, node: &mut OpSet, ctx: &mut OpSetContext) {
+        helpers::visit_op_set(self, node, ctx);
     }
 
-    fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
-        helpers::visit_op_function(self, node, ctx);
+    fn visit_operator(&mut self, op_set_ref: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut Operator, ctx: &mut OperatorContext) {
+        helpers::visit_operator(self, node, ctx);
     }
 
-    fn visit_op_contract(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
+    fn visit_op_contract(&mut self, op_set_ref: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut OpContract, ctx: &mut OpContractContext) {
         helpers::visit_op_contract(self, node, ctx);
     }
 
@@ -640,24 +640,24 @@ pub(crate) mod helpers {
             });
         }
 
-        if flags.intersects(VisitFlags::AnyOpTrait) {
+        if flags.intersects(VisitFlags::AnyOp) {
             let mut func_offset = 0;
             let mut spec_offset = 0;
             let mut contract_offset = 0;
 
-            for (idx, (trait_ref, trait_ctx)) in hir.op_traits.iter_mut().enumerate() {
-                if flags.contains(VisitFlags::OpTrait) {
+            for (idx, (trait_ref, trait_ctx)) in hir.op_sets.iter_mut().enumerate() {
+                if flags.contains(VisitFlags::OpSet) {
                     let mut node = trait_ref.write();
                     let mut ctx = trait_ctx.write();
-                    visitor.visit_op_trait(&mut node, &mut ctx);
+                    visitor.visit_op_set(&mut node, &mut ctx);
                 }
                 
-                if flags.contains(VisitFlags::OpFunction) {
-                    for (trait_idx, node, ctx) in &mut hir.op_functions[func_offset..] {
+                if flags.contains(VisitFlags::Operator) {
+                    for (trait_idx, node, ctx) in &mut hir.operators[func_offset..] {
                         if *trait_idx != idx {
                             break;
                         }
-                        visitor.visit_op_function(trait_ref.clone(), trait_ctx.clone(), node, ctx);
+                        visitor.visit_operator(trait_ref.clone(), trait_ctx.clone(), node, ctx);
                         func_offset += 1;
                     }
                 }
@@ -1221,16 +1221,13 @@ pub(crate) mod helpers {
 
     //--------------------------------------------------------------
 
-    pub fn visit_op_trait<T: Visitor>(visitor: &mut T, node: &mut OpTrait, ctx: &mut OpTraitContext) {
+    pub fn visit_op_set<T: Visitor>(visitor: &mut T, node: &mut OpSet, ctx: &mut OpSetContext) {
         for attr in &mut node.attrs {
             visitor.visit_attribute(attr);
         }
-        for base in &mut node.bases {
-            visitor.visit_simple_path(base);
-        }
     }
 
-    pub fn visit_op_function<T: Visitor>(visitor: &mut T, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
+    pub fn visit_operator<T: Visitor>(visitor: &mut T, node: &mut Operator, ctx: &mut OperatorContext) {
         if let Some(ret_ty) = &mut node.ret_ty {
             visitor.visit_type(ret_ty);
         }

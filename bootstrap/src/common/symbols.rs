@@ -8,7 +8,7 @@ use std::{
 };
 use parking_lot::RwLock;
 
-use crate::{common::UsePathKind, type_system::{Type, TypeHandle, TypeRef}};
+use crate::{common::UsePathKind, lexer::{Punctuation, PuncutationTable}, type_system::{Type, TypeHandle, TypeRef}};
 
 use super::{IndentLogger, LibraryPath, OpType, PathIden, PrecedenceAssocKind, RootUseTable, Scope, SymbolPath, Visibility};
 
@@ -33,6 +33,8 @@ pub enum Symbol {
     Impl(ImplSymbol),
     TypeGeneric(TypeGenericSymbol),
     ValueGeneric(ValueGenericSymbol),
+    OpSet(OpSetSymbol),
+    Operator(OperatorSymbol),
 }
 
 impl Symbol {
@@ -55,7 +57,9 @@ impl Symbol {
             Symbol::Trait(_)        => "trait",
             Symbol::Impl(_)         => "impl",
             Symbol::TypeGeneric(_)  => "type generic",
-            Symbol::ValueGeneric(_) => "value generic"
+            Symbol::ValueGeneric(_) => "value generic",
+            Symbol::OpSet(_)       => "operator item",
+            Symbol::Operator(_)     => "operator",
         }
     }
 
@@ -79,29 +83,35 @@ impl Symbol {
             Symbol::Impl(sym)         => &sym.path,
             Symbol::TypeGeneric(sym)  => &sym.path,
             Symbol::ValueGeneric(sym) => &sym.path,
+            Symbol::OpSet(sym)       => &sym.path,
+            Symbol::Operator(sym)     => &sym.path,
+            
         }
     }
 
     pub fn get_type(&self) -> Option<&TypeHandle> {
         match self {
-            Symbol::Module(sym) => None,
-            Symbol::Precedence(sym) => None,
-            Symbol::Function(sym) => sym.ty.as_ref(),
-            Symbol::TypeAlias(sym) => sym.ty.as_ref(),
+            Symbol::Module(sym)       => None,
+            Symbol::Precedence(sym)   => None,
+            Symbol::Function(sym)     => sym.ty.as_ref(),
+            Symbol::TypeAlias(sym)    => sym.ty.as_ref(),
             Symbol::DistinctType(sym) => sym.ty.as_ref(),
-            Symbol::OpaqueType(sym) => sym.ty.as_ref(),
-            Symbol::Struct(sym) => sym.ty.as_ref(),
-            Symbol::Union(sym) => sym.ty.as_ref(),
-            Symbol::AdtEnum(sym) => sym.ty.as_ref(),
-            Symbol::FlagEnum(sym) => sym.ty.as_ref(),
-            Symbol::Bitfield(sym) => sym.ty.as_ref(),
-            Symbol::Const(sym) => sym.ty.as_ref(),
-            Symbol::Static(sym) => sym.ty.as_ref(),
-            Symbol::Property(sym) => sym.ty.as_ref(),
-            Symbol::Trait(sym) => sym.ty.as_ref(),
-            Symbol::Impl(sym) => None,
-            Symbol::TypeGeneric(sym) => sym.ty.as_ref(),
+            Symbol::OpaqueType(sym)   => sym.ty.as_ref(),
+            Symbol::Struct(sym)       => sym.ty.as_ref(),
+            Symbol::Union(sym)        => sym.ty.as_ref(),
+            Symbol::AdtEnum(sym)      => sym.ty.as_ref(),
+            Symbol::FlagEnum(sym)     => sym.ty.as_ref(),
+            Symbol::Bitfield(sym)     => sym.ty.as_ref(),
+            Symbol::Const(sym)        => sym.ty.as_ref(),
+            Symbol::Static(sym)       => sym.ty.as_ref(),
+            Symbol::Property(sym)     => sym.ty.as_ref(),
+            Symbol::Trait(sym)        => sym.ty.as_ref(),
+            Symbol::Impl(sym)         => None,
+            Symbol::TypeGeneric(sym)  => sym.ty.as_ref(),
             Symbol::ValueGeneric(sym) => sym.ty.as_ref(),
+            Symbol::OpSet(sym)       => None,
+            Symbol::Operator(sym)     => None,
+            
         }
     }
 }
@@ -334,13 +344,35 @@ pub struct ValueGenericSymbol {
 
 //----------------------------------------------
 
+pub struct OpSetSymbol {
+    pub path:              SymbolPath,
+    pub assoc_trait:       Option<WeakSymbolRef>,
+    pub precedence:        Option<WeakSymbolRef>,
+    pub bases:             Vec<WeakSymbolRef>,
+
+    pub has_generics:      bool,
+    pub has_output_alias:  bool,
+    pub parent_has_output: bool,
+}
+
+pub struct OperatorSymbol {
+    pub path:         SymbolPath,
+    pub op_ty:        OpType,
+    pub op:           Punctuation,
+
+    pub assoc_method: Option<WeakSymbolRef>
+}
+
+//----------------------------------------------
+
 pub type SymbolRef = Arc<RwLock<Symbol>>;
+pub type WeakSymbolRef = Weak<RwLock<Symbol>>;
 
 //==============================================================================================================================
 #[derive(Clone, Debug)]
 pub enum SymbolLookupKind {
     Precedence,
-    Operator,
+    OperatorSet,
     Symbol,
 }
 
@@ -348,7 +380,7 @@ impl fmt::Display for SymbolLookupKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SymbolLookupKind::Precedence => write!(f, "precedence"),
-            SymbolLookupKind::Operator   => write!(f, "operator"),
+            SymbolLookupKind::OperatorSet   => write!(f, "operator"),
             SymbolLookupKind::Symbol     => write!(f, "symbol"),
         }
     }
@@ -454,10 +486,11 @@ impl SymbolTable {
 //==============================================================================================================================
 
 pub struct RootSymbolTable {
-    cur_lib:  LibraryPath,
-    tables:   HashMap<LibraryPath, SymbolTable>,
-    ty_table: HashMap<TypeHandle, Vec<SymbolRef>>,
+    cur_lib:     LibraryPath,
+    tables:      HashMap<LibraryPath, SymbolTable>,
+    ty_table:    HashMap<TypeHandle, Vec<SymbolRef>>,
     precedences: HashMap<LibraryPath, HashMap<String, SymbolRef>>,
+    operators:   HashMap<LibraryPath, HashMap<String, (SymbolRef, HashMap<String, SymbolRef>)>>,
 }
 
 impl RootSymbolTable {
@@ -470,6 +503,7 @@ impl RootSymbolTable {
             tables,
             ty_table: HashMap::new(),
             precedences: HashMap::new(),
+            operators: HashMap::new(),
         }
     }
 
@@ -913,11 +947,104 @@ impl RootSymbolTable {
         self.precedences.get(lib)
     }
 
-    pub fn log(&self) {
+    //--------------------------------------------------------------
+
+    pub fn add_op_set(&mut self, lib: Option<&LibraryPath>, name: String) -> SymbolRef {
+        let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
+        let iden = PathIden::from_name(name.to_string());
+        let sym = Symbol::OpSet(OpSetSymbol {
+            path: SymbolPath::new(
+                lib.clone(),
+                Scope::new(),
+                iden,
+            ),
+            assoc_trait: None,
+            precedence: None,
+            bases: Vec::new(),
+            has_generics: false,
+            has_output_alias: false,
+            parent_has_output: false,
+        });
+
+        let table = self.operators.entry(lib).or_default();
+        
+        let sym = Arc::new(RwLock::new(sym));
+        table.insert(name, (sym.clone(), HashMap::new()));
+        sym
+    }
+
+    pub fn add_operator(&mut self, lib: Option<&LibraryPath>, op_set_name: &str, name: String, op_ty: OpType, op: Punctuation) -> SymbolRef {
+        let lib = lib.map_or_else(|| self.cur_lib.clone(), |lib| lib.clone());
+        let mut scope = Scope::new();
+        scope.push(op_set_name.to_string());
+        let iden = PathIden::from_name(name.to_string());
+        let sym = Symbol::Operator(OperatorSymbol {
+            path: SymbolPath::new(
+                lib.clone(),
+                scope,
+                iden
+            ),
+            op_ty,
+            op,
+            assoc_method: None,
+        });
+
+        // Operators are always added after their corresponding sets
+        let table = self.operators.get_mut(&lib).unwrap();
+        let table = table.get_mut(op_set_name).unwrap();
+
+        let sym = Arc::new(RwLock::new(sym));
+        table.1.insert(name, sym.clone());
+
+        sym
+    }
+
+    pub fn get_direct_op_set(&self, lib: &LibraryPath, op_set: &str) -> Option<SymbolRef> {
+        let table = self.operators.get(lib)?;
+        table.get(op_set).map(|(sym, _)| sym.clone())
+    }
+
+    pub fn get_direct_op_set_and_ops(&self, lib: &LibraryPath, op_set: &str) -> Option<&(SymbolRef, HashMap<String, SymbolRef>)> {
+        let table = self.operators.get(lib)?;
+        table.get(op_set)
+    }
+
+    pub fn get_operator_set(&self, uses: &RootUseTable, name: &str) -> Result<SymbolRef, SymbolLookupError> {
+        let op_set_paths = uses.operator_set_paths();
+        for op_path in op_set_paths {
+            if let Some(op_set) = &op_path.op_set {
+                if op_set != name {
+                    continue;
+                }
+            }
+
+            if let Some(sym) = self.get_direct_op_set(&op_path.lib, name) {
+                // Use table SHOULD have been validated at this point, so there aren't going to be any duplicate operator sets that are possible
+                return Ok(sym);
+            }
+        }
+        let mut path = Scope::new();
+        path.push(name.to_string());
+        Err(SymbolLookupError::Unknown { path, kind: SymbolLookupKind::OperatorSet })
+    }
+
+
+    pub fn has_op_set_for_lib(&self, lib: &LibraryPath) -> bool {
+        self.operators.contains_key(lib)
+    }
+
+    pub fn get_op_set_and_ops_for_lib(&self, lib: &LibraryPath) -> Option<&HashMap<String, (SymbolRef, HashMap<String, SymbolRef>)>> {
+        self.operators.get(lib)
+    }
+
+    //--------------------------------------------------------------
+
+    pub fn log(&self, puncts: &PuncutationTable) {
         let mut logger = IndentLogger::new("    ", "|   ", "+---");
         let end = self.tables.len() - 1;
         for (idx, (lib_path, table)) in self.tables.iter().enumerate() {
             let precedences = self.precedences.get(&lib_path);
+            let operator_sets = self.operators.get(&lib_path);
 
             logger.set_last_at_indent_if(idx == end && self.ty_table.is_empty());
 
@@ -928,13 +1055,21 @@ impl RootSymbolTable {
                 logger.prefixed_log_fmt(format_args!("Package: {}\n", &lib_path.package));
                 logger.prefixed_log_fmt(format_args!("Library: {}\n", &lib_path.library));
 
-                SymbolTableLogger::log_table(logger, table, precedences.is_some());
+                SymbolTableLogger::log_table(logger, table, precedences.is_some() || operator_sets.is_some());
                 
                 if let Some(precedences) = precedences {
                     let end = precedences.len() - 1;
                     for (idx, (_, precedence)) in precedences.iter().enumerate() {
-                        logger.set_last_at_indent_if(idx == end);
+                        logger.set_last_at_indent_if(idx == end && operator_sets.is_none());;
                         SymbolTableLogger::log_symbol(logger, &precedence.read(), None);
+                    }
+                }
+
+                if let Some(operator_sets) = operator_sets {
+                    let end = operator_sets.len() - 1;
+                    for (idx, (_, (set, ops))) in operator_sets.iter().enumerate() {
+                        logger.set_last_at_indent_if(idx == end);
+                        SymbolTableLogger::log_operator_set(logger, &set.read(), ops, puncts);
                     }
                 }
             });
@@ -1097,10 +1232,69 @@ impl SymbolTableLogger {
                 logger.prefixed_log_fmt(format_args!("Visibility: {}\n", sym.vis));
                 logger.prefixed_log_fmt(format_args!("In Parameter Pack: {}\n", sym.in_pack));
             },
+            _ => logger.prefixed_logln("<unknown>\n"),
         }
 
         if let Some(sub_table) = sub_table {
             Self::log_table(logger, sub_table, false);
+        }
+
+        logger.pop_indent();
+    }
+
+    fn log_operator_set(logger: &mut IndentLogger, sym: &Symbol, operators: &HashMap<String, SymbolRef>, puncts: &PuncutationTable) {
+        let Symbol::OpSet(sym) = sym else { unreachable!() };
+        logger.prefixed_logln("Operator Set");
+        logger.push_indent();
+        logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+
+        match &sym.precedence {
+            Some(precedence) => {
+                let precedence = precedence.upgrade().unwrap();
+                let precedence = precedence.read();
+                logger.prefixed_log_fmt(format_args!("Precedence: {}\n", precedence.path()))
+            },
+            None => logger.prefixed_logln("Precedence: <none>"),
+        }
+
+        logger.log_indented_slice_named("Bases(s)", &sym.bases, |logger, base| {
+            let base = base.upgrade().unwrap();
+            logger.prefixed_log_fmt(format_args!("{}\n", base.read().path()));
+        });
+
+        logger.prefixed_log_fmt(format_args!("Has Generics: {}\n", sym.has_generics));
+        logger.prefixed_log_fmt(format_args!("Has Output Alias: {}\n", sym.has_output_alias));
+
+        if let Some(assoc_trait) = &sym.assoc_trait {
+            let sym = assoc_trait.upgrade().unwrap();
+            let sym = sym.read();
+            logger.prefixed_log_fmt(format_args!("Associated Trait: {}\n", sym.path()))
+        }
+
+        logger.set_last_at_indent();
+        if !operators.is_empty() {
+            let ops_end = operators.len() - 1;
+            logger.log_indented("Operators", |logger| for (idx, (_, op)) in operators.iter().enumerate() {
+                logger.set_last_at_indent_if(idx == ops_end);
+                SymbolTableLogger::log_operator(logger, &op.read(), puncts);
+            });
+        }
+
+        logger.pop_indent();
+    }
+
+    fn log_operator(logger: &mut IndentLogger, sym: &Symbol, puncts: &PuncutationTable) {
+        let Symbol::Operator(sym) = sym else { unreachable!() };
+        logger.prefixed_logln("Operator");
+        logger.push_indent();
+        logger.prefixed_log_fmt(format_args!("Path: {}\n", sym.path));
+        logger.prefixed_log_fmt(format_args!("Op type: {}\n", sym.op_ty));
+        logger.prefixed_log_fmt(format_args!("Op: {}\n", sym.op.as_str(puncts)));
+        
+        if let Some(assoc_method) = &sym.assoc_method {
+            let sym = assoc_method.upgrade().unwrap();
+            let sym = sym.read();
+            logger.prefixed_log_fmt(format_args!("Associated Method: {}\n", sym.path()))
         }
 
         logger.pop_indent();

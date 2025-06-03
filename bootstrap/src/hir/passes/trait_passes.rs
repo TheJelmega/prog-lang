@@ -48,24 +48,6 @@ impl Pass for TraitDagGen<'_> {
             sym.dag_idx = idx;
         }
 
-        for (node, ctx) in &mut hir.op_traits {
-            let mut ctx = ctx.write();
-            
-            let sym = ctx.sym.as_ref().unwrap().clone();
-            let idx = dag.add(sym.clone());
-            ctx.dag_idx = idx;
-
-            let mut sym = sym.write();
-            let Symbol::Trait(sym) = &mut *sym else {
-                self.ctx.add_error(HirError {
-                    span: node.read().span,
-                    err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
-                });
-                continue;
-            };
-            sym.dag_idx = idx;
-        }
-
         let names = self.ctx.names.read();
         let syms = self.ctx.syms.read();
         let uses = self.ctx.uses.read();
@@ -99,36 +81,6 @@ impl Pass for TraitDagGen<'_> {
 
                     dag.set_base_dependency(ctx.dag_idx, sym.dag_idx);
                 }
-            }
-        }
-
-        for (node, ctx) in &mut hir.op_traits {
-            let node = node.read();
-            let ctx = ctx.read();
-
-            for path in &node.bases {
-                let scope = &path.ctx.path;
-
-                let sym = match syms.get_symbol_with_uses(&uses, &ctx.scope, None, scope) {
-                    Ok(sym) => sym,
-                    Err(err) => {
-                        self.ctx.add_error(HirError {
-                            span: node.span,
-                            err: HirErrorCode::UnknownSymbol { err },
-                        });
-                        continue;
-                    },
-                };
-                let mut sym = sym.write();
-                let Symbol::Trait(sym) = &mut *sym else {
-                    self.ctx.add_error(HirError {
-                        span: node.span,
-                        err: HirErrorCode::InternalError("Trait does not have trait symbol associated with it"),
-                    });
-                    continue;
-                };
-            
-                dag.set_base_dependency(ctx.dag_idx, sym.dag_idx);
             }
         }
     }

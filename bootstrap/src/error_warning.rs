@@ -285,6 +285,11 @@ pub enum HirErrorCode {
 
     PrecedenceUnsupportedAttrib { info: String },
     PrecedenceInvalidOrder { info: String },
+    
+    OpSetUnknownPrecedence { prec: String, op_set: String },
+    OpSetUnknowBase { base: String, op_set: String },
+    OpSetConflictBasePrec { op_set: String, precedences: Vec<String> },
+    OpSetConflictBaseOutput { op_set: String, bases: Vec<String> },
 
     OperatorDoesNotExist { op: String },
     OperatorNoPrecedence { op: String },
@@ -319,34 +324,56 @@ impl Display for HirErrorCode {
         write!(f, "E{code:04}: ")?;
 
         match self {
-            Self::InternalError(err)                   => write!(f, "Internal compiler error: {err}"),
+            Self::InternalError(err)                      => write!(f, "Internal compiler error: {err}"),
 
-            Self::PrecedenceUnsupportedAttrib { info } => write!(f, "Unsupported precedence attribute: {info}"),
-            Self::PrecedenceInvalidOrder { info }      => write!(f, "Invalid precedence order: {info}"),
+            Self::PrecedenceUnsupportedAttrib { info }    => write!(f, "Unsupported precedence attribute: {info}"),
+            Self::PrecedenceInvalidOrder { info }         => write!(f, "Invalid precedence order: {info}"),
 
-            Self::OperatorDoesNotExist { op }          => write!(f, "Operator does not exist: {op}"),
-            Self::OperatorNoPrecedence { op }          => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
-            Self::OperatorNoOrder { op0, op1 }         => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+            Self::OpSetUnknownPrecedence { prec, op_set } => write!(f, "Unknown precedence '{prec}' for operator set '{op_set}'"),
+            Self::OpSetUnknowBase{ base, op_set }         => write!(f, "Unknown base '{base}' for operator set '{op_set}'"),
+            Self::OpSetConflictBasePrec { op_set, precedences } => {
+                write!(f, "Conflicing base precedences for operator set '{op_set}': ")?;
+                for (idx, name) in precedences.iter().enumerate() {
+                    if idx != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{name}")?;
+                }
+                Ok(())
+            },
+            Self::OpSetConflictBaseOutput { op_set, bases } => {
+                write!(f, "Conflicing base output aliases for operator set '{op_set}': ")?;
+                for (idx, name) in bases.iter().enumerate() {
+                    if idx != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{name}")?;
+                }
+                Ok(())
+            },
 
-            Self::CycleInTraitDag { cycle }            => write!(f, "Cycle in trait DAG: {cycle}"),
-            Self::CycleInPrecedenceDag { cycle }       => write!(f, "Cycle in precedence DAG: {cycle}"),
+            Self::OperatorDoesNotExist { op }             => write!(f, "Operator does not exist: {op}"),
+            Self::OperatorNoPrecedence { op }             => write!(f, "Operator does not have any precedence: {op}, this expression should be wrapped by parentheses to ensure a correct order"),
+            Self::OperatorNoOrder { op0, op1 }            => write!(f, "Operators {op0} and {op1} do not have ordered precedences"),
+
+            Self::CycleInTraitDag { cycle }               => write!(f, "Cycle in trait DAG: {cycle}"),
+            Self::CycleInPrecedenceDag { cycle }          => write!(f, "Cycle in precedence DAG: {cycle}"),
 
             Self::UnknownSymbol { err }                   => write!(f, "Failed to find symbol: {err}"),
-            Self::UnknownSymbol { err }                 => write!(f, "Failed to find symbol: {err}"),
-            Self::UnknownSymbolOrVar { name, err }     => write!(f, "Cannot find any variable names {name} in the current scope, or any symbol: {err}"),
+            Self::UnknownSymbolOrVar { name, err }        => write!(f, "Cannot find any variable names {name} in the current scope, or any symbol: {err}"),
 
             Self::ImplTraitNoMatchingItem { item, trait_name, info } =>
                 write!(f, "Implementation trying to implement item ({item}) that does not exist within the trait ({trait_name}) being implemented: {info}"),
-            Self::ImplNoDefault { item }               => write!(f, "Missing implementation for '{item}', as no default exists"),
+            Self::ImplNoDefault { item }                  => write!(f, "Missing implementation for '{item}', as no default exists"),
 
-            Self::NoHirItemForSymbol { kind }          => write!(f, "A {kind} symbol in the current library should always have a corresponding hir {kind} in the current library"),
+            Self::NoHirItemForSymbol { kind }             => write!(f, "A {kind} symbol in the current library should always have a corresponding hir {kind} in the current library"),
 
-            Self::UseTable { err }                     => write!(f, "{err}"),
+            Self::UseTable { err }                        => write!(f, "{err}"),
 
-            Self::NotSupportedYet { info }             => write!(f, "{info} is currently not supported yet"),
+            Self::NotSupportedYet { info }                => write!(f, "{info} is currently not supported yet"),
 
             #[allow(unreachable_patterns)]
-            _                                          => write!(f, "Unknown HIR error"),
+            _                                             => write!(f, "Unknown HIR error"),
         }
     }
 }

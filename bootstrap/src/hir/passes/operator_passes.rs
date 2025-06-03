@@ -1,18 +1,207 @@
 use core::prelude;
-use std::{collections::VecDeque, mem};
+use std::{collections::{HashMap, VecDeque}, mem, sync::Weak};
 
 use passes::PassContext;
 
 use crate::{
-    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PathIden, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolPath, SymbolTable, UseTable},
+    common::{LibraryPath, NameTable, OperatorInfo, OperatorTable, PathIden, PrecedenceDAG, PrecedenceOrder, RootSymbolTable, RootUseTable, Symbol, SymbolPath, SymbolTable, UseTable, WeakSymbolRef},
     hir::*, lexer::PuncutationTable
 };
 
-pub struct OpPrecedenceProcessing<'a> {
+pub struct OperatorSymbolGen<'a> {
+    ctx:         &'a PassContext,
+    op_set_name: String,
+}
+
+impl<'a> OperatorSymbolGen<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self { ctx, op_set_name: String::new() }
+    }
+}
+
+impl Visitor for OperatorSymbolGen<'_> {
+    fn visit_op_set(&mut self, node: &mut OpSet, ctx: &mut OpSetContext) {
+        let name = self.ctx.names.read()[node.name].to_string();
+        let sym = self.ctx.syms.write().add_op_set(None, name.clone());
+        ctx.sym = Some(sym);
+
+
+        self.op_set_name = name;
+    }
+
+    fn visit_operator(&mut self, op_set_ref: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut Operator, ctx: &mut OperatorContext) {
+        let name = self.ctx.names.read()[node.name].to_string();
+        let sym = self.ctx.syms.write().add_operator(None, &self.op_set_name, name, node.op_ty, node.op);
+        ctx.sym = Some(sym);
+    }
+}
+
+impl Pass for OperatorSymbolGen<'_> {
+    const NAME: &'static str = "Operator Symbol Generation";
+
+    fn process(&mut self, hir: &mut Hir) {
+        self.visit(hir, VisitFlags::AnyOp);
+    }
+}
+
+//==============================================================================================================================
+
+pub struct OperatorSetDependencyProcess<'a> {
     ctx: &'a PassContext
 }
 
-impl<'a> OpPrecedenceProcessing<'a> {
+impl<'a> OperatorSetDependencyProcess<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Visitor for OperatorSetDependencyProcess<'_> {
+}
+
+impl Pass for OperatorSetDependencyProcess<'_> {
+    const NAME: &'static str = "Operator Set Dependency Processing";
+
+    fn process(&mut self, hir: &mut Hir) {
+        let mut to_process: VecDeque<_> = (0..hir.op_sets.len()).collect();
+
+        let syms = self.ctx.syms.read();
+        let uses = self.ctx.uses.read();
+        let names = self.ctx.names.read();
+
+        while let Some(idx) = to_process.pop_front() {
+            let (op_set_ref, ctx_ref) = &mut hir.op_sets[idx];
+            let op_set = op_set_ref.read();
+            let mut op_ctx = ctx_ref.write();
+
+            let op_set_sym = op_ctx.sym.as_ref().unwrap();
+            let mut op_set_sym = op_set_sym.write();
+            let Symbol::OpSet(op_set_sym) = &mut *op_set_sym else { unreachable!() };
+
+            // Explicit precedence
+            if let Some(precedence) = op_set.precedence {
+                let precedence_name = &names[precedence];
+                match syms.get_precedence(&uses, precedence_name) {
+                    Ok(sym) => op_set_sym.precedence = Some(Arc::downgrade(&sym)),
+                    Err(_) => {
+                        let op_set_name = names[op_set.name].to_string();
+                        self.ctx.add_error(HirError {
+                            span: op_set.span,
+                            err: HirErrorCode::OpSetUnknownPrecedence { prec: precedence_name.to_string(), op_set: op_set_name },
+                        });
+                    },
+                }
+
+                // We have an explicit precedence, so not base, so just continue to the next one
+                continue;
+            }
+            
+            // When we have a base, look it up and proagate the precedence
+            // If there are multiple bases and their precedences differ, error (if one doesn't have a precendence, use the precedence from the one that has one)
+            // If a base does not have it's precedence set yet, add this operator set's idx back to the 'to process' list
+            let mut precedence: Option<WeakSymbolRef> = None;
+            let mut conflicting_precedences = Vec::new();
+            for (base, _) in &op_set.bases {
+                let base_name = &names[*base];
+                let base_sym = match syms.get_operator_set(&uses, base_name) {
+                    Ok(base_sym) => base_sym,
+                    Err(_) => {
+                        let op_set_name = names[op_set.name].to_string();
+                        self.ctx.add_error(HirError {
+                            span: op_set.span,
+                            err: HirErrorCode::OpSetUnknowBase { base: base_name.to_string(), op_set: op_set_name },
+                        });
+                        continue;
+                    },
+                };
+                
+                let base_sym = base_sym.read();
+                let Symbol::OpSet(base_sym) = &*base_sym else { unreachable!() };
+                if let Some(base_precedence) = &base_sym.precedence {
+                    match &precedence {
+                        Some(prec) => if !prec.ptr_eq(&base_precedence) {
+                            if !conflicting_precedences.is_empty() {
+                                let prec = prec.upgrade().unwrap();
+                                let prec = prec.read();
+                                let prec_name = &prec.path().iden().name;
+                                conflicting_precedences.push(prec_name.clone());
+                            }
+                            conflicting_precedences.push(base_name.to_string());
+                        },
+                        None => precedence = Some(base_precedence.clone()),
+                    }
+                }
+            }
+
+            if !conflicting_precedences.is_empty() {
+                let op_set_name = names[op_set.name].to_string();
+                self.ctx.add_error(HirError {
+                    span: op_set.span,
+                    err: HirErrorCode::OpSetConflictBasePrec { op_set: op_set_name.clone(), precedences: conflicting_precedences }
+                });
+                continue;
+            }
+
+            op_set_sym.precedence = precedence;
+        }
+    }
+}
+
+//==============================================================================================================================
+
+pub struct OpSetConnect<'a> {
+    ctx: &'a PassContext,
+}
+
+impl<'a> OpSetConnect<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Visitor for OpSetConnect<'_> {
+    fn visit_op_set(&mut self, node: &mut OpSet, ctx: &mut OpSetContext) {
+        if node.bases.is_empty() {
+            return;
+        }
+
+        let mut sym = ctx.sym.as_ref().unwrap().write();
+        let Symbol::OpSet(sym) = &mut *sym else { unreachable!() };
+
+        let names = self.ctx.names.read();
+        let syms = self.ctx.syms.read();
+        let uses = self.ctx.uses.read();
+
+        for (base_name, span) in &node.bases {
+            let base_name = &names[*base_name];
+            let base_sym = match syms.get_operator_set(&uses, base_name) {
+                Ok(sym) => sym,
+                Err(err) => {
+                    let op_set_name = names[node.name].to_string();
+                    self.ctx.add_error(HirError {
+                        span: *span,
+                        err: HirErrorCode::OpSetUnknowBase { base: base_name.to_string(), op_set: op_set_name },
+                    });
+                    continue;
+                },
+            };
+
+            sym.bases.push(Arc::downgrade(&base_sym));
+        }
+    }
+}
+
+impl Pass for OpSetConnect<'_> {
+    const NAME: &'static str = "Operator Set Connecting";
+}
+
+//==============================================================================================================================
+
+pub struct OpTagging<'a> {
+    ctx: &'a PassContext
+}
+
+impl<'a> OpTagging<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
@@ -20,125 +209,100 @@ impl<'a> OpPrecedenceProcessing<'a> {
     }
 }
 
-impl Pass for OpPrecedenceProcessing<'_> {
-    const NAME: &'static str = "Op trait <-> precedence processing";
+impl Visitor for OpTagging<'_> {
 }
 
-impl Visitor for OpPrecedenceProcessing<'_> {
-    fn visit(&mut self, hir: &mut Hir, _flags: VisitFlags) {
-        
-        let mut to_process: VecDeque<usize> = (0..hir.op_traits.len()).collect();
-        
+impl Pass for OpTagging<'_> {
+    const NAME: &'static str = "Operator Tagging";
 
-        while !to_process.is_empty() {
-            // Can't fail, as we check if the array contains elements in the loop
-            let idx = to_process.pop_front().unwrap();
-            let (op_trait_ref, ctx_ref) = &mut hir.op_traits[idx];
-            let op_trait_ref = op_trait_ref.write();
+    fn process(&mut self, hir: &mut Hir) {
+        let names = self.ctx.names.read();
+        let mut op_set_idx_mapping = HashMap::with_capacity(hir.op_sets.len());
 
-            let mut ctx_ref = ctx_ref.write();
-            let mut sym_path = ctx_ref.scope.clone();
-            sym_path.push(self.ctx.names.read()[op_trait_ref.name].to_string());
+        // Initial pass
+        for (op_set_idx, (op_set, op_set_ctx)) in hir.op_sets.iter().enumerate() {
+            let mut has_generics = false;
+            let mut has_outuput_alias = false;
 
-            // Explicit precedence
-            if let Some(precedence) = op_trait_ref.precedence {
-                let precedence_name = &self.ctx.names.read()[precedence];
-                    match self.ctx.precedence_dag.read().get(precedence_name){
-                        Some(id) => self.ctx.op_table.write().add_trait_precedence(sym_path.clone(), precedence_name.to_string(), id),
-                        None => todo!("Error")
-                    };
-            } else if op_trait_ref.bases.is_empty() { // Default if there are no base classes, i.e. no precedence
-                self.ctx.op_table.write().add_trait_precedence(sym_path, "<none>".to_string(), u16::MAX);
-                continue;
-            }
-
-            // When we have a base, look it up and propagate the precedence
-
-            for base in &op_trait_ref.bases {
-
-                // TODO: Store this is some node context
-                let mut search_sym_path = Scope::new();
-                for name in &base.names {
-                    search_sym_path.push(self.ctx.names.read()[*name].to_string());
-                }
-
-                let syms = self.ctx.syms.read();
-                let sym = match syms.get_symbol_with_uses(&self.ctx.uses.read(), &ctx_ref.scope, None, &search_sym_path) {
-                    Ok(sym) => sym,
-                    Err(err) => {
-                        self.ctx.add_error(HirError {
-                            span: base.span,
-                            err: HirErrorCode::UnknownSymbol { err },
-                        });
-                        continue;
-                    },
-                };
-
-                let Symbol::Trait(sym) = &*sym.read() else {
-                    self.ctx.add_error(HirError {
-                        span: base.span,
-                        err: HirErrorCode::ExpectedTraitSymbol {
-                            kind: sym.read().kind_str().to_string(),
-                            path: search_sym_path
-                        },
-                    });
+            for (idx, node, ctx) in &hir.operators {
+                if *idx != op_set_idx {
                     continue;
-                };
+                }
 
-                let mut base_sym_path = sym.path.to_full_scope();
-                let trait_precedence = self.ctx.op_table.read().get_trait_precedence(&base_sym_path).map(|(name, id)| (name.to_string(), id));
-                match trait_precedence {
-                    Some((prec, id)) => {
-                        self.ctx.op_table.write().add_trait_precedence(sym_path.clone(), prec, id);
-                        break;
-                    },
-                    None    => {
-                        to_process.push_back(idx);
-                    },
+                if node.op_ty.has_generics() {
+                    has_generics = true;
+                }
+                if node.ret_ty.is_none() && node.op_ty.has_output() {
+                    has_outuput_alias = true;
                 }
             }
+
+            let op_set_ctx = op_set_ctx.read();
+            let sym_ref = op_set_ctx.sym.as_ref().unwrap();
+            let mut sym = sym_ref.write();
+            let Symbol::OpSet(sym) = &mut *sym else { unreachable!() };
+
+            sym.has_generics = has_generics;
+            sym.has_output_alias = has_outuput_alias;
+
+            let name = names[op_set.read().name].to_string();
+            op_set_idx_mapping.insert(name, op_set_idx);
         }
 
-    }
-}
-
-//==============================================================================================================================
-
-pub struct OperatorCollection<'a> {
-    ctx: &'a PassContext
-}
-
-impl<'a> OperatorCollection<'a> {
-    pub fn new(ctx: &'a PassContext) -> Self {
-        Self {
-            ctx
-        }
-    }
-}
-
-impl Pass for OperatorCollection<'_> {
-    const NAME: &'static str = "Operator Collection";
-}
-
-impl Visitor for OperatorCollection<'_> {
-    fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
-        let op_trait_path = ctx.scope.clone();
+        // Propagate to bases
+        let mut to_process: VecDeque<_> = (0..hir.op_sets.len()).collect();
+        let mut possible_output_conflicts = HashMap::new();
         
-        let op_info = {
-            let op_table = self.ctx.op_table.read();
-            let (prec_name, prec_id) = op_table.get_trait_precedence(&op_trait_path).unwrap();
+        'main: while let Some(idx) = to_process.pop_front() {
+            let (node, ctx) = &hir.op_sets[idx];
+            let mut ctx = ctx.write();
 
-            OperatorInfo {
-                op_type: node.op_ty,
-                op: node.op,
-                precedence_name: prec_name.to_string(),
-                precedence_id: prec_id,
-                library_path: self.ctx.lib_path.clone(),
-                trait_path: ctx.scope.clone(),
-                func_name: self.ctx.names.read()[node.name].to_string(),
+            let sym = ctx.sym.clone().unwrap();
+            let mut sym = sym.write();
+            let Symbol::OpSet(sym) = &mut *sym else { unreachable!() };
+
+            if !sym.bases.is_empty() {
+                for base in &sym.bases {
+                    let base = base.upgrade().unwrap();
+                    let base = base.read();
+                    let base_name = &base.path().iden().name;
+                    let Symbol::OpSet(base) = &*base else { unreachable!() };
+                    
+                    match op_set_idx_mapping.get(base_name) {
+                        Some(base_idx) => if hir.op_sets[*base_idx].1.read().tagging_done {
+                            sym.has_generics |= base.has_generics;
+                            sym.has_output_alias &= !base.has_output_alias;
+
+                            if base.parent_has_output || base.has_output_alias {
+                                let set_name = names[node.read().name].to_string();
+                                let entry = possible_output_conflicts.entry(set_name).or_insert((Vec::new(), SpanId::INVALID));
+                                entry.0.push(base_name.clone());
+                                entry.1 = node.read().span;
+                            }
+                            sym.parent_has_output |= base.parent_has_output | base.has_output_alias;
+
+                        } else {
+                            to_process.push_back(idx);
+                            continue 'main;
+                        },
+                        None => {
+                            sym.has_generics |= base.has_generics;
+                            sym.has_output_alias &= !base.has_output_alias;
+                        }
+                    }
+                }
             }
+            ctx.tagging_done = true;
         };
-        self.ctx.op_table.write().add_operator(op_info);  
+
+        for (name, (bases, span)) in possible_output_conflicts {
+            if bases.len() > 1 {
+                self.ctx.add_error(HirError {
+                    span,
+                    err: HirErrorCode::OpSetConflictBaseOutput { op_set: name, bases: bases },
+                })
+            }
+        }
     }
 }
 
@@ -161,7 +325,7 @@ impl Pass for InfixReorder<'_> {
 
     fn process(&mut self, hir: &mut Hir) {
         let flags = VisitFlags::Function | VisitFlags::TraitFunction | VisitFlags::Method |
-            VisitFlags::OpFunction | VisitFlags::OpContract;
+            VisitFlags::Operator | VisitFlags::OpContract;
         
         self.visit(hir, flags);
     }
@@ -171,11 +335,7 @@ impl Visitor for InfixReorder<'_> {
     fn visit_infix_expr(&mut self, node: &mut InfixExpr) {
         helpers::visit_infix_expr(self, node);
 
-        if !node.can_reorder {
-            return;
-        }
-
-        let Expr::Infix(right) = &*node.right else { unreachable!("Internal Compiler error here!") };
+        let Expr::Infix(right) = &*node.right else { return; };
 
         let puncts = self.ctx.puncts.read();
         let op_table = self.ctx.op_table.read();
@@ -195,6 +355,7 @@ impl Visitor for InfixReorder<'_> {
                 span: node.span,
                 err: HirErrorCode::OperatorNoPrecedence { op: node.op.as_str(&puncts).to_string() },
             });
+            return;
         }
 
         let right_op = match op_table.get(OpType::Infix, right.op) {
@@ -212,6 +373,7 @@ impl Visitor for InfixReorder<'_> {
                 span: node.span,
                 err: HirErrorCode::OperatorNoPrecedence { op: right.op.as_str(&puncts).to_string() },
             });
+            return;
         }
 
         match self.ctx.precedence_dag.read().get_order(op.precedence_id, right_op.precedence_id) {
@@ -249,7 +411,6 @@ impl Visitor for InfixReorder<'_> {
                     left,
                     op,
                     right: middle,
-                    can_reorder: false, // doens't matter after this point + already in the correct order, so don't even need todo this
                 }));
                 node.span = right_span;
                 node.node_id = right_node_id;
@@ -265,84 +426,24 @@ impl Visitor for InfixReorder<'_> {
 
 //==============================================================================================================================
 
-pub struct OpTagging<'a> {
-    ctx: &'a PassContext
-}
-
-impl<'a> OpTagging<'a> {
-    pub fn new(ctx: &'a PassContext) -> Self {
-        Self {
-            ctx,
-        }
-    }
-}
-
-impl Pass for OpTagging<'_> {
-    const NAME: &'static str = "Operator Tagging";
-
-    fn process(&mut self, hir: &mut Hir) {
-        
-        // Tag traits as using generics
-        for (trait_idx, node, ctx) in &hir.op_functions {
-            let mut trait_ctx = hir.op_traits[*trait_idx].1.write();
-            if node.op_ty.has_generics() {
-                trait_ctx.has_generics = true;
-            }
-            if node.ret_ty.is_none() && node.op_ty.has_output() {
-                trait_ctx.has_output_alias = true;
-            }
-        }
-
-        let trait_dag = self.ctx.trait_dag.read();
-
-        // Propagate generics flag to parent traits
-        for idx in 0..hir.op_traits.len() {
-            let dag_idx = hir.op_traits[idx].1.read().dag_idx;
-            let base_ids = trait_dag.get_base_ids(dag_idx);
-            for base in base_ids {
-                let base_data  = trait_dag.get(*base).unwrap();
-                let entry = hir.op_traits.iter().find(|entry| {
-                    let ctx = entry.1.read();
-                    Arc::ptr_eq(ctx.sym.as_ref().unwrap(), &base_data.symbol)
-                }).unwrap();
-
-                if entry.1.read().has_generics {
-                    let mut trait_ctx = hir.op_traits[idx].1.write();
-                    trait_ctx.has_generics = true;
-                    break;
-                }
-            }
-        }
-
-    }
-}
-
-impl Visitor for OpTagging<'_> {
-    
-}
-
-
-//==============================================================================================================================
-
 struct TraitGenEntry {
     scope:        Scope,
     file_scope:   Scope,
     item:         Trait,
-    methods:      Vec<(TraitMethod, SymbolRef)>,
+    methods:      Vec<TraitMethod>,
     output_alias: Option<TraitTypeAlias>,
-    symbol:       SymbolRef,
 }
 
 pub struct OpTraitGen<'a> {
     ctx:    &'a PassContext,
-    traits: Vec<TraitGenEntry>,
+    gen_entries: Vec<TraitGenEntry>,
 }
 
 impl<'a> OpTraitGen<'a> {
     pub fn new(ctx: &'a PassContext) -> Self {
         Self {
             ctx,
-            traits: Vec::new(),
+            gen_entries: Vec::new(),
         }
     }
 }
@@ -351,60 +452,61 @@ impl Pass for OpTraitGen<'_> {
     const NAME: &'static str = "Operator Trait Gen";
 
     fn process(&mut self, hir: &mut Hir) {
-        self.visit(hir, VisitFlags::OpTrait | VisitFlags::OpFunction);
+        self.visit(hir, VisitFlags::OpSet | VisitFlags::Operator);
 
-        for entry in mem::take(&mut self.traits) {
+        for (op_set_idx, entry) in mem::take(&mut self.gen_entries).into_iter().enumerate() {
             let trait_name =  self.ctx.names.read()[entry.item.name].to_string();
             hir.add_trait(entry.scope.clone(), entry.file_scope.clone(), entry.item);
 
-            let trait_entry = hir.traits.last_mut().unwrap();
-            trait_entry.1.write().sym = Some(entry.symbol);
-
             let mut scope = entry.scope;
             scope.push(trait_name);
-            for (method, sym) in entry.methods {
+            
+            for method in entry.methods {
                 hir.add_trait_method(scope.clone(), entry.file_scope.clone(), method);
-                let (_, _, method_ctx) = hir.trait_methods.last_mut().unwrap();
-                method_ctx.sym = Some(sym);
             }
+
+            let mut hir_method_idx = usize::MAX;
             if let Some(alias) = entry.output_alias {
-                let mut syms = self.ctx.syms.write();
-                let sym = syms.add_type_alias(None, &scope, PathIden::from_name("Output".to_string()));
-                
                 hir.add_trait_type_alias(scope, entry.file_scope, alias);
-                let (_, _, alias_ctx) = hir.trait_type_alias.last_mut().unwrap();
-                alias_ctx.sym = Some(sym);
+
+                if hir_method_idx == usize::MAX {
+                    hir_method_idx = hir.trait_methods.len() - 1;
+                }
+            }
+            let op_set_ctx = &hir.op_sets[op_set_idx].1;
+            op_set_ctx.write().trait_idx = hir.traits.len() - 1;
+
+            if hir_method_idx != usize::MAX {
+                for (set_idx, _, op_ctx) in &mut hir.operators {
+                    if op_set_idx != *set_idx {
+                        continue;
+                    }
+                    op_ctx.trait_method_idx = hir_method_idx;
+                    hir_method_idx += 1;
+                }
             }
         }
     }
 }
 
 impl Visitor for OpTraitGen<'_> {
-    fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
+    fn visit_op_set(&mut self, node: &mut OpSet, ctx: &mut OpSetContext) {
         let mut names = self.ctx.names.write();
+        let op_set = ctx.sym.clone().unwrap();
+        let op_set = op_set.read();
+        let Symbol::OpSet(op_set) = &*op_set else { unreachable!() };
 
-        let generics = if ctx.has_generics {
+        let generics = if op_set.has_generics {
             let name = names.add("Rhs");
             let def = Some(Box::new(PathType::self_ty(node.span, node.node_id)));
-
-            let mut syms = self.ctx.syms.write();
-            let mut gen_scope = ctx.scope.clone();
-            gen_scope.push(names[node.name].to_string());
-            let rhs_sym = syms.add_type_generic(None, &gen_scope, "Rhs", false);
-
-            // Update the uses table to take in account that we have a new generic scope we should look into
-            let mut uses = self.ctx.uses.write();
-            uses.add_generic_use(gen_scope.clone());
-
-            let ctx = GenericParamContext {
-                sym: Some(rhs_sym),
-            };
 
             let param = GenericParam::Type(GenericTypeParam {
                 span: node.span,
                 name,
                 def,
-                ctx,
+                ctx: GenericParamContext {
+                    sym: None,
+                },
             });
 
             Some(Box::new(GenericParams {
@@ -419,7 +521,7 @@ impl Visitor for OpTraitGen<'_> {
             None
         };
 
-        let output_alias = if ctx.has_output_alias {
+        let output_alias = if op_set.has_output_alias {
             let output_ty_name = names.add("Output");
 
             Some(TraitTypeAlias {
@@ -435,9 +537,7 @@ impl Visitor for OpTraitGen<'_> {
             None
         };
 
-        let symbol = ctx.sym.clone().unwrap();
-
-        self.traits.push(TraitGenEntry {
+        self.gen_entries.push(TraitGenEntry {
             scope: ctx.scope.clone(),
             file_scope: ctx.file_scope.clone(),
             item: Trait {
@@ -454,12 +554,11 @@ impl Visitor for OpTraitGen<'_> {
             },
             methods: Vec::new(),
             output_alias,
-            symbol,
         });
     }
 
     // TODO: const
-    fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
+    fn visit_operator(&mut self, op_set_ref: Ref<OpSet>, op_set_ctx: Ref<OpSetContext>, node: &mut Operator, ctx: &mut OperatorContext) {
         let mut names = self.ctx.names.write();
 
         let output_ty_name = names.add("Output");
@@ -498,7 +597,6 @@ impl Visitor for OpTraitGen<'_> {
         };
         
         let params =  if node.op_ty.is_binary() {
-            let label = Some(names.add("_"));
             let rhs_name = names.add("rhs");
             let rhs_ty_name = names.add("Rhs");
 
@@ -516,7 +614,7 @@ impl Visitor for OpTraitGen<'_> {
                 FnParam::Param {
                     span: node.span,
                     attrs: Vec::new(),
-                    label,
+                    label: None,
                     pattern,
                     ty,
                 }
@@ -550,8 +648,8 @@ impl Visitor for OpTraitGen<'_> {
             body,
         };
 
-        let op_trait = op_trait_ref.read();
-        let Some(entry) = self.traits.iter_mut().find(|entry| entry.item.node_id == op_trait.node_id) else {
+        let op_set = op_set_ref.read();
+        let Some(entry) = self.gen_entries.iter_mut().find(|entry| entry.item.node_id == op_set.node_id) else {
             self.ctx.add_error(HirError {
                 span: node.span,
                 err: HirErrorCode::InternalError("Processing function for op trait that was not generated"),
@@ -559,7 +657,50 @@ impl Visitor for OpTraitGen<'_> {
             return;
         };
 
-        let sym = ctx.sym.clone().unwrap();
-        entry.methods.push((method, sym));     
+        entry.methods.push(method);     
+    }
+}
+
+//==============================================================================================================================
+
+pub struct OpSetTraitAssociation<'a> {
+    ctx: &'a PassContext,
+}
+
+impl<'a> OpSetTraitAssociation<'a> {
+    pub fn new(ctx: &'a PassContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Visitor for OpSetTraitAssociation<'_> {
+}
+
+impl Pass for OpSetTraitAssociation<'_> {
+    const NAME: &'static str = "Op Set <-> Trait Association";
+
+    fn process(&mut self, hir: &mut Hir) {
+        for (_, ctx) in &hir.op_sets {
+            let ctx = ctx.read();
+            let (_, trait_ctx) = &hir.traits[ctx.trait_idx];
+
+            let sym = ctx.sym.as_ref().unwrap();
+            let mut sym = sym.write();
+            let Symbol::OpSet(sym) = &mut *sym else { unreachable!() };
+            sym.assoc_trait = Some(Arc::downgrade(trait_ctx.read().sym.as_ref().unwrap()));
+        }
+
+        for (_, _, ctx) in &hir.operators {
+            if ctx.trait_method_idx == usize::MAX {
+                continue;
+            }
+
+            let (_, _, method_ctx) = &hir.trait_methods[ctx.trait_method_idx];
+
+            let sym = ctx.sym.as_ref().unwrap();
+            let mut sym = sym.write();
+            let Symbol::Operator(sym) = &mut *sym else { unreachable!() };
+            sym.assoc_method = Some(Arc::downgrade(method_ctx.sym.as_ref().unwrap()));
+        }
     }
 }

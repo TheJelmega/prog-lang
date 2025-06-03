@@ -465,27 +465,6 @@ impl Visitor for SymbolGeneration<'_> {
         ctx.sym = Some(sym);
     }
 
-    fn visit_op_trait(&mut self, node: &mut OpTrait, ctx: &mut OpTraitContext) {
-        let iden = self.get_symbol_iden(node.name, None, None);
-        let sym = self.ctx.syms.write().add_trait(None, &ctx.scope, iden);
-        ctx.sym = Some(sym);
-    }
-
-    fn visit_op_function(&mut self, op_trait_ref: Ref<OpTrait>, op_trait_ctx: Ref<OpTraitContext>, node: &mut OpFunction, ctx: &mut OpFunctionContext) {
-        let mut iden = self.get_symbol_iden(node.name, None, None);
-        if node.op_ty.is_binary() {
-            iden.params.push("other".to_string() );
-
-            let mut type_reg = self.ctx.type_reg.write();
-            iden.gen_args.push(PathGeneric::Type {
-                ty: type_reg.create_placeholder_type()
-            });
-        }
-
-        let sym = self.ctx.syms.write().add_function(None, &ctx.scope, iden);
-        ctx.sym = Some(sym);
-    }
-
     fn visit_gen_params(&mut self, node: &mut GenericParams) {
         for param in &mut node.params {
             match param {

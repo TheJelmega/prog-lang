@@ -160,8 +160,8 @@ pub trait Visitor {
     
 //--------------------------------------------------------------
 
-    fn visit_op_trait(&mut self, node: &AstNodeRef<OpTrait>) where Self: Sized {
-        helpers::visit_op_trait(self, node);
+    fn visit_op_set(&mut self, node: &AstNodeRef<OpSet>) where Self: Sized {
+        helpers::visit_op_set(self, node);
     }
     
     fn visit_op_use(&mut self, node: &AstNodeRef<OpUse>) where Self: Sized {
@@ -604,7 +604,7 @@ pub mod helpers {
             Item::Trait(node)         => visitor.visit_trait(node),
             Item::Impl(node)          => visitor.visit_impl(node),
             Item::Extern(node)        => visitor.visit_extern_block(node),
-            Item::OpTrait(node)       => visitor.visit_op_trait(node),
+            Item::OpSet(node)       => visitor.visit_op_set(node),
             Item::OpUse(node)         => visitor.visit_op_use(node),
             Item::Precedence(node)    => visitor.visit_precedence(node),
             Item::PrecedenceUse(node) => visitor.visit_precedence_use(node),
@@ -1330,9 +1330,9 @@ pub mod helpers {
 
 //--------------------------------------------------------------
 
-    pub fn visit_op_trait<T: Visitor>(visitor: &mut T, node: &AstNodeRef<OpTrait>) {
+    pub fn visit_op_set<T: Visitor>(visitor: &mut T, node: &AstNodeRef<OpSet>) {
         match &**node {
-            OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => {
+            OpSet::Base { span, node_id, attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     visitor.visit_attribute(attr);
                 }
@@ -1343,15 +1343,12 @@ pub mod helpers {
                     visit_op_elem(visitor, elem);
                 }
             },
-            OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => {
+            OpSet::Extended { span, node_id, attrs, vis, name, bases, elems } => {
                 for attr in attrs {
                     visitor.visit_attribute(attr);
                 }
                 if let Some(vis) = vis {
                     visitor.visit_visibility(vis);
-                }
-                for base in bases {
-                    visitor.visit_simple_path(base);
                 }
                 for elem in elems {
                     visit_op_elem(visitor, elem);

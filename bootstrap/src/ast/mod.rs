@@ -362,7 +362,7 @@ pub enum Item {
     Trait(AstNodeRef<Trait>),
     Impl(AstNodeRef<Impl>),
     Extern(AstNodeRef<ExternBlock>),
-    OpTrait(AstNodeRef<OpTrait>),
+    OpSet(AstNodeRef<OpSet>),
     OpUse(AstNodeRef<OpUse>),
     Precedence(AstNodeRef<Precedence>),
     PrecedenceUse(AstNodeRef<PrecedenceUse>),
@@ -387,7 +387,7 @@ impl AstNode for Item {
             Item::Trait(item)         => item.span(),
             Item::Impl(item)          => item.span(),
             Item::Extern(item)        => item.span(),
-            Item::OpTrait(item)       => item.span(),
+            Item::OpSet(item)       => item.span(),
             Item::OpUse(item)         => item.span(),
             Item::Precedence(item)    => item.span(),
             Item::PrecedenceUse(item) => item.span(),
@@ -412,7 +412,7 @@ impl AstNode for Item {
             Item::Trait(item)         => item.node_id(),
             Item::Impl(item)          => item.node_id(),
             Item::Extern(item)        => item.node_id(),
-            Item::OpTrait(item)       => item.node_id(),
+            Item::OpSet(item)       => item.node_id(),
             Item::OpUse(item)         => item.node_id(),
             Item::Precedence(item)    => item.node_id(),
             Item::PrecedenceUse(item) => item.node_id(),
@@ -437,7 +437,7 @@ impl AstNode for Item {
             Self::Trait(item)         => logger.log_node_ref(item),
             Self::Impl(item)          => logger.log_node_ref(item),
             Self::Extern(item)        => logger.log_node_ref(item),
-            Self::OpTrait(item)       => logger.log_node_ref(item),
+            Self::OpSet(item)       => logger.log_node_ref(item),
             Self::OpUse(item)         => logger.log_node_ref(item),
             Self::Precedence(item)    => logger.log_node_ref(item),
             Self::PrecedenceUse(item) => logger.log_node_ref(item),
@@ -2129,7 +2129,7 @@ impl AstNodeParseHelper for ExternBlock {
 
 //--------------------------------------------------------------
 
-pub enum OpTrait {
+pub enum OpSet {
     Base {
         span:       SpanId,
         node_id:    NodeId,
@@ -2145,29 +2145,29 @@ pub enum OpTrait {
         attrs:      Vec<AstNodeRef<Attribute>>,
         vis:        Option<AstNodeRef<Visibility>>,
         name:       NameId,
-        bases:      Vec<AstNodeRef<SimplePath>>,
+        bases:      Vec<(NameId, SpanId)>,
         elems:      Vec<OpElem>,
     }
 }
 
-impl AstNode for OpTrait {
+impl AstNode for OpSet {
     fn span(&self) -> SpanId {
         match self {
-            OpTrait::Base { span, .. }     => *span,
-            OpTrait::Extended { span, .. } => *span,
+            OpSet::Base { span, .. }     => *span,
+            OpSet::Extended { span, .. } => *span,
         }
     }
 
     fn node_id(&self) -> NodeId {
         match self {
-            OpTrait::Base { node_id, .. }     => *node_id,
-            OpTrait::Extended { node_id, .. } => *node_id,
+            OpSet::Base { node_id, .. }     => *node_id,
+            OpSet::Extended { node_id, .. } => *node_id,
         }
     }
     
     fn log(&self, logger: &mut AstLogger) {
         match self {
-            OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => logger.log_ast_node("Operator Trait", |logger| {   
+            OpSet::Base { span, node_id, attrs, vis, name, precedence, elems } => logger.log_ast_node("Operator Trait", |logger| {   
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
 
@@ -2180,13 +2180,13 @@ impl AstNode for OpTrait {
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
             }),
-            OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => logger.log_ast_node("Operator Extension", |logger| {
+            OpSet::Extended { span, node_id, attrs, vis, name, bases, elems } => logger.log_ast_node("Operator Extension", |logger| {
                 logger.log_indented_node_ref_slice("Attributes", attrs);
                 logger.log_opt_node_ref(vis);
 
                 logger.prefixed_log_fmt(format_args!("Name: {}\n", logger.resolve_name(*name)));
                 logger.set_last_at_indent_if(elems.is_empty());
-                logger.log_indented_node_ref_slice("Bases", bases);
+                logger.log_indented_slice("Bases", bases, |logger, (base, _)| logger.log(logger.resolve_name(*base)));
                 logger.set_last_at_indent();
                 logger.log_indented_slice("Elements", elems, |logger, elem| elem.log(logger));
             }),
@@ -2194,11 +2194,11 @@ impl AstNode for OpTrait {
     }
 }
 
-impl AstNodeParseHelper for OpTrait {
+impl AstNodeParseHelper for OpSet {
     fn set_node_id(&mut self, ast_node_id: NodeId) {
         match self {
-            OpTrait::Base { node_id, .. }     => *node_id = ast_node_id,
-            OpTrait::Extended { node_id, .. } => *node_id = ast_node_id,
+            OpSet::Base { node_id, .. }     => *node_id = ast_node_id,
+            OpSet::Extended { node_id, .. } => *node_id = ast_node_id,
         }
     }
 }
@@ -2237,12 +2237,12 @@ impl OpElem {
 }
 
 pub struct OpUse {
-    pub span:      SpanId,
-    pub node_id:   NodeId,
-    pub group:     Option<NameId>,
-    pub package:   Option<NameId>,
-    pub library:   Option<NameId>,
-    pub operators: Vec<Punctuation>,
+    pub span:    SpanId,
+    pub node_id: NodeId,
+    pub group:   Option<NameId>,
+    pub package: Option<NameId>,
+    pub library: Option<NameId>,
+    pub op_sets: Vec<NameId>,
 }
 
 impl AstNode for OpUse {
@@ -2257,19 +2257,19 @@ impl AstNode for OpUse {
     fn log(&self, logger: &mut AstLogger) {
         logger.log_ast_node("Operator Use", |logger| {
             logger.log_opt(&self.group, |logger, name| {
-                logger.prefixed_log_fmt(format_args!("Group: {}", logger.resolve_name(*name)))
+                logger.prefixed_log_fmt(format_args!("Group: {}", logger.resolve_name(*name)));
             });
-            logger.set_last_at_indent_if(self.library.is_none() && self.operators.is_empty());
+            logger.set_last_at_indent_if(self.library.is_none() && self.op_sets.is_empty());
             logger.log_opt(&self.package, |logger, name| {
-                logger.prefixed_log_fmt(format_args!("Package: {}", logger.resolve_name(*name)))
+                logger.prefixed_log_fmt(format_args!("Package: {}", logger.resolve_name(*name)));
             });
-            logger.set_last_at_indent_if(self.operators.is_empty());
+            logger.set_last_at_indent_if(self.op_sets.is_empty());
             logger.log_opt(&self.library, |logger, name| {
-                logger.prefixed_log_fmt(format_args!("Library: {}", logger.resolve_name(*name)))
+                logger.prefixed_log_fmt(format_args!("Library: {}", logger.resolve_name(*name)));
             });
             logger.set_last_at_indent();
-            logger.log_indented_slice("Precedences", &self.operators, |logger, punct| {
-                logger.prefixed_log_fmt(format_args!("{}", logger.resolve_punctuation(*punct)))
+            logger.log_indented_slice("Precedences", &self.op_sets, |logger, name| {
+                logger.prefixed_log_fmt(format_args!("{}", logger.resolve_name(*name)));
             })
         })
     }

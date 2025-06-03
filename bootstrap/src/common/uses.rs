@@ -1,9 +1,8 @@
 use std::{
-    collections::HashMap,
-    fmt, mem
+    collections::HashMap, fmt, hash::{self, Hash}, mem
 };
 
-use crate::lexer::Punctuation;
+use crate::{common::{OpType, Symbol}, lexer::Punctuation};
 
 use super::{IndentLogger, LibraryPath, PathIden, RootSymbolTable, Scope};
 
@@ -67,17 +66,30 @@ impl fmt::Display for PrecedenceUsePath {
 }
 
 #[allow(unused)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OpUsePath {
-    pub lib_path: LibraryPath,
-    pub op:       Punctuation,
+    pub lib:    LibraryPath,
+    pub op_set: Option<String>,
+}
+
+impl fmt::Display for OpUsePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.lib)?;
+        if let Some(op_set) = &self.op_set {
+            write!(f, ".{op_set}")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
 pub enum UseTableError {
     InvalidPrecedences { paths: Vec<PrecedenceUsePath> },
+    InvalidOperatorSets { paths: Vec<OpUsePath> },
     InvalidSymbols{ paths: Vec<(Scope, UsePath)> },
     AmbiguousPrecedences { ambiguities: Vec<(String, Vec<PrecedenceUsePath>)> },
+    AmbiguousOperatorSets { ambiguities: Vec<(String, Vec<OpUsePath>)> },
+    AmbiguousOperators { ambiguities: Vec<(Punctuation, OpType, Vec<(OpUsePath, String)>)> },
     AmbiguousUses { ambiguities: Vec<(Scope, String, Vec<UsePath>)> }
 }
 
@@ -91,7 +103,14 @@ impl fmt::Display for UseTableError {
                 }
                 Ok(())
             },
-            UseTableError::InvalidSymbols { paths } => {
+            Self::InvalidOperatorSets { paths } => {
+                writeln!(f, "Use table contains ambiguous symbols:")?;
+                for op_use in paths {
+                    write!(f, "- {op_use}")?;
+                }
+                Ok(())
+            }
+            Self::InvalidSymbols { paths } => {
                 writeln!(f, "Use table contains ambiguous symbols:")?;
                 for (scope, path) in paths {
                     writeln!(f, "- {scope}: {path}")?;
@@ -103,7 +122,28 @@ impl fmt::Display for UseTableError {
                 for (name, paths) in ambiguities {
                     writeln!(f, "- '{name}' via:")?;
                     for path in paths {
-                        writeln!(f, "   - {path}")?;
+                        writeln!(f, "    - {path}")?;
+                    }
+                }
+                Ok(())
+            },
+            Self::AmbiguousOperatorSets { ambiguities } => {
+                writeln!(f, "Use table contains ambiguous operator sets (may be included via a wildcard)")?;
+                for (name, paths) in ambiguities {
+                    writeln!(f, "- '{name}' via:")?;
+                    for path in paths {
+                        writeln!(f, "    - {path}")?;
+                    }
+                }
+                Ok(())
+            },
+            Self::AmbiguousOperators { ambiguities } => {
+                writeln!(f, "Use table contains ambiguous operators")?;
+                for (op, op_ty, paths) in ambiguities {
+                    // TODO: Figure out how to display the punctiations without having to pass the punctuation table here
+                    writeln!(f, "- {op_ty} '{}'", op.as_display_str())?;
+                    for (path, method) in paths {
+                        writeln!(f, "    - {path}, method: {method}")?;
                     }
                 }
                 Ok(())
@@ -141,7 +181,7 @@ impl RootUseTable {
             wildcards: Vec::new(),
             generic: None,
             sub_tables: HashMap::new(),
-            op_paths: Vec::new(),
+            op_paths: vec![OpUsePath { lib: lib.clone(), op_set: None }],
             precedence_paths: vec![PrecedenceUsePath { lib, precedence: None }],
         }
     }
@@ -250,6 +290,7 @@ impl RootUseTable {
 
     // TODO: matching precedence names in 2 'wildcard' paths should result in an error
     pub fn finalize_operators(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
+        // Check for invalid operator uses
         let mut invalid_op_sets = Vec::new();
         for op_use in &self.op_paths {
             match &op_use.op_set {
@@ -262,11 +303,107 @@ impl RootUseTable {
             }
         }
 
-        if invalid_op_sets.is_empty() {
-            Ok(())
-        } else {
-            Err(UseTableError::InvalidOperators { paths: invalid_op_sets })
+        if !invalid_op_sets.is_empty() {
+            return Err(UseTableError::InvalidOperatorSets { paths: invalid_op_sets });
         }
+
+        // Remove overlapping precedence paths (i.e. explicit and wildcard)
+        // Also check for ambiguity between explicit precedence uses
+        let mut op_sets = Vec::<OpUsePath>::new();
+        for path in mem::take(&mut self.op_paths) {
+            match &path.op_set {
+                Some(name) => {
+                    let is_dup = op_sets.iter().find(|prec| prec.lib != path.lib && 
+                        (prec.op_set.is_none() || prec.op_set.as_ref() == Some(name))
+                    ).is_some();
+                    if !is_dup {
+                        op_sets.push(path);
+                    }
+                },
+                None => {
+                    op_sets.retain(|prec| prec.lib != path.lib);
+                    op_sets.push(path);
+                },
+            }
+        }
+        self.op_paths = op_sets;
+
+        // Check if there are no duplicate precedences included via wildcards
+        let mut collected_paths = HashMap::<String, Vec<OpUsePath>>::new();
+        for path in &self.op_paths {
+            match &path.op_set {
+                Some(name) => {
+                    let entry = collected_paths.entry(name.clone()).or_default();
+                    entry.push(path.clone());
+                },
+                None => for (name, _) in sym_table.get_precedences_for_lib(&path.lib).unwrap() {
+                    let entry = collected_paths.entry(name.clone()).or_default();
+                    entry.push(path.clone());
+                },
+            }
+        }
+
+        let mut ambiguities = Vec::new();
+        for (name, paths) in collected_paths {
+            if paths.len() > 1 {
+                ambiguities.push((name, paths));
+            }
+        }
+
+        if !ambiguities.is_empty() {
+            return Err(UseTableError::AmbiguousOperatorSets { ambiguities })
+        }
+
+        #[derive(PartialEq, Eq)]
+        struct OpKey {
+            op_ty: OpType,
+            op:    Punctuation,
+        }
+        impl hash::Hash for OpKey {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
+                (self.op_ty as usize).hash(state);
+                self.op.hash(state);
+            }
+        }
+
+        // Check if there are any conflicting operators
+        let mut collected_ops = HashMap::<OpKey, Vec<(OpUsePath, String)>>::new();
+        for path in &self.op_paths {
+            match &path.op_set {
+                Some(name) => {
+                    let (_, ops) = sym_table.get_direct_op_set_and_ops(&path.lib, name).unwrap();
+                    for (op_name, op) in ops {
+                        let op = op.read();
+                        let Symbol::Operator(op) = &*op else { unreachable!() };
+                        let op_key = OpKey { op_ty: op.op_ty, op: op.op  };
+                        let entry = collected_ops.entry(op_key).or_default();
+                        entry.push((path.clone(), op_name.clone()));
+                    }
+                },
+                None => {
+                    for (_, (_, ops)) in sym_table.get_op_set_and_ops_for_lib(&path.lib).unwrap() {
+                        for (op_name, op) in ops {
+                            let op = op.read();
+                            let Symbol::Operator(op) = &*op else { unreachable!() };
+                            let op_key = OpKey { op_ty: op.op_ty, op: op.op  };
+                            let entry = collected_ops.entry(op_key).or_default();
+                            entry.push((path.clone(), op_name.clone()));
+                        }
+                    }
+                },
+            }
+        }
+        let mut ambiguous_operators = Vec::new();
+        for ops in collected_ops {
+            if ops.1.len() > 1 {
+                ambiguous_operators.push((ops.0.op, ops.0.op_ty, ops.1));
+            }
+        }
+        if !ambiguous_operators.is_empty() {
+            return Err(UseTableError::AmbiguousOperators { ambiguities: ambiguous_operators })
+        }
+
+        Ok(())
     }
 
     pub fn finalize(&mut self, sym_table: &RootSymbolTable) -> Result<(), UseTableError> {
@@ -465,6 +602,10 @@ impl RootUseTable {
 
     pub fn add_op_use(&mut self, use_path: OpUsePath) {
         self.op_paths.push(use_path);
+    }
+
+    pub fn operator_set_paths(&self) -> &Vec<OpUsePath> {
+        &self.op_paths
     }
 
     //==============================================================

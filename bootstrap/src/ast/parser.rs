@@ -560,7 +560,7 @@ impl Parser<'_> {
             Token::WeakKw(WeakKeyword::Op)           => if self.try_peek() == Some(Token::StrongKw(StrongKeyword::Use)) {
                 self.parse_op_use(attrs, vis)
             } else {
-                self.parse_op_trait(attrs, vis)
+                self.parse_op_set(attrs, vis)
             },
             Token::StrongKw(StrongKeyword::Const) => if self.check_peek(&[1, 2, 4, 5], Token::StrongKw(StrongKeyword::Fn)) {
                     self.parse_function(attrs, vis, false, false).map(|item| Item::Function(item))
@@ -2122,7 +2122,7 @@ impl Parser<'_> {
 
     //--------------------------------------------------------------
 
-    fn parse_op_trait(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
+    fn parse_op_set(&mut self, attrs: Vec<AstNodeRef<Attribute>>, vis: Option<AstNodeRef<Visibility>>) -> Result<Item, ParserErr> {
         let begin = self.get_cur_span();
         self.consume_weak_kw(WeakKeyword::Op)?;
         self.consume_strong_kw(StrongKeyword::Trait)?;
@@ -2131,7 +2131,7 @@ impl Parser<'_> {
         let (bases, precedence) = if self.try_consume(Token::Punctuation(Punctuation::Colon)) {
             let mut bases = Vec::new();
             loop {
-                bases.push(self.parse_simple_path(true)?);
+                bases.push(self.consume_name_and_span()?);
                 if !self.try_consume(Token::Punctuation(Punctuation::Ampersand)) {
                     break;
                 }
@@ -2149,7 +2149,7 @@ impl Parser<'_> {
 
         let span = self.get_span_to_current(begin);
         if !bases.is_empty() {
-            Ok(Item::OpTrait(self.add_node(OpTrait::Extended {
+            Ok(Item::OpSet(self.add_node(OpSet::Extended {
                 span,
                 node_id: NodeId::default(),
                 attrs,
@@ -2159,7 +2159,7 @@ impl Parser<'_> {
                 elems,
             })))
         } else {
-            Ok(Item::OpTrait(self.add_node(OpTrait::Base {
+            Ok(Item::OpSet(self.add_node(OpSet::Base {
                 span,
                 node_id: NodeId::default(),
                 attrs,
@@ -2251,8 +2251,8 @@ impl Parser<'_> {
         };
 
 
-        let operators = if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
-            let ops = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_any_punct)?;
+        let op_sets = if self.try_consume(Token::Punctuation(Punctuation::Dot)) {
+            let ops = self.parse_comma_separated_closed(OpenCloseSymbol::Brace, Self::consume_name)?;
             ops
         } else {
             Vec::new()
@@ -2265,7 +2265,7 @@ impl Parser<'_> {
             group,
             package,
             library,
-            operators,
+            op_sets,
         })))
     }
 

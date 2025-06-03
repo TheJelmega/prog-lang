@@ -521,7 +521,7 @@ impl AstToHirLowering<'_> {
                 let def = def.as_ref().map(|_| self.expr_stack.pop().unwrap());
                 let ret_ty = ret.as_ref().map(|_| self.type_stack.pop().unwrap());
 
-                self.hir.add_op_function(scope, self.file_scope.clone(), hir::OpFunction {
+                self.hir.add_operator(scope, self.file_scope.clone(), hir::Operator {
                     span: *span,
                     node_id,
                     op_ty: *op_type,
@@ -1049,7 +1049,7 @@ impl Visitor for AstToHirLowering<'_> {
             Item::Trait(item)         => self.ctx.get_node_for(item),
             Item::Impl(item)          => self.ctx.get_node_for(item),
             Item::Extern(item)        => self.ctx.get_node_for(item),
-            Item::OpTrait(item)       => self.ctx.get_node_for(item),
+            Item::OpSet(item)       => self.ctx.get_node_for(item),
             Item::OpUse(item)         => self.ctx.get_node_for(item),
             Item::Precedence(item)    => self.ctx.get_node_for(item),
             Item::PrecedenceUse(item) => self.ctx.get_node_for(item),
@@ -2203,14 +2203,12 @@ impl Visitor for AstToHirLowering<'_> {
 
     //--------------------------------------------------------------
 
-    fn visit_op_trait(&mut self, node: &AstNodeRef<OpTrait>) where Self: Sized {
-        //helpers::visit_op_trait(self, node);
-
+    fn visit_op_set(&mut self, node: &AstNodeRef<OpSet>) where Self: Sized {
         let ast_ctx = self.ctx.get_node_for(node);
         let mut scope = ast_ctx.module_scope.clone();
 
         match &**node {
-            OpTrait::Base { span, node_id, attrs, vis, name, precedence, elems } => {
+            OpSet::Base { span, node_id, attrs, vis, name, precedence, elems } => {
                 for attr in attrs {
                     self.visit_attribute(attr);
                 }
@@ -2221,7 +2219,7 @@ impl Visitor for AstToHirLowering<'_> {
                 }
                 let vis = self.get_vis(vis.as_ref());
 
-                self.hir.add_op_trait(scope.clone(), self.file_scope.clone(), hir::OpTrait {
+                self.hir.add_op_set(scope.clone(), self.file_scope.clone(), hir::OpSet {
                     span: *span,
                     node_id: *node_id,
                     attrs,
@@ -2236,7 +2234,7 @@ impl Visitor for AstToHirLowering<'_> {
                     self.convert_op_elem(op_elem, scope.clone(), *node_id);
                 }
             },
-            OpTrait::Extended { span, node_id, attrs, vis, name, bases, elems } => {
+            OpSet::Extended { span, node_id, attrs, vis, name, bases, elems } => {
                 for attr in attrs {
                     self.visit_attribute(attr);
                 }
@@ -2247,20 +2245,13 @@ impl Visitor for AstToHirLowering<'_> {
                 }
                 let vis = self.get_vis(vis.as_ref());
 
-                let mut hir_bases = Vec::new();
-                for base in bases {
-                    self.visit_simple_path(base);
-                    hir_bases.push(self.simple_path_stack.pop().unwrap());    
-                }
-                hir_bases.reverse();
-
-                self.hir.add_op_trait(scope.clone(), self.file_scope.clone(), hir::OpTrait {
+                self.hir.add_op_set(scope.clone(), self.file_scope.clone(), hir::OpSet {
                     span: *span,
                     node_id: *node_id,
                     attrs,
                     vis,
                     name: *name,
-                    bases: hir_bases,
+                    bases: bases.clone(),
                     precedence: None,
                 });
 
@@ -2290,11 +2281,18 @@ impl Visitor for AstToHirLowering<'_> {
         }
 
         let lib_path = self.get_lib_path(node.group, node.package, node.library);
-        for op in &node.operators {
+        if node.op_sets.is_empty() {
             self.use_table.add_op_use(OpUsePath {
-                lib_path: lib_path.clone(),
-                op: *op,
+                lib: lib_path,
+                op_set: None,
             });
+        } else {
+            for op_set in &node.op_sets {
+                self.use_table.add_op_use(OpUsePath {
+                    lib: lib_path.clone(),
+                    op_set: Some(self.names[*op_set].to_string()),
+                });
+            }
         }
     }
 
@@ -2973,7 +2971,6 @@ impl Visitor for AstToHirLowering<'_> {
             left,
             op: node.op,
             right,
-            can_reorder,
         }));
     }
 

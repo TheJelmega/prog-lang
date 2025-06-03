@@ -365,7 +365,8 @@ fn main() {
     println!("================================================================");
     if cli.print_sym_table {
         println!("Symbol table:");
-        symbol_table.read().log();
+        let puncts = punct_table.read();
+        symbol_table.read().log(&puncts);
         println!("--------------------------------");
     }
 
@@ -457,6 +458,8 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
     // Precedences
     do_hir_pass(hir, cli, stats, PrecedenceSymGen::new(ctx));
     {
+        let start = time::Instant::now();
+
         let mut uses = ctx.uses.write();
         let syms = ctx.syms.read();
         if let Err(err) = uses.finalize_precedences(&syms) {
@@ -466,11 +469,15 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
             });
             return false;
         }
+
+        log_hir_pass_time(cli, stats, start, "Finalizing use table precedences", false);
     }
 
     do_hir_pass(hir, cli, stats, PrecedenceAttrib::new(ctx));
     do_hir_pass(hir, cli, stats, PrecedenceConnect::new(ctx));
     {
+        let start = time::Instant::now();
+
         let mut precedence_dag = ctx.precedence_dag.write();
         let syms = ctx.syms.read();
         let uses = ctx.uses.read();
@@ -497,12 +504,51 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
             return false;
         }
         precedence_dag.calculate_order();
+
+        log_hir_pass_time(cli, stats, start, "Building and checking precedence dag", false);
     }
 
     
-    // TO MOVE
+    // Operators
+    do_hir_pass(hir, cli, stats, OperatorSymbolGen::new(ctx));
+    {
+        let start = time::Instant::now();
+
+        let mut uses = ctx.uses.write();
+        let syms = ctx.syms.read();
+        if let Err(err) = uses.finalize_operators(&syms) {
+            ctx.add_error(hir::HirError {
+                span: SpanId::INVALID,
+                err: error_warning::HirErrorCode::UseTable { err },
+            });
+            return false;
+        }
+
+        log_hir_pass_time(cli, stats, start, "Finalizing use table operators", false);
+    }
+
+    do_hir_pass(hir, cli, stats, OperatorSetDependencyProcess::new(ctx)); 
+    do_hir_pass(hir, cli, stats, OpSetConnect::new(ctx));
+    do_hir_pass(hir, cli, stats, OpTagging::new(ctx));
+    do_hir_pass(hir, cli, stats, OpTraitGen::new(ctx));
+    {
+        let start = time::Instant::now();
+
+        let mut op_table = ctx.op_table.write();
+        let syms = ctx.syms.read();
+        let uses = ctx.uses.read();
+
+        op_table.build_from_symbols(&syms, &uses);
+
+        log_hir_pass_time(cli, stats, start, "Building operator table", false);
+    }
+    do_hir_pass(hir, cli, stats, InfixReorder::new(ctx));
+    
+    // Symbol gen
     do_hir_pass(hir, cli, stats, SymbolGeneration::new(ctx));
     {
+        let start = time::Instant::now();
+        
         let mut uses = ctx.uses.write();
         let syms = ctx.syms.read();
         if let Err(err) = uses.finalize(&syms) {
@@ -512,18 +558,13 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
             });
             return false;
         }
-
-        if cli.print_hir_use_table {
-            println!("HIR use table");
-            uses.log();
-            println!("--------------------------------")
-        }
-
+        
+        log_hir_pass_time(cli, stats, start, "Finalizing use table", false);
     }
+    do_hir_pass(hir, cli, stats, OpSetTraitAssociation::new(ctx));
 
     // Trait
     do_hir_pass(hir, cli, stats, TraitDagGen::new(ctx));
-
     {
         let mut trait_dag = ctx.trait_dag.write();
 
@@ -552,13 +593,6 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
         trait_dag.calculate_predecessors();
     }
     
-    // Operators
-    do_hir_pass(hir, cli, stats, OpPrecedenceProcessing::new(ctx));
-    do_hir_pass(hir, cli, stats, OperatorCollection::new(ctx));
-    do_hir_pass(hir, cli, stats, InfixReorder::new(ctx));
-    do_hir_pass(hir, cli, stats, OpTagging::new(ctx));
-    do_hir_pass(hir, cli, stats, OpTraitGen::new(ctx));
-
     // Trait
     do_hir_pass(hir, cli, stats, TraitItemProcess::new(ctx));
     
@@ -587,9 +621,30 @@ fn process_hir(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, ctx: &h
 fn do_hir_pass<T: hir::Pass>(hir: &mut hir::Hir, cli: &Cli, stats: &mut CompilerStats, mut pass: T) {
     let start = time::Instant::now();
     pass.process(hir);
-    if cli.pass_timings {
-        let pass_dur = time::Instant::now() - start;
-        stats.add_hir_pass(pass_dur);
-        println!("HIR pass '{:40}' took {:.2} ms", T::NAME, pass_dur.as_secs_f32() * 1000.0);
+    log_hir_pass_time(cli, stats, start, T::NAME, true);
+}
+
+fn log_hir_pass_time(cli: &Cli, stats: &mut CompilerStats, start: time::Instant, name: &str, is_direct_pass: bool) {
+    if !cli.pass_timings {
+        return;
+    }
+
+    let dur = time::Instant::now() - start;
+    stats.add_hir_pass(dur);
+
+    const NAME_WIDTH: usize = 40;
+    let name = if is_direct_pass {
+        format!("HIR pass '{name:NAME_WIDTH$}' took ")
+    } else {
+        format!("{name:0$} took ", NAME_WIDTH + 11)
+    };
+    
+    let dur = dur.as_secs_f32() * 1000.0;
+    if dur < 10.0 {
+        println!("{name}{:.2} ms", dur)
+    } else if dur < 1000.0 {
+        println!("{name}{:.1} ms", dur)
+    } else {
+        println!("{name}{:.2} s", dur / 1000.0);
     }
 }
