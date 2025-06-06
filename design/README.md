@@ -4670,7 +4670,7 @@ The operand of any extending expression has its temporary scope extended.
 
 A subset of items may be parameterized by types and constants.
 These parameters generally follow the name of the item defined, but for an `impl`, these must be defined after the keyword.
-Type and value paramters may come in any order, if a parameter pack it used, it must come as the last value in the declaration.
+Type and value paramters may come in any order, if a parameter pack is used, it must come as the last value in the declaration.
 
 Generic parameters are defined within the scope of the item they are in, and can be used inside of inner scopes, unless they are shadowed.
 
@@ -4680,7 +4680,7 @@ Generic parameters are defined within the scope of the item they are in, and can
 
 ```
 <generic-type-param> := <name> [ 'is' <generic-type-bounds> ] [ '=' <type> ]
-                      | 'is' <type>
+                      | <generic-type-specialization>
 ```
 
 A generic type parameter defines a type which can be used inside of a generic item.
@@ -4697,14 +4697,14 @@ If the paramters starts with `is`, this is a specialized generic.
 
 ```
 <generic-value-param> := <name> ':' <type> [ '=' <expr> ]
-                       | '{' <expr> '}'
+                       | <generic-value-specialization>
 ```
 
 A generic value parameter allows items to be passed a constant value.
 
 The type of the value is explicitly given and must be either:
 - A built-in type
-- A sized type implementing the relavent trait.
+- A sized type implementing the relavent trait (TBD).
 
 A value parameter can be used anywhere a constant value is allowed, with the following exceptions:
 - They cannot be used in a static item
@@ -4726,7 +4726,7 @@ If the generics is a block, this is a specialization of the generics.
 
 A parameter pack is a set of 0 or more groups of generic parameters, of which the number and values are only known during monomorphization.
 A parameter pack is only allowed as the last generic parameter, anything following this will be interpreted as part of the parameter pack definition.
-Each group within a parameter pack, can exist out of a one or more generic parameters, which can be either type or constant parameters.
+Each group within a parameter pack, can exist out of a one or more generic parameters, which can be either type or value parameters.
 
 When not using parameter groups, the parameter description is optional, it is defaulted to `type`.
 
@@ -4819,18 +4819,15 @@ A constraint property is very similar to a trait property, with the main differe
 A where clause represents a set of constraints that must be followed by the generic arguments to be able to create an instance of it during monomorphization.
 
 A type may be constrained using either a trait bound, or a constraint.
-A value may be consttrained using a value bound.
+A value may be constrained using a value bound.
 
-> _Note_: After syntactic sugar is resolved, this will also contain all bounds that were added direclty to the generic paramters.
+> _Note_: After syntactic sugar is resolved, this will also contain all bounds that were added directly to the generic parameters.
 
 ### 12.5.1. Type bound [↵](#125-where-clause-)
 
 ```
 <generic-type-bound> := <generic-trait-bound>
-                      | <generic-explicit-bound>
-<generic-trait-bound> := <type> 'is' <trait-constraint-bounds>
-<trait-constraint-bounds> := <trait-constraint-bound> [ '&' <trait-constraint-bound> ]
-<trait-constraint-bound> := <trait-path> | <inline-constraint>
+
 ```
 
 A type bound limits a both what types can be used when monomorphization, and what functionality is available inside of the the generic item. 
@@ -4838,21 +4835,12 @@ A type bound limits a both what types can be used when monomorphization, and wha
 #### Trait bounds
 
 ```
-<trait-bound> := <trait-path> { '&' <trait-path> }*
+<generic-trait-bound> := <type> 'is' <trait-constraint-bounds>
+<trait-constraint-bounds> := <trait-constraint-bound> [ '&' <trait-constraint-bound> ]
+<trait-constraint-bound> := <trait-path> | <inline-constraint>
 ```
 
 A trait bound limits a type to only types implementing the given traits.
-
-#### Explicit bounds
-
-```
-<generic-explicit-bound> := <type> 'in' <explicit-bound>
-<explicit-bound> := <type> { '|' <type> }*
-```
-
-An explicit type bound is used to define an explicit set of types that a generic type can have.
-
-Explicit bounds are especially useful for the specialization of generics.
 
 #### Constraint bounds
 
@@ -4872,34 +4860,189 @@ These expressions are then used to apply a bound on the value given to their res
 ```
 <generic-args> := '[' <generic-arg> [ ',' <generic-arg> ] ']'
 <generic-arg> := <generic-type-arg> | <generic-value-arg>
-<generic-type-arg> := <type>
-<generic-value-arg> := <name>
-                     | <block-expr>
+<generic-type-arg> := <name> | <type>
+<generic-value-arg> := <name> | <block-expr>
 ```
 
 Generic arguments are the types and value passed to an item for it to be instanced (i.e. monomorphized).
 Type argument have no special syntax and may be passed without any additional syntax.
-Value arguments on the other hand, are only allowed as either directly referencing a path, or as a block expression.
-If a value is a path, it may also be placed inside a block expression to differentiate it from a type, as if there is any ambiguity, the compiler will by default interpret it as a type.
+Value arguments on the other hand, are only allowed as either directly referencing a name, or as a block expression.
 
-The value passed to a value argument, must be a value that can be evaluated at compile time.
+If an argument is a name, the compiler will first look for any local constants, if there is one, this will be a value argument. If no local constant exists, the compiler will resolve the symbol and decided depending on the type of the symbol.
+
+The value passed to a value argument, must be a value that can be evaluated at compile time
 
 ## 12.7. Specialization [↵](#12-generics-)
 
 Specialization is the ability to have an multiple versions of the same generic item, but changing the behavior based on the types being passed.
-To be able to specialize a generic, there has to be a shared common denominator which will be the fallback when a specialization cannot be found.
 
-Any type paramters that starts with `is` or a value parameter with a block, is a specialization, this is similar to this being the bound for the generics in a where clause.
-Value generic specialization is required to return a matching type to the value being requested and cannot be inferred automatically.
+Specialization parameters are different to bounds, as they specify explicit types that the specialization is for, rather than 'implicit' or bounded specializations.
 
-### 12.7.1. Resolution [↵](#127-specialization-)
+Specialization is currently limited to the following:
+- Free function
+- Impl functions and methods
+- Trait implementations
+
+### 12.7.1. Base cases [↵](#127-specialization-)
+
+To be able to specialize a symbol, a 'base' case needs to exist. A 'base' case exists if there is a version of the symbol, that when ignoring bouds, has a unique generic symbol for each position within the symbol.
+
+Below is an example of what can be a a base case and what not:
+```
+// Valid base cases:
+
+// - All generic parameter are unique
+fn foo[T, U, N: usize, M: usize](){...}
+// - 1 generic has a bound, but all generic parameters are unique
+fn foo[T: Copy, U, N: usize, M: usize](){...}
+
+// Non-base cases:
+
+// - Both the 1st and 2nd have the same generic parameter (2nd parameter is also a specialization)
+fn foo[T, is T, N: usize, M: usize](){ ... }
+// - The 2nd parameter is specialized
+fn foo[T, is i32, N: usize, M: usize](){ ... }
+// - The 3rd parameter is specialized
+fn foo[T, U, {2}, M: usize](){...}
+```
+
+If a variant without any bound exists, this will be the 'base' case.
+If there are only variants with bounds, an internal non-instantiable version of the base case will be generated, but it cannot be used.
+
+### 12.7.2. Explicit specialization [↵](#127-specialization-)
+
+```
+<generic-type-specialization> := 'is' <type>
+<generic-value-specializatin> := <block-expression>
+```
+
+Explicit specialization means that at least one generic parameter is specialized to an explicit type or value.
+
+Specialization occurs when one of the symbol's generic parameters is defined as a specializing value. This correponds to any type parameters that starts with `is`, or any value parameter that is a block expression.
+Parameter packs can also be specialized, by placing a list of specialization parameters where the pack is located. These have to match the kind of the element they specify as defined by the parameter pack's definition.
+
+### 12.7.3. Implicit specialization [↵](#127-specialization-)
+
+Implicit specialization means that at least one generic parameter has bound applied.
+
+### 12.7.4. Collisions [↵](#127-specialization-)
+
+A collision may occur when neither implicit specialization is more specific then another, meaning that 2 or more differently bounded specializations may be valid for a single type.
+These can either be type or value bounds.
+
+Collisions are limited to the library they are defined in, as
+- free functions and non-trait implementation functions will be in a different library's namespace
+- trait implementations need to follow the orphan rule
+
+Independent type bounds are 2 or more bounds that don't share any common traits or base traits.
+For example:
+```
+trait Foo {}
+trait Bar {}
+
+fn foo[T: Foo](){...}
+fn foo[T: Bar](){...}
+
+struct A;
+impl A as Foo;
+impl A as Bar;
+
+// the variant of foo cannot be resolved here, as A implements both Foo and Bar, and they have no common traits they 'derive' from
+foo.[A]();
+```
+
+Independent value bounds are 2 value bounds whose result may have some overlap. For example:
+```
+fn foo[N: usize]() where { N > 0 } {...}
+fn foo[N: usize]() where { N < 2 } {...}
+
+// The variant of foo cannot be resolved here, as 1 is a valid value for both versiona
+foo.[{1}]();
+```
+
+#### Resolving collisions
+
+Collisions are resolved using the `spec_order` attribute, which allows an integer value be used to decide what specialization should be prefered during specialization.
+A lower value means that the specialization will be prefered over any specialization. By default a specialization has an order of 0.
+
+Using the above example, but by adding the attribute to one of the functions, we can resolve this issue:
+```
+fn foo[T: Foo](){...}
+@spec_order(2)
+fn foo[T: Bar](){...}
+
+// This will now call `foo[T: Foo]`, as it has a default order of 0, which is lower than the order of `foo[T: Bar]`
+foo.[A]();
+```
+
+> _Note_: In the future, functionality could be added to the compiler to try and avoid colliding bounds, but at this moment, generics are not finalized enough to see if this would be the best, or at least, an option
+
+### 12.7.5. Restrictions [↵](#127-specialization-)
+
+As specialization may be implemented on top of any type, this leads to the possibility of having either recursive or infinitly expanding monomorphizations.
+To prevent this, specialization has 2 limits places on top of it:
+- Specialization may not be recursive, meaning that a specialization may not rely on the exact same specilization being resolved
+- Specialization may not widen a type
+
+#### Widening types
+
+A widening type exists when in a specialization, when a given type is constrained by a type which includes the type that is being constrained.
+
+```
+// error: T is being widened, as T* contains T
+fn foo[T is T*]();
+```
+
+>_TODO:_ clarify and better examples
+
+### 12.7.6. Resolution [↵](#127-specialization-)
 
 When deciding on which specialization to use, the compiler will go over each possible version and pick out the most specific specialization.
 
 This is done using the following steps:
-1. Get all versions of the generic
-2. Filter out all versions with which the arguments are compatible
-3. Go over each version until either an exact match is found, or a most specialized bound is found
+1. Collect all generic variants of the symbol being used.
+2. For each generic argument, from left to right:
+    - Filter out all variants for which the argument doesn't match the corresponding parameter
+    - Find the most specialized variant of the corresponding parameter in the current types
+    - Filter out all variants for which the parameter does not match the most specialized parameter
+
+#### Examples
+
+##### Example 1
+
+For the following simple declarations:
+```
+fn foo[T](foo: T) { ... }
+fn foo[T is Display](foo: T) { ... }
+fn foo[i32](foo: i32) {}
+```
+
+Assuming that:
+- `i64` implements `Display`
+- `Bar` does not implement anything
+
+This will result in the following functions being used when invoked using:
+- `i32`: `fn foo[i32](foo: i32) {}`
+- `i64`: `fn foo[T is Display](foo: i32) {}`
+- `Bar`: `fn foo[T](foo: T) { ... }`
+
+##### Example 1
+For the following declarationss
+```
+fn foo[T, U](...){ ... }
+fn foo[T: Display, U](...){ ... }
+fn foo[T, U: Display](...){ ... }
+```
+
+Assuming that:
+- `A` does not implement `Display`
+- `B` implements `Display`
+
+This will result in the following functions being used when invoked using:
+- `B` and `B`: `foo[T, U](...){ ... }`
+- `A` and `A`: `foo[T: Display, U](...){ ... }`
+- `B` and `B`: `foo[T, U: Display](...){ ... }`
+- `A` and `A`: `foo[T: Display, U](...){ ... }`, as arguments are evaluated left to right, so `foo[T, U: Display](...){ ... }` would have already been eliminated when checking the 1st argument, so no collisions would happen
 
 > _Note_: This is an extremely simple explentation at the moment, as specifics still need to figured out
 
@@ -5895,6 +6038,10 @@ The `field_priority` attribute is used to define the priority of field within a 
 
 The `val_range` attribute is used to define a range of valid value for any type that contains a single integer element.
 This information can then be used for optimization by the compiler.
+
+#### `spec_order`
+
+The `spec_order` attribute is uses in case there is a possible collision between specialization, see []
 
 ### 17.1.7. Module attributes [↵](#171-built-in-attributes-)
 
