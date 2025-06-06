@@ -396,15 +396,18 @@ Version: 0.0
 # 1. Introduction [↵](#tables-of-contents)
 
 This file contains the current langauge design for the Xenon language, and may optionally include rationals for design decisions.
-This is not a full specification, as the final specification will be derived from this design once the langauge reaches v1.0 of the langague.
+This is not a full specification, as the final specification will be derived from this design once the langauge reaches v1.0.
 
 This documentation is an overview of the Xenon language in its current state, and is written for the development of the langauge and those who are interested in the langauge.
 
 ## This document is provisional
 
 The contents of this document is still provisional and is subject to change at any time.
-This means that the syntax, languages reles, core and standard libary, compiler infrastructure, package manager/build tool, and other aspect of the design that have not been decided on yet.
+This means the syntax, languages rules, core and standard libary, compiler infrastructure, package manager/build tool, and other aspect of the design that have not been decided on yet.
 This therefore will contain gaps for parts that have not been decided on yet.
+There may also be unclear language within this document that still needs to be refined during the development process.
+
+In addition, the current name 'xenon' is a work in progress (W.I.P.) name and may also still change in the future.
 
 ## Notation
 
