@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::{common::{Scope, SymbolLookupError, SymbolPath, UseTableError}, lexer::{OpenCloseSymbol, Token}};
+use crate::{common::{SymbolLookupError, SymbolPath, UseTableError}, lexer::{OpenCloseSymbol, Token}};
 
 
 // TODO: Split into distinct error subsets

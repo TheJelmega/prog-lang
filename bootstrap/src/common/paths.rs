@@ -49,6 +49,13 @@ impl PathIden {
             gen_args: Vec::new(),
         }
     }
+
+    pub fn to_lookup(&self) -> LookupIden {
+        LookupIden {
+            name: self.name.clone(),
+            params: self.params.clone(),
+        }
+    }
 }
 
 impl Default for PathIden {
@@ -167,6 +174,14 @@ impl Scope {
     pub fn last(&self) -> Option<&PathIden> {
         self.idens.last()
     }
+
+    pub fn to_lookup(&self) -> LookupPath {
+        let mut path = LookupPath::new();
+        for iden in &self.idens {
+            path.push(iden.to_lookup());
+        }
+        path
+    }
 }
 
 impl fmt::Display for Scope {
@@ -249,3 +264,77 @@ impl fmt::Display for SymbolPath {
     }
 }
 
+//==============================================================================================================================
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct LookupIden {
+    pub name:   String,
+    pub params: Vec<String>,
+}
+
+impl LookupIden {
+    pub fn from_name(name: String) -> Self {
+        Self { name, params: Vec::new() }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LookupPath {
+    idens: Vec<LookupIden>
+}
+
+impl LookupPath {
+    pub fn new() -> Self {
+        Self { idens: Vec::new() }
+    }
+
+    pub fn push(&mut self, iden: LookupIden) {
+        self.idens.push(iden);
+    }
+
+    pub fn pop(&mut self) -> Option<LookupIden> {
+        self.idens.pop()
+    }
+
+    pub fn idens(&self) -> &Vec<LookupIden> {
+        &self.idens
+    }
+ 
+    pub fn last(&self) -> Option<&LookupIden> {
+        self.idens.last()
+    }
+
+    pub fn root(&self) -> Option<&LookupIden> {
+        self.idens.first()
+    }
+
+    pub fn sub_path(&self) -> LookupPath {
+        assert!(self.idens.len() > 0);
+        let mut path = LookupPath::new();
+        path.idens.extend_from_slice(&self.idens[1..]);
+        path
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.idens.is_empty()
+    }
+
+    pub fn extend(&mut self, path: &LookupPath) {
+        self.idens.extend_from_slice(path.idens());
+    }
+
+    pub fn to_scope(&self) -> Scope {
+        let mut scope = Scope::new();
+        for iden in &self.idens {
+            scope.push_with_params(iden.name.clone(), iden.params.clone());
+        }
+        scope
+    }
+}
+
+//==============================================================================================================================
+
+/// Scope inside of functions
+pub struct LocalScope {
+    names: Vec<String>,
+}

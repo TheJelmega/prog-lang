@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 
 use crate::{common::UsePathKind, lexer::{Punctuation, PuncutationTable}, type_system::{Type, TypeHandle, TypeRef}};
 
-use super::{IndentLogger, LibraryPath, OpType, PathIden, PrecedenceAssocKind, RootUseTable, Scope, SymbolPath, Visibility};
+use super::{IndentLogger, LibraryPath, LookupIden, OpType, PathGeneric, PathIden, PrecedenceAssocKind, RootUseTable, Scope, SymbolPath, Visibility};
 
 // =============================================================
 
@@ -369,6 +369,15 @@ pub type SymbolRef = Arc<RwLock<Symbol>>;
 pub type WeakSymbolRef = Weak<RwLock<Symbol>>;
 
 //==============================================================================================================================
+
+
+pub struct SymbolInstance {
+    base: WeakSymbolRef,
+    args: Vec<PathGeneric>,
+}
+
+//==============================================================================================================================
+
 #[derive(Clone, Debug)]
 pub enum SymbolLookupKind {
     Precedence,
@@ -413,70 +422,145 @@ impl fmt::Display for SymbolLookupError {
     }
 }
 
+pub struct SymbolEntry {
+    symbol:    Option<SymbolRef>,
+
+    // TODO: the symbol needs to have these, but we also need this to handle impls and specializations
+    instances: Vec<SymbolInstance>,
+
+    // TODO: Currently only have symbol associated with the base, but no link between their specialized versions and the symbol in this entry
+    sub_table: SymbolTable
+}
+
+impl SymbolEntry {
+    fn new() -> Self {
+        Self {
+            symbol: None,
+            instances: Vec::new(),
+            sub_table: SymbolTable::new(),
+        }
+    }
+
+
+}
+
+pub struct TableEntry {
+    sym_entry:   Option<SymbolEntry>,
+    with_params: HashMap<Vec<String>, SymbolEntry>,
+}
+
+impl TableEntry {
+    pub fn new() -> Self {
+        Self {
+            sym_entry: None,
+            with_params: HashMap::new(),
+        }
+    }
+
+    fn get_entry(&self, params: &[String]) -> Option<&SymbolEntry> {
+        if params.is_empty() {
+            self.sym_entry.as_ref()
+        } else {
+            self.with_params.get(params)
+        }
+    }
+
+    fn get_mut_entry(&mut self, params: &[String]) -> Option<&mut SymbolEntry> {
+        if params.is_empty() {
+            self.sym_entry.as_mut()
+        } else {
+            self.with_params.get_mut(params)
+        }
+    }
+
+    fn get_or_add_entry(&mut self, params: Vec<String>) -> &mut SymbolEntry {
+        if params.is_empty() {
+            if self.sym_entry.is_none() {
+                self.sym_entry = Some(SymbolEntry::new());
+            }
+            self.sym_entry.as_mut().unwrap()
+        } else {
+            let mut params: Vec<_> = params.iter().cloned().collect();
+            let entry = self.with_params.entry(params);
+            entry.or_insert(SymbolEntry::new())
+        }
+    }
+}
+
+
 pub struct SymbolTable {
-    symbols:    HashMap<String, Vec<(Vec<String>, SymbolRef)>>,
-    sub_tables: HashMap<PathIden, SymbolTable>,
+    entries: HashMap<String, TableEntry>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
-            symbols: HashMap::new(),
-            sub_tables: HashMap::new(),
+            entries: HashMap::new(),
         }
     }
 
     fn add_symbol(&mut self, scope: &Scope, iden: PathIden, sym: Symbol) -> SymbolRef {
         let sym = Arc::new(RwLock::new(sym));
-        self.add_symbol_(scope, iden, sym.clone());
+        let mut path = scope.to_lookup();
+        path.push(iden.to_lookup());
+        self.add_symbol_(path.idens(), sym.clone());
         sym
     }
 
-    fn add_symbol_(&mut self, scope: &Scope, iden: PathIden, sym: SymbolRef) {
-        let sub_table = self.get_or_insert_sub_table(scope.idens());
-        let entry = sub_table.symbols.entry(iden.name);
-        let syms = entry.or_insert(Vec::new());
-        syms.push((Vec::from(iden.params), sym));
+    fn add_symbol_(&mut self, path: &[LookupIden], sym: SymbolRef) {
+        let table_entry = self.get_or_add_entry(path[0].name.clone());
+        let sym_entry = table_entry.get_or_add_entry(path[0].params.clone());
+
+        if path.len() == 1 {
+            assert!(sym_entry.symbol.is_none());
+            sym_entry.symbol = Some(sym);
+        } else {
+            sym_entry.sub_table.add_symbol_(&path[1..], sym);
+        }
     }
 
-    pub fn get_direct_symbol(&self, scope: &Scope, name: &str) -> Option<SymbolRef> {
-        let sub_table = self.get_sub_table(scope.idens())?;
-        sub_table.get_symbol_from_name(name)
+    pub fn get_direct_symbol(&self, path: &[LookupIden]) -> Option<SymbolRef> {
+        let table_entry = self.entries.get(&path[0].name)?;
+        let sym_entry = table_entry.get_entry(&path[0].params)?;
+        if path.len() == 1 {
+            sym_entry.symbol.clone()
+        } else {
+            sym_entry.sub_table.get_direct_symbol(&path[1..])
+        }
     }
-
-    fn get_sub_table(&self, segments: &[PathIden]) -> Option<&SymbolTable> {
-        if segments.is_empty() {
-            return Some(self);
+    
+    pub fn get_sub_table(&self, idens: &[LookupIden]) -> Option<&SymbolTable> {
+        if idens.is_empty() {
+            return Some(self)
         }
 
-        let sub_table = self.sub_tables.get(&segments[0])?;
-        sub_table.get_sub_table(&segments[1..])
+        let table_entry = self.entries.get(&idens[0].name)?;
+        let sym_entry = table_entry.get_entry(&idens[0].params)?;
+        sym_entry.sub_table.get_sub_table(&idens[1..])
+    }
+
+    fn get_or_add_entry(&mut self, name: String) -> &mut TableEntry {
+        let entry = self.entries.entry(name);
+        entry.or_insert(TableEntry::new())
     }
 
     fn get_direct_sub_table_from_name(&self, name: &str) -> Option<&SymbolTable> {
-        for (segment, table) in &self.sub_tables {
-            if segment.name == name {
-                return Some(table);
-            }
-        }
-        None
+        let entry = self.entries.get(name)?;
+        entry.sym_entry.as_ref().map(|entry| &entry.sub_table)
     }
 
-    fn get_or_insert_sub_table(&mut self, segments: &[PathIden]) -> &mut SymbolTable {
-        if segments.is_empty() {
-            return self;
-        }
-        
-        let entry = self.sub_tables.entry(segments[0].clone());
-        let sub_table = entry.or_insert(SymbolTable::new());
-        sub_table.get_or_insert_sub_table(&segments[1..])
-    }
-
-    // Get symbol from name alone, will only return reference if only 1 symbol with the name exists, regardless of func parameters
+    /// Get symbol from name alone, will only return reference if only 1 symbol with the name exists, regardless of func parameters
     fn get_symbol_from_name(&self, name: &str) -> Option<SymbolRef> {
-        let possible_syms = self.symbols.get(name)?;
-        if possible_syms.len() == 1 {
-            Some(possible_syms[0].1.clone())
+        let table_entry = self.entries.get(name)?;
+        if let Some(sym) = table_entry.sym_entry.as_ref().and_then(|entry| entry.symbol.clone()) {
+            if table_entry.with_params.is_empty() {
+                Some(sym)
+            } else {
+                None
+            }
+        } else if table_entry.with_params.len() == 1 {
+            let sym_entry = table_entry.with_params.values().next().unwrap();
+            sym_entry.symbol.clone()
         } else {
             None
         }
@@ -756,7 +840,10 @@ impl RootSymbolTable {
     pub fn get_symbol(&self, lib: Option<&LibraryPath>, scope: &Scope, name: &str) -> Option<SymbolRef> {
         let lib = lib.unwrap_or(&self.cur_lib);
         let table = self.tables.get(lib)?;
-        table.get_direct_symbol(scope, name)
+
+        let mut path = scope.to_lookup();
+        path.push(LookupIden::from_name(name.to_string()));
+        table.get_direct_symbol(path.idens())
     }
 
     // TODO: Go over use table and make sure all paths actually point to valid symbols
@@ -772,11 +859,13 @@ impl RootSymbolTable {
 
         let sym_name = &sym_path.last().unwrap().name;
         let sym_scope = sym_path.parent();
+        let lookup_path = sym_path.to_lookup();
 
         // Look into the current scope first
         let cur_table = self.tables.get(&self.cur_lib).unwrap();
-        if let Some(local_sub_table) = cur_table.get_sub_table(cur_scope.idens()) {
-            if let Some(sym) = local_sub_table.get_direct_symbol(&sym_scope, &sym_name) {
+        let cur_lookup = cur_scope.to_lookup();
+        if let Some(local_sub_table) = cur_table.get_sub_table(cur_lookup.idens()) {
+            if let Some(sym) = local_sub_table.get_direct_symbol(lookup_path.idens()) {
                 return Ok(sym);
             }
         }
@@ -793,7 +882,7 @@ impl RootSymbolTable {
             // We will look into the library pointed by the usepath, so already get it here, as we might need it when generating the search path
             let table = self.tables.get(&use_path.lib_path).expect("If you see this, it means the use table was not validated before being used to look up a symbol");
             
-            let mut search_path = use_path.path.clone();
+            let mut search_path = use_path.path.to_lookup();
             
             // otherwise we just add the path on the end
             match &use_path.kind {
@@ -807,9 +896,9 @@ impl RootSymbolTable {
                             continue;
                         }    
                     } else {
-                        let root = sym_path.root().unwrap();
+                        let root = lookup_path.root().unwrap();
                         if root == tail {
-                            search_path.extend(&sym_scope.sub_path());
+                            search_path.extend(&lookup_path.sub_path());
                         } else {
                             continue;
                         }
@@ -821,10 +910,10 @@ impl RootSymbolTable {
                     if !root.params.is_empty() || root.name != *alias {
                         continue;
                     }
-                    search_path.extend(&sym_scope.sub_path());
+                    search_path.extend(&&lookup_path.sub_path());
                 },
-                UsePathKind::Wildcard => search_path.extend(&sym_scope),
-                UsePathKind::GenericOnly => (),
+                UsePathKind::Wildcard => search_path.extend(&lookup_path),
+                UsePathKind::GenericOnly => search_path.extend(&lookup_path),
                 UsePathKind::FileRoot => {
                     // File roots are both explicit use paths and wildcards, so first process it as explicit, and then as a wildcard using the default impl
                     let explicit_path = {
@@ -834,13 +923,13 @@ impl RootSymbolTable {
                             if tail.name != *sym_name {
                                 None
                             } else {
-                                search_path.extend(&sym_scope.sub_path());
+                                search_path.extend(&lookup_path.sub_path());
                                 Some(search_path)
                             }
                         } else {
-                            let root = sym_path.root().unwrap();
+                            let root = lookup_path.root().unwrap();
                             if root == tail {
-                                search_path.extend(&sym_scope.sub_path());
+                                search_path.extend(&lookup_path.sub_path());
                                 Some(search_path)
                             } else {
                                 None
@@ -848,7 +937,7 @@ impl RootSymbolTable {
                         }
                     };
                     if let Some(search_path) = explicit_path {
-                        if let Some(sym) = table.get_direct_symbol(&search_path, &sym_name) {
+                        if let Some(sym) = table.get_direct_symbol(search_path.idens()) {
                             if use_path.kind != UsePathKind::GenericOnly || matches!(&*sym.read(), Symbol::TypeGeneric(_) | Symbol::ValueGeneric(_)) {
                                 found_syms.push(sym);
                             }
@@ -856,12 +945,12 @@ impl RootSymbolTable {
                     }
                     
                     // Then act as if it's just a wildcard
-                    search_path.extend(&sym_scope);
+                    search_path.extend(&lookup_path);
                 },
             };
             
             // Now we have a path we can actually use to find the symbol
-            if let Some(sym) = table.get_direct_symbol(&search_path, &sym_name) {
+            if let Some(sym) = table.get_direct_symbol(&search_path.idens()) {
                 if use_path.kind != UsePathKind::GenericOnly || matches!(&*sym.read(), Symbol::TypeGeneric(_) | Symbol::ValueGeneric(_)) {
                     found_syms.push(sym);
                 }
@@ -1099,11 +1188,31 @@ struct SymbolTableLogger;
 #[allow(unused)]
 impl SymbolTableLogger {
     fn log_table(logger: &mut IndentLogger, table: &SymbolTable, has_syms_following: bool) {
-        for (idx, (name, symbols)) in table.symbols.iter().enumerate() {
-            logger.set_last_at_indent_if(!has_syms_following && idx == table.symbols.len() - 1);
-            for (_, sym) in symbols {
-                let sub_table = table.get_direct_sub_table_from_name(name);
-                Self::log_symbol(logger, &sym.read(), sub_table);
+        if table.entries.is_empty() {
+            return;
+        }
+
+        let table_entries_end = table.entries.len() - 1;
+        for (table_idx, (name, table_entry)) in table.entries.iter().enumerate() {
+            if let Some(sym_entry) = &table_entry.sym_entry {
+                logger.set_last_at_indent_if(!has_syms_following && table_idx == table_entries_end && table_entry.with_params.is_empty());
+                if let Some(sym) = &sym_entry.symbol {
+                    Self::log_symbol(logger, &sym.read(), Some(&sym_entry.sub_table));
+                } else {
+                    Self::log_table(logger, table, false);
+                }
+            }
+            if !table_entry.with_params.is_empty() {
+                let end = table_entry.with_params.len() - 1;
+
+                for (param_idx, (params, sym_entry)) in table_entry.with_params.iter().enumerate() {
+                    logger.set_last_at_indent_if(!has_syms_following && table_idx == table_entries_end && param_idx == end);
+                    if let Some(sym) = &sym_entry.symbol {
+                        Self::log_symbol(logger, &sym.read(), Some(&sym_entry.sub_table));
+                    } else {
+                        Self::log_table(logger, table, false);
+                    }
+                }
             }
         }
     }
