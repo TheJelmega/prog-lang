@@ -316,12 +316,6 @@ fn main() {
         println!("--------------------------------")
     }
 
-    if cli.print_lowered_hir_use_table {
-        println!("HIR use table");
-        use_table.read().log();
-        println!("--------------------------------")
-    }
-
     {
         let mut ctx = hir::passes::PassContext {
             names: name_table.clone(),
@@ -363,30 +357,34 @@ fn main() {
     }
     
     println!("================================================================");
+    
+    if cli.print_use_table {
+        println!("-[use table]--------------------");
+        use_table.read().log();
+    }
+
+
     if cli.print_sym_table {
-        println!("Symbol table:");
+        println!("-[symbol table]-----------------");
         let puncts = punct_table.read();
         symbol_table.read().log(&puncts);
-        println!("--------------------------------");
     }
 
     if cli.print_precedence {
-        println!("Precedence DAG Unordered:");
+        println!("-[precedence DAG]---------------");
         precedences.read().log_unordered();
-        println!("--------------------------------");
     }
 
     if cli.print_op_table {
         let puncts = punct_table.read();
 
-        println!("Operator table");
+        println!("-[operator table]---------------");
         operators.read().log(&puncts);
     }
 
     if cli.print_trait_dag {
-        println!("Trait DAG Unordered:");
+        println!("-[trait DAG]--------------------"); 
         trait_dag.read().log_unordered();
-        println!("--------------------------------");
     }
 
     if cli.print_type_registry {
@@ -406,7 +404,7 @@ fn main() {
     if cli.timings {
         let total_dur = time::Instant::now() - total_start;
 
-        println!("================================================================");
+        println!("=[stats]========================================================");
         stats.log();
 
         let mut total_time = total_dur.as_secs_f32();
