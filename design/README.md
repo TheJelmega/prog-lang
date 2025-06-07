@@ -796,7 +796,7 @@ Identifiers refer to a single element in a path which can be uniquely identified
 ### 5.2.1 Trait disambiguation
 
 ```
-<iden-disambig> := '(' <trait-path> '.' <name> ')'
+<path-disambig> := '(' <trait-path> '.' <name> ')'
 ```
 
 Sometimes an identifier can not be resolved without ambiguity appearing, this will happen when at least 2 trait implementations exists that have the same name, but not explicit item exists on the previous item in the path.
@@ -2192,7 +2192,7 @@ If `unsafe` is added to the block, then all functions within the block will be m
 ### 7.13.2. Trait implementation [↵](#713-implementation-)
 
 ```
-<trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <path> [ <where-clause> ] '{' { <impl-item> }* '}'
+<trait-impl> := { <attribute> }* [ 'unsafe' ] 'impl' [ <generic-params> ] <type> 'as' <trait-path> [ <where-clause> ] '{' { <impl-item> }* '}'
 ```
 
 A `trait` implementation is defined like an inherent implementation, but also include the trait to be implemented.
