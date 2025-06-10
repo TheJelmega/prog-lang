@@ -505,7 +505,7 @@ gb18030     | 84 31 95 33
 
 A file may contain a shebang in the first line in a file, but will be ignored (and preserved) by the compiler.
 
-## 2.4. Normalization
+## 2.4. Normalization [↵](#2-source-code-representation-)
 
 Source files are normalized using the Normalization Form C (NFC) as defined in [Unicode Standard Annex #15](https://www.unicode.org/reports/tr15/tr15-56.html).
 It is generally expected that the source code is stored within a normalized form.
