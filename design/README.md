@@ -755,16 +755,14 @@ Doc comments generally don't follow a specific format, except that the first lin
 
 The general format is the following:
 ```
-/*!
-    [ Short description what the item is/does ]
-    
-    [ Receiver ]
-    [ Implicit parameters ]
-    [ Parameters ]
-    [ Return ]
-
-    [ Long description what the item is/does ]
-*/
+/// [ Short description what the item is/does ]
+///     
+/// [ Receiver ]
+/// [ Implicit parameters ]
+/// [ Parameters ]
+/// [ Return ]
+/// 
+/// [ Long description what the item is/does ]
 ```
 
 Each part of the documentation is known as a doc element, which with the exception of the short and long description, must start at the beginning of a line and is similar to escape code, but where the text following the backslash (`\`) defined the element.
