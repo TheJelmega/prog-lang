@@ -9,18 +9,21 @@ Version: 0.0
 2. [Lexical structure](#2-source-code-representation-)
     1. [Input format](#21-input-format-)
     2. [Byte order markers](#22-byte-order-markers-)
-    3. [Newline sequences](#23-newline-sequences-)
-    4. [Shebang](#24-shebang-)
+    3. [Shebang](#23-shebang-)
+    4. [Normalization](#24-normalization-)
 3. [Lexical structure](#3-lexical-structure-)
     1. [Whitespace](#31-whitespace-)
+        1. [Newline sequences](#311-new-line-sequences-)
     2. [Keywords](#32-keywords-)
-        - [Strong keywords](#strong-keywords)
-        - [Reserved keywords](#reserved-keywords)
-        - [Weak keywords](#weak-keywords)
+        1. [Strong keywords](#321-strong-keywords-)
+        2. [Reserved keywords](#322-reserved-keywords-)
+        3. [Weak keywords](#323-weak-keywords-)
     3. [Names](#33-names-)
-    5. [Comments](#35-comments-)
-        1. [Regular comments](#351-regular-comment-)
-        2. [Doc comments](#352-doc-comments-)
+    4. [Punctuation](#34-punctuation-)
+    5. [Delimiters](#35-delimiters-)
+    5. [Comments](#36-comments-)
+        1. [Regular comments](#361-regular-comment-)
+        2. [Doc comments](#362-doc-comments-)
             - [`doc` attribute](#doc-attribute-)
             - [Doc comment format](#doc-comment-format-)
                 - [Short description](#short-description-)
@@ -50,7 +53,7 @@ Version: 0.0
                 - [No source](#no-source-)
                 - [`inline` and `no_inline`](#inline-and-no_inline)
                 - [`alias`](#alias-)
-        3. [Examples](#353-examples-)
+        3. [Examples](#363-examples-)
 4. [Package Stucture](#4-package-structure-)
     1. [Packages](#41-packages-)
     2. [Artifacts](#42-artifacts-)
@@ -452,8 +455,15 @@ This section contains info about the source code representation in the file, and
 
 ## 2.1. Input format [↵](#2-source-code-representation-)
 
-Each source file is interpreted as a sequence of Unicode codepoints encoded within the utf-8 format.
-If a file does not contain a valid utf-8 sequence, this will result in an error.
+Each source input is interpreted as a sequence of Unicode codepoints encoded within the utf-8 format.
+If an input does not contain a valid utf-8 sequence, this will result in an error.
+
+Source input is generally represented as a sequence of bytes in a file, but can also come from other sources, some examples of which are:
+- an interactive programming enviornment (a so-called "Read-Evaluate-Print-Loop" or REPL),
+- a database
+- a memory buffer of an IDE
+- command-line arguments
+- etc.
 
 Xenon source files use the extension `.xn`
 
@@ -463,7 +473,7 @@ Xenon source files use the extension `.xn`
 <byte-order-marker> := "\xEF\xBB\xBF"
 ```
 
-The file may begin using a byte order marker, this marker is kept track of, but generally ignored by the compiler.
+The file may begin using a byte order marker, this marker is kept track of, but is generally ignored by the compiler.
 The utf-8 byte order marker does not encode the order, as utf-8 work in single byte units and can therefore not be in a different marker.
 It is mainly there to indicate the that content of this file encodes a utf-8 sequence, preventing it to be interpreted as another text encoding.
 
@@ -487,35 +497,46 @@ scsu        | 0E FE FF
 bocu-1      | FB EE 28
 gb18030     | 84 31 95 33
 
-## 2.3. Newline sequences [↵](#2-source-code-representation-)
-
-```
-<new-line> := [ "\r" ] "\n"
-```
-
-A newline within the file is represented using a newline sequence `\n` (U+000A).
-This may also be preceded by a carriage return '\r' (U+000D), any other occurance is ignored by the compiler.
-
-Carriage returns will be preserved in any reconstructed file.
-
-## 2.4. Shebang [↵](#2-source-code-representation-)
+## 2.3. Shebang [↵](#2-source-code-representation-)
 
 ```
 <shebang> := '#!' ? any valid character ? <newline>
 ```
 
-A file may contain a shebang in the first line in a file, but will be ignored by the compiler.
+A file may contain a shebang in the first line in a file, but will be ignored (and preserved) by the compiler.
+
+## 2.4. Normalization
+
+Source files are normalized using the Normalization Form C (NFC) as defined in [Unicode Standard Annex #15](https://www.unicode.org/reports/tr15/tr15-56.html).
+It is generally expected that the source code is stored within a normalized form.
+As this cannot be guaranteed, the compiler will automatically try to convert unnormalized text into normalized text.
+In case a non-normalized character sequence is detected, a warning will be emitted.
+
+If the input is guaranteed to be normalized, this can be turned off.
+
+> _Note_: Normalization Form D is more uniform, in that characters are always maximally decomposed into combining characters; in NFD, characters may or may not be decomposed depending on whether a composed form is available. NFD may be more suitable for certain uses such as type correction, homoglyps detection, or code completion. But NFC is also way more common and recomended in locations, it's also more commonly used for languages that support unicode.
+
+> _Todo_: We might be able to also add support for homoglyph and confusables detection and convert them to a single character, see ['Confusable Detection' section of Unicode Annex #39](https://www.unicode.org/reports/tr39/#Confusable_Detection)
+> _Todo_: A quick detection optimization is defined within the ['Quick Check for NFC' section in Unicode Annex #15](https://unicode.org/reports/tr15/#NFC_QC_Optimization)
 
 # 3. Lexical structure [↵](#tables-of-contents)
 
 This section contains information about the lexical structure of a code file, which will be interpreted as tokens.
 
+A token is a primitive in the gramar of a language. Tokens are produces from the incoming source file.
+The supported tokens are defined below.
+In addition to these, literals are also interpreted as tokens, but infomation about them is located within their own [section](#6-literals-).
+
 ## 3.1. Whitespace [↵](#3-lexical-structure-)
 
-Whitespace is used to separate lexical elements within a file, other than being used to separate elements, whitespace is essentially ignored.
+Whitespace is uses to determine how lexical elements withing a file are interpreted, and used to
+- separate seperate lexical elements
+- decide how a mix of pre/post/in-fix operator is interpreted.
+
+For any other purpose, whitespace is essentially ignored.
 All whitespace is preserved in any reconstructed file.
 
-Below are lists of both all unicode characters recognized as horizontal and vertical whitespace:
+Below are lists of all unicode characters recognized as either horizontal or vertical whitespace:
 - Horizontal whitespace:
   - U+0009 CHARACTER TABULATION (horizontal tab / HT)
   - U+0020 SPACE
@@ -530,9 +551,30 @@ Below are lists of both all unicode characters recognized as horizontal and vert
   - U+2028: LINE SEPARATOR
   - U+2029: PARAGRAPH SEPARATOR
 
+A program has identical meaning if each whitespace element is replaces with any other legal whitespace character, such as a single space.
+This does not include newline sequences which are mentioned below.
+
 > _Note_: This is **not** a direct mapping to the unicode separator category `Z`
 
-> _Note_: While newline sequences count as whitespace, they are handled separately, see [Newline sequences](#23-newline-sequences).
+### 3.1.1. New line sequences [↵](#31-whitespace-)
+
+```
+<new-line> := [ "\r" ] "\n"
+```
+
+New line sequences count as whitepace, but are handled differently.
+New line have special meaning in the following cases:
+- when ending a comment line
+- when ending a multi-line string segment
+
+A newline within the file is represented using a newline sequence `\n` (U+000A).
+This may also be preceded by a carriage return `\r` (U+000D), any other occurance of a carriage return is ignored by the compiler, but must be retained, meaning that carriage returns will be preserved in any reconstructed file.
+
+Tooling is required to keep the original line ending when not specified otherwise.
+
+When specifified, tooling may:
+- convert all line ending to either `\n` or `\r\n` when specified, or
+- remove all occurances of `\r` when not part of a line ending when specified
 
 ## 3.2. Keywords [↵](#3-lexical-structure-)
 
@@ -543,7 +585,7 @@ There are 3 types of keywords:
 - reserved
 - weak
 
-### Strong keywords
+### 3.2.1. Strong keywords [↵](#32-keywords-)
 
 A strong keyword is a keyword that always has a meaning, regardless of where in the code it is located, and can therefore not be used for anything else.
 A list of strong keywords can be found below (in a close to alphabetic order):
@@ -631,7 +673,7 @@ when
 where
 ```
 
-### Reserved keywords
+### 3.2.2. Reserved keywords [↵](#32-keywords-)
 
 A reserved keyword is keyword that is not currently used, but has been set aside as not being possible to be used by the programmer for future use.
 A list of reserved keywords can be found below (in a close to alphabetic order):
@@ -641,7 +683,7 @@ await
 yield
 ```
 
-### Weak keywords
+### 3.2.3. Weak keywords [↵](#32-keywords-)
 
 A weak keyword is a keyword that is dependent on the surrounding context and can be used anywhere outside
 A list of weak keywords can be found below (in a close to alphabetic order):
@@ -650,6 +692,7 @@ assign
 associativity
 distinct
 flag
+get
 higher_than
 infix
 invar
@@ -666,11 +709,77 @@ prefix
 property
 record
 sealed
+set
 super
 tls
 ```
 
-## 3.5. Comments [↵](#3-lexical-structure-)
+## 3.3. Names [↵](#3-lexical-structure-)
+```
+<start-letter> := '_' | ? unicode category XID_Start ? | ? unicode category Nd ?
+<continue-letter> := ? unicode category XID_Continue ?
+
+<name> := <start-letter> <continue-letter>*
+```
+
+A name is sequence of unicode points that can be used to identify a symbol or value in code.
+Unicode support allows some of the following names:
+- `foo`
+- `_identifier`
+- `Москва`
+- `東京`
+ 
+
+Unlike most langauges, names are allowed to start with a number, as we do not support direct postfixes on numbers ('e'/'E' are special cases though).
+The main rule is, that as long as a name does not also match either a keyword or a literal, it is a name.
+
+Allowing names to start with a digit, can allow uses like:
+```
+enum Dimension {
+    2D,
+    3D,
+}
+```
+
+Zero width non-joiner(ZWNJ U+200C) and zero width joiner(ZWJ U+200D) are not allowed in names.
+
+> _Note_: Names starting a double underscore '__' are reserved for the compiler or a runtime, user should not use any of these names, as this may cause issues when interal names have the same value.
+
+> _Todo_: Add ASCII only restrictions when needed.
+
+## 3.4. Punctuation [↵](#3-lexical-structure-)
+
+```
+<punct> := ? any unicode point within , except for <reserved-punct> ?
+<reserved-punct> := <delimiters> | "'" | '"'
+```
+
+Punctuation are sequences of character that cannot be interpreted as any other token.
+There is no fixed set of allowed punctuation.
+
+There is also a set of characters that are not allowed in punctuation, as they each have their own special meaning.
+These are `'` and `"`.
+
+> _Todo_: Limit possible punctuation symbol to fix set of common, but distinguishable symbols
+
+## 3.5. Delimiters [↵](#3-lexical-structure-)
+```
+<delimiters> := <opening-delimiters> | <closing-delimiters>
+<opening-delimiters> := '{' | '(' | '['
+<closing-delimiters> := '}' | ')' | ']'
+```
+
+Delimiters are special forms of punctuation that are used to surround an inner subsection of code.
+An opening delimiter always needs to be paired with a closing delimiter.
+
+There are 3 types of delimiters:
+Delimiter   | Type
+------------|----------------
+`{` and `}` | (Curly) braces
+`[` and `]` | (Square) brackets
+`(` and `)` | Parentheses
+
+## 3.6. Comments [↵](#3-lexical-structure-)
 
 Comments are used to add additional info or documentation to code.
 
@@ -679,7 +788,7 @@ The decision was made not to support block comments, as nestable block comments 
 
 There are 2 type of comments:
 
-### 3.5.1. Regular comment [↵](#33-comments-)
+### 3.6.1. Regular comment [↵](#33-comments-)
 
 ```
 <regular-comment> := '//' {? any unicode character ?}* <new-line>
@@ -698,7 +807,7 @@ A mark is always provided in a comment as `// \mark name`.
 
 Regular comments are stored as metadata associated with tokens and are not tokens by themselves.
 
-### 3.5.2. Doc comments [↵](#33-comments-)
+### 3.6.2. Doc comments [↵](#33-comments-)
 
 ```
 <doc-comment> := <doc-comment-start> {? any unicode character ?}* <new-line>
@@ -1117,7 +1226,7 @@ Adding the alias element `@doc(alias="lib_name_act_function")` to it allows the 
 
 > _Note_: This example assumes that `ffi` is not a documented module.
 
-### 3.5.3. Examples [↵](#33-comments-)
+### 3.6.3. Examples [↵](#33-comments-)
 
 Below are some examples of how doc comments can be used.
 
@@ -1235,30 +1344,6 @@ Names, identifiers, and paths are used to refer to things like:
 - attributes
 - etc.
 
-## 5.1 Names [↵](#5-names-and-paths-)
-
-```
-<letter> := ? any unicode letter ?
-<ext-letter> := ? any <letter> except 'e' ?
-<number> := ? any unicode number ?
-<non-dec-number> := ? any <number> except <dec-digit> ?
-
-<alphanum> := <number> | <letter>
-
-<name> := ( <letter> | <non-dec-number> | '_' ) { <alphanum> |  }*
-<ext-name> := { <alphanum> | '_' }* ( <ext-letter> | <non-dec-number> )  { <alphanum> | '_' }*
-```
-*TODO: XID_Start and XID_Continue*
-
-A name is part of an identifier and 
-
-There are 2 types of names:
-- Normal names that cannot start with a decimal digit
-- Extended names that can start with a decimal digit, but must be distinguishable from any decimal literal, i.e. needs to contain at least 1 non-supported letter, or multiple letters supported by decimal literals.
-
-Normal names can be used everywhere a name can be uses, including in locations extended names are avaiable.
-Extended names on the other hand have much more limited scope of where they can be used, mainly in locations they cannot cause confusion.
-
 ## 5.2. Identifiers [↵](#5-names-and-paths-)
 
 ```
@@ -1301,7 +1386,7 @@ There are multiple types of paths:
 ```
 <simple-path> := [<simple-path-start>] { '.' <simple-path-segment> }*
 <simple-path-start> := '.' | 'super' | 'self'
-<simple-path-segment> := <name> | <ext-name>
+<simple-path-segment> := <name> | <name>
 ```
 
 Simple path are used for visitility, attributes, macros and use items.
@@ -1650,8 +1735,8 @@ In other words, within a function or module, declarations of items can (in many 
 ## 7.1. Module item [↵](#7-items-)
 
 ```
-<module-item> := { <attrib>* } [<vis>] "mod" <ext-name> ';'
-               | { <attrib>* } [<vis>] "mod" <ext-name> '{' { <module-attribute> }* { <item> }* '}'
+<module-item> := { <attrib>* } [<vis>] "mod" <name> ';'
+               | { <attrib>* } [<vis>] "mod" <name> '{' { <module-attribute> }* { <item> }* '}'
 ```
 
 A module is a container of zero or more items.
@@ -1753,11 +1838,11 @@ Module path    | `inner`'s file location   | `inner`'s module path
 <use-item>     := `use` <use-root> [ '.' <use-tree> ] ';'
                 | `use` <use-tree> ';'
 <use-root>     := [ <name> [ '.' <name> ] ] ':' [ <name> ]
-<package|name> := [ <ext-name> '.' ] <name>
-<module-name>  := <ext-name>
+<package|name> := [ <name> '.' ] <name>
+<module-name>  := <name>
 <use-tree>     := <simple-path> '.' '*'
                 | <simple-path> '.` '{' <use-tree> { ',' <use-tree> }* [ ',' ] '}'
-                | <simple-path> [ "as" ( <ext-name> ) ]
+                | <simple-path> [ "as" ( <name> ) ]
 ```
 
 A `use` declaration creates a local binding associated to a item path.
@@ -1862,7 +1947,7 @@ A function can be declared `unsafe`, requiring it to be called from an unsafe co
 <opt-fn-param> := [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt> ':' <type> '=' <expr>
 <fn-param-name> := [ <fn-param-label> ] { <attribute> }* [ 'mut' ] <name>
                  | [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt>
-<fn-param-label> := ':' <ext-name>
+<fn-param-label> := ':' <name>
 
 <variadic-param> := <name> ':' <type> '...'
 ```
@@ -2115,8 +2200,8 @@ There are 3 kinds of structs:
 <nominal-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '{' [ <struct-fields> ] '}'
 <struct-fields> := <struct-field> { ',' <struct-field> } ','
 <struct-field> := <struct-member> | <struct-use>
-<struct-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> { ',' <ext-name> }* ':' <type>
-                 | { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '=' <expr> ]
+<struct-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <name> { ',' <name> }* ':' <type>
+                 | { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' <type> [ '=' <expr> ]
 <struct-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path>
 ```
 
@@ -2221,7 +2306,7 @@ Unit stuctures can be seen as distinct type aliases of the unit type, but with t
 ```
 <union-item> := { <attribute> }* [ 'vis' ] [ 'mut' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
 <union-fields> := <union-field> { ',' <union-field> }* [ ',' ]
-<union-field> := [ <vis> ] [ 'mut' ] <ext-name> ':' <type>
+<union-field> := [ <vis> ] [ 'mut' ] <name> ':' <type>
 ```
 
 A union is a struct-like type, but instead of all fields being available at all times, a union's main characteristic is that all field share a common storage.
@@ -2284,7 +2369,7 @@ The visibility of the enum is shared by all variants and their fields
 ```
 <adt-enum> := [ 'mut' ] [ 'record' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
 <enum-variants> := <enum-variant> { ',' <enum-variant> } [ ',' ]
-<enum-variant> := { <attribute> }* [ 'mut' ] <ext-name> [ <variant-body> ] [ '=' <expr> ]
+<enum-variant> := { <attribute> }* [ 'mut' ] <name> [ <variant-body> ] [ '=' <expr> ]
 <variant-body> := <struct-variant-body> | <tuple-variant-body>
 <struct-variant-body> := '{' <struct-fields> '}'
 <tuple-variant-body> := '(' [ <tuple-struct-fields> ] ')'
@@ -2367,7 +2452,7 @@ _TODO: list of functions_
 <bitfield-item> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'record' ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
 <bitfield-fields> := <bitfield-field> { ',' <bitfield-field> }* [ ',' ]
 <bitfield-field> := <bitfield-member> | <bitfield-use>
-<bitfield-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <ext-name> ':' <type> [ '|' <expr> ]
+<bitfield-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' <type> [ '|' <expr> ]
 <bitfield-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path> [ '|' <expr> ]
 ```
 
@@ -2474,7 +2559,7 @@ When declaring a static within a external block, `extern` has to be left out.
 ## 7.11. Properties [↵](#7-items-)
 
 ```
-<property> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
+<property> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <name> '{' { <prop-get-set> }[1,4] '}'
 <prop-get-set> := <prop-get> | <prop-ref-get> <prop-mut-get> | <prop-set>
 <prop-get> := [ <vis> ]'get' <expr-no-block> ';'
             | [ <vis> ]'get' <expr-with-block>
@@ -2485,7 +2570,7 @@ When declaring a static within a external block, `extern` has to be left out.
 <prop-get> := [ <vis> ]'set' <expr-no-block> ';'
             | [ <vis> ]'set' <expr-with-block>
 
-<property-direct-bind> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <ext-name> '{' { <property-direct-bound-get-det> }[1,4] '}' ':=' <name> ';'
+<property-direct-bind> := { <attribute> }* [ <vis> ] [ 'unsafe' ] 'property' <name> '{' { <property-direct-bound-get-det> }[1,4] '}' ':=' <name> ';'
 <property-direct-bind-get-set> := [ <vis> ] [ [ 'mut' ] 'ref' ] 'get'
                                 | [ <vis> ] 'set'
 ```
@@ -2554,7 +2639,7 @@ This allows for access to a member of the type, but also allows access to be res
 ### 7.11.3. Trait properties [↵](#711-properties-)
 
 ```
-<trait-property> := 'property' <ext-name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
+<trait-property> := 'property' <name> ':' <type> '{' { <trait-prop-get-set> }[1,4] '}'
 <trait-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
 ```
@@ -2982,7 +3067,7 @@ Implicit borrowing takes place in the following expressions:
 ## 9.2. Literal expression  [↵](#9-expressions-)
 
 ```
-<lit-expr> := <literal> [ ':' <ext-name> ]
+<lit-expr> := <literal> [ ':' <name> ]
 ```
 
 A literal expression is used to get a value of a given literals, and is evaluated at compile time.
@@ -3284,7 +3369,7 @@ Creating a multi-dimensional array can be done by nesting array expressions with
 ```
 <struct-expr> := <struct-expr-path> '{' [ <struct-expr-member> { ',' <struct-expr-member> }* [ ',' [<struct-complete>] ] ] '}'
 <struct-expr-path> := <path> | '.'
-<struct-expr-member> := [ <ext-name> ':' ] <expr>
+<struct-expr-member> := [ <name> ':' ] <expr>
 <struct-complete> := '..' <expr>
 ```
 
@@ -3645,7 +3730,7 @@ Similarly, labelled block expressions must begin with a label.
 ### 9.20.6. Loop labels [↵](#920-loops-)
 
 ```
-<label> := ':' <ext-name> ':'
+<label> := ':' <name> ':'
 ```
 
 A loop expression may optionally have a label.
@@ -3941,8 +4026,8 @@ Similar to identifier patterns, 'mut' can be added to make the resulting variabl
 <struct-pattern> := ( <path> | '.' ) '{' [ ( <struct-pattern-elem> { ',' <struct-pattern-elem> }* [ ',' [ <rest-pattern> ] ] ) | <rest-pattern> ] '}'
 <struct-pattern-elem> := ( <attribute> )* ( <struct-pattern-elem-tuple> | <struct-pattern-elem-member> | <struct-pattern-elem-iden> )
 <struct-pattern-elem-tuple> := <tuple-index> ':' <pattern>
-<struct-pattern-elem-member> := <ext-name> ':' pattern
-<struct-pattern-elem-iden> := [ 'ref' ] [ 'mut' ] <ext-name> [ '@' <pattern> ]
+<struct-pattern-elem-member> := <name> ':' pattern
+<struct-pattern-elem-iden> := [ 'ref' ] [ 'mut' ] <name> [ '@' <pattern> ]
 ```
 
 A struct pattern can match struct, enum, and union values that match the defined criteria in the subpatterns.
@@ -4000,7 +4085,7 @@ A path pattern can match any constant, or struct or enum member that have no fie
 ## 10.13. Enum member pattern [↵](#10-patterns-)
 
 ```
-<enum-member-pattern> := '.' <ext-name>
+<enum-member-pattern> := '.' <name>
 ```
 
 A enum member pattern can match any enum member that has no field.
@@ -4422,7 +4507,7 @@ When an error message is generated using this type, it will generally show up as
 ```
 <fn-type> := [ 'unsafe' [ 'extern' <abi> ] ] 'fn' '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
 <fn-type-params> := <fn-type-param> { ',' <fn-type-param> }* [ ',' ]
-<fn-type-param> := { <attribute> }* [ ( <ext-name> | '_' ) { ',' ( <ext-name> | '_' ) }* ':' ] <type>
+<fn-type-param> := { <attribute> }* [ ( <name> | '_' ) { ',' ( <name> | '_' ) }* ':' ] <type>
 ```
 
 A function pointer type can refer to a function whose identity is not known at compile time.
@@ -4564,7 +4649,7 @@ It can also not be the type of a variable declaration, a field, or appear inside
 ```
 <record-type> := 'struct' '{' <record-members> '}'
 <record-members> := <record-member> { ',' <record-member> }* [ ',' ]
-<record-member> := { <attribute> }* <ext-name> { ',' <ext-name> }* ':' <type>
+<record-member> := { <attribute> }* <name> { ',' <name> }* ':' <type>
 ```
 
 A record is a _structural_ type is that, similarly to a tuple, consisting out of a list of fields of other types.
@@ -5236,7 +5321,7 @@ _TODO: Placeholder, needs to be refined, will not yet be implemented in the comp
 <constraint-fn-params> := <constraint-params> { ',' <constraint-param> }
                         | <receiver-param> [ ',' <constraint-params> { ',' <constraint-param> } ]
 
-<contraint-property> := [ 'unsafe' ] 'property' <ext-name> '{' { <prop-get-set> }[1,4] '}'
+<contraint-property> := [ 'unsafe' ] 'property' <name> '{' { <prop-get-set> }[1,4] '}'
 <constraint-type> := <assoc-trait-type>
 <constraint-const> := <assoc-const>
 <constrait-params> := <constraint-param> { ',' <constraiant-param> }* [ ',' ]
@@ -5281,7 +5366,7 @@ A constraint constant is very similar to a trait const, with the main difference
 ## 12.4.4. Properties
 
 ```
-<constraint-property> := 'property' <ext-name> ':' <type> '{' { <constraint-prop-get-set> }[1,4] '}'
+<constraint-property> := 'property' <name> ':' <type> '{' { <constraint-prop-get-set> }[1,4] '}'
 <constraint-prop-get-set> := [ 'ref' | 'mut' ] 'get' ';'
                       | 'set' ';'
 ```
@@ -6228,9 +6313,9 @@ The following specifiers are available:
 
 ```
 <attribute> := '@' [ '!' ] <simple-path> [ '(' <attrib-meta> { ',' <attrib-meta> } [ ',' ] ')' ]
-<attrib-meta> := <ext-name>
-               | <ext-name> '=' <expr>
-               | <ext-name> '(' <attrib-meta> { ',' <attrib-meta> } [ ',' ] ')'
+<attrib-meta> := <name>
+               | <name> '=' <expr>
+               | <name> '(' <attrib-meta> { ',' <attrib-meta> } [ ',' ] ')'
 ```
 
 An attribute is general metadata that is given to the compiler, the resulting action depends on the attribute itself.
