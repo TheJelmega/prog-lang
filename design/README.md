@@ -71,16 +71,24 @@ Version: 0.0
 6. [Literals](#6-literals-)
     1. [Numeric literals](#61-numeric-literals-)
         1. [Decimal literals](#611-decimal-literal-)
+            -[Examples](#examples)
         2. [Binary literals](#612-binary-literals-)
+            - [Examples](#examples-1)
         3. [Octal literals](#613-octal-literals-)
+            - [Examples](#examples-2)
         4. [Hexadecimal integer literals](#614-hexadecimal-integer-literals-)
+            - [Examples](#examples-3)
         5. [Hexadecimal floating-point literals](#615-hexadecimal-floating-point-literals-)
+            - [Examples](#examples-4)
     2. [Boolean literals](#62-boolean-literals-)
     3. [Character literals](#63-character-literals-)
         1. [Escape codes](#631-escape-codes-)
+            - [Examples](#examples-5)
     4. [String literals](#64-string-literals-)
-        1. [String coninuation sequence](#641-string-continuation-sequence-)
-    5. [Literal operators](#65-literal-operators-)
+        1. [Multi-line string literals](#641-multi-line-string-literals)
+            - [Examples](#examples-6)
+        2. [Raw string literals](#642-raw-string-literals)
+            - [Examples](#examples-7)
 7. [Items](#7-items-)
     1. [Module item](#71-module-item-)
         1. [Inline modules](#711-inline-modules-)
@@ -158,6 +166,7 @@ Version: 0.0
         4. [Temporaries](#914-temporaries-)
         4. [Implicit borrows](#915-implicit-borrows-)
     2. [Literal expressin](#92-literal-expression-)
+        1. [Literal type conversions](#921-literal-type-conversion-)
     3. [Path exprssion](#93-path-expression-)
     4. [Unit expression](#94-unit-expression-)
     5. [Block expression](#95-block-expression-)
@@ -358,7 +367,10 @@ Version: 0.0
         1. [Basic assignment](#1441-basic-assignment-)
         2. [Destructuring assignment](#1442-destructuring-assignment-)
         3. [Compound assignment](#1443-compound-assignment-)
-    5. [Operator scoping and use](#145-operator-scoping-and-use)
+    5. [Literal operators](#145-literal-operators-)
+        1. [Literal operator items](#1451-literal-operator-item-)
+        2. [Builtin literal operators](#1452-builtin-operator-literals-)
+    6. [Operator scoping and use](#146-operator-scoping-and-use)
 15. [Precedence](#15-precedence-)
     1. [Built-in precedences](#151-built-in-precedences-)
     2. [User defined precedence](#152-user-defined-precedence-)
@@ -514,6 +526,8 @@ In case a non-normalized character sequence is detected, a warning will be emitt
 
 If the input is guaranteed to be normalized, this can be turned off.
 
+An exception to normalization is [string literals](#64-string-literals-), in which no normalization happens.
+
 > _Note_: Normalization Form D is more uniform, in that characters are always maximally decomposed into combining characters; in NFD, characters may or may not be decomposed depending on whether a composed form is available. NFD may be more suitable for certain uses such as type correction, homoglyps detection, or code completion. But NFC is also way more common and recomended in locations, it's also more commonly used for languages that support unicode.
 
 > _Todo_: We might be able to also add support for homoglyph and confusables detection and convert them to a single character, see ['Confusable Detection' section of Unicode Annex #39](https://www.unicode.org/reports/tr39/#Confusable_Detection)
@@ -526,6 +540,8 @@ This section contains information about the lexical structure of a code file, wh
 A token is a primitive in the gramar of a language. Tokens are produces from the incoming source file.
 The supported tokens are defined below.
 In addition to these, literals are also interpreted as tokens, but infomation about them is located within their own [section](#6-literals-).
+
+> _Note_: The langauge is designed in such a way, that each line can independtly be parsed into a set of tokens without needing to have any context from the surrounding lines
 
 ## 3.1. Whitespace [↵](#3-lexical-structure-)
 
@@ -697,6 +713,7 @@ higher_than
 infix
 invar
 lib
+literal
 lower_than
 opaque
 override
@@ -1454,6 +1471,8 @@ A literal is a compile time constant representing a given value as defined below
 
 > _Note_: Literals are tokens and will therefore be parsed in the lexer stage_
 
+> _Todo_: Specify how the literal values will be encoded, e.g. decimal values keeping all info so a literal operator can also know that a non-latin decimal character was used
+
 ## 6.1. Numeric literals [↵](#6-literals-)
 
 ```
@@ -1470,26 +1489,53 @@ Numeric literals are literals representing a value of either an integer or float
 
 A common feature for integer literals are digit separators.
 These don't effect the value represented, but can make the literals more readable to the programmer.
+But at most a single digit seperator is allowed to be placed between 2 digits, multiple separators are not allowed, e.g.
+Digit seperator also need to between 2 digits, so may not appear before the first digit, or after the last digit, in sequence.
+
+```
+1_000 // valid
+1___000 // Error: multiple digit separators between 2 digits
+_1000 // Error: digit seperator before first digit
+1000_ // Error: digit seperator after last digit
+```
+
+Numeric literals have no limits on precision and may be seen as infinite precision values.
+For this reason, no operations other than converting them to another type are allowed, as there is no known bound on how long such a calculation would take.
+And example of this is `1/3`, which results in 0.33 repeating, meaning there is no bound on this calculation.
+
+If a numeric literal is prefixed by either `+` or `-`, these will **not** be part of the literal, but will instead be an operator that is applied to the value.
 
 There are generally 5 categories of numerics literals, and these are defined below.
 
 ### 6.1.1. Decimal literal [↵](#61-numeric-literals-)
 
 ```
-<dec-digit> := '0'-'9'
+<dec-digit> := ? any unicode character in the category Nd ?
 <int-dec-literal> := { <dec-digit> }+
-<float-dec-literal> := { <dec-digit> }+ [ '.' { <dec-digit> }+ ] [ ( 'e' | 'E' ) [ '-' ] { dec-digit }+ ]
+                   | { <dec-digit> }+ ( 'e' | 'E' ) [ '+' ] { dec-digit }+
+<float-dec-literal> := { <dec-digit> }+ '.' { [ <digit-serp> ] <dec-digit> }+ [ ( 'e' | 'E' ) [ '-' | '+' ] { dec-digit } { [ <digit-serp> ] <dec-digit> }* ]
+                     | { <dec-digit> }+ ( 'e' | 'E' ) [ '-' | '+' ] <hex-digit> { [ <digit-serp> ] <hex-dec-digit> }
 ```
 
 A decimal literal can represent either an integer or floating point value.
 Decimal literals may be prefixed with `0`s without affecting the value, unlike some other languages, this does **not** get interpreted as an octal value and they are ignored.
 
-Integer values are a sequence of up to 39 digits and should represent a value that fits in at most a 128-bit limit.
+Decimal literal work with any unicode codepoint representing a decimal digit, including leading 0s.
 
 Floating points have a more complex representation.
-They start with at least a single digit, and are then optionally followed by a decimal separator (`.`) and its fractional component, but this is not required.
+They start with at least a single digit, and are then optionally followed by a decimal separator (`.`) and its fractional component.
 After this, it is also possible to use scientific notation by writing an 'e' or 'E', followed by the exponent, this will modify the value before it by multiplying it by `10^exponent`.
-The exponent is limited to the range -4932 to 4932.
+The exponent is allowed to leave out the optiona `+` for positive exponent values.
+The exponent is limited to the range -4932 to 4932 (values outside of this range will be clamped).
+
+If a decimal literal with an exponent does not contain a decimal separator and has a positive exponent, this can also be interpreted as a integer literal.
+
+A decimal separator always needs to be surrounded by a decimal digit, so as not to cause issues while parsing where the `.` could be a field access expression.
+As tuple indexing on a decimal literal is not possible, this causes no confusion within the literal.
+
+The exponent indicator `e` needs to be lower case to be consistent with the other indicators within literal values.
+
+The integral and floating point decimal literals are of the type `core:.DecLiteral` and `core:.DecFloatLiteral` repespectively.
 
 #### Examples
 ```
@@ -1497,29 +1543,36 @@ The exponent is limited to the range -4932 to 4932.
 10
 195
 0042 // value of 42
+٤٢ // Arabic-indic 42
 
 // Floating point
 0.5
 128.64
 3e10
 005.2 // value of 5.2
+۵.٢ // Arabic-indic 5.2
 ```
 
 ### 6.1.2. Binary literals [↵](#61-numeric-literals-)
 
 ```
 <bin-digit> := '0' | '1'
-<bin-literal> := "0b" [ { <bin-digit> | <digit-sep> }* ] <bin-digit> { <bin-digit> | <digit-sep> }*
+<bin-literal> := '0b' <bin-digit> { [ <digit-serp> ] <bin-digit> }*
 ```
 
 A binary literal represents an integer value written as sequence of 0s or 1s, directly representing each bit in the resulting value.
-Currently a binary literal is limited to containing 128 digits, representing a 128-bit type.
+
+If any character that represents a `<letter>` appears within the literal that is not supported, an error will be generated.
+
+The binary literal indicator uses a lower case `b` for readability, as as uppercase `B` could be confused with `B`.
+
+A binary literal is of type `core:.BinLiteral`.
 
 #### Examples
 ```
 0x1010 // decimal value 10
 0x1100_0011 // decimal value 195
-0x1________1 // decimal value 1
+0x1_1 // decimal value 3
 0x1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111 // u128::MAX
 ```
 
@@ -1527,17 +1580,22 @@ Currently a binary literal is limited to containing 128 digits, representing a 1
 
 ```
 <oct-digit> := '0'-'7'
-<oct-literal> := "0o"  { <oct-digit> | <digit-sep> }* <oct-digit> { <oct-digit> | <digit-sep> }*
+<oct-literal> := '0o' <oct-digit> { [ <digit-serp> ] <oct-digit> }*
 ```
 
 An octal literal represents an integer value written as a sequence of octal values ranging from 0 to 7.
-Currently an octal literal is limited to 43 digits, with the upper digit of these being limited in the range 0 to 3, so not to overflow the maximum value of a 128-bit type.
+
+If any character that represents a `<letter>` appears within the literal that is not supported, an error will be generated.
+
+The binary literal indicator uses a lower case `o` for readability, as an uppercase `O` could be confused with `0`.
+
+An octal literal is of type `core:.OctLiteral`
 
 #### Examples
 ```
 0o12 // decimal value 10
 0x303 // decimal value 195
-0x3__0___3 // decimal value 195
+0x3_0_3 // decimal value 195
 0x377_7777_7777_7777_7777_7777_7777_7777_7777_7777_7777 // u128::MAX
 
 ```
@@ -1545,19 +1603,25 @@ Currently an octal literal is limited to 43 digits, with the upper digit of thes
 ### 6.1.4. Hexadecimal integer literals [↵](#61-numeric-literals-)
 
 ```
-<hex-digit> := <dec-digit> | 'a'-'z' | 'A'-'Z'
-<int-hex-literal> := "0x" { <hex-digit> | <digit-sep> }* <hex-digit> { <hex-digit> | <digit-sep> }*
+<hex-digit> := '0'-'9' | 'a'-'z' | 'A'-'Z'
+<int-hex-literal> := '0x' <hex-digit> { [ <digit-serp> ] <hex-digit> }*
 ```
 
 A hexadecimal literal represents an integer value written as a sequence of nibbles, values ranging from 0 to 9, and then from A/a to F/f.
 Mixing lower case and upper case letters is allowed, but is discouraged.
 Currently a hexadecimal literal is limited to 32 digits, so not to overflow the maximum value of a 128-bit type.
 
+If any character that represents a `<letter>` appears within the literal that is not supported, an error will be generated.
+
+The binary indicator uses a lower case `x`, although no confusing with an uppercase `X` could occur, this is done to be consistent with both binary an octal indicators.
+
+A hexadecimal literal is of type `core:.HexLiteral`
+
 #### Examples
 ```
 0xA // decimal value 10
 0xC3 // decimal value 195
-0xC_____3 // decimal value 195
+0xC_3 // decimal value 195
 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF // u128::MAX
 
 ```
@@ -1565,19 +1629,28 @@ Currently a hexadecimal literal is limited to 32 digits, so not to overflow the 
 ### 6.1.5. Hexadecimal floating point literals [↵](#61-numeric-literals-)
 
 ```
-<float-hex-literal> := "0x" ( "1." | "0." ) <hex-digit> { <hex-digit> | <digit-sep> } 'p' [ '-' | '+' ] { <dec-digit> }[,4]
+<float-hex-literal> := '0x' ( '1.' | '0.' ) <hex-digit> { [ <digit-serp> ] <hex-digit> } <float-hex-exponent>
+<float-hex-exponent> := 'p' [ '-' | '+' ] '0'-'9' { [ <digit-serp> ] '0'-'9' }*
+                      | 'px' [ '-' | '+' ] <hex-digit> { [ <digit-serp> ] <hex-digit> }*
 ```
 
 In addition to integer hexadecimal literals, there is also support to represent floating points as decimal literals.
 These are composed out of a sign, a mantissa and an exponent.
 
-The literal is written with a hexadecimal indicator '0x'. 
-This can then be followed by either a '0.' followed by at most 13 0s, or a '1.' follows by at most 14 hexadecimal digits.
-After which the exponent indicator 'p' appears, followed by an either `-` or '+', and at the exponent in decimal digits.
+The literal is written with a hexadecimal indicator `0x`. 
+This can then be followed by either a `0.` or a `1.`.
+After which the exponent indicator `p` appears, followed by an either `-` or `+`, and at the exponent in decimal digits.
+Alternatively, if the exponent indicator `px` appears, the exponent is written with hexadecimal digits
 
 When the literal starts with `0x0.`, both the mantissa and exponent are limited to 0.
-The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encoded this way, for these values, the associated constant of the type should be used.
+The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' should not be encoded this way, for these values, the associated constant of the type should be used.
 
+If any character that represents a `<letter>` appears within the literal that is not supported, an error will be generated.
+
+The binary indicator uses a lower case `x`, although no confusing with an uppercase `X` could occur, this is done to be consistent with both binary an octal indicators.
+The exponent indicator `e` also needs to be lower case for the same reason.
+
+A hexadecimal floating point literal is of type `core:.HexFloatLiteral`
 
 #### Examples
 ```
@@ -1585,6 +1658,8 @@ The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encod
 +0x0.0000000000000p+0000 // value of 0, but with included signs
 -0x0.0000000000000p+0000 // value of -0
 0x1.5555555555555p-2 // value of 1/3
+0x1.5555_5555_5555_5p-2 // value of 1/3
+0x1.0pxF // value of 1e15
 ```
 
 ## 6.2. Boolean literals [↵](#6-literals-)
@@ -1594,15 +1669,19 @@ The special values of 'SNAN', 'QNAN', '-INFINITY' or '+INFINITY' cannot be encod
 
 A boolean literal represents either a `true` of a `false` value.
 
+A boolean literal is of type `core:.BoolLiteral`
+
 ## 6.3. Character literals [↵](#6-literals-)
 
 A character literal defines a character, represented by its unicode codepoints.
+
+A character literal is of type `core:.CharLiteral`
 
 ```
 <character-literal> := "'" ( ? any unicode codepoint, except for \ and ' ? | <escape-code> ) "'"
 ```
 
-### 6.3.1. Escape codes [↵](#tables-of-contents)
+### 6.3.1. Escaped characters [↵](#tables-of-contents)
 
 ```
 <escape-code> := '\0'
@@ -1612,11 +1691,14 @@ A character literal defines a character, represented by its unicode codepoints.
                | '\"'
                | "\'"
                | '\\'
+               | '\p'
                | '\x' <hex-digit> <hex-digit>
                | '\u{' { <hex-digit> }[1,6] '}'
+<string-escape-code> := <excape-code>
+                      | '\p'
 ```
 
-An escape code, also known as an escaped character, is used to represent certain character values that normally cannot be represented in a character or string.
+An escaped characterf, also known as an escape code, is used to represent certain character values that normally cannot be represented in a character or string.
 
 These can be generally split into 3 categories:
 - Simple escape codes
@@ -1627,7 +1709,7 @@ A simple escape code exists out of a forward slash `/`, followed by single chara
 The following escape codes are available:
 
 code | Escaped codes
------|-------------------------
+-----|---------------------------------------------------------------------------------------
 `\0` | U+0000 (NUL)
 `\t` | U+0009 (HT)
 `\n` | U+000A (LF)
@@ -1635,75 +1717,133 @@ code | Escaped codes
 `\"` | U+0022 (QUOTATION MARK)
 `\'` | U+0027 (APOSTROPHE)
 `\\` | U+005C (BACKSLASH)
+`\p` | Platform specific linebreaks, i.e. `\r\n` on windows and `\n` on unix-like systems
+
+The special escaped character `\p` is only allowed within string literals, as it may result in a 2 character long sequence.
 
 Hex codes can represent any 8-bit character value using a 2 digit hex code.
-It is written as a `\x`, followed by 2 hex digits.
+It is written as a `\x`, followed by an 2 hex digits.
+
+By default, the hex code is limited to a value within the non-extended ASCII character set, which overlaps with the lowest values in unicode, meaning a value between `x00` and `x7F`.
+This behavior can be changed, if a supporting literal operator, or template string expression is used.
 
 Unicode codepoints represent any valid unicode codepoint, including surrogate pairs, this means all characters in the range 0x000000-0x10FFFF.
 A unicode escape code is written as `\u{`, followed by between 1 and 6 hex digits, and closed of with a `}`.
+
+#### Examples
+```
+\n // Newline
+\x61 // lower case 'a'
+\x81 // Error: hex literal outside of the non-extended ASCII range
+\u{1F44D} // '👍', thumb up emoji
+```
 
 ## 6.4. String literals [↵](#6-literals-)
 
 ```
 <string-literal> := <regular-string-literal> | <raw-string-literal>
 <regular-string-literal> := '"' { ? any valid unicode codepoint, except for \ and '"' ? | ? string continuation sequence ? | <escape-code> }* '"'
-<raw-string-literal> := 'r' { '#' }[N] { ? any valid unicode codepoint ? }* '"' { '#' }[N]
 ```
 
-A string literal defines a static string within a binary which can be used immutably, and are stored within read-only memory in the binary.
+A regular string literal is a sequence of any unicode characters, enclosed by two `"` (double quote) characters, with the exception of `"` itself.
+A string literal may also include include escaped characters.
+They are also limited to being on a single line.
 
-Regular string are usually limited to being on a single line, except for when a string continuation sequence is encountered (see below).
-Regular strings are written as a sequence of characters between 2 `"`s.
+A string literal is of type `core:.StringLiteral`
 
-Raw string can appear accross multiple lines within code, the first line starts from the `"`, but any other line that start at he beginning will contain all whitespace since the beginning of the line.
-Raw string also don't allow any escape codes, as they will just be interpreted as raw text.
+> _Note_: String literals do not get impacted by normalization, unlike any other text in the source data, as defined in [Normalization](#24-normalization-)
 
-to define a raw string, the prefix `r` is used, followed by any number of `#`s, and then a `"`.
-The text in the string will now run until the next encounter of a `"`, followed with as many `#`s as proceeed the string's starting `"`.
-
-_TODO: like C#, multiline strings should be indent aware_
-
-### 6.4.1. String continuation sequence [↵](#64-string-literals-)
+### 6.4.1 Multi-line string literals
 
 ```
-<string-continuation-sequence> := '\' <newline> ? any whitespace character ? ? any non-whitespace character
+<multi-line-string-literal> := { <multi-line-string-segment>  }* <string-literal>
+<mulit-line=string=segment> := '"' { ? any valid unicode codepoint, except for \, '"', and <new-line> ? | <escape-code> }* <new-line> | <line-continuation-indicator>
+<line-continuation-indicator> := '\' <new-line>
 ```
 
-A string continuation sequence allows a regular line to be split up between lines.
+A multi-line string is a special variant of a string literal that allows a string to be places accross multiple lines.
+To keep to the rule that each line should be able to be independtly parsed without context of any other lines, multi line string are special, in that they exists out of multiple tokens.
+Each segments is its own independent token, which start with a `"` (double quote), but ends on a new line, this indicated that the literal continues in the next token.
+The multiline literal ends whenever a matching closing `"` is encountered.
 
-Whenever a `\` is encoutered, directly followed by a new line sequence, the string will pause parsing any character until it finds the next non-whitespace character,
-it will then continue to parse the string.
+As each line is required to start with a `"`, indentation inside of the string can easily be controlled, any preceeding indentation will be ignored, and any succeeding indentation will be part of the the string.
 
-## 6.5. Literal operators [↵](#tables-of-contents)
+In addition, a single line can to be split up into 2 or more lines by adding a line continuation indicator, meaning that instead of having a newline inserted, the segments act as a single line.
+A line continuation indicator is written as a `\`, followed by a new line sequence.
 
-While literals can coerce into a certain set of types, sometimes it can be useful to define a custom literal operator.
-A literal operator can apply compile time checks on the value in the operator + changes the type generated by the literal
+#### Examples
+```
+"This is
+"  a multiline
+"string"
 
-Below is a list of the builtin literal operators:
+// Is equivalent to
 
-literal operator | literal kind | resulting type | Info
------------------|--------------|----------------|-------------
-i8               | Number       | i8             | 8-bit signed integer literal
-i16              | Number       | i16            | 16-bit signed integer literal
-i32              | Number       | i32            | 16-bit signed integer literal
-i64              | Number       | i64            | 16-bit signed integer literal
-i128             | Number       | i128           | 128-bit signed integer literal
-isize            | Number       | isize          | machine-sized signed integer literal
-u8               | Number       | u8             | 8-bit unsigned integer literal
-u16              | Number       | u16            | 16-bit unsigned integer literal
-u32              | Number       | u32            | 16-bit unsigned integer literal
-u64              | Number       | u64            | 16-bit unsigned integer literal
-u128             | Number       | u128           | 128-bit unsigned integer literal
-usize            | Number       | usize          | machine-sized unsigned integer literal
-b                | Character    | u8             | Byte character literal
-b                | String       | &[u8]          | Byte string literal, requires all codepoint to be <= 0x7F
-c                | String       | cstr           | C-string literal (null-terminated), requires all codepoint to be <= 0x7F
-ansi             | String       | str8           | ANSI string literal
-utf7             | String       | str16          | UTF-7 string literal, requires all codepoint to be <= 0x7F
-utf16            | String       | str16          | UTF-16 string literal
-utf32            | String       | str32          | UTF-32 string literal
+"This is\n  a muliline\nstring"
 
-For more info, see the [Operator](#14-operators-) section.
+// This will also result in the same string, as indentation before the starting `"` is ignored
+
+  "This is
+"  a multiline
+  "string"
+```
+
+An example of a line continuation
+```
+"This \
+"is on a\
+" single line"
+
+// Is equivalent to
+
+"This is on a single line"
+```
+
+### 6.4.2. Raw string literals
+```
+<raw-string-literal> := { '#' }[N] '`' { ? any valid unicode codepoint ? }* '`' { '#' }[N]
+<raw-multi-line-string-literal> := { <raw-multi-line-string-literal> }* { <raw-string-literal> }
+<raw-multi-line-string-literal> := { '#' }[N] '`' { ? any valid unicode codepoint, expect <new-line> ? }* <new-line>
+```
+
+Raw string literals are variants of a string literal which does not interpret escaped character specially, instead it interprets them as regular characters in text.
+The raw string literal start with a sequence of `#` characters, and then finally a `` ` `` (backtic) and continues until it reaches another `` ` `` that is immediatally followed by sequence with a matching number of `#` is hit.
+At minimum 0, and most 256 `#` characters are allowed.
+
+Each segment is its own independent token, which must start with the same amount of `#`, followed by a backtick as the initial line, and ending on a new line, which indicates taht teh literal continues on the next line.
+The multiline literal ends whenever a matching closing sequence is encountered.
+
+> _Note_: Any line breaks within raw string literals are part of the resulting string.
+> If the exact characters used to form line breaks are semantically relevant to an application,'
+> any tools that reanslate line breaks in source code to different formats (between "\n" and "\r\n", for example) will chage application behavior.
+> Developers should be carefull in sutch situations
+
+#### Examples
+```
+`this\n is one\n line`
+
+// Is equivalent to 
+
+"this\\n is one\\n line"
+
+
+// nesting
+
+#`outer `inner` outer again`#
+
+```
+
+Multi-line raw literals work line:
+```
+`muli-line
+`raw
+`string`
+
+#`nested
+#` `inner` 
+#`multi-line`#
+
+```
 
 # 7. Items [↵](#tables-of-contents)
 
@@ -3064,17 +3204,57 @@ Implicit borrowing takes place in the following expressions:
 - Operands of a comparison
 - Left operand of a compound assignment
 
-## 9.2. Literal expression  [↵](#9-expressions-)
+## 9.2. Literal expression [↵](#9-expressions-)
 
 ```
 <lit-expr> := <literal> [ ':' <name> ]
 ```
+A literal expression consists of a literal token (or multiple in case of multi-line strings), that denotes the value it will evaluate to.
+It is similar to a constant value, and is (primarily) evaluated at compile time.
 
-A literal expression is used to get a value of a given literals, and is evaluated at compile time.
+In addition, literal expression can also invoke a literal operator to be applied of them, which can either be evaluated at compile time, in case of a fixed size type, but may also evaluate at runtime, for example when needing to allocate backing memory.
+Literal operator may have an effect on the contents that is allowed.
 
-Literal expressions also allow a special literal operator to be applied to them, htis is a constant function that can a value from a literal.
+### 9.2.1. Literal type conversion [↵](#92-literal-expression-)
 
-## 9.3. Path expression  [↵](#9-expressions-)
+Each literal defined within the [Literals section](#6-literals-) has its own literal representation, which itself cannot be the type of the literal expression.
+Therefore each literal needs to be converted to a type that can be used.
+
+If a literal operator is used, this is fairly simple, as the value will be of the type returned by the literal operator.
+
+If none is used, the compiler needs to figure out the best possible type. If this can be derived from the surrounding environment using the [type inferrence rules]().
+Each kind of literal can be converted into a set of type defined below:
+
+Literal kind                 | Possible types
+-----------------------------|----------------
+Integral decimal literal     | [Signed integers](#signed-types) and [Unsigned integers](#unsigned-types)
+Float decimal literal        | [Floating point](#floating-point-types)
+Binary literal               | [Signed integers](#signed-types) and [Unsigned integers](#unsigned-types)
+Octal literal                | [Signed integers](#signed-types) and [Unsigned integers](#unsigned-types)
+Integral hexadecimal literal | [Signed integers](#signed-types) and [Unsigned integers](#unsigned-types)
+Float hexadecimal literal    | [Floating point](#floating-point-types)
+Boolean literal              | [Booleans](#boolean-types)
+Character literal            | [Characters](#character-types)
+String literal               | [String slices](#11110-string-slice-types-)
+
+In case the compiler cannot figure out the type from surrounding context, it 2ill default to the following:
+
+Literal kind                 | Default types
+-----------------------------|----------------
+Integral decimal literal     | `i64`
+Float decimal literal        | `f64`
+Binary literal               | `u64`
+Octal literal                | `u64`
+Integral hexadecimal literal | `u64`
+Float hexadecimal literal    | `f64`
+Boolean literal              | `bool`
+Character literal            | `char`
+String literal               | `str`
+
+
+> _Todo_: Fix up link for type inference
+
+## 9.3. Path expression [↵](#9-expressions-)
 
 ```
 <path-expr> := [ <path-start> ] <expr-path-iden>
@@ -6144,7 +6324,86 @@ It will then set the value of the assignee to the value of perfroming the operat
 Othewise, the expression is syntactic sugar for calling a function of the overloaded compound assignment operator.
 A mutable borrow to the assignee is automatically taken
 
-## 14.5. Operator scoping and use
+## 14.5. Literal operators [↵](#1411-assginment-operators-)
+
+Literal operators are special pseudo-operator that work on literals, and not values.
+
+### 14.5.1. Literal operator item [↵](#145-literal-operators-)
+```
+<literal-operator-item> := 'literal' 'trait' <name> '(' <type> ')' '->' <type> ';'
+```
+
+A literal operator items, as their name implies, declares a new literal operator which can be used to convert a literal to a given value.
+
+These are simpler to declare than an operator set, as they contain fixed functionality and only require the types it operators on to be declared.
+It is declared as a special trait using the `literal` weak keyword, which is then proceeded by the name of the trait defining the literal operator.
+
+Between the parentheses, the type of the literal is passed, these are limited to:
+- `core:.DecLiteral`
+- `core:.DecFloatLiteral`
+- `core:.BinLiteral`
+- `core:.OctLiteral`
+- `core:.HexLiteral`
+- `core:.HexFloatLiteral`
+- `core:.CharLiteral`
+- `core:.StringLiteral`
+
+Corresponding to the type of the available literals.
+Finally, the return type of the literal operator is defined.
+
+Using this info, the literal operator will internally create the following trait that is associated with this item:
+```
+pub trait <name>(<lit-type>) {
+    use core:.{Result, CompileError};
+
+    const fn check(lit: <lit-type>) -> Result((), CompileError);
+    fn lit_op(lit: <lit-type>) -> <ret-type>;
+}
+```
+
+Where `<name>`, `<lit-type>`, and `<ret-type>` are replaced by the value they are respective by.
+
+The `check` function is a compile-time function that will run for every use of the literal operator and is required to report any invalid data within the literal.
+
+The `lit_op` function is used to convert the literal type to the return type and is expected to convert the type without any issue.
+If this function is run at compile time, it is allowed to panic.
+
+### 14.5.2. Builtin operator literals [↵](#145-literal-operators-)
+
+Below is a list of the builtin literal operators:
+
+literal operator | literal kind | resulting type | Info                                   | restrictions
+-----------------|--------------|----------------|----------------------------------------|--------------
+i8               | Integral     | i8             | 8-bit signed integer literal           | n/a
+i16              | Integral     | i16            | 16-bit signed integer literal          | n/a
+i32              | Integral     | i32            | 16-bit signed integer literal          | n/a
+i64              | Integral     | i64            | 16-bit signed integer literal          | n/a
+i128             | Integral     | i128           | 128-bit signed integer literal         | n/a
+isize            | Integral     | isize          | machine-sized signed integer literal   | n/a
+u8               | Integral     | u8             | 8-bit unsigned integer literal         | n/a
+u16              | Integral     | u16            | 16-bit unsigned integer literal        | n/a
+u32              | Integral     | u32            | 16-bit unsigned integer literal        | n/a
+u64              | Integral     | u64            | 16-bit unsigned integer literal        | n/a
+u128             | Integral     | u128           | 128-bit unsigned integer literal       | n/a
+usize            | Integral     | usize          | machine-sized unsigned integer literal | n/a
+f16              | Float        | f16            | 16-bit floating point literal          | n/a
+f32              | Float        | f32            | 32-bit floating point literal          | n/a
+f64              | Float        | f64            | 64-bit floating point literal          | n/a
+f128             | Float        | f128           | 128-bit floating point literal         | n/a
+b                | Character    | u8             | Byte character literal                 | n/a
+b                | String       | &[u8]          | Byte string literal                    | n/a
+c                | String       | cstr           | C-string literal (null-terminated)     | all characters are required to have a codpoint of <=0x7F
+ansi             | String       | str8           | ANSI string literal                    | all characters are required to have a codpoint of <=0x7F
+utf7             | String       | str16          | UTF-7 string literal                   | all characters are required to have a codpoint of <=0x7F
+utf16            | String       | str16          | UTF-16 string literal                  | n/a
+utf32            | String       | str32          | UTF-32 string literal                  | n/a
+
+> _Note_: `Integral` means any of the following: DecLiteral, BinLiteral, OctLiteral or HexLiteral, and
+>         `Float` means any of the following: DecFloatLiteral or HexFloatLiteral
+
+For more info, see the [Operator](#14-operators-) section.
+
+## 14.6. Operator scoping and use [↵](#1411-assginment-operators-)
 
 ```
 <operator-use> := 'op' 'use' <use-root> [ '.' '{' <name> { ',' <name> }* [ ',' ] '}' ]
