@@ -249,38 +249,49 @@ Version: 0.0
     15. [Type check pattern](#1015-type-check-pattern-)
 11. [Types System](#11-type-system-)
     1. [Types](#111-types-)
-        1. [Recursive types](#1111-rescursive-types-)
-        2. [Parenthesized types](#1112-parenthesized-types-)
-        3. [Primitive types](#1113-primitive-types-)
+        1. [`type` type](#1111-type-type-)
+        2. [Recursive types](#1112-rescursive-types-)
+        3. [Parenthesized types](#1113-parenthesized-types-)
+        4. [Primitive types](#1114-primitive-types-)
             - [Unsinged types](#unsigned-types)
             - [Signed types](#signed-types)
             - [Floating-point types](#floating-point-types)
             - [Boolean types](#boolean-types)
             - [Character types](#character-types)
-        4. [Unit type](#1114-unit-type-)
-        5. [Never type](#1115-never-type-)
-        6. [Path types](#1116-path-types-)
-        7. [Tuple types](#1117-tuple-types-)
-        8. [Array types](#1118-array-types-)
-        9. [Slice types](#1119-slice-types-)
-        10. [String slice types](#11110-string-slice-types-)
-        11. [Pointer types](#11111-pointer-types-)
-        12. [Reference types](#11112-reference-types-)
+        5. [Unit type](#1115-unit-type-)
+        6. [Never type](#1116-never-type-)
+        7. [Path types](#1117-path-types-)
+        8. [Tuple types](#1118-tuple-types-)
+            - [Named tuples](#named-tuples-)
+        9. [Array types](#1119-array-types-)
+            - [Sentinel-terminated arrays](#sentinel-terminated-arrays-)
+        10. [Slice types](#11119-slice-types-)
+            - [Sentinel-terminated slices](#sentinel-terminated-slices-)
+        11. [String slice types](#11111-string-slice-types-)
+        12. [Pointer types](#11112-pointer-types-)
+            - [Single element pointers](#single-element-pointers-)
+            - [Multi-element pointers](#multi-element-pointers-)
+            - [Sentinel-terminated pointers](#sentinel-terminated-pointers-)
+            - [Volatile pointers](#volatile-pointers-)
+            - [Alignment](#alignment-)
+            - [Prevenence](#provenence-)
+        13. [Reference types](#11113-reference-types-)
             - [Shared reference](#shared-reference)
             - [Mutable reference](#mutable-reference)
-        13. [Optional types](#11113-optional-types-)
-        14. [Function types](#11114-function-types-)
-        15. [Function poiner types](#11115-function-pointer-type-)
-        16. [Closure types](#11116-closure-types-)
-        17. [Trait Object types](#11117-intereface-object-types-)
-        18. [Impl trait types](#11118-impl-trait-types-)
+            - [Shared xor mutable](#shared-xor-mutable-)
+        14. [Optional types](#11114-optional-types-)
+        15. [Function types](#11115-function-types-)
+        16. [Function poiner types](#11116-function-pointer-type-)
+        17. [Closure types](#11117-closure-types-)
+        18. [Trait Object types](#11118-intereface-object-types-)
+        18. [Impl trait types](#1119-impl-trait-types-)
             - [Anonymous type parameter](#anonymous-type-parameter)
             - [Abstract return types](#abstract-return-types)
             - [Abstract return types in trait declarations](#abstract-return-types-in-trait-declarations)
             - [Limitations](#impl-trait-limitations)
-        19. [Record types](#11119-record-types-)
-        20. [Enum record types](#11120-enum-record-types-)
-        21. [Inferred types](#11121-inferred-types-)
+        20. [Record types](#11120-record-types-)
+        21. [Enum record types](#11121-enum-record-types-)
+        22. [Inferred types](#11122-inferred-types-)
     2. [Dynamically sized types](#112-dynamically-sized-types-)
     3. [Nominal vs stuctural types](#113-nominal-vs-structural-types-)
     4. [Type layout](#114-type-layout-)
@@ -409,11 +420,21 @@ Version: 0.0
             - [`instruction_set`](#instruction_set)
             - [`opt_level`](#opt_level)
             - [`no_alias`](#no_alias)
-            - [`bounds_check`](#bounds_check)
             - [`union_offset`](#union_offset)
             - [`bit_size`](#bit_size)
             - [`field_priority`](#field_prioity)
             - [`val_range`](#val_range)
+            - [`safety_check`](#safety_check)
+            - [`fp_control`](#fp_control)
+                - [`exceptions`](#exceptions)
+                - [`rounding`](#rounding)
+                - [`flush_to_zero`](#flush_to_zero)
+                - [`flush_to_zero_half`](#flush_to_zero_half)
+                - [`denormal_zero`](#denormal_zero)
+                - [`precision`](#precision)
+                - [`alt_half`](#alt_half)
+                - [`nan_mode`](#nan_mode)
+                - [`alt_handling`](#alt_handling)
         7. [Module attributes](#1717-module-attributes-)
             - [`path`](#path)
         8. [Debug attributes](#1718-debug-attributes-)
@@ -439,6 +460,18 @@ Version: 0.0
     5. [`target_pointer_width`](#225-target_pointer_width-)
     6. [`assertions`](#227-assertions-)
     7. [`panic`](#229-panic-)
+23. [Illegal behavior](#23-illegal-behavior-)
+    1. [Integer](#231-integer-)
+        1. [Truncation](#2311-trunctation-)
+        2. [Overflow/underflow](#2312-overflowunderflow--)
+        3. [Division by 0](#2313-division-by-0--)
+    2. [Floating point](#232-floating-point-)
+        1. [Illegal operation](#2321-illegal-operations-)
+        2. [Floating-point to integer out-of-bounds](#2322-floating-point-to-integer-out-of-bounds-)
+    3. [Memory](#233-memory-)
+        1. [Out-of-bounds](#2331-out-of-bounds-)
+        2. [Incorrect pointer alignment](#2332-incorrect-pointer-alignment-)
+        3. [Sentinel access](#2333-sentinel-access-)
 
 
 # 1. Introduction [↵](#tables-of-contents)
@@ -704,6 +737,8 @@ yield
 A weak keyword is a keyword that is dependent on the surrounding context and can be used anywhere outside
 A list of weak keywords can be found below (in a close to alphabetic order):
 ```
+align
+allowzero
 assign
 associativity
 distinct
@@ -729,6 +764,7 @@ sealed
 set
 super
 tls
+volatile
 ```
 
 ## 3.3. Names [↵](#3-lexical-structure-)
@@ -4297,7 +4333,8 @@ Type check patterns can also be used to check if a DST is a given type.
         | <trait-object-type>
         | <impl-trait-type>
 
-<type-no-bound> := <parenthesized-type>
+<type-no-bound> := <type-type>
+                 | <parenthesized-type>
                  | <primitive-type>
                  | <unit-type>
                  | <never-type>
@@ -4317,20 +4354,27 @@ Type check patterns can also be used to check if a DST is a given type.
                  | <inferred-type>
 ```
 
-Types are an essential part of any program, each variable, value, and item have a type.
+Types are an essential part of any program, each variable, value, and item has a type.
 The type defines how a value is interpreted in memory and what operations can be performed using them.
 
 Some types support unique functionality that cannot be replicated using user defined types.
 
-### 11.1.1. Rescursive types [↵](#111-types-)
+### 11.1.1. `type` type [↵](#111-types-)
 
-Nominal types may be recursive, meaning that a tpe may havae member that refers, directly or indirectly, to the current type.
+Types in themselves are a value of the type `type`.
+Where the `type` is itself of type `type`
+
+> _Todo_
+
+### 11.1.2. Rescursive types [↵](#111-types-)
+
+Nominal or ordinal types may be recursive, meaning that a type may have member that refers, directly or indirectly, to the current type.
 These are some limiations on how types can be nested:
-- Type aliases must include a nominal type in the recursion, meaning type aliases, or other structural types like arrays and tuples are not allowed.
+- Type aliases must include a nominal or structural type in the recursion, meaning type aliases, or other types like arrays and tuples are not allowed.
   i.e. `type Foo = &[Foo]` is not allowed.
-- The size of a recursive type must be finite, meanign that the recursive field must be 'broken up' by a type like a pointer or reference type.
+- The size of a recursive type must be finite, meaning that the recursive field must be 'broken up' by a type like a pointer or reference type.
 
-### 11.1.2. Parenthesized types [↵](#111-types-)
+### 11.1.3. Parenthesized types [↵](#111-types-)
 
 ```
 <parenthesized-type> := '(' <type> ')'
@@ -4339,7 +4383,7 @@ These are some limiations on how types can be nested:
 In some locations it may be possible that a type would be ambiguous, this can be solved using a parenthesized type.
 For example, a reference to an trait object type with multiple bounds can be unclear, as we cannot cleanly determine if the one of the bounds is a reference, or the whole set of bounds constitute a single type without requiring to rely heavily on context.
 
-### 11.1.3. Primitive types [↵](#111-types-)
+### 11.1.4. Primitive types [↵](#111-types-)
 
 ```
 <primitive-type> := <unsigned-type>
@@ -4349,8 +4393,12 @@ For example, a reference to an trait object type with multiple bounds can be unc
                   | <character-type>
 ```
 
-A primitive type is a type that exists directly within the langauge and is handled specially by the compiler.
+A primitive type is a type that exists directly within the langauge and can be handled specially by the compiler.
 These are commonly types that fit in machine register and have specialized instruction for these types.
+
+Primitive types are susceptible to [undefined behavior]()
+
+> _Todo_: Fix link to undefined behavior section.
 
 #### Unsigned types
 
@@ -4374,10 +4422,15 @@ Type   | Bit width | Min value | Max value
 
 Both the size and alignment of the unsigned integers are defined by their bit-width.
 
-All but `u128` are generally representable in a CPU register and have native instructions, if there are no native instruction, the program falls back to 'emulating' these types.
+All but `u128` are generally representable in a CPU register and have native instructions, if any type does not have native instructions, the program will fall back to 'emulating' these types.
 
 In addition to the above types, there is also another unsigned type: `usize`.
 `usize` is an unsigned type with the size of a machine-register.
+Most commonly, this means that `usize` will be 32-bits on a 32-bit machine, and 64-bits on a 64-bit machine.
+
+> _Note_: Xenon makes no guarantee on the size of `usize` and the programmer will therefore require explicit care when using this type.
+
+> _Note_: A general rule is to prefer unsigned types whenever negative numbers aren't required. The programme does need to pay attention that the result of any intermetiate result cannot be a negative value when unsigned types are used.
 
 #### Signed types
 
@@ -4401,10 +4454,13 @@ Type   | Bit width | Min value                                            | Max 
 
 Both the size and alignment of the signed integers are defined by their bit-width.
 
-All but `i128` are generally representable in a CPU register and have native instructions, if there are no native instruction, the program falls back to 'emulating' these types.
+All but `i128` are generally representable in a CPU register and have native instructions, if any type does not have native instructions, the program will fall back to 'emulating' these types.
 
 In addition to the above types, there is also another signed type: `isize`.
 `isize` is an unsigned type with the size of a machine-register.
+Most commonly, this means that `usize` will be 32-bits on a 32-bit machine, and 64-bits on a 64-bit machine.
+
+> _Note_: Xenon makes no guarantee on the size of `isize` and the programmer will therefore require explicit care when using this type.
 
 #### Floating-point types
 
@@ -4416,16 +4472,21 @@ A floating point type represent the same sized type as defined in the IEEE-754-2
 
 Below is a table of supported floating-point types:
 
-Type   | Bit width | Mantissa bits      | Exponent bits | Min value  | Max value   | Smallest value | Significant decimal digits
--------|-----------|--------------------|---------------|------------|-------------|----------------|----------------------------
-`f16`  | 16-bits   | 10 (11 implicit)   | 5             | 6.55e+5    | -6.55e+5    | 6.10e-5        | 3
-`f32`  | 32-bits   | 23 (24 implicit)   | 8             | 3.40e+38   | -3.40e+38   | 1.17e-38       | 6
-`f64`  | 64-bits   | 52 (53 implicit)   | 11            | 1.80e+308  | -1.80e+308  | 2.23e-308      | 15
-`f128` | 128-bits  | 112 (113 implicit) | 15            | 1.19e+4932 | -1.19e+4932 | 3.36e-4932     | 34
+Type   | Bit width | Mantissa bits      | Exponent bits | Min value  | Max value   | Smallest value | Significant decimal digits | Notes
+-------|-----------|--------------------|---------------|------------|-------------|----------------|----------------------------|------
+`f16`  | 16-bits   | 10 (11 implicit)   | 5             | 6.55e+5    | -6.55e+5    | 6.10e-5        | 3                          |
+`f32`  | 32-bits   | 23 (24 implicit)   | 8             | 3.40e+38   | -3.40e+38   | 1.17e-38       | 6                          |
+`f64`  | 64-bits   | 52 (53 implicit)   | 11            | 1.80e+308  | -1.80e+308  | 2.23e-308      | 15                         |
+`f80`  | 80-bits   | 1 + 63             | 15            | 1.19e+4932 | -1.19e+4932 | 3.36e-4932     | 15                         | Does not have implicit bit, but explicit integer bit, i.e. `1 + ...`
+`f128` | 128-bits  | 112 (113 implicit) | 15            | 1.19e+4932 | -1.19e+4932 | 3.36e-4932     | 34                         |
 
 Both the size and alignment of the floating points are defined by their bit-width.
 
-_TODO: could include other floating-point types if wanted_
+Most commonly, only `f32` and `f64` are implemented in hardware and have native instructions (like `f80` only being on x86), if any type does not have native instructions, the program will fall back to 'emulating' these types.
+
+> _Note_: Subnormal literals, meaning numbers starting with `0x0.` and followed by any non-zero number in the mantissa and/or exponent, are currently not supported
+
+> _Todo_: could include other floating-point types if wanted
 
 #### Boolean types
 
@@ -4451,6 +4512,10 @@ Type   | Bit-width | Bit-width in bitfield
 Both the size and alignment of the booleans are defined by their bit-width.
 When used in a bitfield, specific bit-with mentioned above is used.
 
+Most commonly, `bool` will be the most common version to use, with sized version mainly being used for 2 reasons:
+- `b8` is useful to require booleans to keep a 1 byte width within a bitfield, as `bool` will automatically become a 1-bit value
+- in usecase where a specific bit-width is required, e.g. `b32` as an equivalent to Window's `BOOL`
+
 #### Character types
 
 ```
@@ -4461,20 +4526,22 @@ A character type is primitive type that can represent unicode characters.
 
 Below is a table of supported character types
 
-Type     | Meaning          | Bit-width | Bit-width in bitfield | Valid range
----------|------------------|-----------|-----------------------|------------------------------------------
-`char`   | utf-32 codepoint | 32-bits   | 32-bits               | 0x000000 - 0x00D7FF & 0x00E00 - 0x10FFFF
-`char7`  | 7-bit ANSI       | 8-bits    | 7-bit                 | 0x00     - 0x7F
-`char8`  | 8-bit ANSI       | 8-bits    | 8-bits                | 0x00     - 0xFF
-`char16` | utf-16 codepoint | 16-bits   | 16-bits               | 0x0000   - 0xFFFF
-`char32` | uft-32 codepoint | 32-bits   | 32-bits               | 0x000000 - 0x10FFFF & 0x00E00 - 0x10FFFF
+Type     | Meaning           | Bit-width | Bit-width in bitfield | Valid range
+---------|-------------------|-----------|-----------------------|------------------------------------------
+`char`   | unicode codepoint | 32-bits   | 32-bits               | 0x000000 - 0x00D7FF & 0x00E00 - 0x10FFFF
+`char7`  | 7-bit ANSI        | 8-bits    | 7-bit                 | 0x00     - 0x7F
+`char8`  | 8-bit ANSI        | 8-bits    | 8-bits                | 0x00     - 0xFF
+`char16` | utf-16 codepoint  | 16-bits   | 16-bits               | 0x0000   - 0xFFFF
+`char32` | uft-32 codepoint  | 32-bits   | 32-bits               | 0x000000 - 0x10FFFF
 
-Both the size and alignment of the booleans are defined by their bit-width.
+Both the size and alignment of the characters are defined by their bit-width.
 When used in a bitfield, specific bit-with mentioned above is used.
 
-If a character has a value outside of its valid range, it is undefined behavior.
+If a character has a value outside of its valid range, it is [undefined behavior]().
 
-### 11.1.4. Unit type [↵](#111-types-)
+> _Todo_: Fix undefined behavior link
+
+### 11.1.5. Unit type [↵](#111-types-)
 
 ```
 <unit-type> := '(' ')'
@@ -4483,7 +4550,7 @@ If a character has a value outside of its valid range, it is undefined behavior.
 The unit type is a special type representing a zero-sided type.
 This is also known as `void` in some other languages.
 
-### 11.1.5. Never type [↵](#111-types-)
+### 11.1.6. Never type [↵](#111-types-)
 
 The never type is a special type that represents an operation that can never complete.
 This type can be implicitly coerced into any type.
@@ -4493,7 +4560,7 @@ It can only ever appear as the return value of a function and can therefore not 
 <never-type> := '!'
 ```
 
-### 11.1.6. Path types [↵](#111-types-)
+### 11.1.7. Path types [↵](#111-types-)
 
 ```
 <path-type> := <type-path>
@@ -4501,72 +4568,144 @@ It can only ever appear as the return value of a function and can therefore not 
 
 A path type refers to a user-defined path by its path, there are 3 types it can represent.
 
-### 11.1.7. Tuple types [↵](#111-types-)
+### 11.1.8. Tuple types [↵](#111-types-)
 
 ```
 <tuple-type> := '(' <type> { ',' <type> }+ [ ',' ] ')'
+              | '(' <type> ',' ')'
+              | <named-tuple>
 ```
 
-A tuple type is a _structural_ type consisting out of a list of other types.
+A tuple type is a _structural_ type consisting out of a list of types.
+They are generally consist out of a minimum of 2 sub-types, as otherwhise they can be resolved to the following types:
+- 0: Unit type
+- 1: Parenthesized type
 
-The resulting tuple has a number of elements, specified using by the number of types contained within the tuple.
-Meaning that the first field will be `0`, the second will be `1`, etc.
-The type of each field is the type specified as the `N`-th type of the tuple type.
+A single field tuple is possible, by having the tuple consist of a single type with a trailing comma.
 
-A tuple with N fields is as called an N-ary tuple, for example a tuple with 2 fields is a 2-ary tuple.
+The resulting tuple has a number of fields, that is specified by the number of types contained within the tuple.
+The number of field also defined the _arity_ of the tuple, meaning that a tuple with `n` types, is an `n`-ary tuple.
+For example, a tuple with 3 types is a 3-ary tuple.
 
-Tuples are required to have at least 2 types, otherwhise they will be resolved to the following types:
-- 0 types will be interpreted as a unit type
-- 1 type will be interpreted as a parenthesized type
+A tuple's fields can be access by their index, meaning that the first field will be `0`, the second will be `1`, etc.
+Each field has the type as the one in the same position as is provided in the list of types.
 
-### 11.1.8. Array types [↵](#111-types-)
+Some examples of tuples:
+```
+(i32, ) // A 1-ary tuple of type i32
+(f64, f64)
+(bool, i32)
+(i32, bool) // Different then the one above it
+(f32, i32, ?String)
+```
+And some tuple-like types, which are not actually tuples:
+```
+() // not a tuple, but a unit type
+(i32) // not a tuple either, but a parenthesized `i32`
+```
+
+An example of a usecase for a 1-ary tuple would be when planning to possibly add another type to a tuple in the future, without breaking code.
+This is explained in the following pseudo-code:
+```
+// When starting with the following code
+
+fn foo() -> (i32, ) { .. }
+fn bar() {
+    let tup = foo();
+    do_something(tup.0);
+}
+
+// It is now possible to add an additional return to foo, without breaking already existing code.
+fn foo() -> (i32, i64) { ... }
+
+// bar does not need to be changed, as the access to tup.0 is still valid.
+```
+
+> _Note_: Internally, tuple types are represented as [record tuple structs](#record-tuple-struct), for example:
+> ```
+> (i32, i64, bool)
+> // is represented at
+> record struct __generated_name(i32, i64, bool)
+> ```
+
+
+> _Note_: For a nominal version of a tuple, see [tuple structs](#752-tuple-structure-)
+
+#### Named tuples [↵](#1118-tuple-types-)
 
 ```
-<array-type> := '[' <expr> [ ';' <expr> ] ']' <type>
+<named-tuple-type> := '(' <name> ':' <type> { ',' <name> ':' <type> }+ [','] ')'
+                    | '(' <name> ':' <type> ',' ')'
+```
+
+A named tuple is a variant of a tuple, where each field can have an associated name.
+In addition to accessing a field by its name, a named tuple's fields can also be indexed like a regular tuple, i.e. by each element's index.
+
+A named and regular tuple may be assigned to each other when their types match, but 2 names tuples can only be assigned to each other when both their names and types match.
+
+Internally, tuple types are represented as [record tuple structs](#record-tuple-struct), for example:
+```
+(i32, i64, bool)
+// is represented at
+record struct __generated_name(i32, i64, bool)
+```
+
+> _Note_: Internally, tuple types are represented as [record tuple structs](#record-tuple-struct), for example:
+> ```
+> (a: i32, field: i64, name: bool)
+> // is represented at
+> record struct __generated_name(a: i32, field: i64, name: bool)
+> ```
+
+### 11.1.9. Array types [↵](#111-types-)
+
+```
+<array-type> := '[' <expr> { ',' <expr> }* [ ';' <expr> ] ']' <type>
 ```
 
 An array type (`[N]T`) is a fixed-size sequence of `N` elements of type `T`
 Array types are laid out as a contiguous chunk of memory.
 
-An array's size expression, which occurs after the `;`, needs to be a value that can be evaluated at compile time.
+An array's size expression needs to be a value that can be evaluated at compile time, and has a type of `usize`.
 
-#### Sentinel-terminated arrays
+Arrays support out-of-bound safety checks.
+
+#### Sentinel-terminated arrays [↵](#1119-array-types-)
 
 An array can also have a sentinel value, which is declared after the size.
 So an array `[N;M]T` has `N` elements of type `T`, with a sentinel value of `M`.
-Like the size, the sentinel value needs to be evaluated at compile time.
+Like the size, the sentinel value needs to be evaluated at compile time, and has a type of `T`.
 
 When a sentinel value is defined, the array will contain 1 additional element past its lenght, this is the sentinel value.
 
 Sentinel value mainly exist for interoperability with C and OS libraries that commonly expect a range of values ending in a sentinal value,
 but these are not that useful when writing Xenon code itself
 
-### 11.1.9. Slice types [↵](#111-types-)
+### 11.1.10. Slice types [↵](#111-types-)
 
 ```
 <slice-type> := `[` ';' <expr> `]` <type>
 ```
 
-A slice type (`[T]`) is a dynamically sized type that represents a 'view' within a sequence of elements of type `T`.
+A slice type (`[]T`) is a dynamically sized type that represents a 'view' within a sequence of elements of type `T`.
+
+A slice can be empty, meaning that is has a size of 0 and does not point to any values.
 
 Slices are generally used through reference or pointer-like types:
-- `&[T]`: a shared slice, often just called a slice. It borrows the data it point to.
-- `&mut [T]`: a mutable slice. It mutably borrows the data it point to.
+- `&[]T`: a shared slice, often just called a slice. It borrows the data it point to.
+- `&mut []T`: a mutable slice. It mutably borrows the data it point to.
 
-#### Sentinel-terminated slices
+#### Sentinel-terminated slices [↵](#11110-slice-types-)
 
-Like an array, a slice may also include sentinels, the slice will then contain 1 additional elements past its dynamically stored length, this is the sentinel value.
+Like an array, a slice may also include a sentinel value, the slice will then contain 1 additional elements past its dynamically stored length, this is the sentinel value.
 This value is meant to prevent accidental out of bounds writes.
-
-A sentinel value can also be defined as an array of values of type `T`, if this is done, the array will contain multi-element sentinel.
-The multi sentinels' size is dependent on the number of values in that array, so the resulting array will be as many elements larger.
 
 Sentinel value mainly exist for interoperability with C and OS libraries that commonly expect a range of values ending in a sentinal value,
 but these are not that useful when writing Xenon code itself
 
-See the [index expression] for more info about how to create a sentinal terminated array.
+See the [index expression](#912-index-expression-) for more info about how to create a sentinal terminated array.
 
-### 11.1.10. String slice types [↵](#111-types-)
+### 11.1.11. String slice types [↵](#111-types-)
 
 ```
 <string-slice-type> := 'str' | 'str7' | 'str8' | 'str16' | 'str32' | 'cstr'
@@ -4574,28 +4713,41 @@ See the [index expression] for more info about how to create a sentinal terminat
 
 A string slice typre repesents a special slice, encoding a string.
 This is a separate type, which allows string specific functionality.
+In addition, they assure that the underlying data is valid data for their representive encoding type.
+
+Calling a string slice method on invalid underlying data is [undefined behavior]()
+
+String slices, like regular slices, are dynamically sized types and can therefore only be instantiated through a pointer or reference type.
 
 Below is a table of all string slice types
 
 Type    | character type | internal representation | Meaning
---------|----------------|-------------------------|---------
+--------|----------------|-------------------------|-----------------------------------------
 `str`   | `char`         | `[]u8`                  | utf-8 string
 `str7`  | `char7`        | `[]char7`               | utf-7 string
 `str8`  | `char8`        | `[]char8`               | ANSI string
 `str16` | `char16`       | `[]char16`              | utf-16 string
 `str32` | `char32`       | `[]char32`              | utf-32 string
-`cstr`  | `char8`        | `[*;0]char8`            | C-style string
+`cstr`  | `char8`        | `[;0]char8`             | C-style string, includes null-terminator
 
-### 11.1.11. Pointer types [↵](#111-types-)
+> _Todo_: Fix undefined behavior link
+
+### 11.1.12. Pointer types [↵](#111-types-)
 
 ```
-<pointer-type> := ( '^' | ( '[' '^' [ ';' <expr> ] ']' ) ) [ 'mut ] <type>
+<pointer-type> := '^' [ <ptr-specifiers> ] <type>
+                | '[' '^' [ ';' <expr> ] ']' [ <ptr-specifiers> ] <type>
+<ptr-specifiers> := [ <ptr-align> ] [ 'allowzero' ] [ 'mut' | 'volatile' ]
+<ptr-align> := 'align' '(' <expr> ')'
 ```
 
 A pointer type represents an address in memory containing hte underlying type.
-Pointer do not have any safety guarantees.
 Copying or dropping pointer has no effect on the lifecycle of any value.
 Derefencing a pointer is an `unsafe` operation.
+
+Although raw pointers are not neccesarily discouraged, they do lack the safety guarantees that are associated with references.
+Meaning anything can happen with the underlying memory, like being modified by another part of the processor.
+It is therefore encouraged to use references over pointers whenever possible.
 
 Raw pointer are generally discourages, and are mainly there to allow for interopterability and perfomance-critical and low-level functionality.
 It is preferable to use smart pointer wrapping the inner value.
@@ -4605,72 +4757,150 @@ When comparing pointers to dynamically sized types, they also have their additio
 
 A pointer cannot contain a 'null' value when not in an optional type.
 
-Xenon has 3 kinds of pointers:
+Xenon has 3 kinds of pointers.
+
+> _Todo_: Should pointers handle ownership, some language item, or should it be something API based?
  
-#### Single element pointers
+#### Single element pointers [↵](#11112-pointer-types-)
 
 A single element pointer `^T` or `^mut T`, refers to exactly 1 element in the memory pointed to.
 
 This pointer can be converted to a reference by re-borrowing it using `&^` or `&mut ^`.
 
-Single element pointer do not support any pointer arithmetic.
+Single element pointers do not allow any arithmetic between pointer and integers, and therefore only support subtracting pointer from eachother, i.e. `ptr - ptr`.
+Single element pointers are allowed to be sliced to a single element slice.
 
 As an example, the pointer `^i32` would represent a pointer to a single immutable `i32` value.
 
-#### Multi element pointers
+#### Multi element pointers [↵](#11112-pointer-types-)
 
 A multi-element pointer `[^]T` or `[^]mut T`, pointing to an unknown number of elements.
 
-Multi-element pointers allow, in addition to standard pointer functionality, also to be index and have pointer arithmetic to be performed on them.
+In addition to the operations allowed on a single element pointer, a multi-element pointer allows additional functionality:
+- pointer and integer arithmetic
+- slicing with any range
+- indexing of the underlying memory
+
 When a pointer contains dynamically sized types, it will consist out of an array of fat pointers.
 
-As an example, the pointer `[^]i32` would represent a pointer to an unknwon number of immutable `i32` values.
+Multi-element pointers require a type with an known size and alignment, meaning that multi-element pointer of dynamically sized types are not allowed.
 
-#### Sentinel terminated pointer
+Unlike slices, mutli-element pointers do not support safety checks.
+
+As an example, the pointer `[^]i32` would represent a pointer to an unknown number of immutable `i32` values.
+
+#### Sentinel-terminated pointers [↵](#11112-pointer-types-)
 
 A sentinel terminated pointer `[^;N]T` or `[^;N]mut T` is very similar to a multi-element pointer.
 The main difference lies in the fact that a sentinel terminated pointer will only contain the number of elements until the first occurance of the sentinel value.
 
 The main purpose of this type is to prevent buffer overflows when interacting with C-style and OS code.
 
-### 11.1.12. Reference types [↵](#111-types-)
+#### Volatile pointers [↵](#11112-pointer-types-)
+
+Pointers operations are generally assumed not to have any side-effects, and the optimizer uses that fact to be able to optimize the code.
+An issue occurse when the pointer points to memory that does have side effects, like MMIO (Memory Mapped I/O).
+
+To handle this correctly, `volatile` pointers can be used. They are pointer that are allowed to have side-effects.
+Both single and multi-element pointers support volatile.
+`volatile` implies `mut`.
+
+> _Note_: `volatile` pointers are unrelated to atomics, in usecases where `volatile` is used with atomics, this is most likely in error.
+
+#### Alignment [↵](#11112-pointer-types-)
+
+Each type has an alignment as defined [here](#1141-size-and-alignment-), which also means that pointer pointing to memory that contains those values, needs to aligned correctly.
+
+Because of this, each pointer type has an alignment associated with it, by default this is the alignment of the underlying type.
+Alignment can be added decided manually by using the `align` pointer specifier.
+
+
+Since alignment cannot be guaranteed to be at an address with greater alignment, pointer can only be implicitly cast to another pointer with the same alignment of less.
+If the programmer can guarantee a pointer has a larger alignment, the core library contains use to cast a pointer with a lower alignment to one with a larger alignment.
+If the value given does not adhere to the larger alignment, either an error value can be created, or [illegal behavior might occur](#2332-incorrect-pointer-alignment)
+
+> _Todo_: Specify which utilites
+
+#### `allowzero`
+
+`allowzero` is a special specifier that allows zero to be a valid pointer value.
+This should not be confused with optional pointers, but is meant for cases, like an RTOS where the address is mappable.
+
+Optional pointer with `allowzero` have a different size then those without `allowzero`.
+
+#### Provenence [↵](#11112-pointer-types-)
+
+Pointer provedence can be seen as some additional invisible data that is associated with a pointer, this can, for example, be information where a pointer comes from.
+Given 2 pointer, there is no guarantee they are meant to be similar, even if they have the same value.
+
+An example of this would be:
+```
+a := [1, 2, 3];
+b := [4, 5, 6];
+
+let p : [^]i32 = &a;
+let q : [^]i32 = &b;
+
+r := q + 3;
+
+#assert(p == q);
+```
+Even though both `p` and `q` originally pointed to an element in 2 distinct sets of memory, the addition of 3 elements to `q` makes it overlap with `p` (as the stack grows downwards).
+This can cause issues, as the compiler can see that `p` and `q` are supposed to point to 2 distinct array, so it can interpret this by assuming that the address of `p` and `q` can never overlap.
+
+In an actual usecase, we can derive that they will overlap, as we have a compile time known offset, but if the `3` is a the result of a more complex runtime computation, we suddenly don't have this guarantee anymore (this is ignoring the fact we could actually insert a safety_check on the value we get out of the computation here).
+
+> _Note_: This section is currently mainly informational, as provenence handling is still unresolved. An intersting writeup around this problem can be found [here](https://www.ralfj.de/blog/2022/04/11/provenance-exposed.html). Provence will be something that will be looked at later in the development cycle.
+
+### 11.1.13. Reference types [↵](#111-types-)
 
 ```
 <reference-type> := `&` [ 'mut' ] <type>
 ```
 
-A reference type, like a pointer, point to a fiven value in memory, but which is owned by another value.
+A reference type, like a pointer, points to a given value in memory, but of which the memory is owned by another value.
 Copying a reference is a shallow opertion and will only copy of just the pointer to the memory, and any metadata required for dynamically sized types.
-Releasing a reference has no effect on the lifecycle of the value it points to, except when refernecing a temporary value, it will keep it alive during the scope of the reference itself.
+Releasing a reference has no effect on the lifecycle of the value it points to, except when referencing a temporary value, then it will keep the temporary value alive during the scope of the reference itself.
 
 References are split into 2 types:
 
-#### Shared reference
+#### Shared reference [↵](#11113-reference-types-)
 
 A shared reference prevents direct mutation of the value, but interior mutability provides an exception for this in certain circumstances.
 As the name suggets, any mubmer of shared references to a value may exist.
 
 A shared reference is written as `&T`.
 
-#### Mutable reference
+#### Mutable reference [↵](#11113-reference-types-)
 
 Mutable references (which haven't been borrowed) allow the underlying value to be directly modified.
 
 A mutable reference is written as `&mut T`.
 
-#### 11.1.13. Optional types [↵](#111-types-)
+#### Shared xor mutable [↵](#11113-reference-types-)
+
+One of the rules references introduce for safety reasons, is that any value can only be shared or mutable at any time, and not at the same time either.
+This add a guarantee that any shared reference will contain the same underlying value whenever it is accessed, no matter what other parts of the processors are using it for..
+
+#### 11.1.14. Optional types [↵](#111-types-)
 
 ```
 <optional-type> := '?' <type>
 ```
 
-An optional type allows a value to be represented using a 'null' or `None` state, which can be used to represent a type with no value set.
+An optional type allows a value to be represented using a `null` or `.None` state, which can be used to represent a type with no value set.
+
+Optional types allows the ability to have pointers that cannot be `null` ([`allowzero` pointers](#allowzero) have a different meaning).
+
 When an optional type (or the `Option<T>` type) is used, then depending on the value within, the compiler is allowed to do certain optimizations to encode the 'null' state within the value.
-An example is a nullable pointer, where the 'null' state is represented with an address of `0x00000000`.
+An example is a optional pointer, where the 'null' state is represented with an address of `0x00000000`.
 
-This is synctactic suger of `Option<T>`.
+This is synctactic suger of `Option<T>`, with some additional bells & whistles, as the compiler understands nullable types. These are the following:
+- `.None` can be used to set the value to none, as it is imported via the core prelude
+- when assigning a non-`.None` value, impliclty warps the value within `.Some()`. This also works for returns
+- control flow expression have additional syntax to make using them more ergonomic
 
-### 11.1.14 Function types [↵](#111-types-)
+### 11.1.15. Function types [↵](#111-types-)
 
 A function type is an anonymous compiler-generated type, which cannot be manually defined.
 The type references a specific function, including its name and its signature (including parameter labels).
@@ -4682,7 +4912,7 @@ Separating each function in its own type allows for additional optimization.
 
 When an error message is generated using this type, it will generally show up as something like `fn(_:i32) -> i32 { name }`
 
-### 11.1.15. Function pointer type [↵](#111-types-)
+### 11.1.16. Function pointer type [↵](#111-types-)
 
 ```
 <fn-type> := [ 'unsafe' [ 'extern' <abi> ] ] 'fn' '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
@@ -4702,13 +4932,13 @@ If multiple names are are given for a single parameter, these will be separate p
 
 _TODO: Variadic paramters, if possible_
 
-### 11.1.16. Closure types [↵](#111-types-)
+### 11.1.17. Closure types [↵](#111-types-)
 
 A closure type is a compiler generated type which cannot be declared manually, and refers to a closure using a unique anymous type.
 
 For more info about closure, see the [closure expression].
 
-### 11.1.17. Intereface Object types [↵](#111-types-)
+### 11.1.18. Intereface Object types [↵](#111-types-)
 
 ```
 <trait-object-type> := 'dyn' <trait-bound>
@@ -4732,7 +4962,7 @@ Trait object types allowe for "late binding" in cases where the types being used
 Calling a method will use a virtual dispatch of the method: that is, teh function pointer is loaded from the vtable, and is then invoked indirectly, incurring a pointer indirection.
 The actual implementation of each vtable may vary on an object-by-object basis.
 
-### 11.1.18. Impl trait types [↵](#111-types-)
+### 11.1.19. Impl trait types [↵](#111-types-)
 
 ```
 <impl-trait-type> := 'impl' <trait-bound>
@@ -4824,7 +5054,7 @@ Instead the function chooses the return type, with the only guarantee that it im
 An impl trait type may only occur for non-`extern` functions.
 It can also not be the type of a variable declaration, a field, or appear inside a type alias.
 
-### 11.1.19. Record types [↵](#111-types-)
+### 11.1.20. Record types [↵](#111-types-)
 
 ```
 <record-type> := 'struct' '{' <record-members> '}'
@@ -4836,7 +5066,7 @@ A record is a _structural_ type is that, similarly to a tuple, consisting out of
 
 But unlike a tuple, fields can be given explicit names, which can then be used to index the fields of the record.
 
-### 11.1.20. Enum record types [↵](#111-types-)
+### 11.1.21. Enum record types [↵](#111-types-)
 
 ```
 <enum-record> := 'enum' '{' <enum-fields> '}'
@@ -4847,7 +5077,7 @@ An enum record is a _structural_ type and is a variant of a record.
 Unlike a record, it does not represent a collection of fields, but a type that is similar to that of an `enum`.
 Access to enum members work essentially identical than those of an enum.
 
-### 11.1.21. Inferred types [↵](#111-types-)
+### 11.1.22. Inferred types [↵](#111-types-)
 
 ```
 <inferred-type> := '_'
@@ -4940,6 +5170,7 @@ Types                                                | Size/Alignment (bytes) | 
 `i16`  / `u16`  / `f16`  / `b16` / `char16`          | 2                      | 16                      | 16
 `i32`  / `i32`  / `f32`  / `b32` / `char32` / `char` | 4                      | 32                      | 32
 `i64`  / `i64`  / `f64`  / `b64`                     | 8                      | 64                      | 64
+`f80`                                                | 10 / 2                 | 80                      | 16
 `i128` / `u128` / `f128`                             | 16                     | 128                     | 128
 `usize` / `isize`                                    | see below              | see below               | see below
 `bool`                                               | 8                      | 1                       | 1
@@ -6816,13 +7047,12 @@ The `cold` attribute suggest that the function is unlikely to be called.
 The `track_caller` attribute allows code within the function to get a hint of the `Location` of the top-most tracked call that leads to the function's invocation.
 At the point of observation, an implementation behaves as if it walks up the stack from the function's frae to find the nearest frame of an unattributed function, and return the location of the tracked caller.
 
-
 It can be applied to all `Xenon` ABI functions with the exception of the main function.
 When applied to a function declaration inside of a trait, it will be applied to all implementations, if it is applied to a default implementation, it will also be applied to all overriding implementations.
 
 #### `instruction_set`
 
-The `instruction_set` atrtibute allows multiple identical function to be generated based on the instruction set being used in a program that can run multiple instructions sets on CPU architectures that support it.
+The `instruction_set` attribute allows multiple identical function to be generated based on the instruction set being used in a program that can run multiple instructions sets on CPU architectures that support it.
 An example of this is normal and thumb arm code.
 
 #### `opt_level`
@@ -6833,16 +7063,6 @@ This has the same possible values as the `opt_level` compiler setting.
 #### `no_alias`
 
 The `no_alias` attribute is applied to function paramters with a pointer or pointer-like types, guaranteeing that these do not alias and may therefore apply optimizations based on this fact.
-
-##### `bounds_check`
-
-The `bounds_check` attribute allows the control on whether bounds check should be generated when indexing arrays or slices.
-The following modes are supported:
-- `on`: Bounds checks will always generated
-- `debug`: Bound checks will only generated in debug builds
-- `off`: Bound checks are not generated
-
-The default in `on`.
 
 #### `union_offset`
 
@@ -6865,6 +7085,162 @@ This information can then be used for optimization by the compiler.
 #### `spec_order`
 
 The `spec_order` attribute is uses in case there is a possible collision between specialization, see []
+
+#### `safety_check`
+
+The `safety_check` attribute allows the control on whether safety check check should be generated for checkable illegal behaviors.
+Safety check can can be either be set on at the top level, or on a category or sub-category level.
+
+The following modes are supported:
+- `on`: Safety checks will always generated
+- `debug`: Safety checks will only generated in debug builds
+- `off`: Safety checks are not generated
+
+The default is `debug`.
+
+Below is a table with mappings between `safety_check` attribute categories and their associated illegal behaviors
+
+category  | sub-category    | illegal behavior
+----------|-----------------|--------------------
+`integer` |                 | [all integer IB](#231-integer)
+`integer` | `truncation`    | [integer truncation](#2311-trunctation)
+`integer` | `overflow`      | [integer overflow/underflow](#2312-overflowunderflow)
+`integer` | `div_by_0`      | [division by 0](#2313-division-by-0)
+`fp`      |                 | [all floating point IB](#232-floating-point)
+`fp`      | `illegal_fp`    | [illegal operations](#2321-illegal-operations)
+`fp`      | `fptoi_oob`     | [Floating-point to integer out-of-bounds](#2322-floating-point-to-integer-out-of-bounds)
+`memory`  |                 | [all memory IB](#233-memory)
+`memory`  | `out_of_bounds` | [Out-of-bounds](#2331-out-of-bounds)
+`memory`  | `ptr_align`     | [Incorrect memory alignment](#2332-incorrect-pointer-alignment)
+`memory`  | `sentinel`      | [](#2333-sentinel-access)
+ 
+Categories and sub-categories may be set in addition to a more general value.
+
+#### Examples
+```
+@safety_check(.on) // Turn all check on
+@safety_check(integer(div_by_0 = .on)) // Only turn integer division by 0 on
+
+// Set the following
+// - `.debug` for all safety checks, but
+// - turn integer safety check to `.on`, but
+// - turn integer overflow safety checks to `.off`
+@safety_check(.debug, integer(.off, overflow = .on))
+```
+
+#### `fp_control`
+
+The `fp_control` attribute allows control of how floating point operations are handled to set for a specific item, overwriting the default value for the program.
+
+The possible controls are defined below.
+
+> _Note_: Check teh relavent section to see the supported architectures for each settings, if none are explicitly mentioned, the setting is available on all platforms
+
+> _Note_: floating point controls can also be set at runtime
+
+> _Note_: Setting floating point controls may prevent the compiler from fully inlining other function, or being inlined witin functions which have different `fp_control`s set
+
+> _Todo_: If Bfloat16 is supported, at controls for ARM's EBF (extended brain float behaviors), and NEP (lowest element determination for SIMD) control bit
+
+##### `exceptions`
+
+The `exceptions` control is a mask of flags that decide what floating point exceptions (and therefore IB) can be trigered.
+If the exception can't be triggered, the instructions will return a value.
+
+Below are the possible `exceptions` that can be set, and the default value that is returned when not.
+
+`exceptions`  | value when off                             | meaning
+--------------|--------------------------------------------|----------------
+`.none`       | n/a                                        | Disable all flags
+`.all`        | n/a                                        | Enables all flags
+`.invalid_op` | `NaN`, depends on `nan_mode`               | a mathematically undefined operation, e.g. `sqrt(-1)`.
+`.div_by_0`   | `+inf` or `-inf`, based on sign of operand | an operation on a finite operand that results in an exact infinite result, e.g. `1.0/0.0` or `log(0.0)`.
+`.overflow`   | `+inf`                                     | a finite result is too large to be represented accurately (i.e. its exponent with an unbounded exponenet range would be larger that the maximum exponent).
+`.underflow`  | subnormal, depends on `denormal`           | a result is very small (outsize of normal range).
+`.inextact`   | Rounded value according to rounding mode   | the exact (i.e. unrounded) result is not represetable exactly.
+`.denorm_in`  | n/a                                        | one of the operands passed to the instruction is a denormal value.
+
+`exceptions` can be set to a combinations of flags, e.g. `.invalid_op | .div_by_0`
+
+The default value of `exceptions` is `.all`
+
+> _Note_: the `denormal_in` exception is only support on x86/64 processors
+
+##### `rounding`
+
+The `rounding` control controls how values are rounded when there is not enough precision to store the full result, and can be set to the following:
+- `.nearest`: Round towards nearest even value
+- `.neg_inf`: Round towards -infinity
+- `.pos_inf`: Round towards infinity
+- `.zero`: Round towards zero
+
+The default value of `rounding` is `.even`
+
+##### `flush_to_zero`
+
+The `flush_to_zero` control decides what should happen when a denormal value is generated by an instructions, and can be set to the following values:
+- `.save`: Keeps the denormal value
+- `.flush`: Flushed any denormal value, i.e. set value to 0 when a denormal is generated. This mode is not IEEE compliant, but can provide performance improvements.
+
+> _Note_: `flush_to_zero_half` is only supported on x86/64 and ARM
+
+##### `flush_to_zero_half`
+
+The `flush_to_zero_half` control similar to `flush_to_zero`, expect that it defines this mode for half precision floatin points, and can be set to the following values:
+- `.save`: Keeps the denormal value
+- `.flush`: Flushed any denormal value, i.e. set value to 0 when a denormal is generated. This mode is not IEEE compliant, but can provide performance improvements.
+
+> _Note_: `flush_to_zero_half` is only supported on ARM
+
+##### `denormal_zero`
+
+The `denormal_zero` control controls how denormal operand to instructions should be interpreted, and can be set to the following values:
+- `.denormal`: Passes the denormal to the operation as it is
+- `.zero`: Inteprets any denormal input as 0. This mode is not IEEE compliant, but can provide performance improvements.
+
+> _Note_: `flush_to_zero_half` is only supported on x86/64 and ARM
+
+##### `precision`
+
+The `precision` control defines what precision x87 floating points do there calculations at, and can be set to the following:
+- `.single`: Reduces x87 instruction to to 24-bit mantissa precision (f32 precision)
+- `.double`: Reduces x87 instruction to to 53-bit mantissa precision (f64 precision)
+- `.extended`: x87 instructions utilize the full 64-bit mantissa available (f80 precision)
+
+The default value of `precision` is `.extended`
+
+> _Note_: `precision` is only supported on x86/64, when x87 FPU instructions are used
+
+##### `alt_half`
+
+The `alt_half` control defines whether an alternate version of half precision floating points is used, and can be set to the following:
+- `.off`: Use the IEEE-754 rounding mode
+- `.on`: Use ARM's alternate half fp format. This mode is not IEEE compliant.
+
+The default value of `alt_half` is `.off`
+
+On ARM, an alternate half is similar to a IEEE 754 half, but it does not support special values, instead uses those possible bitpatterns as valid values.
+
+> _Note_: `alt_half` is only supported on ARM
+
+##### `nan_mode`
+
+The `nan_mode` control defines how the input NaN value is passed through the operation, and can be set to the following:
+- `.propagate`: Propagates/return the input NaN if provided, otherwise return the generated NaN.
+- `.generate`: Return a default generated NaN. This mode is not IEEE compliant.
+
+The default value of `nan_mode` is `.propagate`.
+
+> _Note_: `alt_half` is only supported on ARM
+
+##### `alt_handling`
+
+The `alt_handling` control defines wether the processor should use alternative handling for floating point numbers, and can be set to the following
+- `.off`: Use standard handling
+- `.on`: Use alternative handling. This mode is not IEEE compliant.
+
+> _Note_: `alt_handling` is only supported on ARM, for more info, see the ARM architectural reference C5.2.8
+
 
 ### 17.1.7. Module attributes [↵](#171-built-in-attributes-)
 
@@ -7126,6 +7502,8 @@ This value defines the compilation mode:
 - `.debug`
 - `.release`
 
+> _Note_: Additional values can be provided to the compiler
+
 ## 22.7. `assertions` [↵](#22-configuration-options-)
 
 This value defines whether assertions are enabled:
@@ -7137,3 +7515,128 @@ This value defines whether assertions are enabled:
 This value defined the panic mode
 - `.unwind`
 - `.abort`
+
+# 23. Illegal behavior [↵](#tables-of-contents)
+
+Xenon has many operations which result in illegal behavior (IB). This can be compared to languages which have undefined beharvior (UB), illegal behavior is explicitly defined as invalid and will result in errors, instead of strange runtime behavior.
+
+If illegal behavior is detected at compile time, the compiler will emit a compiler error and stop compiling.
+If instead it happens during runtime, it will fall into one of two categories: safety checked and unchecked.
+
+Unchecked illegal behavior, means that the compiler is not able to insert safety check for it. When this behavior is invoked at runtime, it's behavior is undefined.
+The optimizer is free to make this illegal behavior do anything, which could lead from thing as simple as crashing, but may also execute code that should not be called, or even overwrite arbitrary data.
+If unchecked behavior is executed at compile time, it will emit a compiler error, as it has much better infrastructure to catch issues like these.
+
+Safety-checked illegal behaviors means that the compiler is able to insert a safety check of whereever this behavior can occur. At runtime, this will result in the program panicking.
+The majority of illegal behavior is of this type.
+
+For performance reasons, these safety checks may be enabled or disabled on a granular level, overriding the default for the current compilation mode.
+This granularity works in 2 ways:
+- on a safety check category level, and
+- on a code level, from the entire library to statements.
+
+This can be done using [safety-check attributes](#1717-safety-checks-)
+
+> _Todo_: Add support for IB from contracts
+
+> _Todo_: Add more examples: compile time & runtime
+
+## 23.1. Integer [↵](#23-illegal-behavior-)
+
+Illegal behavior on integer operations can be caused by the below categories.
+
+### 23.1.1. Trunctation [↵](#231-integer-)
+
+There are 2 ways of casting an integer that cause truncation:
+- casting from a negative signed integer to a signed integer value
+- casting a value of a larger bitwidth to a smaller bitwidth integer that cannot contain the value
+
+#### Examples
+```
+// Casting a negative value to an unsigned type
+let a: i32 = -23;
+a as u32;
+
+// Casting to a smaller bitwidth that cannot contain the value
+let b: i16 = 300;
+a as i878
+```
+
+To truncate a value, use the `<todo: insert fn name here>` function.
+
+### 23.1.2. Overflow/underflow  [↵](#231-integer-)
+
+An integer value can overflow or underflow the possible value that can be contained within the integer type.
+The following operators can cause an overflow or underflow:
+- infix `+` (additon)
+- infix `-` (subtraction)
+- prefix `-` (negation)
+- infix `*` (multiplication)
+- infix `/` (subtraction)
+
+To avoid overflow, either the wrapping, saturating or try variants of the operators could be used, or the associated core `..._with_overflow` function can be used.
+
+> _Todo_: Should we add core functions here that might cause it too?
+
+### 23.1.3. Division by 0  [↵](#231-integer-)
+
+An integer value division by 0 can be caused by the following operators:
+- infix `/` (division) 
+- infix `%` (remainder)
+
+## 23.2. Floating point [↵](#23-illegal-behavior-)
+
+Illegal behavior of floating point operations can be caused by the below category
+
+### 23.2.1. Illegal operations [↵](#232-floating-point-)
+
+Illegal floating point operations are operation that produce floating point exceptions.
+These are slightly different to other illegal behavior, as they are actually defined within the [IEEE 754 specification](https://en.wikipedia.org/wiki/IEEE_754).
+
+They are caused by operation that result in on of the following things:
+- invalid operation: a mathematically undefined operation, e.g. `sqrt(-1)`
+- division by 0: an operation on a finite operand that results in an exact infinite result, e.g. `1.0/0.0` or `log(0.0)`
+- overflow: a finite result is too large to be represented accurately (i.e. its exponent with an unbounded exponenet range would be larger that the maximum exponent).
+- underflow: a result is very small (outsize of normal range)
+- inexact: the exact (i.e. unrounded) result is not represetable exactly.
+
+In addition, some processors can also produce the following exception:
+- denormal opearand: one of the operands passed to the instruction is a denormal value.
+
+In addition, this also applies to certain functions when either operand is one of the following values
+- `+inf`
+- `-inf`
+- `NaN` (quiet and signalling)
+
+Or when their result does not fit in the destination size.
+
+> _Note_: These illegal behavior depend on the floating point settings by the program.
+
+> _Todo_: specify which functions can additionally cause FP exceptions
+
+### 23.2.2. Floating-point to integer out-of-bounds [↵](#232-floating-point-)
+
+A floating point value can be out of bounds when trying to convert it to an integer value,
+meaning that the value in the float cannot be converted to a valid integer value.
+
+#### Examples
+```
+let f: f32 = 4294967296;
+let i: i32 = f as i32;
+```
+## 23.3. Memory [↵](#23-illegal-behavior-)
+
+Illegal behavior on memory can be cause by the below categories
+
+### 23.3.1. Out-of-bounds [↵](#233-memory-)
+
+Indexing memory out of bounds, thus resulting accessing an invalid memory location, is illegal behavior.
+This can be caused by indexing into an array or a slice.
+
+### 23.3.2. Incorrect pointer alignment [↵](#233-memory-)
+
+When assigning a memory address to a pointer, that memory address may not adhere to the alignment requirements of the pointer.
+
+### 23.3.3. Sentinel access [↵](#233-memory-)
+
+When an array, slice, or multi-element pointer has a sentinel value, they can be written to and read from past the sentinel value.
