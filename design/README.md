@@ -111,21 +111,14 @@ Version: 0.0
         3. [Trait type alias](#743-trait-type-alias)
     5. [Structs](#75-structs-)
         1. [Regular structs](#751-regular-structure-)
-            - [Use fields](#use-fields)
-            - [Record struct](#record-struct)
         2. [Tuple structs](#752-tuple-structure-)
-            - [Record tuple struct](#record-tuple-struct)
         3. [Unit structs](#753-unit-structure-)
     6. [Union](#76-union-)
         1. [Union field offsets](#761-union-field-offsets-)
         2. [Pattern matching on unions](#762-pattern-matching-on-unions-)
         3. [References to union fields](#763-references-to-union-fields-)
     7. [Enum](#77-enum-)
-        1. [ADT enum](#771-adt-enum-)
-            - [Discriminant](#discriminant)
-            - [Field-less enum](#field-less-enum)
-        2. [Record enum](#772-record-enums-)
-        3. [Flag enum](#773-flag-enum-)
+        1. [Flag enum](#771-flag-enum-)
     8. [Bitfield](#78-bitfield-)
     9. [Const item](#79-const-item-)
         1. [Trait constant](#791-trait-constant-)
@@ -280,9 +273,31 @@ Version: 0.0
             - [Mutable reference](#mutable-reference)
             - [Shared xor mutable](#shared-xor-mutable-)
         14. [Optional types](#11114-optional-types-)
-        15. [Function types](#11115-function-types-)
-        16. [Function poiner types](#11116-function-pointer-type-)
-        17. [Closure types](#11117-closure-types-)
+        15. [Opaque types](#11115-opaque-types-)
+        16. [Struct types](#11116-struct-types-)
+            - [Default struct fields](#default-struct-fields-)
+            - [Use fields](#use-fields-)
+            - [Field tags](#fields-tags-)
+            - [Record structs](#record-structs-)
+        17. [Tuple struct types](#11117-tuple-struct-types-)
+            - [Default tuple struct fields](#default-tuple-struct-fields-)
+            - [Record tuple stucts](#record-tuple-structs-)
+        18. [Union types](#11118-union-types-)
+            - [Union field access](#union-field-access-)
+            - [Pattern matching on unions](#pattern-matching-on-unions-)
+            - [Reference to union fields](#reference-to-union-fields-)
+        19. [Enum types](#11119-enum-types-)
+            - [Discriminant](#discriminant-)
+                - [Assigning discriminant values](#assigning-discriminant-values-)
+                - [Accessing discriminant value](#accessing-discriminant-values-)
+            - [Fieldless enum](#fieldless-enum-)
+            - [Record enum type](#record-enum-types-)
+            - [Flag enum types](#flag-enum-types-)
+        20. [Bitfield types](#11120-bitfield-types-)
+            - [Record bitfield types](#record-bitfields-)
+        21. [Function types](#11121-function-types-)
+        22. [Function poiner types](#11122-function-pointer-type-)
+        23. [Closure types](#11123-closure-types-)
             -[Capture modes](#capture-modes-)
                 -[Copy values](#copy-values-)
             -[Capture precision](#capture-precision-)
@@ -297,15 +312,13 @@ Version: 0.0
             -[Unique immutable borrows in captures](#unique-immutable-borrows-in-captures)
             -[Call trait coercions](#call-traits-and-coercions)
             -[Drop order](#drop-order)
-        18. [Trait Object types](#11118-intereface-object-types-)
-        18. [Impl trait types](#1119-impl-trait-types-)
+        24. [Trait Object types](#11124-intereface-object-types-)
+        25. [Impl trait types](#1125-impl-trait-types-)
             - [Anonymous type parameter](#anonymous-type-parameter)
             - [Abstract return types](#abstract-return-types)
             - [Abstract return types in trait declarations](#abstract-return-types-in-trait-declarations)
             - [Limitations](#impl-trait-limitations)
-        20. [Record types](#11120-record-types-)
-        21. [Enum record types](#11121-enum-record-types-)
-        22. [Inferred types](#11122-inferred-types-)
+        26. [Inferred types](#11126-inferred-types-)
     2. [Dynamically sized types](#112-dynamically-sized-types-)
     3. [Nominal vs stuctural types](#113-nominal-vs-structural-types-)
     4. [Type layout](#114-type-layout-)
@@ -402,7 +415,9 @@ Version: 0.0
         1. [Precedence order](#1521-precendence-order-)
         2. [Associativity](#1522-associativity-)
     3. [Precedence scoping and use](#153-precedence-scoping-and-use)
-16. [Visibility](#16-visibility)
+16. [Visibility](#16-visibility-)
+    1. [Specifiers](#161-specifiers-)
+    2. [Common denominator](#162-common-denominator-)
 17. [Attributes](#17-attributes-)
     1. [Built-in attributes](#171-built-in-attributes-)
         1. [Conditional compilation attributes](#1711-conditional-compilation-attributes-)
@@ -434,7 +449,6 @@ Version: 0.0
             - [`instruction_set`](#instruction_set)
             - [`opt_level`](#opt_level)
             - [`no_alias`](#no_alias)
-            - [`union_offset`](#union_offset)
             - [`bit_size`](#bit_size)
             - [`field_priority`](#field_prioity)
             - [`val_range`](#val_range)
@@ -722,6 +736,7 @@ true
 try
 try!
 type
+opaque
 u8
 u16
 u32
@@ -756,6 +771,7 @@ allowzero
 assign
 associativity
 distinct
+extend
 flag
 get
 higher_than
@@ -2367,304 +2383,185 @@ A default type can be provided which will be used when no explicit type alias is
 ## 7.5. Structs [↵](#7-items-)
 
 ```
-<struct-item> := { <attribute> }* [ <vis> ] ( <struct-stuct> | <tuple-struct> )
+<struct-item> := { <attribute> }* [ <vis> ] ( <struct> | <tuple-struct> | <unit-struct> )
 ```
 
-A struct is a composite type that consists out of a number of types, called 'fields'.
+A structure item is syntactic sugar to be able to more easily define a structure type.
+This can either be a structure or tuple structure type, depending on the syntax.
 
-Fields within a structure can be defined as either being mutable, or not (which is the default).
-Non-mutable field can only be set when the struct is constructed, i.e. the individual field cannot be modified.
-If the entire struct is marked as mutable, all fields within it will be mutable, no matter if they are individual declared as `mut` or not.
+A structure's visibility defines only the visibility of the structure, and not any of its fields.
 
-Fields can also be assigned default value, which need to be able to be evaluated at compile time, but allow them to be left out when constructing a value of this type.
-
-> _Note_: Default values for fields should not be confused with the value of fields if the `Default` trait is implemented.
-> Field default values are used to allow them to be omitted when constructing a new struct, not to retrieve a default value for the entire struct,
-> this means that `Default::default()` may return a different value that a field's individual default value, as it is allowed to decide these values at runtime.
-
-There are 3 kinds of structs:
+Meanwhile, a structure's mutability will be propagated as the mutability of the structure.
 
 ### 7.5.1. Regular structure [↵](#75-structs-)
-
 ```
-<nominal-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '{' [ <struct-fields> ] '}'
-<struct-fields> := <struct-field> { ',' <struct-field> } ','
-<struct-field> := <struct-member> | <struct-use>
-<struct-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <name> { ',' <name> }* ':' <type>
-                 | { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' <type> [ '=' <expr> ]
-<struct-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path>
+<struct> := [ 'mut' | 'record' ] 'struct' [ <generic-params> ] [ <where-clause> ] '{' { <struct-elements> } '}'
 ```
 
-A regular structure exists out of a collection of named fields.
-A field can be left out, but have its space reserved for future use, by giving it the name of `_`, which will leave the field out for all other purposes.
+A struct item generates a named [struct type](#11116-struct-types-).
+Its contents are declared in the same way as a struct type.
 
-Each field defintion may contain multiple names, this will result in a field to be created for each, with the type defined.
-If the visibility and/or mutability is defined, they will apply to all names following it.
-
-If only a single name is defined, a field may also have a default value assigned to it (see note above).
-
-#### Use fields
-
-Sometimes it may be useful to add the contents from another structure directly within the body of the current structure.
-This can be done using the special case of the `use` keywords, as inside of a structure, instead of importing another module, it means that the body of the strucuture after it will be placed within the current structure.
-There are some limitiations when it comes to the visibility of fields, for a structure to be included within another structure:
-- if the `use` comes from another library, all it's member need to be public to be included within the body.
-- if the `use` comes from the same library, all fields need to be visible from the current namespace and and the visibility of the `use` may not be greater than that of any of those fields.
-
-These fields will then all also be given the visibility as define before the `use`.
-
-To take over mutable fields, the `use`, it needs to be explicitly marked as `mut`.
-Use will also take over default field values.
-
-Below is an example of `use`:
+A struct declaration without any generic arguments, like:
 ```
-// Library: lib
-
-struct Quux {
-    pub     qq: i32 = 1,
-    pub mut qr: f64,
-}
-
-// File: main.xn
-
-use :.lib; // Include lib
-
-struct Foo {
-    pub(mod) a: i32,
-    pub mut  b: i32
-}
-
-struct Bar {
-    c: i32
-}
-
-struct Baz {
-    pub(mod) use Foo, //< 'b' will not be `pub`, but `pub(mod)` instead
-    // use Bar,       //< uncommenting this like will result in a compile error, as 'c' is not visible from outside of 'Baz'
-    mut use lib.Quux, //< Mutably include `lib.Quux`
-}
-
-// When compiler, Baz will result in
-struct Baz {
-    pub(mod) a:  i32,
-    pub(mod) b:  i32,
-             qq: i32 = 1,
-    mut      qr: f64,
+struct name {
+    // ...
 }
 ```
+Is equal to the following:
+```
+type name = struct {
+    // ...
+};
+```
 
-#### Record struct
-
-A variation of a struct is a record struct, unlike a normal struct, this is not a nominal type, but instead a structural type.
-The distinction can be made by the weak keyword `record` coming before the `struct` keyword.
-
-They are generally similar to inline records, but allow visibility and default value for fields to be specified.
+> _Todo_: Generics
 
 ### 7.5.2. Tuple structure [↵](#75-structs-)
-
 ```
-<tuple-struct> := [ 'mut' ] [ 'record' ] 'struct' <name> [ <generic-params> ] [ <where-clause> ] '(' [ <tuple-struct-fields> ] ')' ';'
-<tuple-struct-fields> := [ <tuple-struct-field> { ',' <tuple-struct-field> }* ] [ <tuple-struct-tail-fields> ] [ ',' ]
-
-<tuple-struct-tail-fields> := ',' <tuple-struct-tail-field> { ',' <tuple-struct-tail-field> }*
-
-<tuple-struct-field> := [ <vis> ] [ 'mut' ] <type>
-<tuple-struct-tail-field> := [ <vis> ] [ 'mut' ] <type> [ '=' <expr> ]
+<tuple-struct>      := [ 'mut' | 'record' ] 'struct' [ <generic-params> ] [ <where-clause> ] '(' <tuple-struct-fields> ')' <tuple-struct-body>
+<tuple-struct-body> := ';'
+                     | '{' { <assoc-item> }* '}'
 ```
 
-A tuple struct, also called a named tuple, represents a list of types that form their own nominal type.
+A tuple struct item generates a named [tuple struct type](#11117-tuple-struct-types-).
+Its content are declared the same way as a tuple struct type.
 
-Tuple struct fields may contain default values, but these need to come at the end of the tuple.
-If a field without a default value follows one with a default value, it is a compile error.
+A tuple struct declaration without any generic arguments, like:
+```
+struct name(...);
 
-#### Record tuple struct
+struct name2(...) { ... }
+```
+Is equal to the following:
+```
+type name = struct (...);
+type name2 = struct ( ... ) { ... };
+```
 
-A variation of a tuple struct is a record tuple struct, unlike a tuple struct, this is not a nominal type, but instead a structural type.
-The distinction can be made by the weak keyword `record` coming before the `struct` keyword.
+> _Todo_: Generics
 
 ### 7.5.3. Unit structure [↵](#75-structs-)
 
 ```
-<unit-struct> := { <attribute> }* [ <vis> ] 'struct' <name> ';'
+<unit-struct>           := { <attribute> }* [ <vis> ] 'struct' <name> <unit-struct-decl-body>
+<unit-struct-decl-body> := ';'
+                         | '{' { <struct-element> }* '}'
 ```
 
-A unit structure is a special structure containing no fields, and which can be be initialized by using the name of the structure as the initialization expression.
-Unit stuctures can be seen as distinct type aliases of the unit type, but with the ergonomics of being an actual individual structure.
+A unit struct item declares a named [unit struct type](#unit-structs-).
+Its declaration, like its related type, is identical to a regular struct, except that is contains no fields.
+
+A unit struct declaration:
+```
+struct Unit;
+struct Unit2 { ... }
+```
+Is equal to the following
+```
+type Unit = struct;
+type Unit2 = struct { ... };
+```
 
 ## 7.6. Union [↵](#7-items-)
-
 ```
-<union-item> := { <attribute> }* [ 'vis' ] [ 'mut' ] 'union' <name> [ <generic-params> ] [ <where-clause> ] '{' <union-fields> '}'
-<union-fields> := <union-field> { ',' <union-field> }* [ ',' ]
-<union-field> := [ <vis> ] [ 'mut' ] <name> ':' <type>
+<union-item> := { <attribute> }* [ <vis> ] [ 'mut' ] 'union' <name>  [ <generic-params> ] [ <where-clause> ] '{' <union-members> '}'
+```
+A union item is syntactic sugar to more easily define a named [union type](#11118-union-types-).
+
+A union's visibility defines only the visibility of the union, and not any of its fields.
+
+Meanwhile, an enum's mutability will be propagated as the mutability of the union.
+
+A union declaration without any generic arguments, like:
+```
+union name {
+    // ...
+}
+```
+Is equal to the following:
+```
+type name = union {
+    // ...
+};
 ```
 
-A union is a struct-like type, but instead of all fields being available at all times, a union's main characteristic is that all field share a common storage.
-As a result, a write to 1 field can overwrite other fields.
-
-Union fields are restricted to the following subset of types:
-- `Copy` types (including records)
-- References ( `&T` and `&mut T` for an arbitrary `T` )
-- `ManuallyDrop<T>` (for an arbitrary `T`)
-- Tuples and arrays containing values allowed by unions
-
-When initializing a union, only 1 field can be set, in this design document, this is known as the 'active field'.
-
-> _Note_: unions have no notion of an 'active field', i.e. it has no special meaning, but is only used to in the design document to indicate the currently assigned field.
-
-Any member can be accessed at any time, it directly reads the underlying memory as the type of the field being accessed.
-Which means that any field which has an incompattible layout with the active field **may** therefore contain invalid data.
-The programmer should be certain that the field contains valid data before using it, failing to do so in undefined behavior.
-
-Because of what's mentioned above, this means that all reads field in the union are `unsafe`.
-Unlike reads, writes are always safe, as the user is just overwriting arbitrary data, so it cannot be undefined behavior.
-A union field will never be dropped.
-
-Similar to structs, unions allow individual member to bet set as `mut`, or the entire union.
-This can be useful to keep some variant as read-only, so field `a` can be interpreted as `b`, but not the other way around.
-
-### 7.6.1. Union field offsets [↵](#76-union-)
-
-By default, all fields are guaranteed to be at an offset of `0`.
-Sometimes it might be useful to have certain fields overlap at a non-zero offset, this can be done using the `union_offset` attribute.
-
-The `union_offset` attribute defines an offset in bytes, which will then be the resulting offset of the field.
-
-### 7.6.2. Pattern matching on unions [↵](#76-union-)
-
-Another way to access union fields is to use pattern matching.
-Pattern matching on a union field uses the same syntax as those for structs, except that the pattern must specify exactly 1 field.
-Since reading from a union is unsafe, the entire match expression must be in an unsafe block.
-
-### 7.6.3. References to union fields [↵](#76-union-)
-
-Since unions fields share a common storage, gaining writing access to one field of the union can give write access to all its remaining fields.
-For this reason, if any field is borrowed immutably, no other field can be borrowed mutably at the same time.
+> _Todo_: Generics
 
 ## 7.7. Enum [↵](#7-items-)
 
 ```
-<enum-item> := { <attribute> }* [ <vis> ] ( <adt-enum> | <flag-enum> )
+<enum-item>   := { <attribute> }* [ <vis> ] ( <adt-enum> | <record-enum> | <flag-enum> )
+<adt-enum>    := [ 'mut' ] 'enum' <name> [ <generic-params> ] [ <where-clause> ] '{' <enum-members> '}'
+<record-enum> := 'record' 'enum' <name> [ <generic-params> ] [ <where-clause> ] '{' <record-enum-members> '}'
 ```
 
-An enum, or enumeration, is a type that can be used for one of the following use-cases:
-- A field-less enum used to correlate names to a given set of possible values (these are a variant of ADT enums)
-- An ADT (Algebreic Data Type) enum, allowing fields to be associated with a specific variant (also known as tagged unions)
-- A set of flags
+An enum items is syntactic sugar to more easily define a named [enum type](#11119-enum-types-).
 
-The visibility of the enum is shared by all variants and their fields
+An enum's visibility defines only the visibility of the enum, and not any of its fields.
 
-### 7.7.1. ADT enum [↵](#77-enum-)
+Meanwhile, an enum's mutability will be propagated as the mutability of the enum.
 
+An enum declaration without any generic arguments, like:
 ```
-<adt-enum> := [ 'mut' ] [ 'record' ] 'enum' [ <generic-params> ] [ <where-clause> ] '{' <enum-variants> '}'
-<enum-variants> := <enum-variant> { ',' <enum-variant> } [ ',' ]
-<enum-variant> := { <attribute> }* [ 'mut' ] <name> [ <variant-body> ] [ '=' <expr> ]
-<variant-body> := <struct-variant-body> | <tuple-variant-body>
-<struct-variant-body> := '{' <struct-fields> '}'
-<tuple-variant-body> := '(' [ <tuple-struct-fields> ] ')'
+enum name {
+    // ...
+}
 ```
-
-Each ADT enum constists out of at minimum a discriminant, but may in addition also contain a set of fields that are associated with each variant.
-
-Variants with fields can be presented as either a regular structure or a tuple structure, and is called the variant's 'payload'.
-This payload is effectively a struct or tuple struct, where it's body is defined after the name of the variant.
-For more info about the payloads, see the [Struct item](#75-structs-).
-
-> _Note_: Enum fields may not have their own visibility defined.
-
-Like a struct, the fields of each variant can also be declared to be mutable or not, this can be done at 3 levels:
-- For the entire enum by placing `mut` infront of the `enum` keyword.
-- For an entire variant, by defining that variant as `mut`
-- On a field per field basis
-
-#### Discriminant
-
-Each enum variant is represented using its discriminant, this is an integer value that encodes the current variant that is stored inside of the enum.
-
-When using the default representation, while the discriminant will be interpreted as an `isize`, the compiler is allowed to change this to a smaller type that can still fit all discriminants.
-An explicit type can be chosen using a primitive representation.
-
-Discriminant values can be explicitly be set by following the variant with a `=` followed by an expression returning an integer.
-The discriminant needs to be a value that can be evaluated at compile time.
-The expression may also not reference any other variants in the enum.
-
-When no explicit discriminant is given, this will automatically be set to one higher than the discriminant of the previous variant.
-If the discriminant for the first value is not set, this will become 0, and if at any point, the discriminant would overflow, this will result in a compile error.
-
-No 2 variants may have the same discriminant, meaning that if an implicit discriminant's value is the same as the discriminant of another variant, that this will result in an error.
-
-The discriminant value of any enum can be extracted using `discriminant`
-_TODO: add full path to function_
-
-If an enum has a known discriminant type, it is allowed to cast a pointer to the enum to an pointer with the discriminant type.
-
-#### Field-less enum
-
-A field-less enum is a variant of an ADT enum that contains no payload and is therefore just its discriminant internally.
-This allows field-less enums to be cast to their underlying integer type.
-
-#### Record enums
-
-A variation of an enum is a record enum, which is a structural type.
-The distinction can be made by putting the weak keyword `record` before the `enum` keyword.
-
-Inline enums will also be record enums.
-
-### 7.7.2. Record enums [↵](#77-enum-)
-
-A record enum is a variant of a normal enum, but instead of each variant with fields holding a nominal type, each variants holds a structural type.
-
-### 7.7.3. Flag enum [↵](#77-enum-)
-
+Is equal to the following:
 ```
-<flag-enum> := 'flag' 'enum' <name> '{' [ <flag-enum-variants> ] '}'
-<flag-enum-variants> := <flag-enum-variant> { ',' <flag-enum-variant> } [ ',' ]
-<flag-enum-variant> := <name> [ '=' <expr> ]
+type name = enum {
+    // ...
+};
 ```
 
-A flag enum can be thought of as a special variant of a field-less enum, but instead of representing discrete fields, it represents a collection of bit-flags.
-Each flag enum can contain as many unique flags are as allowed by the primitive type, by default this will be chosen based on the values of variants within the enum.
+> _Todo_: Generics
 
-When no explicit discriminant is given, this will automomatically be set as the next power of 2 that greater than the previous flags.
-If the discriminant for the first value is not set, this will become 1, and if at any point the next flag value would overflow, this will result in a compile error.
 
-If no explicit flag is provided with a value of 0, the enum will implicitly add a `.None` flag.
+### 7.7.1. Flag enum [↵](#77-enum-)
+```
+<flag-enum>   := 'flag' 'enum' <name> '{' <flag-enum-members> '}'
+```
 
-When writing an expression for the enum value, the expression may directly mention another flag, unlike normal enums.
+A flag enum item is similar to the one above, and declares a [flag enum type](#flag-enum-types-).
 
-By default, a flag enum will have a set of functions implicitly generated to allow the use of flags in code, these are:
-_TODO: list of functions_
+A flag enum meanwhile cannot be declared with generics
+```
+flag enum {
+    // ...
+}
+```
+Is equal to the following
+```
+type name = flag enum {
+    // ...
+}
+```
 
 ## 7.8. Bitfield [↵](#7-items-)
-
 ```
-<bitfield-item> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'record' ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-fields> '}'
-<bitfield-fields> := <bitfield-field> { ',' <bitfield-field> }* [ ',' ]
-<bitfield-field> := <bitfield-member> | <bitfield-use>
-<bitfield-member> := { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' <type> [ '|' <expr> ]
-<bitfield-use> := { <attribute> }* [ <vis> ] [ 'mut' ] 'use' <type-path> [ '|' <expr> ]
+<bitfield-item>        := { <attribute> }*  <vis> ] [ 'record' | 'mut' ] 'bitfield' <name> [ <generic-params> ] [ ':' <expr> ] [ <where-clause> ] '{' <bitfield-members> '}'
 ```
 
-A bitfield is a type similar to a record struct, but which is allowed to contain values that can be represented with non-byte aligned and sized types.
+A bitfield item is syntactic sugar to more easily define a named [bitfield type](#11120-bitfield-types-).
 
-A field in a bitfield is defined as how a single named field would be in struct, and optionally followed by an additonal `|` and an expression giving the number of bits the value should take in.
+A bitfield's visibility defines only the visibility of the bitfield, and not any of its fields.
 
-If the number of bits is given explicitly, the expressions must represent a value that can be evaluated at compile time.
+Meanwhile, a bitfield's mutability will be propagated as the mutability of the bitfield.
 
-If no explicit number of bits have been given, the type will automatically take in only as many bits as required, this is done in the following ways:
-- If the type is a primitive type, it used the number of bits needed as defined in their layout.
-- If the type is a field-less enum or flags enum, it will only take in as many bits that are needed to be able to fit the full range of possible discriminants.
-- If the type has a bit-size defined using the `bit_size` attribute, it will take this value as the bit-size.
+An enum declaration without any generic arguments, like:
+```
+bitfield name {
+    // ...
+}
+```
+Is equal to the following:
+```
+type name = enum {
+    // ...
+};
+```
 
-The size of a bitfield may be explicitly defined in an expression after the bitfield's name.
-If no explicit size is defined, it will take in the minimum number of bytes needed to store all field in the bitset.
-
-Access to bitfield elements are an example of propties being used.
-
-### 7.8.1. Record bitfield
-
-Similar to `struct`s and `union`s, a bitfield can also be a structural type by putting the weak keyword `record` before the `bitfield` keyword.
+> _Todo_: Generics
 
 ## 7.9. Const item [↵](#tables-of-contents)
 
@@ -4580,7 +4477,16 @@ It can only ever appear as the return value of a function and can therefore not 
 <path-type> := <type-path>
 ```
 
-A path type refers to a user-defined path by its path, there are 3 types it can represent.
+A path type isn't a type by itself, but it refers to another type, either directly to:
+- [opaque types](#11115-opaque-types-)
+- [struct types](#11115-struct-types-)
+- [union types](#11116-union-types-)
+- [enum types](#11117-enum-types-)
+- [bitfield types](#11118-bitfield-types-)
+
+Or indirectly though:
+- [type aliases](#74-type-aliases-)
+- [distinct types](#741-distinct-types-)
 
 ### 11.1.8. Tuple types [↵](#111-types-)
 
@@ -4641,7 +4547,6 @@ fn foo() -> (i32, i64) { ... }
 > // is represented at
 > record struct __generated_name(i32, i64, bool)
 > ```
-
 
 > _Note_: For a nominal version of a tuple, see [tuple structs](#752-tuple-structure-)
 
@@ -4914,7 +4819,640 @@ This is synctactic suger of `Option<T>`, with some additional bells & whistles, 
 - when assigning a non-`.None` value, impliclty warps the value within `.Some()`. This also works for returns
 - control flow expression have additional syntax to make using them more ergonomic
 
-### 11.1.15. Function types [↵](#111-types-)
+## 11.1.15 Opaque types [↵](#111-types-)
+```
+<opaque-type> := 'opaque' [ '(' <expr> ')' ]
+```
+
+An opaque type represents a type with an unknown layout, which can either be dynamically or statically sized.
+If no size is given, the opaque time has an unknown, but non-zero size.
+If a size is set, the size must be given by a compile time evaluated expression.
+
+> _Note_: Internally, opaque types are represented:
+> - when sized as `[N]u8`, where `N` is the size of the opaque type
+> - when unsized as `dyn ?Sized`
+
+A sized opaque type should be prefered when the size it would take up is known and its use location requires to be sized.
+Otherwise an unsized opaque type should be used.
+
+## 11.1.16 Struct types [↵](#111-types-)
+```
+<struct-type>    := [ 'mut' ] 'struct' '{' [ <struct-members> ] '}'
+<struct-members> := [ <struct-fields> ] { <assoc-item> }*
+
+<struct-fields>  := <struct-field> { ',' <struct-field> }* [ ',' ]
+<struct-field>   := { <attribute> }* [ <vis> ] [ 'mut' ] <field-names> ':' <type> [ <struct-field-tag> ]
+                  | { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' <type> [ '=' <expr> ] [ <struct-field-tag> ]
+<field-names>    := <name> [ ',' <name> ]
+
+_Todo_: Move to 'impl' section
+<assoc-item> := <fn-item>
+             | <method>
+             | <const-item>
+             | <static-item>
+             | <impl-field>
+             | <struct-item>
+             | <union-item>
+             | <enum-item>
+             | <bitfield-item>
+```
+
+A structure type represents a collection of named fields, and associated items.
+The layout of a structure is undefined by default, allowing the compiler to do optimization like field reordering. The layout can be specified using the [`repr` attribute](#repr).
+
+The struct needs to define all fields before any item in the struct, if any field occurs after an item will result in an error.
+
+Each fields at minimum defines a name (or multiple), and the type of the field.
+Each field can then define its visibility, which controls in which locations the field may be accessed.
+In addition, a field may be made mutable, allow it to be modified after the structure is initially created, as by default each field may only be assigned when defining it in a [struct expression](#9113-struct-expressions-), and may not be modified later on.
+
+In addition, the entire struct type may also be declared as mutable, this will propagate the `mut` property to all fields, as follows:
+```
+mut struct {
+    pub a: i32,
+    b: i32,
+}
+// Will be converted to
+struct {
+    pub mut a: i32,
+    mut b: i32,
+}
+```
+
+Each field definition may contain multiple names, this will result in a field to be created for each, with the type that was defined.
+When multiple names are used, both the visibility and mutability will also be propagated to the created fields
+Below is an example of this.
+```
+struct {
+    pub mut a, b: i32,
+}
+```
+Will be equivalent to
+```
+struct {
+    pub mut a: i32,
+    pub mut b: i32,
+}
+```
+
+A field may also be a placeholder field, by using `_` as its name, this means that the field will take up space within the structure, but will not be accessible.
+This can be used for example as padding in a [`packed`](#packed) struct, or as a reserved value for future use.
+
+After all fields are declared, a struct may also define associated items.
+
+> _Note_: A [struct item](#75-structs-) allows for an easy way of defining structures.
+
+> _Todo_: A link to associated items
+
+#### Default struct fields [↵](#11116-struct-types-)
+
+When a field has only a single name defined for it, the field may be provided with a default value, this means that when a field is not explicitly initialized, i.e. when left out, the field will gain this value.
+The default value needs to be known at compile time, in case a field should have a default value that can only be calculated at runtime, a function can be used.
+
+> _Note_: Default values for fields should not be confused with the value of fields if the `Default` trait is implemented.
+> Field default values are used to allow them to be omitted when constructing a new struct, not to retrieve a default value for the entire struct,
+> this means that `Default::default()` may return a different value that a field's individual default value, as it is allowed to decide these values at runtime.
+
+```
+// Foo has a default value for `z`, as this one can be calculated at compile-time
+struct Foo {
+    x: i32,
+    y: i32,
+    z: i32 = 3,
+}
+
+// If now we want `y` to always have a default value, but it requires to be calculated at runtime, we would use a function instead
+impl Foo {
+    pub fn new(x: i32) -> Self {
+        Self {
+            x,
+            y: runtime_calculation(),
+            // z: 3 <- default value is always 3
+        }
+    }
+}
+```
+
+#### Use fields [↵](#11116-struct-types-)
+```
+<struct-use-field> := { <attribute> }* [ <vis> ] [ 'mut' ] [ 'extend' ] 'use' [ <name> ':' ] <path>
+```
+
+While a structure cannot derive from another structure, it is able to include the content of another struct in its body and even take over functionality.
+This can be done using a `use` field, in a structure, `use` does not import symbols, but creates a use field.
+
+A use field can be named, in addition to be able to access the include struct's method directly, the contents of the struct has to be access via its name, as if it were a member.
+Either will still refer to the same data, meaning:
+```
+struct Bar {
+    a: i32
+}
+
+struct Foo {
+    x: f32,
+    // Named use field
+    use bar: Bar,
+}
+
+foo := Foo { x: 2.0, a: 3 };
+assert(addr_of(foo.x) == addr_of(foo.bar.x));
+```
+> _Todo_: Fix `assert` and `addr_of` syntax
+
+If a use field contains a variable with the same name of another variable, or another variable in another use field, an error will be emitted.
+This can be resolved by having a named use field, but a warning will still be generated.
+```
+struct Foo {
+    a: i32,
+    b: i32
+}
+
+struct Bar {
+    b: i32
+}
+
+struct A {
+    a: i32,
+    use Foo, // error: field `Foo.a` overlaps field `a`
+}
+
+struct B {
+    use Foo,
+    use Bar, // error: field `Bar.b` overlaps field `Foo.a`
+}
+
+// This also happens for named use fields
+struct A {
+    a: i32,
+    use foo: Foo, // warning: field `foo.a` overlaps field `a`, and can therefore only by accesed via `A.foo.a`
+}
+```
+
+The above struct can  also be initialized via the include struct's name, as shown below:
+```
+bar := Bar { a: 4 };
+foo := Foo { x: 1.0, bar };
+```
+
+The following restrictions are applied to the `use` field's included struct:
+- All fields need to be visible to the structure with the field
+- Only items visible to the structure with the field will be implemented.
+
+The visibility and mutablity of the fields depends on the visibility and mutability provided to the included struct.
+These are applied to all fields within the included struct, and to the struct name (if provided).
+
+Visibility and mutability will be applied in the following way:
+- A field's visibility will be the [common denominator](#162-common-denominator-) of the field visibility and the provided visibility
+- A field's mutability will be a combination of the provided mutability and the field's visibility within the included struct, meaning both must be `mut` for the included field to be `mut`
+
+In addition, the functionality of the included struct can be automatically implemented on the new struct, by using `extend`.
+The visibility of these items will be applied in the same way as that of field, using the [common denominator](#162-common-denominator-) of the visibilities.
+
+Only items that would not override an already existing item will be implemented.
+If multiple `extend` use fields exists, and an item would conflict, an error will be produced.
+```
+struct Foo {
+    x: i32
+
+    impl {
+        fn foo() {}
+    }
+}
+
+struct Bar {
+    y: i32
+
+    impl {
+        fn foo() {}
+        fn bar() 
+    }
+}
+
+struct A {
+    extend use Foo,
+    extend use Bar, // error: Conflicing item `fn foo()`
+}
+
+struct B {
+    use Foo,
+    extend use Bar, // While `Bar` contains `foo`, it's explicitly overwritten by `B`, so `Bar.foo` will be ignored
+
+    impl {
+        fn foo() {}
+    }
+}
+```
+
+#### Fields tags [↵](#11116-struct-types-)
+```
+<struct-field-tag> := <string-literal> | <raw-string-literal>
+```
+
+Struct field tags allow arbitrary meta-information to be added to individual fields, which can be accessed using reflection.
+
+#### Record structs [↵](#11116-struct-types-)
+```
+<record-struct-type>   := 'record' 'struct' '{' <record-struct-fields> { <assoc-item> }* '}'
+<record-struct-fields> := <record-struct-field> { ',' <record-struct-field> } [ ',' ]
+<record-struct-field>  := <field-names> ':' <type> [ <struct-field-tag> ]
+```
+A record structure, also known as a POD (Plain Old Data) struct, is a variant of a struct which is _structural_ instead of _nominal_.
+These structs follow the rules defined [here](#113-nominal-vs-structural-types-).
+
+Some of the most notable ones for structs are:
+- all fields are public
+- all fields are mutable
+
+#### Unit structs [↵](#11116-struct-types-)
+```
+<unit-struct-type> := 'struct' '{' [ <struct-element> ] '}'
+```
+
+A unit struct is a variant of a struct containing no fields, and which can be initialized using just their name.
+They can be seen as distinct type aliases to a unit type, but with the ergonomics afforded to any structure type.
+
+A unit struct cannot be anonymous and must be associated with a type alias.
+
+### 11.1.17 Tuple struct types [↵](#111-types-)
+```
+<tuple-struct>           := [ 'mut' ] 'struct' '(' [ <tuple-fields> ] ')' [ <tuple-stuct-body> ] ';'
+<tuple-struct-fields>    := <tuple-field> { ',' <tuple-field> }* { ',' <tuple-struct-def-field> }* [ ',' ]
+                          | <tuple-struct-def-field>  { ',' <tuple-struct-def-field> }* [ ',' ]
+<tuple-field>            := [ <vis> ] [ 'mut' ] [ <name> ':' ] <type>
+<tuple-struct-def-field> := [ <vis> ] [ 'mut' ] [ <name> ":" ] <type> '=' <expr>
+
+<tuple-struct-body>      := '{' { <struct-member> } '}'
+```
+
+A tuple struct type is similar to a struct type, with some differences.
+Like both structs, the internal representation of a tuple struct is by default undefined, allowed for the same compiler optimizations.
+
+Each field within the tuple struct can have its visibility and mutability defined.
+Each field can be accessed using a [tuple index expression](#913-tuple-index-expression-), in addition, they may also have an optional name, which may be used to access a field via a [field access expression](#916-field-access-).
+
+Similar to a regular stuct type, the entire tuple struct type may be marked as `mut`, which will then propage the `mut` property to all fields.
+
+Tuple struct allows associated item to be added at the definition's location, by adding a special body after the tuple declaration.
+
+#### Default tuple struct fields [↵](#11117-tuple-struct-types-)
+
+A field may contain a default value, if they are placed at the end of the tuple fields, and may only followed by other fields with a default value.
+Meaning that when these fields are left out during initialization, they will gain this value.
+The default vbalue needs to be known at compiler time, in case a field should have a default value that can only be calulated at runtime, a function can be used.
+
+> _Note_: Default values for fields should not be confused with the value of fields if the `Default` trait is implemented.
+> Field default values are used to allow them to be omitted when constructing a new struct, not to retrieve a default value for the entire struct,
+> this means that `Default::default()` may return a different value that a field's individual default value, as it is allowed to decide these values at runtime.
+
+```
+// Foo has a default value for the last field, as this can be calculated at compile time
+struct Foo(i32, i32, i32 = 3);
+
+// If we now want the 2nd field to always have a default value, but is required to be calculated at runwime, we would use a function instead
+impl Foo {
+    pub fn new(x: i32) -> Self {
+        Self (
+            x,
+            runtime_calculation,
+            // 3 <- default value is always 3
+        )
+    }
+}
+```
+
+#### Record tuple structs [↵](#11117-tuple-struct-types-)
+```
+<record-tuple-struct>           := 'record' 'struct' '(' [ <tuple-fields> ] ')' ';'
+<record-tuple-struct-fields>    := <tuple-field> { ',' <record-tuple-field> }* { ',' <record-tuple-struct-def-field> }* [ ',' ]
+                                 | <record-tuple-struct-def-field>  { ',' <record-tuple-struct-def-field> }* [ ',' ]
+<record-tuple-field>            := [ <name> ':' ] <type>
+<record-tuple-struct-def-field> := [ <name> ":" ] <type> '=' <expr>
+```
+
+A record tuple struct, also known as a POD (Plain Old Data) tuple struct, is a variant of a tuple struct which is _structureal_ instead of _nominal_.
+These tuple struct follow the rules defined [here](#113-nominal-vs-structural-types-).
+
+Some of the most notable ones for tuple structs are:
+- All fields are public
+- All fields are mutable
+
+### 11.1.18 Union types [↵](#111-types-)
+```
+<union-type>    := [ 'mut' ] <union> '{' <union-elements> '}'
+<union-element> := <union-field> { ',' <union-field> }* [ ',' ] { <assoc-item> }*
+<union-field>   := { <attribute> }* [ <vis> ] [ 'mut' ] <name> ':' 
+```
+
+A union is a struct-like type, but instead of all fiels being sequential, a union's main characteristic is that all fields share a comon storage.
+As a result, a write to any field can overwrite all other fields.
+Union must always contain at least 1 field to be valid.
+
+Each field may be made mutable, allow it to be modified after the structure is initially created, as by default each field may only be assigned when defining it in a [struct expression](#9113-struct-expressions-), and may not be modified later on.
+In addition, the entire union type may also be declared as mutable, this will propagate the `mut` property to all fields, as follows:
+```
+mut union {
+    pub a: i32,
+    b: f32,
+}
+// Will be converted to
+union {
+    pub mut a: i32,
+    mut b: f32,
+}
+```
+
+Union field are restricted to the following sub-set of types:
+- `Copy` types (including records)
+- Referecnes (`&T` and `&mut T` for an arbitrary type `T`)
+- Manually droppable values
+- Tuples and array containing values that adhere to these restrictions
+
+> _Todo_: Specify util for 'Manually droppable values'
+
+These restriction ensure that no value in a field needs to be dropped.
+It is also possible to manually implement `Drop` on union, as by default, union fields will never be dropped.
+
+#### Union field access [↵](#11118-union-types-)
+
+Because of the common storage of unions, when initializing a union, only 1 field may be initialized.
+The field that is initialized is said to be the `active` field of the union.
+
+> _Note_: Unions do not have an actual notion of an `active` field, i.e. no metadata is carried to specify the active field, so there is no special meaning.
+>         The term is meant to specify to a programmer what union field is currently assigned and has a valid value.
+
+While any member can be accessed at any time, by reading a value from the underlying memory, it is recommended only to ever access the 'active' value.
+This is because any field with an incompatible layout with the active field **may** contain invalid data.
+
+Because of this, reading a union field is an `unsafe` operation.
+Writing to a union field is always safe on the other hand, as it overwrites arbitrary data.
+
+Reading a field that is not the active field in the union is illegal behavior.
+
+Safety checks will always be added when the compiler is able to figure out whether a field is accessed incorrectly from the surrounding context.
+While it is not possible in compiled code, when the code is run through an interpreter, it is allowed to store additional metadata separatly from the data, and add safety check at an access site.
+
+Unless a union has a `C` representation, it is also illegal behavior to transute the value to any type, as there is not guarantee that all types are stored at a zero-offset.
+With a `C` representation, reading from the union is analogous to transmuting its data to one of the fields types.
+
+#### Pattern matching on unions [↵](#11118-union-types
+
+Unions can also be accesed inside when pattern matching, with the restiction that exactly one field is allowed to be matched at any time.
+Since reading from a pattern field is unsafe, the corresponding match must be done in an unsafe context.
+
+Pattern matching directly on a union is not allowed, it is only allowed when it is part of a larger structure when there is a separate disambiguation in addition to the union, like a value coming from an FFI context.
+
+For Example
+```
+union U {
+    i: i32,
+    f: f32
+}
+
+u := U{ i: 1 };
+
+// error: cannot match on a union
+unsafe {
+    match u {
+        .{ i: 1 } => (),
+        .{ f } => (),
+    }
+}
+
+enum Tag { I, F };
+struct Value {
+    tag: Tag,
+    u:   U,
+}
+
+val := Value { tag: Tag.I, u };
+// Fine, as we aren't directly switching on a union, but a stucture containin a union
+unsafe {
+    match val {
+        .{ tag: .I, u: .{ i: 1 } } => (),
+        .{ tag: .F, u: .{ f } } => (),
+        _ => ()
+    }
+}
+
+
+// But the following will:
+// error: cannot match on a union field only
+unsafe {
+    match val {
+        .{ u: .{ i: 1 }, .. } => (),
+        _ => ()
+    }
+}
+```
+
+#### Reference to union fields [↵](#11118-union-types-)
+
+Since union fileds share a common storage, gaining writing access to one field of hte union can give write access to all its remaining fields.
+Therefore, if any field is borrowed mutably, no ther field can be borrwoed mutably at the same time.
+
+### 11.1.19 Enum types [↵](#111-types-)
+```
+<enum-type>           := [ 'mut' ] 'enum' '{' <enum-members> '}'
+<enum-members>        := <enum-variant> { ',' <enum-variant> } [ ',' ] { <assoc-item> }*
+
+<enum-variant>        := <unit-enum-variant>
+                       | <tuple-enum-variant>
+                       | <struct-enum-variant>
+
+<unit-enum-variant>   := <name> [ '=' <expr> ] [ <field-tag> ]
+<tuple-enum-variant>  := [ 'mut' ] <name> '(' <tuple-field> { ',' <tuple-field> }* [ ',' ] ')' [ '=' <expr> ] [ <field-tag> ]
+<struct-enum-variant> := [ 'mut' ] <name> '{' <struct-field> { ',' <struct-field> } '}' [ '=' <expr> ]
+```
+
+An enum type, also known as an enumeration, is a collection of distinct values, called variants, which may have additional data attached to them, known as a variant's payload.
+Since an enum can carry a payload, this is also sometimes know as an algebraic data type.
+
+Each variant is also its own 'constructor', creating an enum value of the given variant with its associated data.
+Enums are particularly useful in when used for pattern matching.
+
+An enum is required to at minimum have a single variant.
+
+Each variant can be on of the following:
+- unit variant, also known as a fieldless variant: declared with just a name, i.e. it has no payload
+- tuple variant: a name, followed by a tuple defintion
+- struct varaiant: a name, followed by a struct body with only fields
+
+Each field in a variant may be made mutable, allow it to be modified after the structure is initially created, as by default each field may only be assigned when defining it in a [struct expression](#9113-struct-expressions-), and may not be modified later on.
+Defining mutability may also happen on a per-variant basis, or on the entire enum type, this will propagate the `mut` property to all fields of the variant, or the entire enum, respectivly, as follows:
+```
+enum {
+    mut A { b, c: i32 },
+    D(i32, f32),
+}
+// Will be converted to
+enum {
+    mut A { mut b, c: i32 },
+    D(i32, f32),
+}
+
+// Or
+mut enum {
+    A { b, c: i32 },
+    D(i32, f32),
+}
+// Will be converted to
+enum {
+    mut A { mut b, c: i32 },
+    D(mut i32, mut f32),
+}
+```
+
+
+Each variant works as its own symbol, and can therefore be imported using a `use`, this allows the variant to be used without preceeding its name by either a path or a inferring `.` (dot).
+
+Each variant may also have a field tag associated with it.
+
+> _Todo_: Could be interesting to add a version with an external discriminant, i.e. a discriminant that's separate from the actual payloads, which isn't just a union.
+>         i.e. instead of matching to `{ tag: .Val, union_val: { name: val } }`, we could match on `Val{ name: val }`, i.e. something like `data.with_discriminant(val)`
+
+#### Discriminant [↵](#11119-enum-types-)
+
+Each variant is represented using its discriminant, this is an integer value that logically associates an enum instance with the variant an enum holds.
+
+By default, this value is represented as an `isize` value.
+However, the compiler is allowed to substitute this with a smaller integer types that fits all determinants, including unsigned types if no distriminant needs to hold a signed value.
+This is in order to reduce the amount of memory that is taken in by each enum instance.
+
+The underlying type discriminant is represented by, can be defined explicitly using a [`repr` attribute](#repr).
+
+> _Todo_ Add support for non-integer discriminants, e.g. char
+
+##### Assigning discriminant values [↵](#discriminant-)
+
+By default, the discriminant is implicitly assigned, each varaint will take on the discriminant of the previous value, plus one.
+If the intial variant has no value assigned, it will get a value of 0.
+
+Discriminants can also be assigned explicitly after the variant's name and payload.
+The value needs to be a compile-time expression.
+
+There are restrictions to the value of a discriminant, as each variant needs to have a unique value.
+Setting 2 variants to the same value will cause the compiler to emit an error.
+For example:
+```
+enum A {
+    Variant0 = 1,
+    Variant1 = 1, // error: Variant1 has the same discriminant as Variant0
+}
+
+enum B {
+    Variant0,
+    Variant1,
+    Variant2 = 1, // error: Variant 2 has the same discriminant as Variant1
+}
+```
+
+A discriminant value may also not exceed the maximum value that can be stored within its type.
+```
+@repr(u8)
+enum C {
+    Val = 256, // error: discriminant value exceeds range
+}
+```
+
+##### Accessing discriminant values [↵](#discriminant-)
+
+The most common way of getting an enum's discriminant, is using the `discriminant()` utility function.
+
+An enum can also be cast to a discriminants type, but this requires the enum to be a fieldless enum.
+
+The last way is via a pointer cast, but this is only possible with a `@repr(C, ty)` enum, where `ty` is a know integer type.
+Then this enum may be cast to a pointer of type `ty`
+
+#### Fieldless enum [↵](#11119-enum-types-)
+
+A fieldless enum is enum where none of its variants have a payload.
+Therefore it only exists out of a discriminant, and represent a collection of uniquely named values.
+
+In short, this meant that the enum only has:
+- unit-only variants, and/or
+- variant with empty payloads
+
+#### Record enum types [↵](#11119-enum-types-)
+```
+<record-enum-type>           := 'record' 'enum' '{' <enum-members> '}'
+<record-enum-members>        := <enum-variant> { ',' <enum-variant> } [ ',' ] { <assoc-item> }*
+
+<record-enum-var  iant>      := <unit-enum-variant>
+                             | <tuple-enum-variant>
+                             | <struct-enum-variant>
+
+<record-tuple-enum-variant>  := [ 'mut' ] <name> '(' <tuple-field> { ',' <tuple-field> }* [ ',' ] ')' [ '=' <expr> ] [ <field-tag> ]
+<record-struct-enum-variant> := [ 'mut' ] <name> '{' <struct-field> { ',' <struct-field> } '}' [ '=' <expr> ] [ <field-tag> ]
+```
+A record enum is an enum, also known POD (Plain Old Data) enum, is a variant of an enum which is _structural_ instead of _nominal_.
+
+Some of the most notable ones for structs are:
+- all fields are public
+- all fields are mutable
+
+#### Flag enum types [↵](#11119-enum-types-)
+```
+<flag-enum>         := 'flag' 'enum' '{' <flag-enum-members> '}'
+<flag-enum-members> := <unit-enum-variant> { ',' <unit-enum-variant> }* [ ',' ] { <assoc-item> }* 
+```
+A flag enum, also known as a bitset, it a variant of a fieldless enum (where only unit fields are allowed), which instead of distinct variants, store a collection of bit-flags.
+Each falg enum can contain as many unique flags as are allowed by the underlying primitive type, by default, this value is represented as an `usize` value.
+However, the compiler is allowed to substitute this with a smaller integer types that fits all determinants.
+The discriminant is always an unsigned type.
+
+When no explicit discriminant is given, a field will always have a value that is the next power of 2, that is greater than the previous variant.
+If no explicit discriminant is set of any variant, the first variant will gain a value of 1.
+If at any point the next variant's discirimnant would overflow, the compiler will emit an error.
+
+When no variant is explicitly set to a value of 0, the flag enum will automatically as a `.None` flag with a valu of 0.
+
+Unlike regular enums, a flag enum's explicit discriminant may reference other variant in the flag enum.
+
+A flag will always have a set of implicitly generated methods and operators implemented to be able to work with flags.
+The following function, operators and traits are implemented:
+
+> _Todo_: Add function, operators, and traits here
+
+### 11.1.20 Bitfield types [↵](#111-types-)
+```
+<bitfield-type>    := [ 'mut' ] 'bitfield' [ '(' <expr> ')' ] '{' <bitfield-members> '}'
+<bitfield-members> := <bitfield-field> { ',' <bitfield-field> } [ ',' ] { <assoc-item> }*
+<bitfield-field>   := [ <vis> ] [ 'mut' ] <name> ':' <type> [ '|' <expr> ]
+```
+
+A bitfield type is similar to a struct type, but which is tightly packed and allows each field to be offset and sized to a bit (non-byte) value.
+By default, a bitfield ignores the alignment of a type.
+
+The bitfield type itself may have it's size explicitly defined, this is the number of bits the type would take up when it would be part of a bitfield.
+Outside of anohter bitfield, the bitfield will have a size of the minimum amont of bits needed to store this size.
+If the fields take in less bits than are specified, the remaining bits will be padding.
+When the size of the fields take up more bits, the compiler will emit an error.
+
+Each field in a bitfield is allowed to explicitly define how it should be packed.
+This can be done by providing a compile time expression defining the size of the field.
+
+Like struct fields, each bitfield field is allowed to specify their own visibility and mutability.
+
+Each field within the tuple struct can have its visibility and mutability defined.
+Each field can be accessed using a [tuple index expression](#913-tuple-index-expression-), in addition, they may also have an optional name, which may be used to access a field via a [field access expression](#916-field-access-).
+
+For consistency, bits are laid out in the following way:
+- Bits go from MSB (most-significant bit) to LSB (least-significant bit)
+- Field themselves follow the endianess of the type itself.
+
+#### Record bitfield types [↵](#record-bitfield-types-)
+```
+<record-bitfield-type> := 'record' 'bitfield' '{' <bitfield-memebers> '}'
+```
+
+A record bitfield, also known as a POD (Plain Old Data) bitfield, is a variant of a bitfield which is _structural_ instead of _nominal_.
+These bitfields follow the rules defined [here](#113-nominal-vs-structural-types-).
+
+Some of the most notable ones for bitfields are:
+- all fields are public
+- all fields are mutable
+
+### 11.1.21. Function types [↵](#111-types-)
 
 A function type is an anonymous compiler-generated type, which cannot be manually defined.
 The type references a specific function, including its name and its signature (including parameter labels), and it's compile-time parameter values.
@@ -4942,7 +5480,7 @@ During coercion, all constant parameters will be collapsed before coercing, for 
 > _Todo_: is 'collapsing' correct terminology? + fix link
 > _Todo_: We somehow need to bake lifetimes propagation into this type
 
-### 11.1.16. Function pointer type [↵](#111-types-)
+### 11.1.22. Function pointer type [↵](#111-types-)
 
 ```
 <fn-type> := [ 'unsafe' [ 'extern' <abi> ] ] 'fn' '(' <fn-type-params> ')' [ '->' <type-no-bounds> ]
@@ -4964,7 +5502,7 @@ Function pointers cannot be stored or passed as their own type, but instead need
 
 > _Todo_: Variadic parameters
 
-### 11.1.17. Closure types [↵](#111-types-)
+### 11.1.23. Closure types [↵](#111-types-)
 
 A closure type is an anonymous compiler-generated type, which cannot be manually defined.
 Similar to function types, it refers to a closure using a unique anymous type.
@@ -4976,7 +5514,7 @@ Coercion allows these closures' parameter types to be infered based on their use
 
 > _Todo_: Specify which traits are supported, depending on captures
 
-#### Capture modes [↵](#11117-closure-types-)
+#### Capture modes [↵](#11123-closure-types-)
 
 Capture modes define how a place expression from the surrounding environment will be borrowed or moved into the closure. The following modes are supported:
 1) immutable borrow: the place expression is captured as a [shared referece](#shared-reference-)
@@ -4993,7 +5531,7 @@ This mode is not affected by any of the surrounding code at the location the clo
 
 Values implementint the `Copy` trait that are moved into the closure, will be captured using immutable borrow.
 
-#### Capture precision [↵](#11117-closure-types-)
+#### Capture precision [↵](#11123-closure-types-)
 
 A capture path is a sequence starting with a variable from the surrounding environment, followed by zero or more place projectecion taht were applied to the variable.
 A place projection is any of the following:
@@ -5219,7 +5757,7 @@ c();
 
 > _Todo_: Figure out API and mechanics
 
-#### Unique immutable borrows in captures[↵](#11117-closure-types-)
+#### Unique immutable borrows in captures[↵](#11123-closure-types-)
 
 Captures can occur by a special kind of borrow called a _unique immutable borrow_, which cannot be used anywhere else in the language and cannot be written out explicitly.
 It occurs when modifying the referent of a mutable reference, as in the following example: 
@@ -5246,7 +5784,7 @@ So a unique immutable borrow is used: it borrows `x` immutably, but like a mutab
 In the above example, uncommenting the declaration of `y` will produce an error because it would violate the uniqueness of the closure's borrow of `x`.
 The declaration of `z` is valid because the closure's lifetime has expired at the end of the block, releasing the borrow.
 
-#### Call traits and coercions[↵](#11117-closure-types-)
+#### Call traits and coercions[↵](#11123-closure-types-)
 
 Closure types implement `FnOnce`, indicating that they can be called once by consuming ownership of the closure.
 Additionally, some closures implement more specific call traits:
@@ -5261,7 +5799,7 @@ These can be coerced to function pionters (e.g. `fn()`) with the matching signat
 
 > _Todo_: Using rust-like trait names now, is this correct?
 
-#### Drop order[↵](#11117-closure-types-)
+#### Drop order[↵](#11123-closure-types-)
 
 If a closure captures a field of a composite type like a struct, tuple, or enum by value, the field's lifetime would not be tied to the closure.
 As a result, it is possible for disjoint fields of a composite types to be dropped at different times.
@@ -5277,7 +5815,7 @@ As a result, it is possible for disjoint fields of a composite types to be dropp
 } // tup.1 dropped here ----------------------------+
 ```
 
-### 11.1.18. Intereface Object types [↵](#111-types-)
+### 11.1.23. Intereface Object types [↵](#111-types-)
 
 ```
 <trait-object-type> := 'dyn' <trait-bound>
@@ -5301,7 +5839,7 @@ Trait object types allowe for "late binding" in cases where the types being used
 Calling a method will use a virtual dispatch of the method: that is, teh function pointer is loaded from the vtable, and is then invoked indirectly, incurring a pointer indirection.
 The actual implementation of each vtable may vary on an object-by-object basis.
 
-### 11.1.19. Impl trait types [↵](#111-types-)
+### 11.1.24. Impl trait types [↵](#111-types-)
 
 ```
 <impl-trait-type> := 'impl' <trait-bound>
@@ -5310,7 +5848,7 @@ The actual implementation of each vtable may vary on an object-by-object basis.
 An impl trait type introduces an unnamed generic parameter that implements the given intrefaces to the item it is used in.
 It can appear in only 2 locations: function paramters (where it acts as an anonymous type of the parameter to the function) and function return types (where it acts as an abstract return type).
 
-#### Anonymous type parameter
+#### Anonymous type parameter [↵](#11124-impl-trait-types-)
 
 A function can use an impl trait type as the type of its parameter, where it declares the parameter to be of an anonymous type.
 The caller must provide a type that statisfies the bounds declared in the anonymous type paramter, and the function can only use the functionality available through the trait bounds of the anonymous type paramter.
@@ -5334,7 +5872,7 @@ This can be seens as synctactic sugar for a generic type paramter like `<T is Tr
 >
 > Therefore, changing between these types within a function signature should be considered a breaking change.
 
-#### Abstract return types
+#### Abstract return types [↵](#11124-impl-trait-types-)
 
 A function can use an impl trait type as the type in its return type.
 These types stand in for another concrete type wher the caller may only used the functinality declared by the specified traits.
@@ -5363,14 +5901,14 @@ Which avoids the drawbacks of the 'boxed' type.
 
 _TODO: add note on (memory) effect implications_
 
-#### Abstract return types in trait declarations
+#### Abstract return types in trait declarations [↵](#11124-impl-trait-types-)
 
 Functions in traits may also return an abstract return types, this will create an anonymous associated type within the trait.
 
 Evety `impl Trait` in the return type of an associated function in an trait is desugared to an anonymous associated type.
 The return type that appears in teh implementation's funciton signature is used to determine the value of hte associated type.
 
-##### Differences between generics and `impl Trait` in a return
+##### Differences between generics and `impl Trait` in a return [↵](#abstract-return-types-in-trait-declarations-)
 
 When used as a type argument, `impl trait` work similar to the semantics of generic type parameters.
 But when used in the return, there are significant changes, as unlike with a generic parameter where the caller can choose the return type, the implementation chooses the function's return type.
@@ -5388,35 +5926,12 @@ fn foo() -> impl Trait { ... }
 doesn't allow the caller to explicitly determine the return type.
 Instead the function chooses the return type, with the only guarantee that it implements the required traits.
 
-#### Impl trait limitations
+#### Impl trait limitations [↵](#11124-impl-trait-types-)
 
 An impl trait type may only occur for non-`extern` functions.
 It can also not be the type of a variable declaration, a field, or appear inside a type alias.
 
-### 11.1.20. Record types [↵](#111-types-)
-
-```
-<record-type> := 'struct' '{' <record-members> '}'
-<record-members> := <record-member> { ',' <record-member> }* [ ',' ]
-<record-member> := { <attribute> }* <name> { ',' <name> }* ':' <type>
-```
-
-A record is a _structural_ type is that, similarly to a tuple, consisting out of a list of fields of other types.
-
-But unlike a tuple, fields can be given explicit names, which can then be used to index the fields of the record.
-
-### 11.1.21. Enum record types [↵](#111-types-)
-
-```
-<enum-record> := 'enum' '{' <enum-fields> '}'
-```
-
-An enum record is a _structural_ type and is a variant of a record.
-
-Unlike a record, it does not represent a collection of fields, but a type that is similar to that of an `enum`.
-Access to enum members work essentially identical than those of an enum.
-
-### 11.1.22. Inferred types [↵](#111-types-)
+### 11.1.26. Inferred types [↵](#111-types-)
 
 ```
 <inferred-type> := '_'
@@ -7102,7 +7617,7 @@ Unlike precedence items which can be defined within a nested module, precedence 
 
 When a precedence is imported, its name may not conflict with those of any other precedence declared within the library or imported from an external library.
 
-# 16. Visibility
+# 16. Visibility [↵](#tables-of-contents)
 
 ```
 <vis> := 'pub' [ '(' <vis-kind> ')' ]
@@ -7129,7 +7644,7 @@ With the notion of an item being private of public, items can be accessed in 2 c
    YOu can also potentially be able to name the item through re-exports.
 - If an item is private, it may be accessed by the current module and its descendants.
 
-## 16.1. Specifiers
+## 16.1. Specifiers [↵](#16-visibility)
 
 In addition to purely having items being purely private or public, items can also have a visibility spanning a specific scope, this is done with a specifier.
 The following specifiers are available:
@@ -7137,6 +7652,24 @@ The following specifiers are available:
 - `pub(lib)`: Makes item visible inside of the current library (no equivalent exists for binaries, as `pub` has the same effect in them, as they do cannot be used by another artifact)
 - `pub(super)`: Makes the item visible inside of the parent's named scope.
 - `pub(in path)`: Makes the item visible to the path specified (path is relative to the current artifact)
+
+## 16.2. Common denominator [↵](#16-visibility)
+
+The common denominator in mainly used for:
+- [struct use fields](#use-fields-)
+
+The common denominator of 2  visibilities is decided by choosing the narrowest visibility.
+Meaning the visibilities will be decided by the first visibility in the followin order
+1) 'private', i.e. no visibility specifier
+2) `pub(in path)` or `pub(super)`
+3) `pub(lib)`
+4) `pub(package)`
+5) `pub`
+
+When the visibilities are both either `pub(in path)` or `pub(super)`, the following is done:
+- convert the `super` specifier to an `in path` specifier
+- pick the common root of the path
+- If no common path is available, the visibility will be 'private'
 
 # 17. Attributes [↵](#tables-of-contents)
 
@@ -7401,11 +7934,7 @@ This has the same possible values as the `opt_level` compiler setting.
 
 #### `no_alias`
 
-The `no_alias` attribute is applied to function paramters with a pointer or pointer-like types, guaranteeing that these do not alias and may therefore apply optimizations based on this fact.
-
-#### `union_offset`
-
-The `union_offset` attribute allows a the offset of a field in a union to be defined, see [union field offsets](#761-union-field-offsets-).
+The `no_alias` attribute is applied to function parameters with a pointer or pointer-like types, guaranteeing that these do not alias and may therefore apply optimizations based on this fact.
 
 #### `bit_size`
 
