@@ -6,6 +6,7 @@ Version: 0.0
 
 1. [Introduction](#1-introduction-)
     - [This document is provisional](#this-document-is-provisional)
+    - [Notation](#notation)
 2. [Lexical structure](#2-source-code-representation-)
     1. [Input format](#21-input-format-)
     2. [Byte order markers](#22-byte-order-markers-)
@@ -800,9 +801,9 @@ volatile
 ## 3.3. Names [↵](#3-lexical-structure-)
 ```
 <start-letter> := '_' | ? unicode category XID_Start ? | ? unicode category Nd ?
-<continue-letter> := ? unicode category XID_Continue ?
+<letter> := ? unicode category XID_Continue ?
 
-<name> := <start-letter> <continue-letter>*
+<name> := <start-letter> <letter>*
 ```
 
 A name is sequence of unicode points that can be used to identify a symbol or value in code.
@@ -7602,7 +7603,7 @@ For example, if `+` would have had `none` associativity, the expressions `(a + b
 
 Unary expression ignore associativity and go solely based on their precedence order.
 
-## 15.3. Precedence scoping and use
+## 15.3. Precedence scoping and use [↵](#15-precedence-)
 
 ```
 <precedence-use> := 'precedence' 'use' <use-root> [ '.' '{' <name> { ',' <name> }* [ <name> ] '}' ] ';'
@@ -8504,6 +8505,7 @@ This can be caused by indexing into an array or a slice.
 ### 23.3.2. Incorrect pointer alignment [↵](#233-memory-)
 
 When assigning a memory address to a pointer, that memory address may not adhere to the alignment requirements of the pointer.
+This also applies to references.
 
 ### 23.3.3. Sentinel access [↵](#233-memory-)
 
