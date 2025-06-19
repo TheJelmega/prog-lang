@@ -57,8 +57,14 @@ Version: 0.0
         3. [Examples](#363-examples-)
 4. [Package Stucture](#4-package-structure-)
     1. [Packages](#41-packages-)
+        1. [Groups](#411-groups)
     2. [Artifacts](#42-artifacts-)
+        1. [Binaries](#421-binaries-)
+        2. [Static libraries](#422-static-ibraries-)
+        3. [Dynamic libraries](#423-dynamic-ibraries-)
     3. [Modules](#43-modules-)
+        1. [Main module](#431-main-module-)
+        2. [Module roots](#432-module-roots-)
 5. [Names and path](#5-names-and-paths-)
     1. [Names](#51-names-)
     2. [Identifiers](#52-identifiers-)
@@ -97,7 +103,13 @@ Version: 0.0
         3. [Path attibute](#713-path-attribute-)
     2. [Use declaration](#72-use-declarations-)
         1. [Use visibility](#721-use-visibility-)
-        2. [Underscore imports](#722-underscore-imports-)
+        2. [Use paths](#722-use-path-)
+        3. [Glob imports](#723-glob-imports-)
+        4. [Use groupings](#724-use-groupings-)
+            - [`self` imports](#self-imports-)
+        5. [Use aliases](#725-use-aliases-)
+            - [Underscore imports](#underscore-imports-)
+        6. [Import ambiguity](#726-import-ambiguity-)
     3. [Functions](#73-function-)
         1. [Parameters](#731-parameters-)
         2. [Returns](#732-returns-)
@@ -501,6 +513,7 @@ Version: 0.0
         1. [Out-of-bounds](#2331-out-of-bounds-)
         2. [Incorrect pointer alignment](#2332-incorrect-pointer-alignment-)
         3. [Sentinel access](#2333-sentinel-access-)
+25. [Main function](#25-main-function)
 
 
 # 1. Introduction [↵](#tables-of-contents)
@@ -1374,9 +1387,38 @@ Additional info can be found in [the package design](packages.md).
 
 A package represents the upper level of a hierarchy of artifacts and the main unit of distribution.
 
-Packages themselves are not the direct result of compilation, but play an integral part if code organization, including how packages are 'imported'.
-A package can contain any number of artifacts, allowing allow related code to be shared as a single unit,
-meaning that if a project is split up in modularized components, they can still be easilty distributed, without having to result to sub-naming.
+Packages themselves are not the direct result of compilation, but play an integral part in code organization.
+Howevver, packages do define how code is imported, as it is the base on which all import paths are based..
+
+A package can contain any number of artifacts, allowing related code to be shared as a single unit,
+meaning that if a project is split up in modularized components, they can still be easily distributed, without having to result to sub-naming.
+
+### 4.1.1. Groups
+
+Packages may also be part of a group, this is a logical grouping of packages, but unlike packages, they are an optional part of code distribution.
+The main purpose of groups is allowing an organization combine their packages under the organization's name.
+This also allows muliple organizations that each have their own group, to have similar package name.
+
+An example of how groups can be used:
+```
+Xenon package registry
+├─CompanyA
+│ ├─ProductA
+│ │ ├─Binary
+│ │ └─Dylib
+│ └─ProductB
+│   └─Binary
+├─OrgA
+│ └─ProductA
+│   └─Binary
+└─ProductA
+  └─Binary
+```
+
+In the above example, 3 packages are all named 'ProductA', but they can be distinguished as:
+- `CompanyA.ProductA`: Product of a company
+- `OrgA.ProductA`: Product of an organization, independent from the company
+- `Product`: A seperate product made by a independent developer
 
 ## 4.2. Artifacts [↵](#4-package-structure-)
 
@@ -1389,19 +1431,19 @@ An artifact consts out of 3 distinct types:
 
 Artifact themselves are made up from modules.
 
-### Binaries
+### 4.2.1 Binaries [↵](#42-artifacts-)
 
 Binaries are the resulting runnable executables, these are not meant to be 'imported', as they miss all the data required for it.
-These can be delivered together with binaries, not only be used as the final application, but also tools used for additional functionality.
+These can be delivered together with binaries, not only to jjjbe used as the final application, but also tools used for additional functionality.
 
-### Static ibraries
+### 4.2.2. Static ibraries [↵](#42-artifacts-)
 
 A static library is a library that is meant to be linked into any code using it.
 It contains all info needed to 'import' and use it in other code, including the bytecode for all the relavent issues.
 
 If possible, the compiler can inline any code within the static library.
 
-### Dynamic ibraries
+### 4.2.3. Dynamic ibraries [↵](#42-artifacts-)
 
 A dynamic library is a library that is meant to be referenced by code linking to it, unlike a static binary, this is not linked directly into the code, but live as their own file right next to it.
 Dynamic libraries actually generates 2 resulting file: a xenon library and a OS-specific dynamic library.
@@ -1412,9 +1454,22 @@ The xenon library is similar to those produced for static libraries, but does no
 A module generally represents a single file or inlined module definition (if a file is not directly included within another file).
 Each module is allowed to have multiple sub-modules.
 
+### 4.3.1. Main module [↵](#43-modules-)
+
 Each artifact has its own main module, which by default uses the following files:
 - binaries: `main.xn`
 - static and dynamic libraries: `lib.xn`
+
+These module do not have a namespace from the point of view from the library, as they are essentially code that is located at the root of the library.
+
+### 4.3.2. Module roots [↵](#43-modules-)
+
+A module root is a specially named file which indicates that its sub-modules are located within the same directory as it, instead of in a sub-directory.
+
+A module root is one of the following:
+- A binary main module, i.e. `main.xn` when in the binary's root source folder
+- A library main module, i.e. `lib.xn` when in a library's root source folder
+- `mod.xn` when in a module's sub-folder
 
 # 5. Names and paths [↵](#tables-of-contents)
 
@@ -1937,13 +1992,13 @@ Every artifact within the package has a single "outermost" anonymous module; all
 Items are entirely determined at compile time, generally remain fixed during execution, and may reside in read-only memory.
 
 Some items form an implicit scope for the declarations of sub-items.
-In other words, within a function or module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar components that otherwhise compose the item body.
+In other words, within a function or module, declarations of items can (in many cases) be mixed with the statements, control blocks, and similar components that otherwise compose the item body.
 
 ## 7.1. Module item [↵](#7-items-)
 
 ```
-<module-item> := { <attrib>* } [<vis>] "mod" <name> ';'
-               | { <attrib>* } [<vis>] "mod" <name> '{' { <module-attribute> }* { <item> }* '}'
+<module-item> := { <attribute>* } [<vis>] "mod" <name> ';'
+               | { <attribute>* } [<vis>] "mod" <name> '{' { <module-attribute> }* { <item> }* '}'
 ```
 
 A module is a container of zero or more items.
@@ -1951,9 +2006,21 @@ A module is a container of zero or more items.
 A module item introduces a a new named module into the tree of modules making up the current artifact.
 Modules can be nested arbitrarily.
 
-_TODO: example_
+```
+mod foo {
+    mod bar {
+        fn baz() {
+            ...
+        }
+    }
 
-Modules and types share the same namespace.
+    fn quux() {
+
+    }
+}
+```
+
+Modules share the same namespace as any other item located within the surrounding item or block.
 Declaring a named type with the same name as a module in a scope is forbidden; that is, any item cannot shadow the name of a module in the scope and vice versa.
 Items brought into scope with a `use` also have this restriction.
 
@@ -1963,7 +2030,7 @@ Modules are generally split up in 2 kinds.
 
 Inline modules are declared directly within another module and allows manual nesting within the file.
 
-Inline modules are allowed to declare any file modules within them, but the path is interpreted differently, see below for more info.
+Inline modules are allowed to declare any file modules within them, but the path is interpreted differently.
 An inline module also have a single segment path defined to name the sub-folder they would map to if they would have been file modules.
 
 When using a nested module in a file:
@@ -1974,12 +2041,12 @@ mod bar {
 ```
 The following set of nested modules will be produces and there  corresponding filesystem structure when using the default module structure:
 
-Module path     | Filesystem path          | File content
+Module path     | Filesystem path          | File contentd
 ----------------|--------------------------|----------------
 `:`             | `lib.xn` or `main.xn`    | `mod foo;`
 `:.foo`         | `foo/mod.xn` or `foo.xn` | see code above
 `:.foo.bar`     | `foo/mod.xn` or `foo.xn` | see code above
-`:.foo.bar.baz` | `foo/bar/baz.xn`         | `
+`:.foo.bar.baz` | `foo/bar/baz.xn`         |
 
 ### 7.1.2. File modules [↵](#71-module-item-)
 
@@ -1987,9 +2054,11 @@ A file module refers to code located within an external file.
 If no explicit path is defined for the module, the path to the file will mirror the logical module path.
 All ancestor module path elements are represented by a path of nested directories within the artifact's source module.
 
-The default naming of sub-modules is done in 2 ways:
-- As a file located in the same directory as this folder, with the name of the module (only applicable for declarations in root-files).
-- As a `mod.xn` file within a sub-directory with the name of the module.
+The default naming of a sub-module is done in the following way:
+- When the current file is a [module root](#432-module-roots-), the module file is located within the same directory as the module root's file.
+- As a `mod.xn` file within a sub-directory with the module's name.
+
+This is also the same order in which the compiler will scan for the module's file when no `path` attribute is provided
 
 The following is an example of a set of nested modules and there corresponding filesystem structure when using the default module structure:
 
@@ -1999,7 +2068,7 @@ Module path | Filesystem path                  | File content
 `:.foo`     | `foo/mod.xn` or `foo.xn`         | `mod bar;`
 `:.foo.bar` | `foo/bar/mod.xn` or `boo/bar.xn` |
 
-Only module that are at a file's root level or are only nested within other modules may refer to external files
+File modules may only appear directly with an artifact's main module or a directly nested module, i.e. only modules nested inside of other modules.
 
 ### 7.1.3. Path attribute [↵](#71-module-item-)
 
@@ -2008,9 +2077,8 @@ The directory and files used for loading a file module can be influenced using t
 If a `path` attribute is applied on a module that is not inside an inline module, the path is relative to the directory the source file is located in.
 
 For example, with the following code in a file:
-_TODO: Is this attribute notation correct?_
 ```
-@[path = "foo.xn"]
+@path("foo.xn")
 mod c;
 ```
 will produce the following paths:
@@ -2020,15 +2088,15 @@ Module path    | `c`'s file location | `c`'s module path
 `src/a/b.xn`   | `src/a/b/foo.xn`    | `:.a.b.c`
 `src/a/mod.xn` | `src/a/foo.xn`      | `:.a.c`
 
-For a `path` attribute inside an inline module, the relative location of the file path depends on the kind of source file the `path` attributre is located in.
-If in a root module (such as `main.xn` or `lib.xn`) or in a `mod.xn` file,  the path is relative to the directory it would have been in, if it was only using file modules, meaning that it will interpret all inline module modules as a directories.
+For a `path` attribute inside an inline module, the relative location of the file path depends on the kind of source file the `path` attribute is located in.
+If in a [module root](#432-module-roots-), the path is relative to the directory the module root is located in.
+If it were to only use file modules, meaning that it will interpret all inline module modules as a directories.
 Otherwise, it is almost the same, with the exception that the path starts with the name of the current module.
 
 For example, for the following code:
-_TODO: Is this attribute notation correct?_
 ```
 mod inline {
-    #[path = "other.xn"]
+    @path("other.xn")
     mod inner;
 }
 ```
@@ -2039,27 +2107,82 @@ Module path    | `inner`'s file location   | `inner`'s module path
 `src/a/b.xn`   | `src/a/b/inline/other.xn` | `:.a.b.inline.inner`
 `src/a/mod.xn` | `src/a/inline/other.xn`   | `:.a.inline.inner`
 
+The path that would be represented by an inline module may also be defined, as in the following example:
+```
+@path("foo")
+mod inline {
+    @path("bar.rs");
+    mod inner;
+}
+```
+`inner` would now be located within `foo/bar.rs`.
+
+When a path is applied to an inline module, the path does not require an extension.
+
 ## 7.2. Use declarations [↵](#7-items-)
 
 ```
-<use-item>     := `use` <use-root> [ '.' <use-tree> ] ';'
-                | `use` <use-tree> ';'
-<use-root>     := [ <name> [ '.' <name> ] ] ':' [ <name> ]
-<package|name> := [ <name> '.' ] <name>
-<module-name>  := <name>
-<use-tree>     := <simple-path> '.' '*'
-                | <simple-path> '.` '{' <use-tree> { ',' <use-tree> }* [ ',' ] '}'
-                | <simple-path> [ "as" ( <name> ) ]
+<use-item>       := 'use' <use-root> [ ( '.' <use-tree> ) | <use-tree-tail> ] ';'
+                  | <use-tree> ';'
+<use-root>       := [ <package-name> ] ':' [ <module-name> ]
+                  | 'super'
+<package-name>   := [ <name> '.' ] <name>
+<module-name>    := <name>
+<use-tree-tail>  := <use-glob>
+                  | <use-grouping>
+                  | <use-alias>
+<use-tree>       := <use-path> <use-tree-tail>
+<use-tree-inner> := <use-tree>
+                  | 'self' [ 'as' <name> ]
+<use-path>       := <name> { '.' <name> }*
 ```
 
 A `use` declaration creates a local binding associated to a item path.
-These are used for 2 reasons:
-- Introduce a libary's root module into the scope.
-- Shorten the path required to refer to a item.
+They can be used to:
+- introduce a library's root module into the scope
+- introduce a specific item into the scope
+- Shorten the path required to reference an item
 
 These declarations may appear in modules and blocks.
 
-To access any path from outside the current scope, each `use` declaration must start by indicating the package and library modules come from.
+> _Note_: To import the contents of a file, use the `#embed()` meta-function
+
+> _Todo_: Could be interesting to support directly including C headers, i.e. `use "header.h";` and `use "header.h" as ffi;`
+
+### 7.2.1. Use visibility [↵](#72-use-declarations-)
+
+Like other items, `use` declarations are private to the containing module by default.
+But it can also have its visibility declared, while for most items, this is explained in the [visiblity secton](#16-visibility-), visibility attributes work slightly differently on `use` declarations.
+`use` declaration can be used to re-export symbols to a different target definition with a different visibility and/or name.
+For example, a symbol with a more restricted visibility like 'private' in one module, can be changed to a `pub` symbol in another module.
+If the resulting sequence of re-exports form a cycle or cannot be resolved, a compiler error will be emitted.
+
+An example of redirection:
+```
+mod quux {
+    use :.foo.{bar, baz};
+    pub mod foo {
+        pub fn bar() {}
+        pub fn baz() {}
+    }
+}
+
+fn main {
+    quux.bar();
+    quux.baz();
+}
+```
+
+### 7.2.2. Use root [↵](#72-use-declarations-)
+
+Each use path starts with a root which indicates relative to what the path is located.
+
+A use declaration may look for the path in within one of the following:
+- a specified library
+- the current module
+- the parent module
+
+To access a a specified library, the declaration start by indicating the path to the library.
 This is called the root name and is shown as `package:library`, these do not need to explicitly be written down in the following usecases:
 - the package can be left out if the path refers to the current package
 - the library can be left out in 2 cases:
@@ -2088,45 +2211,108 @@ Use root | Package | Library
 `B:D`    | `B`     | `D`
 
 The package name may contain 2 parts: an optional group name, and the actual name of the package.
-The group name can be used to put a set of packages under a single organization or developer.
+For more info can be found [here](#41-packages-).
 
-For example, the Xenon std library may be an `std` package within a `xenon` package group, meaning it can be used as `xenon.std` when a shorthand is not defined within the project's settings.
+For example, the Xenon std packages' experimental library is accessed as `xenon.std:experimental`, where:
+- `xenon` is the group that the library belongs to
+- `std` is the package under which the library is distributed
+- `experimental` is the actual library.
 
 The `use` root can be omitted for any value relative to the current module, including at most 1 level up using the `super` keyword.
 
-Use declarations support a number of convenient shortcuts:
-- Simultaneously bind a list of paths with a common prefix, using a braced representation, i.e. `:.a.b.{c, d.e, f.g.h}`
-- Simultaneously bind a list of paths with a common prefix, and their parent module, e.g. `:.a.b.{self, c, d.e}`
-- Rebind a module or item to a local name, e.g. `:.a.b.c as d`
-- Bind all paths with a common prefix, e.g. `:.a.b.*`
+### 7.2.2. Use path [↵](#72-use-declarations-)
 
-### 7.2.1. Use visibility [↵](#72-use-declarations-)
+A use path is the main path to a symbol which appears after after a root, or as the first element for a sub-path within a [use grouping](#724-use-grouping-).
+A use path exists out of a list of names, which can each refer to a entity within the previous segments namespace.
 
-Like other items, `use` declarations are private to the containing module by default.
-But it can also have its visibility declared, while for most items, this is explained in the [attribute](#17-attributes-) section, visibility attributes work slightly differently on `use` declarations.
-`use` declaration can be used to re-export symbols to a different target definition with a diffferent visibility and/or name.
-For example, a symbol with a more restricted visibility like 'private' in one module to a `pub` symbol in another module.
-If the resulting sequence of re-exports form a cycle or cannot be resolved, this will be a compile error.
+Items each segments may refer to can be one of the following:
+- Nameable [items](#7-items-)
+- [Enum variants](#11119-enum-types-)
+- Builtin types ([primitive types](#1114-primitive-types-) & [string slices](#11111-string-slice-types-))
+- [Attributes](#17-attributes-)
+- [Metaprogramming items](#13-metaprogramming-)
 
-An example of redirection:
+The cannot refer to any of the following:
+- associated items
+- generic parameters
+- local variables
+- tool attributes
+- items declared inside of [functions](#73-function-)
+
+If no path tail is added, the path will create a binding to the imported entities, with the exception of [`self`](#self-imports-).
+
+A use-path may end in a tail, which is one of the following:
+- [glob imports](#723-glob-imports-)
+- [use groupings](#724-use-groupings-)
+- [use aliases](#725-use-aliases-)
+
+### 7.2.3. Glob imports [↵](#72-use-declarations-)
 ```
-mod quux {
-    use :.foo.{bar, baz};
-    pub mod foo {
-        pub fn bar() {}
-        pub fn baz() {}
-    }
-}
-
-fn main {
-    quux.bar();
-    quux.baz();
-}
+<use-glob> := '.' '*'
 ```
-### 7.2.2. Underscore imports [↵](#72-use-declarations-)
 
-Items can be imported without binding to a name by using an underscore with the form `use path as _`.
+A glob import is used to import all entities that are located in the namespace pointed to by the preceeding path.
+
+Items and named imports are allowed to shadow names from glob impoorts within the same namespace.
+Meaning that if a name is already defined, while also being imported via a glob, the name that is already defined takes precedences over the glob imported entity.
+
+### 7.2.4. Use groupings [↵](#72-use-declarations-)
+```
+<use-grouping>   := '.' '{' <use-tree-inner> { ',' <use-tree-inner> }* [ ',' ] '}'
+<use-tree-inner> := <use-tree>
+                  | 'self' [ <use-alias> ]
+```
+
+A use grouping allows multiple entities to be imported from the location pointed to by the preceeding path.
+Use grouping can be nested within each other.
+
+An emty use-grouping is allowed, but this will not import anything, although the preceeding path will still be checked to be valid.
+
+#### `self` imports [↵](#724-use-grouping-)
+
+A `self` import is a special import that is only allowed inside of an import grouping.
+It allows the entity at the sub-path before teh grouping to be imported in addition to any other entities in the path.
+
+If the `self` import is the only element in an import grouping, the path will act the same as it would have been without the use grouping.
+
+### 7.2.5. Use aliases [↵](#72-use-declarations-)
+```
+<use-alias> := 'as' <name>
+```
+
+A use alias allows an imported entity to be bound to another name.
+
+#### Underscore imports [↵](#725-use-aliases-)
+
+Items can be imported without binding to a name by using an `_` (underscore) alias
 This is particularly useful to import a trait so that its methods may be used without importing the trait symbol, for example if the trait's symbol may conflict with another symbol.
+
+### 7.2.6. Import ambiguity [↵](#72-use-declarations-)
+
+Certain situation might cause multiple `use`s to result in an ambiguity when trying to resolve a symbol, and the symbols do not resolve to the same entity.
+
+Glob imports are allowed to import conflicting names, as long as the name is not used.
+If the the conflicting names were to refer to the same entity, the name may still be used.
+The visibility of such an entity will then become the greatest visibility between the imports.
+
+For example, if both libraries were to contain `foo`, the following would lead to an ambiguity:
+```
+use :lib0.*;
+use :lib1.*;
+
+fn main() {
+    foo(); // ambiguous symbol, specify `lib0.foo` or `lib1.foo`
+}
+```
+it is then possible to explicitly specify which lib `foo` should come from
+```
+use :lib0.*;
+use :lib1.{*, foo}; // Still importing everything, but foo is named now
+
+fn main() {
+    foo(); // This is now `lib1.foo`
+}
+```
 
 ## 7.3 Function [↵](#7-items-)
 
@@ -8510,3 +8696,39 @@ This also applies to references.
 ### 23.3.3. Sentinel access [↵](#233-memory-)
 
 When an array, slice, or multi-element pointer has a sentinel value, they can be written to and read from past the sentinel value.
+# 25. Main function
+
+The main function, unlike langauge builtins, is a special function that the user can themselves define.
+It must appear in the root module of a binary, i.e. in `main.xn`.
+
+The main function takes no arguments, and must return a type returning the `Termination` trait.
+This is meant to allow the main function to return any type that implements the trait.
+
+Some examples of possible main functions are
+```
+fn main() {}
+```
+```
+fn main() -> ! {
+
+}
+```
+```
+fn main() -> impl Termination {
+
+}
+```
+
+> _Todo_: Make sure examples are valid, i.e. fix implementation
+
+The main function may be an import from another library or a module in the current library by aliasing a function meeting the requirements as `main`.
+
+```
+mod foo {
+    fn bar() {
+    }
+}
+
+use :.foo.bar as main;
+
+```
