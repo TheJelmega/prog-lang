@@ -112,12 +112,18 @@ Version: 0.0
         6. [Import ambiguity](#726-import-ambiguity-)
     3. [Functions](#73-function-)
         1. [Parameters](#731-parameters-)
-        2. [Returns](#732-returns-)
-        3. [Pseudo-function overloading](#733-pseudo-function-overloading-)
-        4. [Const function](#734-const-function-)
-        5. [Method](#735-method)
-        6. [Trait function & Method](#736-trait-function--method-)
-        7. [External function qualifier](#737-external-function-qualifier-)
+            - [Labels](#labels-)
+            - [Optional parameters](#optional-parameters-)
+            - [Variadic parameters](#variadic-parameters-)
+            - [Deduced parameters](#deduced-parameters-)
+        2. [Return](#732-return-)
+        3. [Function body](#733-function-body-)
+        4. [Const functions](#734-const-functions-)
+        5. [Methods](#735-methods-)
+        6. [Trait functions & methods](#736-trait-functions--methods-)
+        7. [External & exported functions](#737-external--exported-functions-)
+        8. [Label based overloading](#738-label-based-overloading)
+            - [Examples](#examples-8)
     4. [Type aliases](#74-type-aliases-)
         1. [Distinct types](#741-distinct-types-)
         2. [Opaque types](#742-opaque-types-)
@@ -2315,150 +2321,319 @@ fn main() {
 ```
 
 ## 7.3 Function [↵](#7-items-)
-
 ```
-<fn-item> := { <attribute> }* [ <vis> ] [ 'const' ] [ 'unsafe' ] [ 'extern' <abi> ] 'fn' <name> [ <generic-params> ] '(' [ <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
-<fn-body> := <block-with-return>
-           | <block-no-return>
-           | ';'
+<fn-item>       := <fn-qualifiers> 'fn' <name> [ <deduced-params> ] '(' [ <fn-params> ] ')' [ <fn-return> ] [ <where-clause> ] { <contract> }* <block>
+<fn-qualifiers> := { <attribute>* } [ <vis> ] [ 'const' ] [ 'unsafe' ] 
 ```
 
-A function associates a block of code with a name with a set of generics, parameters, effects, and a return type, only the name is required.
+A function consists of a named block of code, together with a set of parameters (implicit and explicit), and a return type, representing a unit of reusable code.
 
-When refered to, a function yields a first-class value of a the corresponding zero-sized [function item type](#11114-function-types), which when called evaluates to a direct call to a function.
+When refered to, a function yields the corresponding zero-sized [function type](#11121-function-types-), when when called evaluates to a direct function call.
 
-A function can be declared `unsafe`, requiring it to be called from an unsafe context, but allowing any `unsafe` code to be called from within the function.
+A function may be declared `unsafe`, making it's entire body an unsafe context, but requires the function itself to be called from an unsafe context.
 
-### 7.3.1. Parameters [↵](#73-function-)
+Each function has an identifier used to look up the function.
+A function identifier is based on the actual function name + the names of the labels of the required and optional parameters.
+This is done by having taking the function name, and following that with a list of `:`-separated label names, surrounded by parentheses.
+These is always a trailing `:`.
+Optional paramters are prefixed with a `?`.
+If a variadic paramter exists, the label will be followed by `...`
+For example, the function `foo(a: i32, b: i32 = 1, c...: i32)` will have the identifier `foo(a:?b:...)`.
 
+> _Todo_: Fix variadic syntax
+
+Some examples of this:
 ```
-<fn-params> := <fn-param> { ',' <fn-param> }*
-             | [ <fn-param> { ',' <fn-param> }* ',' ] <opt-fn-param> { ',' <opt-fn-param> }
-             | [ <fn-param> { ',' <fn-param> }* ',' ] [ <opt-fn-param> { ',' <opt-fn-param> } ',' ] <variadic-param>
+fn foo() {} // -> foo()
+fn foo(a: i32, b: i32) {} // -> foo(a:b:)
+fn foo(:_ a: i32, :_ b: i32) {} // -> foo(_:b:)
+fn foo(a: i32, :_ b: i32, :_ c: i32, d: i32) {} // -> foo(a:_:_:b:)
 
-<fn-param> := { <attribute> }* <fn-param-name> { ',' <fn-param-name> }* ':' <type>
-<opt-fn-param> := [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt> ':' <type> '=' <expr>
-<fn-param-name> := [ <fn-param-label> ] { <attribute> }* [ 'mut' ] <name>
-                 | [ <fn-param-label> ] { <attribute> }* <pattern-top-no-alt>
+// With optionals
+fn foo(a: i32 = 2) {} // -> foo(?a:)
+fn foo(a: i32, b: i32 = 3) {} // -> foo(a:?b:)
+```
+> _Todo_: Effects
+
+## 7.3.1. Parameters [↵](#73-function-)
+```
+<fn-params>      := <fn-param> { ',' <fn-param> }* [ ',' ]
+                  | [ <fn-req-params> ',' ] <fn-opt-params> [ ',' ]
+                  | [ <fn-req-params> ',' ] [ <fn-opt-params> ',' ] <fn-variadic-params>
+
+<fn-req-params>  := <fn-param> { ',' <fn-param> }*
+<fn-param>       := { <attribute> }* <fn-param-name> ':' <type>
+
+<fn-param-name>  := [ <fn-param-label> ] [ 'mut' | 'const' ] <name> { ',' [ <fn-param-label> ] [ 'mut' | 'const' ] <name> }
+                  | [ <fn-param-label> ] [ 'const' ] <pattern-top-no-alt>
+```
+
+A function parameter represents one or more values that can be passed to a function.
+Each parameter can be specified by either
+- a collection of one of more comma-separated names, each with a mutability specified, or
+- a pattern
+
+If multiple names are provided, the parameter will be split into multiple invidual paramters.
+Otherwise, if a  pattern is used within a parameter, it must be an [irrifutable pattern](), for example:
+```
+fn name((value, _): (i32, i32)) -> i32 { value }
+```
+
+Parameter may be passed either as:
+- `mut`: meaning that the value passed via the parameter may change, or
+- `const`: meaning that the parameter is a compile-time parameter.
+
+If a pattern is used, the user may apply a `const` modifier to the entire pattern.
+The programmer must then ensure that no mutable bindings appear withing the pattern.
+
+Any parameter of type `type` must be a constant parameter.
+
+Any 2 parameters may not share a label.
+
+> _Todo_: Fix irrifutable link
+
+#### Labels [↵](#731-parameters-)
+```
 <fn-param-label> := ':' <name>
+```
+Labels provide an explicit name to a given argument, which is then used when calling the function.
+These calls require labels to be provided to be able to select the correct version of a function
 
-<variadic-param> := <name> ':' <type> '...'
+If an explicit label is provided, it can either be:
+- a name, this will then be the name will be the label bound to the given parameter and must be used to pass data along the the function, or
+- an `_`, this implies a label-less parameter, meaning that no name needs to be provided when calling a function
+
+If no explicit label is provided, a label is picked depending on the parameter:
+- for every name, the label will be called the same, e.g. `foo: i32` will become `:foo foo : i32`
+- for every pattern, the parameter will be a label-less parameter.
+
+Argument labels are also allowed to take on the name of keywords, with the exception of the `self` keywords, as it is a special label.
+For example: `fn find(:struct value: Foo, :in container: Bar)`.
+
+> _Note_: A label of `self` is not allowed
+
+> _Todo_: Should labels be allowed to be keywords? as label are clearly marked
+
+#### Optional parameters [↵](#731-parameters-)
+```
+<fn-opt-params> := <fn-opt-param> { ',' <fn-opt-param> }
+<fn-opt-param>  := <fn-param> '=' <expr>
 ```
 
-Function parameters consists out of a label, a pattern, and a type.
-A label can be optional if the pattern is an identifier pattern.
+A parameter may be provided with a default value when no explicit value is given, these are known as optional parameters.
+Optional parameters must appear after all non-optional (also known as required) parameters.
+A default value needs to a be a value that is known at compile-time.
 
-Any other parameter is a normal parameters.
-If an explicit label is provided, it can be either
-- a name, this is the label that any argument needs to be 'bound' to, and needs to be provided for this parameter when calling the function.
-- an '_', this implies an unnamed parameter and has no label needs to be provided for this parameter when calling the function.
+When calling a function with optional parameters, each argument may appear in any order relative to other optional arguments, but they must appear after any required arguments.
 
-If no explicit label is provided, this will default to a label with the same name as the parameter, so `foo: i32` will become `foo foo: i32`.
+An optional parameter may not be label-less, i.e. it may not have `:_` as a label.
 
-Parameters can be provided with default values after `=`, and are also known as default parameters.
-The default value needs to be an expression that can be evaluated at compile time.
-All default parameters are required to have a label, as these may appear in any order in a function call.
-
-If a function may also be followed by a variadic parameter.
-This is a special parameter that allows any number of elements of that type to be provided.
-This will generate a generic parameter pack with a type constraint to the type given.
-
-Any 2 parameters may not have the same label.
-
-### 7.3.2. Returns [↵](#73-function-)
-
+#### Variadic parameters [↵](#731-parameters-)
 ```
-<fn-return> := <fn-return-single> | <fn-return-multi>
-<fn-return-single> := [ 'name' ':' ] <type>
-<fn-multi-return> := '(' fn-return-single { ',' <fn-return-single> }* ')'
 ```
 
-Functions can return either a normal type, or a set of labeled returns.
-If no label is specified, the function is just returned with `return` statement, or with the result of the last expression (if it is not ended by a semicolon).
+> _Todo_
 
-When named returns are used, the function can only be returned using an empty `return` or an expression returning a unit type (if not ended by a semicolon).
-
-Named return are required to be assigned a value, using them inside of a function is the same as any other mutable variable.
-
-### 7.3.3. Pseudo-function overloading [↵](#73-function-)
-
-Xenon supports a way of overloading functions, but instead of it being based on any type, it is based on the labels of the receiver and non-default paramters.
-
-Function overlap gets checked for each set of functions in the following steps:
-1. If the name of the function does not match that of the other function, we have no collision, otherwise proceed to the next step.
-2. Check the first set of matching required parameters, meaning if function `a` has `N` parameters, and `b` has `M` paramters, compare the first `min(N, M)` parameters:
-   If a pair of corresponding parameters do not match, we have no collisions.
-   If no parameters match, proceed to the next step.
-3. If both functions have the same number of non-default parameters, proceed to the next step, otherwise take the `N` parameters that are left from the additional parameters the functions with remaining non-default parameters has, and for each paramters, do the following:
-   1. Walk through the other functions default arguments
-      - If a label matches that of the optional argument and we are at the last paramter of the function (i.e. no other params left), we got a collision
-      - If we only match the labels, and go the next iteration.
-      - Otherwise go to the next sub-step
-   2. If we hit the end of the other functions optional parameters, we have no collision, otherwise break otherwise go to the next iteration
-4. If any default parameters are left over, there is a collision, otherwise go the the next step
-5. If both functions have variadic arguments, we have a collision, otherwise we have no collision.
-
-If a collision is encountered, we have conflicting function declarations.
-
-#### Resolve examples
-
-Below are example of where something can happen in a collision check.
-
-2. Different names: **_no collision_**
+#### Deduced parameters [↵](#731-parameters-)
 ```
-fn foo() { ... }
-fn bar() { ... }
+<deduced-params> := '[' <deduced-param> { ',' <deduced-param> } ']'
+<deduced-param>  := <name> ':' <type>
 ```
 
-3. Same number of paramters with same labels: **_collision_**
+A deduced parameter is a parameter that can be deduces from the arguments passed into the function.
+All deduced parameters are automatically compile-time values.
+
+Example
 ```
-fn foo() { ... }
-fn foo() { ... }
+// Both `T` and `N` can be inferred from the type of `arr`
+fn foo[T: type, N: usize](arr: [N]T) { ... }
+```
+
+If a deduced parameter has not enough information from the rest of the function, an compiler error will be emitted.
+For example: 
+```
+fn foo[T: type, U: type](val: &T) -> U { ... } // error: cannot decude the type of `U` from the signature
+```
+
+### 7.3.2. Return [↵](#73-function-)
+```
+<fn-return> := '->' [ <name> ':' ] <type>
+```
+A function return may define a return in 2 ways:
+- using a named return, allowing the name to be assigned within the function, this is the value that will be returned when no explicit return is called.
+  Meaning that this may still be overwritten explicitly.
+- using an unnamed type, meaning that a value must be expliclitly returned from a function.
+
+A special case is when the return type is a named tuple with all fields named. In this case, the individual fields may be assigned directly like a names return would.
+
+If a named return exists and no explicit return is used, the named return or the named tuple fields must be assigned a value.
+
+When no return is explicitly stated, an implicit [unit type](#1115-unit-type-) will be the return type.
+
+### 7.3.3. Function body [↵](#731-parameters-)
+
+A function body is the part of the function that contain the actual code that is run when calling the function.
+Within a function body, the programmer has access to all parameters and named return values.
+
+When a parameter uses a pattern, the body has access the the bindings within the pattern.
+
+These act like a [block expression](#95-block-expression--), allowing both explicit returns, and returns using the last expression within the block.
+
+### 7.3.4. Const functions [↵](#73-function-)
+
+A const function is a version of a function which may be called either at compile time or at runtime.
+
+Functions returning a [`type` type](#1111-type-type-) are restricted to a compile time context.
+
+### 7.3.5. Methods [↵](#73-function-)
+```
+<method>             := <method-qualifiers> 'fn' '(' <receiver> ')' <name> [ <implicit-params> ] '(' [ <fn-params> ] ')' [ <fn-return> ] [ <where-clause> ] { <contract> }* <block>
+<method-qualifiers>  := { <attribute> }* [ 'const' ] [ 'unsafe' ]
+<reciever>           := [ '&' ] [ 'mut' ] 'self'
+                      | 'self' ':' <type>
+```
+
+A method is a special type of associated function which also takes in a receiver, allows a function to be called directly on a value of a given type.
+Methocs need to be associated with a type, there are also special versions of a method for traits and constraints.
+
+A methods receiver is located seperately from the parameters, as it is a special inferred parameter, which works differently than other inferred parameters.
+The receiver, unlike inferred parameters is not a compile-time parameter, but a runtime parameter. 
+It also helps as a visual aid to quickly distinguish methods.
+
+A receiver may have one of the following types:
+- `Self`
+- `&Self`
+- `&mut Self`
+- any `T` that implements `Deref(.Target = Self)`
+
+> _Todo_: `T` might need some kind of `Dispatch` trait associated with it instead of `Deref`
+
+The receiver may also be written in shorthand, which results in the following full receivers:
+shorthand  | full
+-----------|------------------
+`self`     | `self: Self`
+`&self`    | `self: &Self`
+`&mut self`| `self: &mut Self`
+
+When the `self` shorthand is used, `mut` may be added to make the value mutable.
+
+When a method is called as if it were a function, the receiver can be passed as a parameter with the `self` label.
+
+### 7.3.6. Trait functions & methods [↵](#73-function-)
+```
+```
+### 7.3.7. External & exported functions [↵](#73-function-)
+```
+<extern-fn-item>       := { <attribute> } 'extern' <string-literal> 'fn' <name> '(' <extern-fn-params> ')' [ '->' <type> ] ';'
+<extern-block-fn-item> := { <attribute> } 'fn' <name> '(' <extern-fn-params> ')' [ '->' <type> ] ';'
+
+<export-fn-item>       := { <attribute> } 'export' fn <anem> '(' <extern-fn-params> ')' [ '->' <type> ] <block>
+<export-block-fn-item> := { <attribute> } 'fn' <name> '(' <extern-fn-params> ')' [ '->' <type> ] <block>
+```
+
+There are 2 kinds of functions that allow code to interoperate with externally declared code:
+- `extern` functions can import functions from an external library
+- `export` functions can export functions for an external library to use
+
+`extern` functions are declared with the name of the external library the symbol is found it.
+The compiler will automatically add a prefix and an extension to these names.
+The prefix and extension will depend on the OS being compiled for.
+
+`export` functions on the other hand only mark the function for export, all other info is controlled by attributes.
+By default, they will be exported using the following:
+
+Both `extern` and `export` function will default to a `.C` calling convention.
+
+Extern functions are always `unsafe`, as we can't determine how they will interact with external code.
+
+Additional info can be provided by [abi, link symbol, and ffi attributes](#1715-abi-link-symbol-and-ffi-attributes-).
+
+> _Note_: To set a non-external function to use the `contextless` ABI, use the [`contextless`](#contextless) attribute.
+
+> _Todo_ Is that always necesarry, maybe markable as safe like in rust 2024
+
+### 7.3.8. Label based overloading
+
+Support for function overloading is based on labels.
+Since label names are required to be used, we can check collisions when processing the functions themselves and we don't need to worry about them when trying to resolve the symbol.
+
+First, each function will be converted to a collection of possible variants which are checked.
+Variants are produces by going over every possible combination of optional parameters, and creating an function identifier from them.
+For example, `foo(a: i32 = 0, b: i32 = 1)` would have the following variants to be checked:
+- `foo()`
+- `foo(a)`
+- `foo(b)`
+- `foo(a:b)`
+
+Then each variant will be compared to the variants of the function it is compared to.
+If a collision exists, a compiler error will be emitted.
+
+#### Examples
+
+1. Different names: **_no collision_**
+```
+fn foo() { ... } // foo()
+fn bar() { ... } // bar()
+```
+
+2. Same number of paramters with same labels: **_collision_**
+```
+fn foo() { ... } // foo()
+fn foo() { ... } // foo()
 ```
 or
 ```
-fn foo(a: i32) { ... }
-fn foo(a: f64) { ... }
+fn foo(a: i32) { ... } // foo(a:)
+fn foo(a: f64) { ... } // foo(a:)
 ```
 
-4. Overlap between func with required and func with default values: **_collision_**
+3. Overlap between func with required and func with default values: **_collision_**
+
+(0) collides with (1), since (1) has the variant `foo(a:b)`
 ```
-fn foo(a: i32, b: i32)
-fn foo(a: i32, b: i32 = 0)
+fn foo(a: i32, b: i32)     // (0) foo(a:b:)
+fn foo(a: i32, b: i32 = 0) // (1) foo(a:?b:)
+```
+or (0) collides with (1), since (0) and (1) both have `foo(a)` and `foo(a:c)` as shared variants
+```
+fn foo(a: i32,             c: i32)     // (0) foo(a:?c:)
+fn foo(a: f64, b: i32 = 0, c: i32 = 1) // (1) foo(a:?b:?c:)
+```
+
+4. Overlap between func with required and func with default values, but with a non-default left over: **_no collision_**
+
+In both examples, (0) always needs to have `d` passed, but (1) has no variant with `d`
+
+```
+fn foo(a: i32, b: i32, d: i32) // (0) foo(a:b:d:)
+fn foo(a: i32, b: i32 = 0)     // (1) foo(a:?b:)
 ```
 or
 ```
-fn foo(a: i32,             c: i32)
-fn foo(a: f64, b: i32 = 0, c: i32 = 1)
-```
-
-Overlap between func with required and func with default values, but with a non-default left over: **_no collision_**
-```
-fn foo(a: i32, b: i32, d: i32)
-fn foo(a: i32, b: i32 = 0)
-```
-or
-```
-fn foo(a: i32,             c: i32, d: i32)
-fn foo(a: f64, b: i32 = 0, c: i32 = 1)
+fn foo(a: i32,             c: i32, d: i32) // (1) foo(a:c:d:)
+fn foo(a: f64, b: i32 = 0, c: i32 = 1)     // (1) foo(a:?b:?c:)
 ```
 
 5. Any left over defaults: **_collision_**
 
+(0) collides with (1), since (1) has the variant `foo()`
 ```
-fn foo()
-fn foo(a: i32 = 0)
+fn foo()           // (0) foo()
+fn foo(a: i32 = 0) // (1) foo(?a:)
 ```
-or
+or (0) collides with (1), since (0) and (1) both have `foo(a)` and `foo(a:c)` as shared variants
 ```
-fn foo(a: i32, c: i32 = 0)
-fn foo(a: i32, c: i32 = 1)
+fn foo(a: i32, c: i32 = 0) // (0) foo(a:?c:)
+fn foo(a: i32, c: i32 = 1) // (1) foo(a:?c:)
 ```
 
 6. Both have variadics: **_collision_**
+
+> _Todo_: Correct syntax + figure out new variadics
+
 ```
-fn foo(a: i32, b: i32...)
-fn foo(a: i32, c: f64...)
+fn foo(a: i32, b: i32...) // 
+fn foo(a: i32, c: f64...) // 
 ```
 or 
 ```
@@ -2466,35 +2641,21 @@ fn foo(a: i32,             c: i32...)
 fn foo(a: i32, b: i32 = 1, c: i32...)
 ```
 
-### 7.3.4. Const function [↵](#73-function-)
+//==
+OLD
+//===================================================================================================================================================================
 
-A const function allows the function to be called at compile-time.
+> _Note_: Section below this line still need rework
 
-### 7.3.5. Method
+### 7.3.1. Parameters [↵](#73-function-)
 
 ```
-<method> := { <attribute> }* [ <vis> ] [ 'const' ] [ 'unsafe' ] 'fn' <name> [ <generic-params> ] '(' [ <receiver-param> ] [ ',' <fn-params> ] ')' [ <effects> ] [ '->' <fn-return> ] [ <where-clause> ] { <contract> }* <fn-body>
-
-<receiver-param> := <simple-receiver> | <typed-receiver>
-<simple-receiver> := [ '&' [ 'mut' ] ] 'self'
-<typed-receiver> := 'self' ':' <type>
+<variadic-param> := <name> ':' <type> '...'
 ```
 
-A method is a special type of associated function which takes a receiver, allowing a function to be called directly on a value of a given type.
-Methocs can need to be associated with a type, trait, or a constraint. The later 2 have slightly different syntaxes.
-
-The first parameter is a special receiver parameter, which indicates that this function is a method.
-The receiver has an implicit `_` label, and can be any of the following types:
-- `Self`
-- `&Self`
-- `&mut Self`
-- any `T` that implements `Deref<Target = Self>`. _TODO: might need an additional `Dispatch` bound_
-
-The receiver can also be defined as a simple receiver, which results in a receiver with the following types:
-- `self`: `self: Self`
-- `&self`: `self: &Self`
-- `&mut self`: `self: &mut Self`
-
+If a function may also be followed by a variadic parameter.
+This is a special parameter that allows any number of elements of that type to be provided.
+This will generate a generic parameter pack with a type constraint to the type given.
 
 ### 7.3.6. Trait function & method [↵](#73-function-)
 
@@ -2510,15 +2671,6 @@ If an associated function has its body defined, this definition will act as the 
 The default implementation can be provided which will be used when no explicit type alias is defined within an implementation.
 
 > _Note_: Overridden functions do not define a function with the same name for the current trait, but instead exclusively overwrites a default implementation.
-
-### 7.3.7. External function qualifier [↵](#73-function-)
-
-The `extern` qualifier on functions allows the programmer to specify the API without requiring them to put the function inside of an external block.
-
-External functions are not allowed to have generics, as this cannot be resolved from an external symbol.
-
-If an extern function does not define a body, then this is a binding to a function declared in an external library.
-If it has a body, then this is a function that gets exported so it can be used from external code.
 
 ## 7.4 Type aliases [↵](#7-items-)
 
@@ -3089,17 +3241,18 @@ The trait needs to be explicitly mentioned when trying to access to an item with
 ## 7.14. External block [↵](#7-items-)
 
 ```
-<external-block> := { <attribute> }* 'extern' [ <abi> ] '{' { <extern-static> | <extern-fn> }* '}'
+<external-block> := { <attribute> }* 'extern' <string-literal> '{' { <extern-static-item> | <extern-block-fn-item> }* '}'
 ```
 
-An external block provides declarations of items that are not defined in the current library and are used for the foreign function interface.
+An external block provides declarations of items that are defined in external code, and imports them.
+External block allows for both functions and static items to be declared.
 
-There are 2 kind of items that are allowed within an external block: functions and static items.
-Calling functions or static items that are declared in external blocks are only allowed within an unsafe context.
+All items within an external block share the same source library, defined in the block's declaration.
+The items also follow their own respective properties as defined for [external functions](#737-external--exported-functions-) and [external statics](#7103-external-statics-).
 
-More info about [external functions](#736-external-function-qualifier-) and [statics](#7103-external-statics-) can be found in their respecitive sections.
+The external block may define the default calling convention using the [`@callconv` attribute](#callconv).
 
-Any attributes applied on an external block will be directly passed onto the contained items.
+
 
 # 8. Statements [↵](#tables-of-contents)
 
@@ -7981,65 +8134,18 @@ _TODO: Add diagnostics sub-attribs_
 
 ### 17.1.5. ABI, link, symbol, and FFI attributes [↵](#171-built-in-attributes-)
 
-#### `link`
+These attribute control how `extern` and `export` items will be managed
 
-The `link` attributes specifies the name and kind of native libarary the compiler should link with for external items.
+> _Note_: To control how a specific library is linked, use either command line options or a `build.xn` script
 
-The `name` label is required when the link kind is specified.
+#### `link_prefix`
 
-The `kind` field is optional and the compile will try to automatically determine the kind of the library.
-The following kinds are supported:
-- `dynlib`: Indicated a dynamic library
-- `static`: Indicates a static library
-- `raw-dynlib`: Indicates the dynamic library where the compiler will generate an import library to link against.
-  This is the same as `dynlib` on platforms that don't required an import library (i.e. only windows).
+The `link_prefix` attribute set a common prefix for all link names whithin a block
 
-##### Modifiers
+#### `link_suffix`
 
-In addition to the `name` and `kind` values, additional modifiers may also be added to the link attributes.
-This is a comma separated list of attributes names prefixed with either a `+` or `-`, which defined whether the modifier is used.
+The `link_suffix` attribute set a common suffix for all link names whithin a block
 
-The following modifiers are supported
-- `+bundle`: This modifier is only compatible with `static`. Using this for any other kind will result in a compile error.
-
-  When building a static library, the teh `+bundle` modifier indicates that the library should be included (bundled) within the current library, and used from there when linking the final library.
-
-  When building with the `-bundle` modifier, the static library will be marked as a dependency and will by included only during linking of the final binary.
-
-- `+whole-archive`: This modifier is only compatible with `static`. Using this for any other kind will result in a compile error.
-
-  `+whole-archive` indicates that the static libary is linked as a whole archive without throwing away any code, meaning that any unreferenced code will still be in the final library
-
-- `+verbatim`: This means that the compiler tiself won't add nay target-specifed libray prefixes or suffixes (like `.lib` or .`a`) to the libary name, and will try its best to ask fo the same thing from the linker.
-
-  `-verbatim` means that the compiler will eitehr add a target-specific prefix and subbix to the libary name before passing it to the linker, or won't prevent the linker from implicitly adding it
-
-##### `dynlib` vs `raw-dynlib`
-
-On windows, linking against a dynamic library requires an import library is provided to the linker.
-This is a companion `.lib` for the `.dll` that declares all symbols exported by thee dynamic library in such a way that the linker knows that they have to be dynamically loaded at runtime.
-
-Specifying `kind = dynlib` instructs the compiler to link an import library with a name based on the dynamic library's name.
-The linker will then use its normal library resolution logic to find that import library.
-Alternatively, when specifying `kind = raw-dynlib`, the compiler is instructed to generate an import library during compile time.
-
-##### `import_name_type`
-
-On x86 windows, names of functions are"decorated' (i.e. have a specific prefix and/or suffix added) to indicate their calling convention.
-For ecample, a `stdcall` calling convention function wit the name `fn1` that has no arguments would be cdecorated as `_fn1@0`.
-However, the [PE format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#import-name-type) does also permit names to have no prefix or be undecorated.
-Additionalyy, the MSVC and GNU toolchains use different decorations for the same calling conventions which means, by default, some Win32 function cannot be called using `raw-dylib` link kind via the GNU toolchain.
-
-To allow for these differences, when using the `raw-dylib` link kind, an `import_name_type` can also be specified with one of the following values to change how functions are names in the generated import library:
-- `decorated`: The function name will be fully-decorated using the MSVC toolchain format.
-- `noprefix`: The function name will be decorated uisng the MSVC toolchain format, but skipping the leading `?`, `@`, or optionally `_`.
-- `undecorated`: The function name will not be decorated.
-
-If the `import_name_type` is not specified, then the function name will be fully-decorated using the target's toolchain.
-
-Variables are never decoreated and so the `import_type_name` attribute has no effect on how they are named in the generated import library.
-
-Like `raw-dynlib`, on platforms that don't support this, the attribute will be ignored.
 
 #### `link_name`
 
@@ -8050,9 +8156,9 @@ The `link_name` attribute is used to specify the link name of an external functi
 The `link_ordinal` can be used to specify the numeric ordinal of an external function or static.
 The ordinal is a unique number identifying a symbol exported by a dynamic library on windows and can be used when the library is being loaded to find that symbol rather than having to look it up by name.
 
-> **Warning**: The `link_ordinal` should only be used in cases where the oridnal of the symbol is stable: if the ordinal of a symbol is not explicitly set when its containing binary is built, then one will automitically be assigned to it, and tha tassigned oridinal may change between build of the binary.
+> _Warning_: The `link_ordinal` should only be used in cases where the ordinal of the symbol is stable: if the ordinal of a symbol is not explicitly set when its containing binary is built, then one will automitically be assigned to it, and that assigned oridinal may change between builds of the binary.
 
-This attribute can only be used with the `raw-dynlib` kind, and will otherwise be ignored.
+> _Note_: Not all libraries support ordinals
 
 #### `repr`
 
@@ -8064,7 +8170,7 @@ The `export_name` attribute specifies the name of the symbol that will be export
 
 #### `link_section`
 
-The `link_section` attribute specifies the section of hte object file that a function of static's conetent will be placed into
+The `link_section` attribute specifies the section of the object file that a function of static's content will be placed into.
 
 #### `no_mangle`
 
@@ -8073,8 +8179,17 @@ The `no_mangle` attribute disables name mangling and will output a symbol with t
 #### `used`
 
 The `used` attribute can only be applied to static items.
-This attribute is used to keep the variable in the output object file, even if the variable is not used or refernced by any other item inside the library.
-However, the linker is still fee to remove such an item.
+This attribute is used to keep the variable in the output object file, even if the variable is not used or referenced by any other item inside the library.
+However, the linker is still free to remove such an item.
+
+#### `callconv`
+
+The `callconv` attribute defined which calling convention a function will use when called.
+
+#### `contextless`
+
+The `contextless` attribute defines a function as running without access to the implicit context, maning that it will use the `contextless` ABI without having to be declared as [`extern` or `export`](#737-external-functions).
+This means that this also can be applied on [methods](#735-method-).
 
 ### 17.1.6. Code generation attributes [↵](#171-built-in-attributes-)
 
